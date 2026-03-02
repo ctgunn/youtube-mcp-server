@@ -28,6 +28,15 @@ class EnvelopeContractTests(unittest.TestCase):
         self.assertNotIn("Traceback", response["error"]["message"])
         self.assertEqual(response["error"]["details"], {"k": "v"})
 
+    def test_error_response_allows_tool_detail_payload(self):
+        response = error_response(
+            "RESOURCE_NOT_FOUND",
+            "Tool not found.",
+            request_id="req-3",
+            details={"toolName": "missing"},
+        )
+        self.assertEqual(response["error"]["details"], {"toolName": "missing"})
+
 
 if __name__ == "__main__":
     unittest.main()

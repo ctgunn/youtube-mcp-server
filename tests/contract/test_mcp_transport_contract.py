@@ -5,6 +5,8 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
+from mcp_server.tools.dispatcher import InMemoryToolDispatcher
+from mcp_server.transport.http import MCPHTTPTransport
 
 
 class MCPTransportContractTests(unittest.TestCase):
@@ -52,6 +54,27 @@ class MCPTransportContractTests(unittest.TestCase):
         fail_response = self.app.handle("/mcp", fail_payload)
         self.assertFalse(fail_response["success"])
         self.assertEqual(fail_response["error"]["code"], "RESOURCE_NOT_FOUND")
+        self.assertEqual(fail_response["error"]["details"], {"toolName": "missing"})
+
+    def test_tools_call_invalid_arguments_contract(self):
+        dispatcher = InMemoryToolDispatcher(tools=[])
+        dispatcher.register_tool(
+            name="strict",
+            description="Strict",
+            input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+            handler=lambda _: {"ok": True},
+        )
+        app = MCPHTTPTransport(dispatcher=dispatcher)
+
+        payload = {
+            "id": "req-c6",
+            "method": "tools/call",
+            "params": {"toolName": "strict", "arguments": {"unexpected": "x"}},
+        }
+        response = app.handle("/mcp", payload)
+        self.assertFalse(response["success"])
+        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertIn("unsupported field", response["error"]["message"])
 
 
 if __name__ == "__main__":
