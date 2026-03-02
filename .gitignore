@@ -220,4 +220,4 @@ Thumbs.db
 **/.codex/sessions/
 **/.codex/state_*.sqlite*
 **/.codex/tmp/
-**/.codex/shell_snapshots/
+**/.codex/shell_snapshots/*
