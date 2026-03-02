@@ -10,8 +10,8 @@ from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 class MCPHTTPTransport:
     """Simple transport wrapper exposing /mcp request handling."""
 
-    def __init__(self, dispatcher=None):
-        self.dispatcher = dispatcher or InMemoryToolDispatcher()
+    def __init__(self, dispatcher=None, server_metadata=None):
+        self.dispatcher = dispatcher or InMemoryToolDispatcher(server_metadata=server_metadata)
 
     def handle(self, path: str, payload: dict) -> dict:
         if path != "/mcp":

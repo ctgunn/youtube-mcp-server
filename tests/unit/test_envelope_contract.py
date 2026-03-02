@@ -5,6 +5,8 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.protocol.envelope import error_response, success_response
+from mcp_server.protocol.methods import route_mcp_request
+from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 
 
 class EnvelopeContractTests(unittest.TestCase):
@@ -36,6 +38,36 @@ class EnvelopeContractTests(unittest.TestCase):
             details={"toolName": "missing"},
         )
         self.assertEqual(response["error"]["details"], {"toolName": "missing"})
+
+    def test_baseline_tool_responses_keep_envelope_shape(self):
+        dispatcher = InMemoryToolDispatcher()
+        success = route_mcp_request(
+            {
+                "id": "req-4",
+                "method": "tools/call",
+                "params": {"toolName": "server_ping", "arguments": {}},
+            },
+            dispatcher,
+        )
+        failure = route_mcp_request(
+            {
+                "id": "req-5",
+                "method": "tools/call",
+                "params": {"toolName": "missing", "arguments": {}},
+            },
+            dispatcher,
+        )
+
+        self.assertTrue(success["success"])
+        self.assertIn("data", success)
+        self.assertIn("meta", success)
+        self.assertIn("error", success)
+        self.assertIsNone(success["error"])
+
+        self.assertFalse(failure["success"])
+        self.assertIsNone(failure["data"])
+        self.assertIn("meta", failure)
+        self.assertIn("error", failure)
 
 
 if __name__ == "__main__":

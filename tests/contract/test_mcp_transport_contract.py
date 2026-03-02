@@ -55,6 +55,38 @@ class MCPTransportContractTests(unittest.TestCase):
         self.assertFalse(fail_response["success"])
         self.assertEqual(fail_response["error"]["code"], "RESOURCE_NOT_FOUND")
         self.assertEqual(fail_response["error"]["details"], {"toolName": "missing"})
+        self.assertEqual(success_response["data"]["result"]["status"], "ok")
+        self.assertIn("timestamp", success_response["data"]["result"])
+
+    def test_server_info_contract(self):
+        payload = {
+            "id": "req-c-info",
+            "method": "tools/call",
+            "params": {"toolName": "server_info", "arguments": {}},
+        }
+        response = self.app.handle("/mcp", payload)
+        self.assertTrue(response["success"])
+        result = response["data"]["result"]
+        self.assertIn("version", result)
+        self.assertIn("environment", result)
+        self.assertIn("build", result)
+        self.assertIn("buildId", result["build"])
+        self.assertIn("commit", result["build"])
+        self.assertIn("buildTime", result["build"])
+
+    def test_server_list_tools_contract(self):
+        payload = {
+            "id": "req-c-listtools",
+            "method": "tools/call",
+            "params": {"toolName": "server_list_tools", "arguments": {}},
+        }
+        response = self.app.handle("/mcp", payload)
+        self.assertTrue(response["success"])
+        entries = response["data"]["result"]
+        names = [entry["name"] for entry in entries]
+        self.assertIn("server_ping", names)
+        self.assertIn("server_info", names)
+        self.assertIn("server_list_tools", names)
 
     def test_tools_call_invalid_arguments_contract(self):
         dispatcher = InMemoryToolDispatcher(tools=[])

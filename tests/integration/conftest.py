@@ -11,3 +11,14 @@ def make_app_with_dispatcher(dispatcher=None):
     if dispatcher is None:
         return create_app()
     return MCPHTTPTransport(dispatcher=dispatcher)
+
+
+def build_tool_call_payload(request_id, tool_name, arguments=None):
+    return {
+        "id": request_id,
+        "method": "tools/call",
+        "params": {
+            "toolName": tool_name,
+            "arguments": arguments or {},
+        },
+    }
