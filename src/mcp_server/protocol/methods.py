@@ -5,6 +5,9 @@ from __future__ import annotations
 from mcp_server.protocol.envelope import error_response, success_response
 
 
+UNKNOWN_TOOL_MESSAGE = "Tool not found."
+
+
 def _validate_payload(payload):
     if not isinstance(payload, dict):
         return False, None, None, error_response("INVALID_ARGUMENT", "payload must be an object")
@@ -21,6 +24,26 @@ def _validate_payload(payload):
             "INVALID_ARGUMENT", "params must be an object", request_id=request_id
         )
     return True, request_id, (method, params), None
+
+
+def _parse_call_params(request_id, params):
+    tool_name = params.get("toolName")
+    if not isinstance(tool_name, str) or not tool_name.strip():
+        return None, None, error_response(
+            "INVALID_ARGUMENT",
+            "toolName is required",
+            request_id=request_id,
+        )
+
+    arguments = params.get("arguments", {})
+    if not isinstance(arguments, dict):
+        return None, None, error_response(
+            "INVALID_ARGUMENT",
+            "arguments must be an object",
+            request_id=request_id,
+        )
+
+    return tool_name, arguments, None
 
 
 def _handle_initialize(request_id, params):
@@ -46,28 +69,16 @@ def _handle_list(request_id, _params, dispatcher):
 
 
 def _handle_call(request_id, params, dispatcher):
-    tool_name = params.get("toolName")
-    if not isinstance(tool_name, str) or not tool_name.strip():
-        return error_response(
-            "INVALID_ARGUMENT",
-            "toolName is required",
-            request_id=request_id,
-        )
-
-    arguments = params.get("arguments", {})
-    if not isinstance(arguments, dict):
-        return error_response(
-            "INVALID_ARGUMENT",
-            "arguments must be an object",
-            request_id=request_id,
-        )
+    tool_name, arguments, validation_error = _parse_call_params(request_id, params)
+    if validation_error:
+        return validation_error
 
     try:
         result = dispatcher.call_tool(tool_name, arguments)
     except KeyError:
         return error_response(
             "RESOURCE_NOT_FOUND",
-            "Tool not found.",
+            UNKNOWN_TOOL_MESSAGE,
             request_id=request_id,
             details={"toolName": tool_name},
         )

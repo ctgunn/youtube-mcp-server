@@ -25,6 +25,24 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertFalse(response["success"])
         self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
 
+    def test_registered_tool_dispatch_success(self):
+        dispatcher = InMemoryToolDispatcher(tools=[])
+        dispatcher.register_tool(
+            name="echo",
+            description="Echo",
+            input_schema={"type": "object", "properties": {"value": {"type": "string"}}, "additionalProperties": False},
+            handler=lambda arguments: {"value": arguments.get("value", "")},
+        )
+        payload = {
+            "id": "req-3",
+            "method": "tools/call",
+            "params": {"toolName": "echo", "arguments": {"value": "ok"}},
+        }
+        response = route_mcp_request(payload, dispatcher)
+        self.assertTrue(response["success"])
+        self.assertEqual(response["data"]["toolName"], "echo")
+        self.assertEqual(response["data"]["result"]["value"], "ok")
+
 
 if __name__ == "__main__":
     unittest.main()

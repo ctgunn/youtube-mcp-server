@@ -18,11 +18,31 @@ class ListToolsMethodTests(unittest.TestCase):
         self.assertIn("name", response["data"][0])
 
     def test_list_tools_with_empty_registry(self):
-        dispatcher = InMemoryToolDispatcher(tools={})
+        dispatcher = InMemoryToolDispatcher(tools=[])
         payload = {"id": "req-list-empty", "method": "tools/list", "params": {}}
         response = route_mcp_request(payload, dispatcher)
         self.assertTrue(response["success"])
         self.assertEqual(response["data"], [])
+
+    def test_list_tools_is_deterministic(self):
+        dispatcher = InMemoryToolDispatcher(tools=[])
+        dispatcher.register_tool(
+            name="Zulu",
+            description="z",
+            input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+            handler=lambda _: {"name": "z"},
+        )
+        dispatcher.register_tool(
+            name="alpha",
+            description="a",
+            input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+            handler=lambda _: {"name": "a"},
+        )
+
+        payload = {"id": "req-list-order", "method": "tools/list", "params": {}}
+        response = route_mcp_request(payload, dispatcher)
+        self.assertTrue(response["success"])
+        self.assertEqual([item["name"] for item in response["data"]], ["alpha", "Zulu"])
 
 
 if __name__ == "__main__":

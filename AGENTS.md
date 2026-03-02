@@ -3,6 +3,7 @@
 Auto-generated from all feature plans. Last updated: 2026-03-01
 
 ## Active Technologies
+- In-memory registry state (no persistent storage in this slice) (002-tool-registry-dispatcher)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -23,6 +24,7 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 002-tool-registry-dispatcher: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn
 
 - 001-mcp-transport-handshake: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn
 

@@ -221,3 +221,4 @@ Thumbs.db
 **/.codex/state_*.sqlite*
 **/.codex/tmp/
 **/.codex/shell_snapshots/*
+**/.codex/models_cache.json
