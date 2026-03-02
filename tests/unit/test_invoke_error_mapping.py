@@ -18,6 +18,7 @@ class InvokeErrorMappingTests(unittest.TestCase):
         response = route_mcp_request(payload, InMemoryToolDispatcher())
         self.assertFalse(response["success"])
         self.assertEqual(response["error"]["code"], "RESOURCE_NOT_FOUND")
+        self.assertEqual(response["error"]["details"], {"toolName": "unknown_tool"})
 
     def test_invalid_arguments_type_returns_invalid_argument(self):
         payload = {
@@ -28,6 +29,24 @@ class InvokeErrorMappingTests(unittest.TestCase):
         response = route_mcp_request(payload, InMemoryToolDispatcher())
         self.assertFalse(response["success"])
         self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+
+    def test_invalid_arguments_against_contract_returns_invalid_argument(self):
+        dispatcher = InMemoryToolDispatcher(tools=[])
+        dispatcher.register_tool(
+            name="strict",
+            description="Strict tool",
+            input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+            handler=lambda _: {"ok": True},
+        )
+        payload = {
+            "id": "req-call-3",
+            "method": "tools/call",
+            "params": {"toolName": "strict", "arguments": {"extra": "x"}},
+        }
+        response = route_mcp_request(payload, dispatcher)
+        self.assertFalse(response["success"])
+        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertIn("unsupported field", response["error"]["message"])
 
 
 if __name__ == "__main__":
