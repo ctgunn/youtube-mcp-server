@@ -35,6 +35,95 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         call_resp = app.handle("/mcp", call_payload)
         self.assertTrue(call_resp["success"])
         self.assertEqual(call_resp["data"]["result"]["status"], "ok")
+        self.assertIn("timestamp", call_resp["data"]["result"])
+
+    def test_server_ping_repeated_invocations_are_stable(self):
+        app = create_app()
+        payload = {
+            "id": "req-r1",
+            "method": "tools/call",
+            "params": {"toolName": "server_ping", "arguments": {}},
+        }
+        first = app.handle("/mcp", payload)
+        second = app.handle("/mcp", payload | {"id": "req-r2"})
+        self.assertTrue(first["success"])
+        self.assertTrue(second["success"])
+        self.assertEqual(first["data"]["result"]["status"], "ok")
+        self.assertEqual(second["data"]["result"]["status"], "ok")
+        self.assertIsInstance(first["data"]["result"]["timestamp"], str)
+        self.assertIsInstance(second["data"]["result"]["timestamp"], str)
+
+    def test_server_info_configured_and_fallback(self):
+        configured = MCPHTTPTransport(
+            server_metadata={
+                "version": "9.9.9",
+                "environment": "staging",
+                "build": {"buildId": "b-1", "commit": "abc", "buildTime": "2026-03-02T00:00:00Z"},
+            }
+        )
+        configured_resp = configured.handle(
+            "/mcp",
+            {
+                "id": "req-i-info-1",
+                "method": "tools/call",
+                "params": {"toolName": "server_info", "arguments": {}},
+            },
+        )
+        self.assertTrue(configured_resp["success"])
+        self.assertEqual(configured_resp["data"]["result"]["version"], "9.9.9")
+        self.assertEqual(configured_resp["data"]["result"]["environment"], "staging")
+        self.assertEqual(configured_resp["data"]["result"]["build"]["buildId"], "b-1")
+
+        fallback = MCPHTTPTransport(server_metadata={"version": "1.0.0"})
+        fallback_resp = fallback.handle(
+            "/mcp",
+            {
+                "id": "req-i-info-2",
+                "method": "tools/call",
+                "params": {"toolName": "server_info", "arguments": {}},
+            },
+        )
+        self.assertTrue(fallback_resp["success"])
+        self.assertEqual(fallback_resp["data"]["result"]["version"], "1.0.0")
+        self.assertEqual(fallback_resp["data"]["result"]["environment"], "dev")
+        self.assertEqual(fallback_resp["data"]["result"]["build"]["buildId"], "local")
+
+    def test_server_list_tools_reflects_dynamic_registry(self):
+        dispatcher = InMemoryToolDispatcher()
+        app = MCPHTTPTransport(dispatcher=dispatcher)
+
+        baseline = app.handle(
+            "/mcp",
+            {
+                "id": "req-i-list-1",
+                "method": "tools/call",
+                "params": {"toolName": "server_list_tools", "arguments": {}},
+            },
+        )
+        self.assertTrue(baseline["success"])
+        baseline_names = [entry["name"] for entry in baseline["data"]["result"]]
+        self.assertIn("server_ping", baseline_names)
+        self.assertIn("server_info", baseline_names)
+        self.assertIn("server_list_tools", baseline_names)
+
+        dispatcher.register_tool(
+            name="extra_tool",
+            description="extra",
+            input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+            handler=lambda _: {"ok": True},
+        )
+
+        updated = app.handle(
+            "/mcp",
+            {
+                "id": "req-i-list-2",
+                "method": "tools/call",
+                "params": {"toolName": "server_list_tools", "arguments": {}},
+            },
+        )
+        self.assertTrue(updated["success"])
+        updated_names = [entry["name"] for entry in updated["data"]["result"]]
+        self.assertIn("extra_tool", updated_names)
 
     def test_register_list_call_happy_path(self):
         dispatcher = InMemoryToolDispatcher(tools=[])

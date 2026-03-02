@@ -43,6 +43,15 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertEqual(response["data"]["toolName"], "echo")
         self.assertEqual(response["data"]["result"]["value"], "ok")
 
+    def test_baseline_tools_are_discoverable(self):
+        payload = {"id": "req-4", "method": "tools/list", "params": {}}
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertTrue(response["success"])
+        names = [item["name"] for item in response["data"]]
+        self.assertIn("server_ping", names)
+        self.assertIn("server_info", names)
+        self.assertIn("server_list_tools", names)
+
 
 if __name__ == "__main__":
     unittest.main()

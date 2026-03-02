@@ -5,6 +5,40 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+BASELINE_TOOL_SCHEMAS = {
+    "server_ping": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+    },
+    "server_info": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+    },
+    "server_list_tools": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+    },
+}
+
+BASELINE_TOOL_DESCRIPTIONS = {
+    "server_ping": "Return service status and timestamp",
+    "server_info": "Return server version, environment, and build metadata",
+    "server_list_tools": "Return currently registered tool names and descriptions",
+}
+
+DEFAULT_SERVER_METADATA = {
+    "version": "0.1.0",
+    "environment": "dev",
+    "build": {
+        "buildId": "local",
+        "commit": "unknown",
+        "buildTime": "unknown",
+    },
+}
+
 
 class ToolRegistrationError(ValueError):
     """Raised when tool registration payload is invalid."""
@@ -21,23 +55,11 @@ def normalize_tool_name(name: str) -> str:
 
 
 class InMemoryToolDispatcher:
-    def __init__(self, tools=None):
+    def __init__(self, tools=None, server_metadata=None):
         self._tools: dict[str, dict[str, Any]] = {}
+        self._server_metadata = self._normalize_server_metadata(server_metadata)
 
-        default_tools = [
-            {
-                "name": "server_ping",
-                "description": "Return service status and timestamp",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": False,
-                },
-                "handler": self._server_ping,
-            }
-        ]
-
-        initial_tools = tools if tools is not None else default_tools
+        initial_tools = tools if tools is not None else self._baseline_tool_definitions()
 
         if isinstance(initial_tools, dict):
             # Backward-compatible bootstrap for {name: {description, handler}}.
@@ -91,6 +113,42 @@ class InMemoryToolDispatcher:
             )
         return items
 
+    def _baseline_tool_definitions(self):
+        return [
+            {
+                "name": "server_ping",
+                "description": BASELINE_TOOL_DESCRIPTIONS["server_ping"],
+                "inputSchema": BASELINE_TOOL_SCHEMAS["server_ping"],
+                "handler": self._server_ping,
+            },
+            {
+                "name": "server_info",
+                "description": BASELINE_TOOL_DESCRIPTIONS["server_info"],
+                "inputSchema": BASELINE_TOOL_SCHEMAS["server_info"],
+                "handler": self._server_info,
+            },
+            {
+                "name": "server_list_tools",
+                "description": BASELINE_TOOL_DESCRIPTIONS["server_list_tools"],
+                "inputSchema": BASELINE_TOOL_SCHEMAS["server_list_tools"],
+                "handler": self._server_list_tools,
+            },
+        ]
+
+    def _normalize_server_metadata(self, server_metadata):
+        metadata = server_metadata or {}
+        build = metadata.get("build") if isinstance(metadata.get("build"), dict) else {}
+        return {
+            "version": metadata.get("version") or DEFAULT_SERVER_METADATA["version"],
+            "environment": metadata.get("environment") or DEFAULT_SERVER_METADATA["environment"],
+            "build": {
+                "buildId": build.get("buildId") or DEFAULT_SERVER_METADATA["build"]["buildId"],
+                "commit": build.get("commit") or DEFAULT_SERVER_METADATA["build"]["commit"],
+                "buildTime": build.get("buildTime")
+                or DEFAULT_SERVER_METADATA["build"]["buildTime"],
+            },
+        }
+
     def _validate_arguments(self, schema: dict, arguments: dict):
         schema_type = schema.get("type")
         if schema_type == "object" and not isinstance(arguments, dict):
@@ -130,8 +188,21 @@ class InMemoryToolDispatcher:
         self._validate_arguments(entry.get("inputSchema", {}), arguments)
         return handler(arguments)
 
-    def _server_ping(self, _arguments):
+    def _server_ping_payload(self):
         return {
             "status": "ok",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
+    def _server_ping(self, _arguments):
+        return self._server_ping_payload()
+
+    def _server_info(self, _arguments):
+        return {
+            "version": self._server_metadata["version"],
+            "environment": self._server_metadata["environment"],
+            "build": self._server_metadata["build"].copy(),
+        }
+
+    def _server_list_tools(self, _arguments):
+        return self.list_tools()
