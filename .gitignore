@@ -214,7 +214,7 @@ Thumbs.db
 .vscode
 .idea/
 
- # Codex runtime/local state
+# Codex runtime/local state
 **/.codex/auth.json
 **/.codex/history.jsonl
 **/.codex/sessions/
@@ -222,3 +222,8 @@ Thumbs.db
 **/.codex/tmp/
 **/.codex/shell_snapshots/*
 **/.codex/models_cache.json
+**/.codex/log/
+**/.codex/config.toml
+**/.codex/version.json
+**/.codex/.personality_migration
+**/.codex/skills/

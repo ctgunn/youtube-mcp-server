@@ -44,6 +44,24 @@ class ListToolsMethodTests(unittest.TestCase):
         self.assertTrue(response["success"])
         self.assertEqual([item["name"] for item in response["data"]], ["alpha", "Zulu"])
 
+    def test_server_list_tools_matches_tools_list_descriptors(self):
+        dispatcher = InMemoryToolDispatcher()
+        list_response = route_mcp_request(
+            {"id": "req-list-1", "method": "tools/list", "params": {}},
+            dispatcher,
+        )
+        call_response = route_mcp_request(
+            {
+                "id": "req-list-2",
+                "method": "tools/call",
+                "params": {"toolName": "server_list_tools", "arguments": {}},
+            },
+            dispatcher,
+        )
+        self.assertTrue(list_response["success"])
+        self.assertTrue(call_response["success"])
+        self.assertEqual(call_response["data"]["result"], list_response["data"])
+
 
 if __name__ == "__main__":
     unittest.main()
