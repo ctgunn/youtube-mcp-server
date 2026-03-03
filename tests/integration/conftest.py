@@ -9,6 +9,7 @@ from mcp_server.transport.http import MCPHTTPTransport
 
 def make_app_with_dispatcher(dispatcher=None):
     if dispatcher is None:
+        os.environ["MCP_ENVIRONMENT"] = "dev"
         return create_app()
     return MCPHTTPTransport(dispatcher=dispatcher)
 
