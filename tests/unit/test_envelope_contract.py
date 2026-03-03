@@ -39,6 +39,17 @@ class EnvelopeContractTests(unittest.TestCase):
         )
         self.assertEqual(response["error"]["details"], {"toolName": "missing"})
 
+    def test_error_response_does_not_expose_secret_values(self):
+        response = error_response(
+            "CONFIG_VALIDATION_ERROR",
+            "missing required secret",
+            request_id="req-secret",
+            details={"profile": "prod", "failures": [{"key": "YOUTUBE_API_KEY", "reason": "missing required secret"}]},
+        )
+        rendered = str(response)
+        self.assertIn("YOUTUBE_API_KEY", rendered)
+        self.assertNotIn("secret-value", rendered)
+
     def test_baseline_tool_responses_keep_envelope_shape(self):
         dispatcher = InMemoryToolDispatcher()
         success = route_mcp_request(
