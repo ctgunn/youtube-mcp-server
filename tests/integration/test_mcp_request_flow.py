@@ -11,6 +11,7 @@ from mcp_server.transport.http import MCPHTTPTransport
 
 class MCPRequestFlowIntegrationTests(unittest.TestCase):
     def test_initialize_list_call_sequence(self):
+        os.environ["MCP_ENVIRONMENT"] = "dev"
         app = create_app()
 
         init_payload = {
@@ -38,6 +39,7 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         self.assertIn("timestamp", call_resp["data"]["result"])
 
     def test_server_ping_repeated_invocations_are_stable(self):
+        os.environ["MCP_ENVIRONMENT"] = "dev"
         app = create_app()
         payload = {
             "id": "req-r1",
