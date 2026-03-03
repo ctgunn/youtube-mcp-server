@@ -11,6 +11,7 @@ from mcp_server.transport.http import MCPHTTPTransport
 
 class MCPTransportContractTests(unittest.TestCase):
     def setUp(self):
+        os.environ["MCP_ENVIRONMENT"] = "dev"
         self.app = create_app()
 
     def test_initialize_contract_success(self):
