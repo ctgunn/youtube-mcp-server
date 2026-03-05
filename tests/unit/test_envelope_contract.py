@@ -50,6 +50,11 @@ class EnvelopeContractTests(unittest.TestCase):
         self.assertIn("YOUTUBE_API_KEY", rendered)
         self.assertNotIn("secret-value", rendered)
 
+    def test_error_response_always_contains_code_message_details_keys(self):
+        response = error_response("INVALID_ARGUMENT", "bad request")
+        self.assertEqual(set(response["error"].keys()), {"code", "message", "details"})
+        self.assertIsNone(response["error"]["details"])
+
     def test_baseline_tool_responses_keep_envelope_shape(self):
         dispatcher = InMemoryToolDispatcher()
         success = route_mcp_request(
