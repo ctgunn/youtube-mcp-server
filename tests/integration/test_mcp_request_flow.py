@@ -181,6 +181,27 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         self.assertEqual(response["error"]["details"], {"toolName": "missing"})
         self.assertFalse(called["value"])
 
+    def test_tool_call_logs_include_latency_and_status(self):
+        os.environ["MCP_ENVIRONMENT"] = "dev"
+        app = create_app()
+        response = app.handle(
+            "/mcp",
+            {
+                "id": "req-i-log-1",
+                "method": "tools/call",
+                "params": {"toolName": "server_ping", "arguments": {}},
+            },
+        )
+        self.assertTrue(response["success"])
+
+        logs = app.observability.logs
+        event = logs[-1]
+        self.assertEqual(event["requestId"], "req-i-log-1")
+        self.assertEqual(event["path"], "/mcp")
+        self.assertEqual(event["toolName"], "server_ping")
+        self.assertEqual(event["status"], "success")
+        self.assertGreaterEqual(event["latencyMs"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

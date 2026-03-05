@@ -109,6 +109,12 @@ class MCPTransportContractTests(unittest.TestCase):
         self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
         self.assertIn("unsupported field", response["error"]["message"])
 
+    def test_generated_request_id_when_payload_id_missing(self):
+        payload = {"method": "tools/list", "params": {}}
+        response = self.app.handle("/mcp", payload)
+        self.assertTrue(response["success"])
+        self.assertTrue(response["meta"]["requestId"].startswith("req-"))
+
 
 if __name__ == "__main__":
     unittest.main()
