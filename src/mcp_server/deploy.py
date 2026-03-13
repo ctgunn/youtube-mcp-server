@@ -1,0 +1,324 @@
+"""Deployment planning and hosted verification helpers for FND-006."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Callable, Mapping
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _clean_env_value(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+@dataclass(frozen=True)
+class DeploymentInputSet:
+    """Validated input set required to create a hosted revision."""
+
+    environment: str
+    service_name: str
+    image_reference: str
+    runtime_identity: str
+    region: str
+    project_id: str
+    secret_references: tuple[str, ...]
+    config_values: Mapping[str, str]
+    min_instances: int
+    max_instances: int
+    concurrency: int
+    timeout_seconds: int
+
+    def validate(self) -> list[str]:
+        failures: list[str] = []
+        if self.environment not in {"dev", "staging", "prod"}:
+            failures.append("environment must be one of dev, staging, prod")
+        if not self.service_name.strip():
+            failures.append("service_name is required")
+        if not self.image_reference.strip():
+            failures.append("image_reference is required")
+        if not self.runtime_identity.strip():
+            failures.append("runtime_identity is required")
+        if not self.region.strip():
+            failures.append("region is required")
+        if not self.project_id.strip():
+            failures.append("project_id is required")
+        if self.min_instances < 0:
+            failures.append("min_instances must be >= 0")
+        if self.max_instances < self.min_instances:
+            failures.append("max_instances must be >= min_instances")
+        if self.concurrency <= 0:
+            failures.append("concurrency must be > 0")
+        if self.timeout_seconds <= 0:
+            failures.append("timeout_seconds must be > 0")
+        required_config = {"MCP_ENVIRONMENT"}
+        missing_config = sorted(key for key in required_config if not _clean_env_value(self.config_values.get(key)))
+        if missing_config:
+            failures.append(f"missing required config values: {', '.join(missing_config)}")
+        if self.environment in {"staging", "prod"} and "YOUTUBE_API_KEY" not in self.secret_references:
+            failures.append("YOUTUBE_API_KEY secret reference is required for staging and prod")
+        return failures
+
+
+def deployment_input_from_mapping(values: Mapping[str, object]) -> DeploymentInputSet:
+    """Build a deployment input set from shell-like values."""
+
+    secret_refs = tuple(
+        entry.strip()
+        for entry in str(values.get("SECRET_REFERENCES", "")).split(",")
+        if entry.strip()
+    )
+    config_values = {
+        "MCP_ENVIRONMENT": str(values.get("MCP_ENVIRONMENT", "")).strip(),
+        "MCP_SERVER_VERSION": str(values.get("MCP_SERVER_VERSION", "0.1.0")).strip() or "0.1.0",
+        "MCP_BUILD_ID": str(values.get("MCP_BUILD_ID", "local")).strip() or "local",
+        "MCP_BUILD_COMMIT": str(values.get("MCP_BUILD_COMMIT", "unknown")).strip() or "unknown",
+        "MCP_BUILD_TIME": str(values.get("MCP_BUILD_TIME", "unknown")).strip() or "unknown",
+    }
+    return DeploymentInputSet(
+        environment=str(values.get("MCP_ENVIRONMENT", "")).strip(),
+        service_name=str(values.get("SERVICE_NAME", "")).strip(),
+        image_reference=str(values.get("IMAGE_REFERENCE", "")).strip(),
+        runtime_identity=str(values.get("SERVICE_ACCOUNT_EMAIL", "")).strip(),
+        region=str(values.get("REGION", "")).strip(),
+        project_id=str(values.get("PROJECT_ID", "")).strip(),
+        secret_references=secret_refs,
+        config_values=config_values,
+        min_instances=int(values.get("MIN_INSTANCES", 0)),
+        max_instances=int(values.get("MAX_INSTANCES", 1)),
+        concurrency=int(values.get("CONCURRENCY", 80)),
+        timeout_seconds=int(values.get("TIMEOUT_SECONDS", 300)),
+    )
+
+
+def build_deploy_command(settings: DeploymentInputSet) -> list[str]:
+    """Build the deploy command after validating the input set."""
+
+    failures = settings.validate()
+    if failures:
+        raise ValueError("; ".join(failures))
+
+    env_vars = ",".join(f"{key}={value}" for key, value in sorted(settings.config_values.items()))
+    secret_args = ",".join(f"{name}={name}:latest" for name in settings.secret_references)
+    command = [
+        "gcloud",
+        "run",
+        "deploy",
+        settings.service_name,
+        "--image",
+        settings.image_reference,
+        "--region",
+        settings.region,
+        "--project",
+        settings.project_id,
+        "--service-account",
+        settings.runtime_identity,
+        "--min-instances",
+        str(settings.min_instances),
+        "--max-instances",
+        str(settings.max_instances),
+        "--concurrency",
+        str(settings.concurrency),
+        "--timeout",
+        str(settings.timeout_seconds),
+        "--set-env-vars",
+        env_vars,
+    ]
+    if secret_args:
+        command.extend(["--set-secrets", secret_args])
+    return command
+
+
+@dataclass(frozen=True)
+class HostedRevisionRecord:
+    revision_name: str
+    service_name: str
+    deployment_timestamp: str
+    endpoint_url: str
+    runtime_identity: str
+    scaling_settings: Mapping[str, int]
+    timeout_seconds: int
+    status: str
+
+
+@dataclass(frozen=True)
+class VerificationCheckResult:
+    check_name: str
+    endpoint_url: str
+    executed_at: str
+    result: str
+    summary: str
+    status_code: int | None = None
+    evidence_location: str | None = None
+
+
+@dataclass(frozen=True)
+class HostedVerificationRun:
+    revision_name: str
+    started_at: str
+    completed_at: str | None
+    overall_result: str
+    checks: tuple[VerificationCheckResult, ...]
+
+
+def serialize_verification_run(run: HostedVerificationRun) -> dict:
+    return {
+        "revisionName": run.revision_name,
+        "startedAt": run.started_at,
+        "completedAt": run.completed_at,
+        "overallResult": run.overall_result,
+        "checks": [
+            {
+                "checkName": item.check_name,
+                "endpointUrl": item.endpoint_url,
+                "executedAt": item.executed_at,
+                "result": item.result,
+                "summary": item.summary,
+                "statusCode": item.status_code,
+                "evidenceLocation": item.evidence_location,
+            }
+            for item in run.checks
+        ],
+    }
+
+
+Requester = Callable[[str, object], dict]
+
+
+def run_hosted_verification(
+    revision: HostedRevisionRecord,
+    requester: Requester,
+    evidence_path: str | None = None,
+    baseline_tool_name: str = "server_ping",
+) -> HostedVerificationRun:
+    """Run hosted verification in the required order."""
+
+    started_at = _now_iso()
+    checks: list[VerificationCheckResult] = []
+
+    remediation = {
+        "liveness": "Inspect the deployed revision startup logs and confirm the container is listening on the expected port.",
+        "readiness": "Review runtime configuration and secret injection, then redeploy or re-run verification.",
+        "initialize": "Confirm the hosted MCP endpoint is reachable and the initialize method is still supported.",
+        "list-tools": "Confirm the hosted registry includes the baseline tools before re-running verification.",
+        "baseline-tool-call": "Inspect hosted tool dispatch logs and baseline tool registration before re-running verification.",
+    }
+    stage = {
+        "liveness": "deployment-time",
+        "readiness": "readiness-time",
+        "initialize": "MCP-time",
+        "list-tools": "MCP-time",
+        "baseline-tool-call": "MCP-time",
+    }
+
+    def _append(check_name: str, payload: dict, expected: Callable[[dict], bool], summary: str) -> bool:
+        ok = expected(payload)
+        result_summary = summary
+        if not ok:
+            result_summary = f"{stage[check_name]} failure during {check_name}. {remediation[check_name]}"
+        checks.append(
+            VerificationCheckResult(
+                check_name=check_name,
+                endpoint_url=revision.endpoint_url,
+                executed_at=_now_iso(),
+                result="pass" if ok else "fail",
+                summary=result_summary,
+                status_code=payload.get("statusCode"),
+                evidence_location=evidence_path,
+            )
+        )
+        return ok
+
+    health_payload = requester("/healthz", {})
+    if not _append(
+        "liveness",
+        health_payload,
+        lambda payload: payload.get("status") == "ok",
+        "Hosted liveness endpoint returned healthy status.",
+    ):
+        return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
+
+    ready_payload = requester("/readyz", {})
+    if not _append(
+        "readiness",
+        ready_payload,
+        lambda payload: payload.get("status") == "ready",
+        "Hosted readiness endpoint returned ready status.",
+    ):
+        return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
+
+    initialize_payload = requester(
+        "/mcp",
+        {
+            "id": "verify-init",
+            "method": "initialize",
+            "params": {"clientInfo": {"name": "cloud-run-verifier", "version": "1.0.0"}},
+        },
+    )
+    if not _append(
+        "initialize",
+        initialize_payload,
+        lambda payload: payload.get("success") is True and "capabilities" in payload.get("data", {}),
+        "Hosted MCP initialize returned declared capabilities.",
+    ):
+        return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
+
+    list_payload = requester("/mcp", {"id": "verify-list", "method": "tools/list", "params": {}})
+    if not _append(
+        "list-tools",
+        list_payload,
+        lambda payload: payload.get("success") is True and any(
+            tool.get("name") == baseline_tool_name for tool in payload.get("data", [])
+        ),
+        "Hosted MCP tool discovery returned the baseline tool set.",
+    ):
+        return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
+
+    call_payload = requester(
+        "/mcp",
+        {
+            "id": "verify-call",
+            "method": "tools/call",
+            "params": {"toolName": baseline_tool_name, "arguments": {}},
+        },
+    )
+    _append(
+        "baseline-tool-call",
+        call_payload,
+        lambda payload: payload.get("success") is True and payload.get("data", {}).get("toolName") == baseline_tool_name,
+        "Hosted baseline tool invocation returned a successful structured response.",
+    )
+    overall = "pass" if all(item.result == "pass" for item in checks) else "fail"
+    return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), overall, tuple(checks))
+
+
+def write_verification_evidence(destination: str | Path, run: HostedVerificationRun) -> Path:
+    path = Path(destination)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = serialize_verification_run(run)
+    lines = [
+        f"revisionName: {payload['revisionName']}",
+        f"startedAt: {payload['startedAt']}",
+        f"completedAt: {payload['completedAt']}",
+        f"overallResult: {payload['overallResult']}",
+        "checks:",
+    ]
+    for check in payload["checks"]:
+        lines.extend(
+            [
+                f"  - checkName: {check['checkName']}",
+                f"    result: {check['result']}",
+                f"    summary: {check['summary']}",
+                f"    endpointUrl: {check['endpointUrl']}",
+                f"    executedAt: {check['executedAt']}",
+            ]
+        )
+    path.write_text("\n".join(lines) + "\n")
+    return path
