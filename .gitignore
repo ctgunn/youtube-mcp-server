@@ -227,3 +227,13 @@ Thumbs.db
 **/.codex/version.json
 **/.codex/.personality_migration
 **/.codex/skills/
+**/.codex/*sqlite*
+**/.codex/*log*
+**/.codex/*cache*
+**/.codex/*tmp*
+**/.codex/*sessions*
+**/.codex/*history*
+**/.codex/*state*
+**/.codex/*auth*
+**/.codex/*config*
+**/.codex/*version*
