@@ -6,6 +6,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
+from mcp_server.cloud_run_entrypoint import execute_hosted_request
 from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, write_verification_evidence
 
 
@@ -44,6 +45,19 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         self.assertIn("revisionName: rev-001", content)
         self.assertIn("checkName: liveness", content)
         self.assertIn("checkName: baseline-tool-call", content)
+
+    def test_hosted_route_payloads_remain_consistent_with_verification_inputs(self):
+        ready_app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+        local_ready = ready_app.handle("/readyz", {})
+        hosted_ready = execute_hosted_request(ready_app, method="GET", path="/readyz")
+        self.assertEqual(hosted_ready.status, 200)
+        self.assertEqual(hosted_ready.payload["status"], local_ready["status"])
+
+        not_ready_app = create_app(env={"MCP_ENVIRONMENT": "staging"}, validate_startup=False)
+        local_not_ready = not_ready_app.handle("/readyz", {})
+        hosted_not_ready = execute_hosted_request(not_ready_app, method="GET", path="/readyz")
+        self.assertEqual(hosted_not_ready.status, 503)
+        self.assertEqual(hosted_not_ready.payload["status"], local_not_ready["status"])
 
 
 if __name__ == "__main__":

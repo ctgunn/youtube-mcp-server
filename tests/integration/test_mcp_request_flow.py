@@ -5,6 +5,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
+from mcp_server.cloud_run_entrypoint import execute_hosted_request
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.transport.http import MCPHTTPTransport
 
@@ -201,6 +202,31 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         self.assertEqual(event["toolName"], "server_ping")
         self.assertEqual(event["status"], "success")
         self.assertGreaterEqual(event["latencyMs"], 0.0)
+
+    def test_hosted_mcp_success_and_invalid_request_behaviors(self):
+        os.environ["MCP_ENVIRONMENT"] = "dev"
+        app = create_app()
+        success = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json"},
+            body=b'{"id":"req-hosted-i1","method":"tools/list","params":{}}',
+        )
+        self.assertEqual(success.status, 200)
+        self.assertEqual(success.headers["Content-Type"], "application/json")
+        self.assertTrue(success.payload["success"])
+
+        invalid = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json"},
+            body=b'{"id":"req-hosted-i2","method":"","params":{}}',
+        )
+        self.assertEqual(invalid.status, 400)
+        self.assertFalse(invalid.payload["success"])
+        self.assertEqual(invalid.payload["error"]["code"], "INVALID_ARGUMENT")
 
 
 if __name__ == "__main__":
