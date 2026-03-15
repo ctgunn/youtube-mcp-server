@@ -5,6 +5,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
+from mcp_server.cloud_run_entrypoint import execute_hosted_request
 
 
 class OperationalObservabilityContractTests(unittest.TestCase):
@@ -31,6 +32,16 @@ class OperationalObservabilityContractTests(unittest.TestCase):
         self.assertIn("code", payload["error"])
         self.assertIn("message", payload["error"])
         self.assertIn("details", payload["error"])
+
+    def test_hosted_invalid_path_and_method_statuses(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+        missing = execute_hosted_request(app, method="GET", path="/missing")
+        self.assertEqual(missing.status, 404)
+        self.assertEqual(missing.payload["error"]["code"], "RESOURCE_NOT_FOUND")
+
+        wrong_method = execute_hosted_request(app, method="POST", path="/healthz")
+        self.assertEqual(wrong_method.status, 405)
+        self.assertEqual(wrong_method.payload["error"]["code"], "METHOD_NOT_ALLOWED")
 
     def test_error_shape_for_invalid_method(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
