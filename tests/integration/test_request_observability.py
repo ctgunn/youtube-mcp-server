@@ -1,3 +1,5 @@
+import io
+import json
 import os
 import sys
 import unittest
@@ -98,6 +100,41 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
         self.assertGreaterEqual(snapshot["counts"]["/readyz"]["success"], 1)
         self.assertGreaterEqual(snapshot["counts"]["/mcp"]["success"], 2)
         self.assertGreaterEqual(snapshot["counts"]["not_found"]["error"], 1)
+
+    def test_structured_runtime_logs_emit_to_stdout_and_stderr(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"}, runtime_stdout=stdout, runtime_stderr=stderr)
+
+        app.handle("/healthz", {})
+        app.handle("/unknown", {})
+
+        stdout_event = json.loads(stdout.getvalue().splitlines()[0])
+        stderr_event = json.loads(stderr.getvalue().splitlines()[0])
+        self.assertEqual(stdout_event["path"], "/healthz")
+        self.assertEqual(stdout_event["status"], "success")
+        self.assertEqual(stderr_event["path"], "/unknown")
+        self.assertEqual(stderr_event["status"], "error")
+
+    def test_runtime_tool_logs_include_tool_name_only_for_tool_calls(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"}, runtime_stdout=stdout, runtime_stderr=stderr)
+
+        app.handle("/readyz", {})
+        app.handle(
+            "/mcp",
+            {
+                "id": "req-runtime-tool-1",
+                "method": "tools/call",
+                "params": {"toolName": "server_ping", "arguments": {}},
+            },
+        )
+
+        ready_event = json.loads(stdout.getvalue().splitlines()[0])
+        tool_event = json.loads(stdout.getvalue().splitlines()[-1])
+        self.assertNotIn("toolName", ready_event)
+        self.assertEqual(tool_event["toolName"], "server_ping")
 
 
 if __name__ == "__main__":

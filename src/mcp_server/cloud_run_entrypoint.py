@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Mapping
@@ -87,7 +88,7 @@ def execute_hosted_request(
 
 
 def run_server() -> None:
-    transport = create_app()
+    transport = create_app(runtime_stdout=sys.stdout, runtime_stderr=sys.stderr)
     port = int(os.environ.get("PORT", "8080"))
 
     class Handler(BaseHTTPRequestHandler):
