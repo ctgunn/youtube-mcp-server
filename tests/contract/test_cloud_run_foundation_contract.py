@@ -23,8 +23,8 @@ class CloudRunFoundationContractTests(unittest.TestCase):
 
     def test_verification_records_required_check_order(self):
         app_payloads = {
-            "/healthz": {"status": "ok", "statusCode": 200},
-            "/readyz": {"status": "ready", "checks": {"configuration": "pass"}, "statusCode": 200},
+            "/health": {"status": "ok", "statusCode": 200},
+            "/ready": {"status": "ready", "checks": {"configuration": "pass"}, "statusCode": 200},
             "initialize": {"success": True, "data": {"capabilities": {"tools": {"listChanged": False}}}, "statusCode": 200},
             "tools/list": {"success": True, "data": [{"name": "server_ping"}], "statusCode": 200},
             "tools/call": {"success": True, "data": {"toolName": "server_ping", "result": {"status": "ok"}}, "statusCode": 200},
@@ -44,9 +44,9 @@ class CloudRunFoundationContractTests(unittest.TestCase):
 
     def test_verification_stops_after_failed_readiness(self):
         def requester(path, payload):
-            if path == "/healthz":
+            if path == "/health":
                 return {"status": "ok", "statusCode": 200}
-            if path == "/readyz":
+            if path == "/ready":
                 return {
                     "status": "not_ready",
                     "checks": {"configuration": "fail"},

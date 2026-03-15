@@ -59,7 +59,7 @@ def execute_hosted_request(
         )
         return _json_result(hosted_status_code(classification), payload)
 
-    if path in {"/healthz", "/readyz"}:
+    if path in {"/health", "/ready"}:
         payload = transport.handle(path, {})
         return _json_result(hosted_status_code(classification, payload), payload)
 

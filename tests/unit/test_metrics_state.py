@@ -10,19 +10,19 @@ from mcp_server.observability import InMemoryObservability, RequestContext
 class MetricsStateUnitTests(unittest.TestCase):
     def test_count_and_latency_summary_for_endpoint(self):
         obs = InMemoryObservability()
-        context = RequestContext(request_id="req-1", path="/healthz")
+        context = RequestContext(request_id="req-1", path="/health")
 
         obs.record(context=context, outcome="success", latency_ms=10)
         obs.record(context=context, outcome="success", latency_ms=20)
         obs.record(context=context, outcome="error", latency_ms=30)
 
-        self.assertEqual(obs.count_for("/healthz", "success"), 2)
-        self.assertEqual(obs.count_for("/healthz", "error"), 1)
+        self.assertEqual(obs.count_for("/health", "success"), 2)
+        self.assertEqual(obs.count_for("/health", "error"), 1)
 
         snapshot = obs.snapshot()
-        self.assertEqual(snapshot["counts"]["/healthz"]["success"], 2)
-        self.assertEqual(snapshot["counts"]["/healthz"]["error"], 1)
-        self.assertGreaterEqual(snapshot["latency"]["byEndpoint"]["/healthz"]["p95"], 20)
+        self.assertEqual(snapshot["counts"]["/health"]["success"], 2)
+        self.assertEqual(snapshot["counts"]["/health"]["error"], 1)
+        self.assertGreaterEqual(snapshot["latency"]["byEndpoint"]["/health"]["p95"], 20)
 
     def test_tool_dimension_latency(self):
         obs = InMemoryObservability()

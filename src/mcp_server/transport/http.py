@@ -15,8 +15,8 @@ from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 
 JSON_CONTENT_TYPE = "application/json"
 SUPPORTED_HOSTED_METHODS = {
-    "/healthz": {"GET"},
-    "/readyz": {"GET"},
+    "/health": {"GET"},
+    "/ready": {"GET"},
     "/mcp": {"POST"},
 }
 
@@ -110,7 +110,7 @@ def hosted_status_code(classification: HostedRequestClassification, response: di
         return 415
     if classification.outcome_class == "bad_request":
         return 400
-    if classification.path_class == "readyz" and isinstance(response, dict) and response.get("status") == "not_ready":
+    if classification.path_class == "ready" and isinstance(response, dict) and response.get("status") == "not_ready":
         return 503
     if classification.path_class == "mcp" and isinstance(response, dict) and response.get("success") is False:
         return 400
@@ -141,9 +141,9 @@ class MCPHTTPTransport:
         context = build_request_context(path, payload)
         started_at = perf_counter()
 
-        if path == "/healthz":
+        if path == "/health":
             response = health_payload()
-        elif path == "/readyz":
+        elif path == "/ready":
             response = readiness_payload(self.startup_validation)
         elif path != "/mcp":
             response = error_response(

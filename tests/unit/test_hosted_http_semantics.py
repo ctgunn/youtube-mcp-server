@@ -8,12 +8,12 @@ from mcp_server.transport.http import HostedRequestClassification, classify_host
 
 
 class HostedHTTPSemanticsUnitTests(unittest.TestCase):
-    def test_readyz_classification_and_status_mapping(self):
-        classification = classify_hosted_request(method="GET", path="/readyz")
+    def test_ready_classification_and_status_mapping(self):
+        classification = classify_hosted_request(method="GET", path="/ready")
         self.assertEqual(
             classification,
             HostedRequestClassification(
-                path_class="readyz",
+                path_class="ready",
                 method_class="supported",
                 media_type_class="not_applicable",
                 body_class="ignored",
@@ -64,7 +64,7 @@ class HostedHTTPSemanticsUnitTests(unittest.TestCase):
         self.assertEqual(hosted_status_code(invalid_media_type), 415)
 
     def test_method_not_allowed_and_not_found_are_distinct(self):
-        method_not_allowed = classify_hosted_request(method="POST", path="/healthz")
+        method_not_allowed = classify_hosted_request(method="POST", path="/health")
         self.assertEqual(method_not_allowed.outcome_class, "method_not_allowed")
         self.assertEqual(hosted_status_code(method_not_allowed), 405)
 

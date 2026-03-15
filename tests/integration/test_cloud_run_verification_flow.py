@@ -48,14 +48,14 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
 
     def test_hosted_route_payloads_remain_consistent_with_verification_inputs(self):
         ready_app = create_app(env={"MCP_ENVIRONMENT": "dev"})
-        local_ready = ready_app.handle("/readyz", {})
-        hosted_ready = execute_hosted_request(ready_app, method="GET", path="/readyz")
+        local_ready = ready_app.handle("/ready", {})
+        hosted_ready = execute_hosted_request(ready_app, method="GET", path="/ready")
         self.assertEqual(hosted_ready.status, 200)
         self.assertEqual(hosted_ready.payload["status"], local_ready["status"])
 
         not_ready_app = create_app(env={"MCP_ENVIRONMENT": "staging"}, validate_startup=False)
-        local_not_ready = not_ready_app.handle("/readyz", {})
-        hosted_not_ready = execute_hosted_request(not_ready_app, method="GET", path="/readyz")
+        local_not_ready = not_ready_app.handle("/ready", {})
+        hosted_not_ready = execute_hosted_request(not_ready_app, method="GET", path="/ready")
         self.assertEqual(hosted_not_ready.status, 503)
         self.assertEqual(hosted_not_ready.payload["status"], local_not_ready["status"])
 

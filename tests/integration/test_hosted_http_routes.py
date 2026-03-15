@@ -10,20 +10,20 @@ from mcp_server.cloud_run_entrypoint import execute_hosted_request
 
 
 class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
-    def test_healthz_and_readyz_use_expected_hosted_statuses(self):
+    def test_health_and_ready_use_expected_hosted_statuses(self):
         ready_app = create_app(env={"MCP_ENVIRONMENT": "dev"})
-        ready = execute_hosted_request(ready_app, method="GET", path="/readyz")
+        ready = execute_hosted_request(ready_app, method="GET", path="/ready")
         self.assertEqual(ready.status, 200)
         self.assertEqual(ready.headers["Content-Type"], "application/json")
         self.assertEqual(ready.payload["status"], "ready")
 
         not_ready_app = create_app(env={"MCP_ENVIRONMENT": "staging"}, validate_startup=False)
-        not_ready = execute_hosted_request(not_ready_app, method="GET", path="/readyz")
+        not_ready = execute_hosted_request(not_ready_app, method="GET", path="/ready")
         self.assertEqual(not_ready.status, 503)
         self.assertEqual(not_ready.headers["Content-Type"], "application/json")
         self.assertEqual(not_ready.payload["status"], "not_ready")
 
-        liveness = execute_hosted_request(ready_app, method="GET", path="/healthz")
+        liveness = execute_hosted_request(ready_app, method="GET", path="/health")
         self.assertEqual(liveness.status, 200)
         self.assertEqual(liveness.payload, {"status": "ok"})
 

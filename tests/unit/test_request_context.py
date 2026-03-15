@@ -22,13 +22,13 @@ class RequestContextUnitTests(unittest.TestCase):
         self.assertEqual(context.tool_name, "server_ping")
 
     def test_generates_request_id_when_missing(self):
-        context = build_request_context("/healthz", {})
+        context = build_request_context("/health", {})
         self.assertTrue(context.request_id.startswith("req-"))
-        self.assertEqual(context.path, "/healthz")
+        self.assertEqual(context.path, "/health")
 
     def test_classify_endpoint(self):
-        self.assertEqual(classify_endpoint("/healthz"), "/healthz")
-        self.assertEqual(classify_endpoint("/readyz"), "/readyz")
+        self.assertEqual(classify_endpoint("/health"), "/health")
+        self.assertEqual(classify_endpoint("/ready"), "/ready")
         self.assertEqual(classify_endpoint("/mcp"), "/mcp")
         self.assertEqual(classify_endpoint("/unknown"), "not_found")
 

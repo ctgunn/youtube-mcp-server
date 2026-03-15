@@ -14,7 +14,7 @@ class StartupConfigValidationFlowTests(unittest.TestCase):
 
     def test_startup_succeeds_for_valid_dev_profile(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
-        response = app.handle("/readyz", {})
+        response = app.handle("/ready", {})
         self.assertEqual(response["status"], "ready")
 
     def test_startup_fails_for_staging_without_secret(self):

@@ -399,7 +399,7 @@ def run_hosted_verification(
         )
         return ok
 
-    health_payload = requester("/healthz", {})
+    health_payload = requester("/health", {})
     if not _append(
         "liveness",
         health_payload,
@@ -408,7 +408,7 @@ def run_hosted_verification(
     ):
         return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
 
-    ready_payload = requester("/readyz", {})
+    ready_payload = requester("/ready", {})
     if not _append(
         "readiness",
         ready_payload,

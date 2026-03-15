@@ -21,7 +21,7 @@ def _http_request(base_url: str, path: str, payload: object) -> dict:
     url = f"{base_url.rstrip('/')}{path}"
     headers = {"Content-Type": "application/json"}
     data = json.dumps(payload).encode("utf-8")
-    if path in {"/healthz", "/readyz"}:
+    if path in {"/health", "/ready"}:
         req = request.Request(url, headers=headers, method="GET")
         body = None
     else:

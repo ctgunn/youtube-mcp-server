@@ -12,8 +12,8 @@ must include explicit failing-test, minimal-pass, and refactor phases.
 - `MCP_ENVIRONMENT` is required and must be one of `dev`, `staging`, or `prod`.
 - Startup fails fast when required profile configuration is missing or invalid.
 - `YOUTUBE_API_KEY` is required for `staging` and `prod`.
-- `GET /healthz` returns liveness (`{"status":"ok"}`).
-- `GET /readyz` returns readiness based on startup config/secret validation.
+- `GET /health` returns liveness (`{"status":"ok"}`).
+- `GET /ready` returns readiness based on startup config/secret validation.
 
 ## Cloud Run foundation deployment
 
