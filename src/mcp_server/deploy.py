@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
 from pathlib import Path
+import subprocess
 from typing import Callable, Mapping
 
 
@@ -134,6 +136,167 @@ def build_deploy_command(settings: DeploymentInputSet) -> list[str]:
     if secret_args:
         command.extend(["--set-secrets", secret_args])
     return command
+
+
+@dataclass(frozen=True)
+class RuntimeSettingsSnapshot:
+    service_name: str
+    environment_profile: str
+    runtime_identity: str
+    min_instances: int
+    max_instances: int
+    concurrency: int
+    timeout_seconds: int
+    secret_reference_names: tuple[str, ...]
+    config_summary: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class DeploymentRunRecord:
+    deployment_id: str
+    executed_at: str
+    outcome: str
+    summary: str
+    runtime_settings: RuntimeSettingsSnapshot
+    revision_name: str | None = None
+    service_url: str | None = None
+    failure_stage: str | None = None
+    remediation: str | None = None
+
+
+def snapshot_runtime_settings(settings: DeploymentInputSet) -> RuntimeSettingsSnapshot:
+    return RuntimeSettingsSnapshot(
+        service_name=settings.service_name,
+        environment_profile=settings.environment,
+        runtime_identity=settings.runtime_identity,
+        min_instances=settings.min_instances,
+        max_instances=settings.max_instances,
+        concurrency=settings.concurrency,
+        timeout_seconds=settings.timeout_seconds,
+        secret_reference_names=settings.secret_references,
+        config_summary=dict(settings.config_values),
+    )
+
+
+def serialize_deployment_run(record: DeploymentRunRecord) -> dict:
+    return {
+        "deploymentId": record.deployment_id,
+        "executedAt": record.executed_at,
+        "outcome": record.outcome,
+        "summary": record.summary,
+        "revisionName": record.revision_name,
+        "serviceUrl": record.service_url,
+        "failureStage": record.failure_stage,
+        "remediation": record.remediation,
+        "runtimeSettings": {
+            "serviceName": record.runtime_settings.service_name,
+            "environmentProfile": record.runtime_settings.environment_profile,
+            "runtimeIdentity": record.runtime_settings.runtime_identity,
+            "minInstances": record.runtime_settings.min_instances,
+            "maxInstances": record.runtime_settings.max_instances,
+            "concurrency": record.runtime_settings.concurrency,
+            "timeoutSeconds": record.runtime_settings.timeout_seconds,
+            "secretReferenceNames": list(record.runtime_settings.secret_reference_names),
+            "configSummary": dict(record.runtime_settings.config_summary),
+        },
+    }
+
+
+def _build_deployment_record(
+    *,
+    outcome: str,
+    summary: str,
+    settings: DeploymentInputSet,
+    revision_name: str | None = None,
+    service_url: str | None = None,
+    failure_stage: str | None = None,
+    remediation: str | None = None,
+) -> DeploymentRunRecord:
+    return DeploymentRunRecord(
+        deployment_id=f"deploy-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        executed_at=_now_iso(),
+        outcome=outcome,
+        summary=summary,
+        runtime_settings=snapshot_runtime_settings(settings),
+        revision_name=revision_name,
+        service_url=service_url,
+        failure_stage=failure_stage,
+        remediation=remediation,
+    )
+
+
+def _parse_deploy_metadata(stdout: str) -> tuple[str | None, str | None]:
+    text = stdout.strip()
+    if not text:
+        return None, None
+    payload = json.loads(text)
+    if not isinstance(payload, dict):
+        return None, None
+    status = payload.get("status")
+    metadata = payload.get("metadata")
+    if not isinstance(status, dict):
+        status = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    revision_name = (
+        status.get("latestReadyRevisionName")
+        or status.get("latestCreatedRevisionName")
+        or payload.get("revisionName")
+        or metadata.get("name")
+    )
+    service_url = status.get("url") or payload.get("serviceUrl") or payload.get("url")
+    return revision_name, service_url
+
+
+def execute_deploy_command(
+    settings: DeploymentInputSet,
+    *,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    gcloud_bin: str = "gcloud",
+) -> DeploymentRunRecord:
+    failures = settings.validate()
+    if failures:
+        return _build_deployment_record(
+            outcome="failed",
+            summary="; ".join(failures),
+            settings=settings,
+            failure_stage="input_validation",
+            remediation="Provide all required deployment inputs before re-running the workflow.",
+        )
+
+    command = build_deploy_command(settings)
+    command[0] = gcloud_bin
+    command.extend(["--format", "json"])
+    completed = runner(command, check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        summary = completed.stderr.strip() or completed.stdout.strip() or "Deployment command failed."
+        return _build_deployment_record(
+            outcome="failed",
+            summary=summary,
+            settings=settings,
+            failure_stage="deployment_execution",
+            remediation="Inspect deploy command output, correct the failing platform input, and retry the workflow.",
+        )
+
+    revision_name, service_url = _parse_deploy_metadata(completed.stdout)
+    if revision_name and service_url:
+        return _build_deployment_record(
+            outcome="success",
+            summary="Deployment created a hosted revision and captured required metadata.",
+            settings=settings,
+            revision_name=revision_name,
+            service_url=service_url,
+        )
+
+    return _build_deployment_record(
+        outcome="incomplete",
+        summary="Deployment command succeeded but required revision metadata could not be captured.",
+        settings=settings,
+        revision_name=revision_name,
+        service_url=service_url,
+        failure_stage="metadata_capture",
+        remediation="Inspect the deploy output and Cloud Run service details, then re-run the workflow once revision metadata is available.",
+    )
 
 
 @dataclass(frozen=True)

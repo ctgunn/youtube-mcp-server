@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
 import uuid
-from typing import Any
+from typing import Any, TextIO
 
 
 @dataclass
@@ -72,10 +73,12 @@ def _percentile(values: list[float], percentile: float) -> float:
 class InMemoryObservability:
     """Stores structured logs and metric aggregates for runtime introspection/tests."""
 
-    def __init__(self):
+    def __init__(self, runtime_stdout: TextIO | None = None, runtime_stderr: TextIO | None = None):
         self._logs: list[dict[str, Any]] = []
         self._counts: dict[tuple[str, str, str | None], int] = {}
         self._latencies: dict[tuple[str, str | None], list[float]] = {}
+        self._runtime_stdout = runtime_stdout
+        self._runtime_stderr = runtime_stderr
 
     @property
     def logs(self) -> list[dict[str, Any]]:
@@ -129,3 +132,12 @@ class InMemoryObservability:
         if tool_name:
             event["toolName"] = tool_name
         self._logs.append(event)
+        self._emit_runtime_event(event)
+
+    def _emit_runtime_event(self, event: dict[str, Any]) -> None:
+        stream = self._runtime_stderr if event["status"] == "error" else self._runtime_stdout
+        if stream is None:
+            return
+        stream.write(json.dumps(event, sort_keys=True) + "\n")
+        if hasattr(stream, "flush"):
+            stream.flush()

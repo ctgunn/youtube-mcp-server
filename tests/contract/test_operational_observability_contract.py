@@ -1,3 +1,5 @@
+import io
+import json
 import os
 import sys
 import unittest
@@ -50,6 +52,27 @@ class OperationalObservabilityContractTests(unittest.TestCase):
         self.assertFalse(payload["success"])
         self.assertEqual(payload["error"].keys(), {"code", "message", "details"})
         self.assertTrue(str(payload["meta"].get("requestId", "")).startswith("req-"))
+
+    def test_hosted_runtime_log_event_contract(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"}, runtime_stdout=stdout, runtime_stderr=stderr)
+        execute_hosted_request(app, method="GET", path="/healthz")
+        execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json"},
+            body=b'{"id":"req-contract-log","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}',
+        )
+        health_event = json.loads(stdout.getvalue().splitlines()[0])
+        tool_event = json.loads(stdout.getvalue().splitlines()[-1])
+        self.assertEqual(
+            health_event.keys(),
+            {"timestamp", "severity", "requestId", "path", "status", "latencyMs"},
+        )
+        self.assertEqual(tool_event["toolName"], "server_ping")
+        self.assertEqual(tool_event["path"], "/mcp")
 
 
 if __name__ == "__main__":

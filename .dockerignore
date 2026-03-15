@@ -15,6 +15,7 @@ Dockerfile*
 *.log.*
 .env
 .env.*
+coverage/
 .vscode/
 .idea/
 tests/

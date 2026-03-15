@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from time import perf_counter
+from typing import TextIO
 
 from mcp_server.config import StartupValidationResult
 from mcp_server.health import health_payload, readiness_payload
@@ -119,9 +120,16 @@ def hosted_status_code(classification: HostedRequestClassification, response: di
 class MCPHTTPTransport:
     """Simple transport wrapper exposing /mcp request handling."""
 
-    def __init__(self, dispatcher=None, server_metadata=None, startup_validation=None):
+    def __init__(
+        self,
+        dispatcher=None,
+        server_metadata=None,
+        startup_validation=None,
+        runtime_stdout: TextIO | None = None,
+        runtime_stderr: TextIO | None = None,
+    ):
         self.dispatcher = dispatcher or InMemoryToolDispatcher(server_metadata=server_metadata)
-        self.observability = InMemoryObservability()
+        self.observability = InMemoryObservability(runtime_stdout=runtime_stdout, runtime_stderr=runtime_stderr)
         self.startup_validation = startup_validation or StartupValidationResult(
             is_valid=True,
             profile="dev",
