@@ -2,10 +2,12 @@
 ## Project: YouTube MCP Server on Cloud Run
 
 ## 1. Overview
-Build an MCP-compliant server that exposes YouTube data and transcript workflows as callable tools for Agent Builder and MCP clients. The service will run on Google Cloud Run and provide secure, observable, scalable access to YouTube content operations.
+Build an MCP-compliant server that exposes YouTube data and transcript workflows as callable tools for OpenAI Agent Builder, deep research-style workflows, and other MCP clients. The service will run on Google Cloud Run and provide secure, observable, scalable access to YouTube content operations through standards-aligned remote MCP transport.
 
 ## 2. Objectives
 - Expose reliable YouTube tools through MCP.
+- Support interoperable remote MCP consumption from OpenAI Agent Builder and other MCP-capable services.
+- Establish deep research-compatible MCP foundations before domain-specific YouTube tool expansion.
 - Support video, channel, playlist, and transcript workflows.
 - Deploy as a production-ready Cloud Run service.
 - Keep response formats structured for agent consumption.
@@ -23,11 +25,17 @@ Build an MCP-compliant server that exposes YouTube data and transcript workflows
 This phase establishes a working MCP server before any YouTube tools are added.
 
 ### 5.1 Foundation Deliverables
-- Running MCP server process with Cloud Run-compatible HTTP transport.
+- Running MCP server process with Cloud Run-compatible remote MCP transport.
 - MCP handshake and capability declaration implemented.
 - Tool registry system implemented (register/list/dispatch lifecycle).
 - Baseline non-YouTube tools implemented for smoke testing.
 - Health/readiness endpoints for operations.
+- MCP transport aligned to a standards-supported remote MCP profile suitable for OpenAI Agent Builder and other hosted MCP consumers.
+- MCP protocol request/response handling aligned to MCP-compatible contracts rather than a server-specific wrapper.
+- Tool discovery and invocation aligned to MCP-compatible metadata and result structures.
+- Streaming-capable hosted runtime in place for production MCP transport behavior.
+- Remote MCP transport hardening in place (origin-aware handling and documented auth strategy).
+- Foundation `search` and `fetch` tools implemented for deep research-compatible retrieval flows.
 - Config, logging, error handling, containerization, and CI checks in place.
 
 ### 5.2 Minimum Server Features
@@ -35,17 +43,21 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - `initialize` and capability negotiation.
   - Tool discovery/listing.
   - Tool invocation path with structured request/response handling.
+  - Remote MCP transport behavior aligned to the selected standards-compliant transport profile.
 - Operational endpoints:
-  - `GET /healthz` for liveness.
-  - `GET /readyz` for readiness (including config checks).
+  - `GET /health` for liveness.
+  - `GET /ready` for readiness (including config checks).
 - Baseline tools (no external APIs):
   - `server_ping`: returns service status and timestamp.
   - `server_info`: returns version, environment, and build metadata.
   - `server_list_tools`: returns currently registered tool names/descriptions.
+- Foundation retrieval tools:
+  - `search`: returns deep research-compatible search results in MCP-compatible content format.
+  - `fetch`: returns deep research-compatible fetched content in MCP-compatible content format.
 
 ### 5.3 Foundation Architecture Requirements
 - Layered modules:
-  - Transport layer (HTTP request handling and MCP message flow).
+  - Transport layer (remote MCP transport handling and MCP message flow).
   - MCP core (tool registry, dispatcher, schema validation, errors).
   - Integrations layer (YouTube API client wrapper, transcript adapters).
   - Domain/tool layer (individual tool handlers).
@@ -80,6 +92,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Single command to run tests/lint/typecheck.
 - `.env.example` included with documented variables.
 - README section: local startup + MCP client connection instructions.
+- Local verification path for the selected remote MCP transport documented.
 
 ### 5.8 Cloud Run Standup Requirements (Phase 0)
 - Build container image for server.
@@ -89,12 +102,18 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - concurrency and timeout configured.
   - required env vars + secret references.
 - Verify:
-  - `/healthz` and `/readyz` pass.
-  - MCP initialize/list tools/invoke baseline tool works against deployed URL.
+  - `/health` and `/ready` pass.
+  - Hosted MCP transport verification passes against deployed URL.
+  - MCP initialize/list tools/invoke baseline tools works against deployed URL.
+  - Hosted `search` and `fetch` verification paths are documented and executable.
 
 ### 5.9 Foundation Acceptance Criteria (Exit Gate for Tool Work)
 - MCP server successfully initializes from an MCP client.
+- Hosted MCP transport is compatible with the selected remote MCP profile for downstream consumers.
 - Baseline tools can be listed and invoked end-to-end.
+- Tool discovery returns complete MCP-relevant metadata for registered tools.
+- Tool invocation returns MCP-compatible result structures.
+- `search` and `fetch` are available and callable end-to-end.
 - Structured logs appear in Cloud Logging for each request.
 - Health/readiness endpoints pass in Cloud Run.
 - CI checks pass (lint/typecheck/tests).
@@ -131,7 +150,8 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Each tool must include:
   - Clear name and description.
   - JSON schema input validation.
-  - Typed JSON output.
+  - MCP-compatible tool metadata sufficient for discovery and invocation.
+  - MCP-compatible structured output.
   - Structured error model (`code`, `message`, `details`).
 - Consistent pagination fields (`nextPageToken`, `pageSize`, `totalResults` when available).
 - Deterministic parameter names across tools (e.g., `videoId`, `channelId`, `playlistId`, `query`, `language`), with explicit mapping to YouTube terms (`query -> q`, `pageSize -> maxResults`).
@@ -160,6 +180,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Use Secret Manager for API keys/tokens (no secrets in source or env files committed to git).
 - Use dedicated service account with least-privilege IAM.
 - Support environment-based config (`dev`, `staging`, `prod`).
+- Support the selected remote MCP transport behavior reliably in the hosted Cloud Run environment.
 
 ## 10. Security and Compliance Requirements
 - Secrets stored and injected securely.
@@ -168,6 +189,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Audit-friendly logs (request ID, tool name, latency, status).
 - Rate limiting or request throttling guardrails for abuse prevention.
 - For transcript/caption tools, enforce authorization checks and explicit errors when caption access is not permitted.
+- Remote MCP transport must include origin-aware handling and a documented authentication strategy appropriate for hosted consumption.
 
 ## 11. Reliability and Performance Requirements
 - Availability target: 99.5% monthly (v1 target).
@@ -189,9 +211,12 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Simple deployment command(s) documented for Cloud Run.
 - Tool-by-tool usage examples with sample payloads.
 - Automated checks for lint/type/test in CI.
+- Remote MCP connection guidance documented for OpenAI Agent Builder and comparable MCP consumers.
 
 ## 14. Acceptance Criteria (v1)
 - Phase 0 foundation acceptance criteria are fully met.
+- Remote MCP transport is usable by intended hosted consumers.
+- `search` and `fetch` are implemented and callable via MCP for deep research-oriented flows.
 - All 16 tools in Sections 6.1-6.4 are implemented and callable via MCP.
 - Every tool validates inputs and returns structured errors.
 - Cloud Run deployment succeeds and serves MCP traffic.
@@ -202,16 +227,18 @@ This phase establishes a working MCP server before any YouTube tools are added.
 
 ## 15. Milestones
 1. Complete MCP server foundation (transport, registry, baseline tools, health endpoints).
-2. Stand up Cloud Run deployment for foundation build and validate end-to-end MCP handshake.
-3. Define tool schemas and response contracts.
-4. Implement video/channel/playlist tools.
-5. Implement transcript retrieval/search flows.
-6. Add auth, secrets, and quota/error handling hardening.
-7. Add monitoring, alerts, and release documentation.
+2. Align foundation transport and protocol behavior to a standards-compliant remote MCP profile.
+3. Add foundation `search` and `fetch` support for deep research-compatible flows.
+4. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
+5. Define YouTube tool schemas and response contracts.
+6. Implement video/channel/playlist tools.
+7. Implement transcript retrieval/search flows.
+8. Add auth, secrets, and quota/error handling hardening.
+9. Add monitoring, alerts, and release documentation.
 
 ## 16. Open Decisions
 - Final transcript fallback approach when official captions are unavailable.
 - Required auth model for private/unlisted resource access (if in scope later).
 - Caching policy (TTL, storage backend, invalidation strategy).
 - Transcript scope decision: owner-authorized captions only vs optional non-YouTube fallback for broader public coverage.
-- Final MCP transport profile details for production clients (if multiple transport modes are supported).
+- Final MCP transport profile details for production clients, including whether any secondary transport modes beyond the primary remote MCP profile should be supported.
