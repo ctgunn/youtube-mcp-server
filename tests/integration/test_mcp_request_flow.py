@@ -1,3 +1,5 @@
+import io
+import json
 import os
 import sys
 import unittest
@@ -227,6 +229,24 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         self.assertEqual(invalid.status, 400)
         self.assertFalse(invalid.payload["success"])
         self.assertEqual(invalid.payload["error"]["code"], "INVALID_ARGUMENT")
+
+    def test_hosted_runtime_logs_capture_tool_name_for_hosted_mcp_call(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"}, runtime_stdout=stdout, runtime_stderr=stderr)
+        response = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json"},
+            body=b'{"id":"req-hosted-log-1","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}',
+        )
+
+        self.assertEqual(response.status, 200)
+        event = json.loads(stdout.getvalue().splitlines()[-1])
+        self.assertEqual(event["requestId"], "req-hosted-log-1")
+        self.assertEqual(event["toolName"], "server_ping")
+        self.assertEqual(event["path"], "/mcp")
 
 
 if __name__ == "__main__":

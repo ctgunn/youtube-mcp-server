@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Mapping
+from typing import Mapping, TextIO
 
 from mcp_server.config import ConfigValidationError, StartupValidationResult, ensure_runtime_config
 from mcp_server.transport.http import MCPHTTPTransport
@@ -27,7 +27,12 @@ def _build_startup_error(validation: StartupValidationResult) -> str:
     return f"Startup configuration validation failed for profile '{validation.profile}': {failure_keys}"
 
 
-def create_app(env: Mapping[str, str] | None = None, validate_startup: bool = True) -> MCPHTTPTransport:
+def create_app(
+    env: Mapping[str, str] | None = None,
+    validate_startup: bool = True,
+    runtime_stdout: TextIO | None = None,
+    runtime_stderr: TextIO | None = None,
+) -> MCPHTTPTransport:
     """Create an app-like transport object for local execution and tests."""
     runtime_env = dict(os.environ if env is None else env)
     try:
@@ -40,4 +45,6 @@ def create_app(env: Mapping[str, str] | None = None, validate_startup: bool = Tr
     return MCPHTTPTransport(
         server_metadata=load_server_metadata(runtime_env),
         startup_validation=validation,
+        runtime_stdout=runtime_stdout,
+        runtime_stderr=runtime_stderr,
     )

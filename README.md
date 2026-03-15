@@ -31,7 +31,7 @@ Required deployment inputs:
 - `TIMEOUT_SECONDS`
 - `SECRET_REFERENCES` (`YOUTUBE_API_KEY` is required for `staging` and `prod`)
 
-Render the deployment command with explicit revision settings:
+Execute the deployment workflow with explicit revision settings:
 
 ```bash
 PROJECT_ID=example-project \
@@ -48,20 +48,42 @@ SECRET_REFERENCES=YOUTUBE_API_KEY \
 bash scripts/deploy_cloud_run.sh
 ```
 
+The deployment workflow now returns a JSON deployment record containing the
+deployment outcome, revision name, hosted service URL, and runtime settings
+summary. Save that record and use it as the handoff into hosted verification.
+
+Example:
+
+```bash
+PROJECT_ID=example-project \
+REGION=us-central1 \
+SERVICE_NAME=youtube-mcp-server \
+IMAGE_REFERENCE=us-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
+SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com \
+MCP_ENVIRONMENT=staging \
+MIN_INSTANCES=0 \
+MAX_INSTANCES=2 \
+CONCURRENCY=20 \
+TIMEOUT_SECONDS=180 \
+SECRET_REFERENCES=YOUTUBE_API_KEY \
+bash scripts/deploy_cloud_run.sh > artifacts/cloud-run-deployment.json
+```
+
 Verify the hosted foundation revision after deployment:
 
 ```bash
 PYTHONPATH=src python3 scripts/verify_cloud_run_foundation.py \
-  --service-url https://example-service-uc.a.run.app \
-  --revision-name youtube-mcp-server-00001 \
-  --service-name youtube-mcp-server \
-  --runtime-identity youtube-mcp-server@example-project.iam.gserviceaccount.com \
-  --min-instances 0 \
-  --max-instances 2 \
-  --concurrency 20 \
-  --timeout-seconds 180 \
+  --deployment-record artifacts/cloud-run-deployment.json \
   --evidence-file artifacts/cloud-run-verification.txt
 ```
+
+You can still provide `--service-url`, `--revision-name`, `--service-name`,
+`--runtime-identity`, `--min-instances`, `--max-instances`, `--concurrency`,
+and `--timeout-seconds` directly when a deployment record file is not available.
+
+Hosted runtime requests emit structured JSON log events to runtime stdout/stderr
+with `timestamp`, `severity`, `requestId`, `path`, `status`, `latencyMs`, and
+`toolName` when the request reaches tool dispatch.
 
 The verification output must record pass/fail results for:
 

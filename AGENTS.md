@@ -10,6 +10,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - In-memory runtime state only; deployment artifacts are file-based documentation and packaging assets (006-cloud-run-foundation)
 - Python 3.11 + Python standard-library HTTP server for hosted entrypoint plus in-repo MCP transport, protocol, health, config, and observability modules (007-hosted-http-hardening)
 - In-memory runtime state only; no persistent storage for this feature (007-hosted-http-hardening)
+- Python 3.11 + Python standard-library HTTP server, Python standard-library subprocess and JSON tooling, in-repo MCP transport/protocol/config/observability modules (008-deployment-cloud-observability)
+- In-memory runtime state only; deployment evidence and planning artifacts are file-based (008-deployment-cloud-observability)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -30,9 +32,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 008-deployment-cloud-observability: Added Python 3.11 + Python standard-library HTTP server, Python standard-library subprocess and JSON tooling, in-repo MCP transport/protocol/config/observability modules
 - 007-hosted-http-hardening: Added Python 3.11 + Python standard-library HTTP server for hosted entrypoint plus in-repo MCP transport, protocol, health, config, and observability modules
 - 006-cloud-run-foundation: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn
-- 005-health-logging-metrics: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn
 
 
 <!-- MANUAL ADDITIONS START -->
