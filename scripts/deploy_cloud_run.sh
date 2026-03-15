@@ -38,10 +38,20 @@ fi
 export PYTHONPATH="${ROOT_DIR}/src:${PYTHONPATH:-}"
 
 python3 - <<'PY'
-from mcp_server.deploy import build_deploy_command, deployment_input_from_mapping
+from mcp_server.deploy import (
+    deployment_input_from_mapping,
+    execute_deploy_command,
+    serialize_deployment_run,
+)
+import json
 import os
+import sys
 
 settings = deployment_input_from_mapping(os.environ)
-command = build_deploy_command(settings)
-print(" ".join(command))
+record = execute_deploy_command(
+    settings,
+    gcloud_bin=os.environ.get("GCLOUD_BIN", "gcloud"),
+)
+print(json.dumps(serialize_deployment_run(record)))
+raise SystemExit(0 if record.outcome == "success" else 1)
 PY
