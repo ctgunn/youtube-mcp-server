@@ -142,6 +142,109 @@ Acceptance criteria:
 Dependencies:
 - `FND-006`, `FND-005`
 
+### FND-009: MCP Streamable HTTP Transport
+Description:
+Replace the current request/response-only hosted MCP endpoint with standards-aligned MCP streamable HTTP transport so remote MCP consumers can establish compliant hosted sessions over Cloud Run.
+
+Primary stories:
+- As an MCP consumer, I can connect to one hosted MCP endpoint using a transport compatible with modern MCP clients.
+- As a platform integrator, I can use this server with OpenAI Agent Builder and other MCP-capable services without relying on a custom transport contract.
+
+Acceptance criteria:
+- The MCP endpoint supports the streamable HTTP transport contract defined by the MCP specification.
+- The MCP endpoint supports both `GET` and `POST` semantics required by the selected transport behavior.
+- Streaming responses and server-driven events are supported where required by the transport contract.
+- Existing Cloud Run deployment remains compatible with the hosted MCP entrypoint.
+- Transport behavior is documented with concrete local and hosted verification steps.
+
+Dependencies:
+- `FND-008`
+
+### FND-010: MCP Protocol Contract Alignment
+Description:
+Align request, response, error, and lifecycle behavior with the MCP protocol contract so the server is a true MCP server rather than a custom MCP-like HTTP API.
+
+Primary stories:
+- As an MCP client, I receive protocol-native responses and errors that conform to MCP expectations.
+- As a developer, I can reason about hosted behavior using the official MCP contract instead of a server-specific wrapper.
+
+Acceptance criteria:
+- Request handling and response payloads conform to the selected MCP protocol contract rather than the current custom `success/data/meta/error` envelope.
+- Initialization, tool listing, tool invocation, and unsupported-method handling follow MCP-compatible semantics.
+- Protocol error mapping is documented and validated against contract tests.
+- Hosted and local behavior remain consistent across initialize, list, call, and failure scenarios.
+
+Dependencies:
+- `FND-009`
+
+### FND-011: Tool Metadata + Invocation Result Alignment
+Description:
+Expand the tool registry and invocation layer so tool discovery exposes full MCP-relevant metadata and tool execution returns MCP-compatible result content structures.
+
+Primary stories:
+- As an MCP client, I can discover complete tool definitions including schemas needed for invocation.
+- As an MCP client, I receive tool results in a content structure that downstream agents can consume reliably.
+
+Acceptance criteria:
+- Tool discovery returns complete tool metadata including input schema and any required MCP-facing fields.
+- Tool invocation responses return MCP-compatible result content instead of the current simplified tool wrapper.
+- Baseline tools are updated to the new metadata and result contract without regressions in discoverability.
+- Registry and dispatcher abstractions remain extensible for later YouTube tool addition.
+
+Dependencies:
+- `FND-010`, `FND-002`, `FND-003`
+
+### FND-012: Hosted Runtime Migration for Streaming MCP
+Description:
+Migrate the hosted server runtime from the current minimal `http.server` implementation to a production-appropriate streaming-capable runtime aligned with the project technology direction.
+
+Primary stories:
+- As an operator, I can run a hosted MCP server that supports streaming transport reliably on Cloud Run.
+- As a developer, I can extend transport behavior without fighting low-level server limitations.
+
+Acceptance criteria:
+- Hosted runtime uses a streaming-capable application stack suitable for Cloud Run.
+- Cloud Run entrypoint, container startup, and deployment artifacts are updated to the new runtime.
+- Health/readiness behavior remains correct after the runtime migration.
+- Streaming MCP flows can be exercised locally and on Cloud Run.
+
+Dependencies:
+- `FND-009`, `FND-006`
+
+### FND-013: Remote MCP Security + Transport Hardening
+Description:
+Harden the remote MCP surface with origin-aware transport validation, documented authentication strategy, and security controls required for safe third-party MCP consumption.
+
+Primary stories:
+- As an operator, I can expose the MCP endpoint with clear transport security expectations.
+- As a client integrator, I can understand what auth and request-origin behavior is required to consume the hosted server safely.
+
+Acceptance criteria:
+- Transport layer validates or explicitly handles `Origin`-related concerns appropriate to the chosen MCP transport.
+- Remote authentication approach is defined and implemented to the degree required for hosted MCP consumption.
+- Security-relevant failure cases are documented and surfaced with stable error behavior.
+- Cloud Run deployment and runtime documentation reflect the hardened transport expectations.
+
+Dependencies:
+- `FND-009`, `FND-012`
+
+### FND-014: Deep Research Tool Foundation (`search` + `fetch`)
+Description:
+Add foundational MCP-native retrieval tools required for deep research-style consumers before any YouTube domain-specific tool slices are introduced.
+
+Primary stories:
+- As an OpenAI workflow or deep research consumer, I can call `search` to discover relevant results.
+- As an OpenAI workflow or deep research consumer, I can call `fetch` to retrieve a selected result in a consumable content format.
+
+Acceptance criteria:
+- `search` and `fetch` are registered as MCP tools with complete schemas and MCP-compatible result content.
+- Tool behavior is documented for hosted MCP consumers, including sample requests and responses.
+- Deep research-oriented invocation paths are covered by contract/integration tests.
+- Baseline hosted verification includes successful discovery and invocation of `search` and `fetch`.
+
+Dependencies:
+- `FND-010`, `FND-011`, `FND-013`
+
 ### YT-101: YouTube Client Integration Layer
 Description:
 Build typed wrapper for YouTube Data API v3 with auth, retry, quota, and error mapping.
@@ -154,7 +257,7 @@ Acceptance criteria:
 - Quota and upstream errors map to standard server errors.
 
 Dependencies:
-- `FND-005`, `FND-006`, `FND-007`, `FND-008`
+- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`
 
 ### YT-102: Video Tools
 Description:
@@ -263,12 +366,18 @@ Dependencies:
 6. `FND-006`
 7. `FND-007`
 8. `FND-008`
-9. `YT-101`
-10. `YT-102` + `YT-103` (parallel)
-11. `YT-104`
-12. `YT-105`
-13. `OPS-201`
-14. `OPS-202`
+9. `FND-009`
+10. `FND-010`
+11. `FND-011`
+12. `FND-012`
+13. `FND-013`
+14. `FND-014`
+15. `YT-101`
+16. `YT-102` + `YT-103` (parallel)
+17. `YT-104`
+18. `YT-105`
+19. `OPS-201`
+20. `OPS-202`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
