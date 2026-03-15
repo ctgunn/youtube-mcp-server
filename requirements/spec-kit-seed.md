@@ -110,6 +110,38 @@ Acceptance criteria:
 Dependencies:
 - `FND-003`, `FND-004`, `FND-005`
 
+### FND-007: Hosted Probe Semantics + HTTP Hardening
+Description:
+Harden the hosted HTTP surface so Cloud Run probes and operators can rely on transport-level status codes and consistent endpoint behavior.
+
+Primary stories:
+- As an operator, I can trust probe responses because `/healthz` and `/readyz` use correct HTTP semantics.
+- As an MCP client, I receive predictable HTTP behavior for supported and unsupported hosted routes.
+
+Acceptance criteria:
+- Hosted `/readyz` returns a non-success HTTP status when the instance is not ready.
+- Hosted `/healthz`, `/readyz`, and `/mcp` use consistent content-type and request/response handling.
+- Unsupported paths and malformed hosted requests return correct HTTP status codes with structured error payloads where applicable.
+
+Dependencies:
+- `FND-006`
+
+### FND-008: Deployment Execution + Cloud Run Observability
+Description:
+Complete the operator deployment workflow by executing the deploy, capturing hosted revision metadata, and emitting structured runtime logs to Cloud Logging-compatible output.
+
+Primary stories:
+- As an operator, I can run one deployment workflow that performs the Cloud Run deploy and captures the created revision and URL.
+- As an operator, I can inspect hosted request logs in Cloud Logging with request IDs, paths, status, and tool names.
+
+Acceptance criteria:
+- Deployment workflow executes the Cloud Run deploy command instead of only rendering it.
+- Deployment output records revision name, service URL, and core runtime settings used for the hosted revision.
+- Hosted request logs are emitted to stdout/stderr in structured form so Cloud Logging can ingest them.
+
+Dependencies:
+- `FND-006`, `FND-005`
+
 ### YT-101: YouTube Client Integration Layer
 Description:
 Build typed wrapper for YouTube Data API v3 with auth, retry, quota, and error mapping.
@@ -122,7 +154,7 @@ Acceptance criteria:
 - Quota and upstream errors map to standard server errors.
 
 Dependencies:
-- `FND-005`, `FND-006`
+- `FND-005`, `FND-006`, `FND-007`, `FND-008`
 
 ### YT-102: Video Tools
 Description:
@@ -205,7 +237,7 @@ Acceptance criteria:
 - Build/deploy instructions reproducible from docs.
 
 Dependencies:
-- `FND-006`
+- `FND-008`
 
 ### OPS-202: Production Hardening
 Description:
@@ -229,12 +261,14 @@ Dependencies:
 4. `FND-004`
 5. `FND-005`
 6. `FND-006`
-7. `YT-101`
-8. `YT-102` + `YT-103` (parallel)
-9. `YT-104`
-10. `YT-105`
-11. `OPS-201`
-12. `OPS-202`
+7. `FND-007`
+8. `FND-008`
+9. `YT-101`
+10. `YT-102` + `YT-103` (parallel)
+11. `YT-104`
+12. `YT-105`
+13. `OPS-201`
+14. `OPS-202`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
