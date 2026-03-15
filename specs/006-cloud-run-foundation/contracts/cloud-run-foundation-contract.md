@@ -30,10 +30,10 @@ true:
 The hosted verification flow MUST run in this order:
 
 1. `liveness`
-   - Target: hosted `/healthz`
+   - Target: hosted `/health`
    - Expected result: healthy status response
 2. `readiness`
-   - Target: hosted `/readyz`
+   - Target: hosted `/ready`
    - Expected result: ready status response when deployment inputs are valid
 3. `initialize`
    - Target: hosted MCP endpoint
@@ -67,7 +67,7 @@ For failed checks, the verification record MUST also identify:
 
 ## Stability Expectations
 
-- Existing `/healthz`, `/readyz`, and MCP response contracts remain unchanged.
+- Existing `/health`, `/ready`, and MCP response contracts remain unchanged.
 - Hosted deployment work MUST NOT introduce new mandatory client request fields.
 - Hosted verification evidence MUST be sufficient for an operator to determine
   whether the revision is safe for MCP client use without inspecting source

@@ -17,8 +17,8 @@ semantics in both local and deployed verification.
 ## Red Phase (write failing tests and checks first)
 
 1. Add failing contract coverage for:
-   - `/readyz` ready versus not-ready HTTP status behavior
-   - `/healthz`, `/readyz`, and `/mcp` JSON content-type consistency
+   - `/ready` ready versus not-ready HTTP status behavior
+   - `/health`, `/ready`, and `/mcp` JSON content-type consistency
    - unknown-path and unsupported-method transport behavior
 2. Add failing integration coverage for:
    - malformed JSON requests to hosted `/mcp`
@@ -40,8 +40,8 @@ python3 -m unittest discover -s tests/contract -p 'test_*.py'
 1. Add the minimum shared hosted request-classification and status-mapping
    behavior needed to satisfy the route contract.
 2. Update the hosted entrypoint so:
-   - `/healthz` always returns a success liveness response for a live process
-   - `/readyz` returns `503` when the instance is not ready
+   - `/health` always returns a success liveness response for a live process
+   - `/ready` returns `503` when the instance is not ready
    - `/mcp` rejects malformed, unsupported-method, and unsupported-media-type
      requests with structured JSON errors
    - unknown paths return `404` and supported paths with unsupported methods return `405`
@@ -72,13 +72,13 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 2. Verify liveness:
 
 ```bash
-curl -i http://localhost:8080/healthz
+curl -i http://localhost:8080/health
 ```
 
 3. Verify readiness for a ready instance:
 
 ```bash
-curl -i http://localhost:8080/readyz
+curl -i http://localhost:8080/ready
 ```
 
 4. Verify MCP success behavior:
@@ -109,9 +109,9 @@ curl -i http://localhost:8080/unknown
    service URL and confirm status-class parity with local verification.
 
 Expected hosted statuses:
-- `/healthz` success: `200`
-- `/readyz` ready: `200`
-- `/readyz` not ready: `503`
+- `/health` success: `200`
+- `/ready` ready: `200`
+- `/ready` not ready: `503`
 - `/mcp` success: `200`
 - `/mcp` malformed payload: `400`
 - `/mcp` unsupported media type: `415`
@@ -121,8 +121,8 @@ Expected hosted statuses:
 ## Success Evidence
 
 - Contract, integration, and unit tests prove hosted route semantics.
-- `/readyz` ready and not-ready outcomes differ at the HTTP status layer.
-- `/healthz`, `/readyz`, `/mcp`, and JSON error responses use the documented
+- `/ready` ready and not-ready outcomes differ at the HTTP status layer.
+- `/health`, `/ready`, `/mcp`, and JSON error responses use the documented
   response media type policy.
 - Malformed, unsupported-method, unsupported-media-type, and unknown-path
   scenarios produce deterministic, sanitized, machine-readable failures.

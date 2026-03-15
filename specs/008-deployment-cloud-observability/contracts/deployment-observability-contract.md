@@ -79,8 +79,8 @@ Tool invocation requests that reach tool dispatch MUST also include:
 
 Structured hosted log emission MUST cover:
 
-- `GET /healthz`
-- `GET /readyz`
+- `GET /health`
+- `GET /ready`
 - supported `/mcp` requests
 - failed `/mcp` requests
 - unsupported hosted paths

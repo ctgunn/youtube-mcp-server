@@ -23,12 +23,12 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
 
     def test_health_and_ready_log_fields_present(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
-        app.handle("/healthz", {})
-        app.handle("/readyz", {})
+        app.handle("/health", {})
+        app.handle("/ready", {})
 
         logs = app.observability.logs
-        health = [entry for entry in logs if entry["path"] == "/healthz"][-1]
-        ready = [entry for entry in logs if entry["path"] == "/readyz"][-1]
+        health = [entry for entry in logs if entry["path"] == "/health"][-1]
+        ready = [entry for entry in logs if entry["path"] == "/ready"][-1]
 
         for item in (health, ready):
             self.assertIn("requestId", item)
@@ -37,7 +37,7 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
 
     def test_ready_not_ready_reason_still_present_with_instrumentation(self):
         app = create_app(env={"MCP_ENVIRONMENT": "staging"}, validate_startup=False)
-        payload = app.handle("/readyz", {})
+        payload = app.handle("/ready", {})
         self.assertEqual(payload["status"], "not_ready")
         self.assertEqual(payload["reason"]["code"], "CONFIG_VALIDATION_ERROR")
 
@@ -75,12 +75,12 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
 
     def test_metrics_count_and_latency_outputs(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
-        app.handle("/healthz", {})
+        app.handle("/health", {})
         app.handle("/mcp", {"id": "req-m1", "method": "tools/list", "params": {}})
         app.handle("/mcp", {"id": "req-m2", "method": "tools/call", "params": {"toolName": "missing", "arguments": {}}})
 
         snapshot = app.observability.snapshot()
-        self.assertGreaterEqual(snapshot["counts"]["/healthz"]["success"], 1)
+        self.assertGreaterEqual(snapshot["counts"]["/health"]["success"], 1)
         self.assertGreaterEqual(snapshot["counts"]["/mcp"]["success"], 1)
         self.assertGreaterEqual(snapshot["counts"]["/mcp"]["error"], 1)
         self.assertIn("p50", snapshot["latency"]["byEndpoint"]["/mcp"])
@@ -89,15 +89,15 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
     def test_mixed_traffic_regression(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
 
-        app.handle("/healthz", {})
-        app.handle("/readyz", {})
+        app.handle("/health", {})
+        app.handle("/ready", {})
         app.handle("/mcp", {"id": "req-r1", "method": "initialize", "params": {"clientInfo": {"name": "x"}}})
         app.handle("/mcp", {"id": "req-r2", "method": "tools/list", "params": {}})
         app.handle("/nope", {})
 
         snapshot = app.observability.snapshot()
-        self.assertGreaterEqual(snapshot["counts"]["/healthz"]["success"], 1)
-        self.assertGreaterEqual(snapshot["counts"]["/readyz"]["success"], 1)
+        self.assertGreaterEqual(snapshot["counts"]["/health"]["success"], 1)
+        self.assertGreaterEqual(snapshot["counts"]["/ready"]["success"], 1)
         self.assertGreaterEqual(snapshot["counts"]["/mcp"]["success"], 2)
         self.assertGreaterEqual(snapshot["counts"]["not_found"]["error"], 1)
 
@@ -106,12 +106,12 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
         stderr = io.StringIO()
         app = create_app(env={"MCP_ENVIRONMENT": "dev"}, runtime_stdout=stdout, runtime_stderr=stderr)
 
-        app.handle("/healthz", {})
+        app.handle("/health", {})
         app.handle("/unknown", {})
 
         stdout_event = json.loads(stdout.getvalue().splitlines()[0])
         stderr_event = json.loads(stderr.getvalue().splitlines()[0])
-        self.assertEqual(stdout_event["path"], "/healthz")
+        self.assertEqual(stdout_event["path"], "/health")
         self.assertEqual(stdout_event["status"], "success")
         self.assertEqual(stderr_event["path"], "/unknown")
         self.assertEqual(stderr_event["status"], "error")
@@ -121,7 +121,7 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
         stderr = io.StringIO()
         app = create_app(env={"MCP_ENVIRONMENT": "dev"}, runtime_stdout=stdout, runtime_stderr=stderr)
 
-        app.handle("/readyz", {})
+        app.handle("/ready", {})
         app.handle(
             "/mcp",
             {

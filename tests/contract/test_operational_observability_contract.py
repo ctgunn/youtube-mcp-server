@@ -11,17 +11,17 @@ from mcp_server.cloud_run_entrypoint import execute_hosted_request
 
 
 class OperationalObservabilityContractTests(unittest.TestCase):
-    def test_healthz_and_readyz_contract_shape(self):
+    def test_health_and_ready_contract_shape(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
-        self.assertEqual(app.handle("/healthz", {}), {"status": "ok"})
+        self.assertEqual(app.handle("/health", {}), {"status": "ok"})
 
-        ready = app.handle("/readyz", {})
+        ready = app.handle("/ready", {})
         self.assertEqual(ready["status"], "ready")
         self.assertEqual(ready["checks"]["configuration"], "pass")
 
-    def test_readyz_not_ready_contract_shape(self):
+    def test_ready_not_ready_contract_shape(self):
         app = create_app(env={"MCP_ENVIRONMENT": "staging"}, validate_startup=False)
-        payload = app.handle("/readyz", {})
+        payload = app.handle("/ready", {})
         self.assertEqual(payload["status"], "not_ready")
         self.assertEqual(payload["checks"]["configuration"], "fail")
         self.assertEqual(payload["reason"]["code"], "CONFIG_VALIDATION_ERROR")
@@ -41,7 +41,7 @@ class OperationalObservabilityContractTests(unittest.TestCase):
         self.assertEqual(missing.status, 404)
         self.assertEqual(missing.payload["error"]["code"], "RESOURCE_NOT_FOUND")
 
-        wrong_method = execute_hosted_request(app, method="POST", path="/healthz")
+        wrong_method = execute_hosted_request(app, method="POST", path="/health")
         self.assertEqual(wrong_method.status, 405)
         self.assertEqual(wrong_method.payload["error"]["code"], "METHOD_NOT_ALLOWED")
 
@@ -57,7 +57,7 @@ class OperationalObservabilityContractTests(unittest.TestCase):
         stdout = io.StringIO()
         stderr = io.StringIO()
         app = create_app(env={"MCP_ENVIRONMENT": "dev"}, runtime_stdout=stdout, runtime_stderr=stderr)
-        execute_hosted_request(app, method="GET", path="/healthz")
+        execute_hosted_request(app, method="GET", path="/health")
         execute_hosted_request(
             app,
             method="POST",

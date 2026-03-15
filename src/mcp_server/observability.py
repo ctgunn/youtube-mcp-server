@@ -56,7 +56,7 @@ def build_request_context(path: str, payload: Any) -> RequestContext:
 
 
 def classify_endpoint(path: str) -> str:
-    if path in {"/healthz", "/readyz", "/mcp"}:
+    if path in {"/health", "/ready", "/mcp"}:
         return path
     return "not_found"
 

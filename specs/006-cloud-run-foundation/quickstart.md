@@ -41,8 +41,8 @@ python3 -m unittest discover -s tests/contract -p 'test_*.py'
 2. Add or update deployment documentation so operators can supply all required
    inputs and apply explicit revision settings.
 3. Add hosted verification helpers or documented commands for:
-   - `/healthz`
-   - `/readyz`
+   - `/health`
+   - `/ready`
    - MCP initialize
    - MCP list-tools
    - one baseline tool invocation
@@ -89,8 +89,8 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 1. Prepare deployment inputs using `.env.example`, runtime profile rules, and
    the documented hosted revision settings.
 2. Execute the deployment workflow and capture the revision name and endpoint.
-3. Call the hosted `/healthz` endpoint and record the outcome.
-4. Call the hosted `/readyz` endpoint and record the outcome.
+3. Call the hosted `/health` endpoint and record the outcome.
+4. Call the hosted `/ready` endpoint and record the outcome.
 5. Send MCP initialize to the hosted endpoint and record the outcome.
 6. Send MCP list-tools to the hosted endpoint and record the returned baseline
    tools.

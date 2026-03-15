@@ -80,7 +80,7 @@ Dependencies:
 
 ### FND-005: Health, Logging, Error Model, Metrics
 Description:
-Implement `/healthz`, `/readyz`, structured logs, normalized errors, and core metrics.
+Implement `/health`, `/ready`, structured logs, normalized errors, and core metrics.
 
 Primary stories:
 - As an operator, I can assess liveness/readiness quickly.
@@ -104,7 +104,7 @@ Primary stories:
 - As an MCP client, I can initialize/list/invoke baseline tool against deployed URL.
 
 Acceptance criteria:
-- Deployed revision passes `/healthz` and `/readyz`.
+- Deployed revision passes `/health` and `/ready`.
 - MCP initialize/list/invoke passes against Cloud Run endpoint.
 
 Dependencies:
@@ -115,12 +115,12 @@ Description:
 Harden the hosted HTTP surface so Cloud Run probes and operators can rely on transport-level status codes and consistent endpoint behavior.
 
 Primary stories:
-- As an operator, I can trust probe responses because `/healthz` and `/readyz` use correct HTTP semantics.
+- As an operator, I can trust probe responses because `/health` and `/ready` use correct HTTP semantics.
 - As an MCP client, I receive predictable HTTP behavior for supported and unsupported hosted routes.
 
 Acceptance criteria:
-- Hosted `/readyz` returns a non-success HTTP status when the instance is not ready.
-- Hosted `/healthz`, `/readyz`, and `/mcp` use consistent content-type and request/response handling.
+- Hosted `/ready` returns a non-success HTTP status when the instance is not ready.
+- Hosted `/health`, `/ready`, and `/mcp` use consistent content-type and request/response handling.
 - Unsupported paths and malformed hosted requests return correct HTTP status codes with structured error payloads where applicable.
 
 Dependencies:

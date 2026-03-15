@@ -8,15 +8,15 @@ status codes and consistent JSON response handling.
 
 ## Scope
 
-- Hosted liveness contract for `GET /healthz`
-- Hosted readiness contract for `GET /readyz`
+- Hosted liveness contract for `GET /health`
+- Hosted readiness contract for `GET /ready`
 - Hosted MCP contract for supported requests to `/mcp`
 - Hosted failure semantics for malformed requests, unsupported media types,
   unsupported methods, and unknown paths
 
 ## Hosted Route Contract
 
-### `GET /healthz`
+### `GET /health`
 
 Success contract:
 - Returns a success HTTP status.
@@ -36,7 +36,7 @@ Behavior rules:
 - Hosted success status: `200`.
 - Hosted unsupported-method status: `405`.
 
-### `GET /readyz`
+### `GET /ready`
 
 Ready contract:
 - Returns a success HTTP status.
@@ -124,7 +124,7 @@ Behavior rules:
 ## Content-Type Contract
 
 - Hosted responses that include a body MUST use one consistent JSON response
-  media type across `/healthz`, `/readyz`, `/mcp`, and JSON error responses.
+  media type across `/health`, `/ready`, `/mcp`, and JSON error responses.
 - Content-type behavior for malformed or unsupported requests MUST remain
   deterministic for both local and deployed verification.
 
@@ -138,7 +138,7 @@ Behavior rules:
 
 ## Testable Assertions
 
-- Contract tests can prove that hosted `/readyz` returns success only when the
+- Contract tests can prove that hosted `/ready` returns success only when the
   instance is ready.
 - Contract tests can prove that malformed JSON, malformed MCP payloads,
   unsupported media types, unsupported methods, and unknown paths map to the

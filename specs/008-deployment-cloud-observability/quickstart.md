@@ -25,7 +25,7 @@ structured runtime log emission for the existing Cloud Run foundation service.
      concurrency, and timeout
    - partial metadata capture is classified as `incomplete`
 3. Add failing integration and contract coverage for hosted structured logging:
-   - `/healthz` and `/readyz` emit structured log events
+   - `/health` and `/ready` emit structured log events
    - `/mcp` success and failure paths emit structured log events
    - unsupported paths emit structured log events
    - `toolName` is present only for tool calls
@@ -89,7 +89,7 @@ PYTHONPATH=src python3 scripts/verify_cloud_run_foundation.py \
   --evidence-file artifacts/cloud-run-verification.txt
 ```
 
-6. Send hosted requests to `/healthz`, `/readyz`, and `/mcp`.
+6. Send hosted requests to `/health`, `/ready`, and `/mcp`.
 7. Inspect the hosted logging view and confirm each request produced a
    structured log event with:
    - `requestId`
