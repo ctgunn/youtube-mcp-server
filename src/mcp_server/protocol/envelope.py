@@ -1,4 +1,4 @@
-"""Response envelope helpers."""
+"""Protocol response helpers."""
 
 from __future__ import annotations
 
@@ -12,23 +12,25 @@ def _sanitize_message(message: str) -> str:
     return first_line.replace("Traceback (most recent call last)", "").strip() or "Unexpected error."
 
 
-def success_response(data, request_id=None):
-    return {
-        "success": True,
-        "data": data,
-        "meta": {"requestId": request_id},
-        "error": None,
+def success_response(result, request_id=None):
+    response = {
+        "jsonrpc": "2.0",
+        "result": result,
     }
+    if request_id is not None:
+        response["id"] = request_id
+    return response
 
 
 def error_response(code: str, message: str, request_id=None, details=None):
-    return {
-        "success": False,
-        "data": None,
-        "meta": {"requestId": request_id},
+    response = {
+        "jsonrpc": "2.0",
         "error": {
             "code": code,
             "message": _sanitize_message(message),
-            "details": details,
+            "data": details,
         },
     }
+    if request_id is not None:
+        response["id"] = request_id
+    return response

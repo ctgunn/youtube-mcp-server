@@ -23,6 +23,7 @@ class StreamableHTTPContractTests(unittest.TestCase):
             headers={"Content-Type": "application/json", **stream_headers()},
             body=json.dumps(
                 {
+                    "jsonrpc": "2.0",
                     "id": "req-contract-init",
                     "method": "initialize",
                     "params": {"clientInfo": {"name": "client", "version": "1.0.0"}},
@@ -35,6 +36,7 @@ class StreamableHTTPContractTests(unittest.TestCase):
     def test_initialize_issues_session_header(self):
         result = self._initialize()
         self.assertEqual(result.headers["Content-Type"], "application/json")
+        self.assertEqual(result.payload["jsonrpc"], "2.0")
         self.assertIn("MCP-Session-Id", result.headers)
         self.assertEqual(result.headers["MCP-Protocol-Version"], "2025-11-25")
 
@@ -45,11 +47,13 @@ class StreamableHTTPContractTests(unittest.TestCase):
             method="POST",
             path="/mcp",
             headers={"Content-Type": "application/json", **stream_headers(session_id=init.headers["MCP-Session-Id"])},
-            body=b'{"id":"req-contract-call","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-contract-call","method":"tools/call","params":{"name":"server_ping","arguments":{}}}',
         )
         self.assertEqual(result.status, 200)
         self.assertEqual(result.headers["Content-Type"], "text/event-stream")
-        self.assertEqual(len(parse_sse_payload(result.body)), 2)
+        events = parse_sse_payload(result.body)
+        self.assertEqual(len(events), 2)
+        self.assertIn('"result"', events[1]["data"])
 
     def test_get_stream_requires_valid_session(self):
         missing = execute_hosted_request(
@@ -79,7 +83,7 @@ class StreamableHTTPContractTests(unittest.TestCase):
                 "Content-Type": "application/json",
                 **stream_headers(protocol_version="1999-01-01"),
             },
-            body=b'{"id":"req-invalid-version","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-invalid-version","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
         )
         self.assertEqual(invalid_version.status, 400)
 
@@ -92,7 +96,7 @@ class StreamableHTTPContractTests(unittest.TestCase):
                 "Host": "localhost:8080",
                 **stream_headers(origin="https://evil.example"),
             },
-            body=b'{"id":"req-invalid-origin","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-invalid-origin","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
         )
         self.assertEqual(invalid_origin.status, 403)
 

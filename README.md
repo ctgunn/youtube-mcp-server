@@ -89,7 +89,7 @@ Manual streamable MCP verification examples:
 curl -i \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"id":"req-init","method":"initialize","params":{"clientInfo":{"name":"manual","version":"1.0.0"}}}' \
+  -d '{"jsonrpc":"2.0","id":"req-init","method":"initialize","params":{"clientInfo":{"name":"manual","version":"1.0.0"}}}' \
   https://YOUR_SERVICE_URL/mcp
 ```
 
@@ -100,8 +100,26 @@ curl -i \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   -H 'MCP-Session-Id: SESSION_ID' \
-  -d '{"id":"req-call","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}' \
+  -d '{"jsonrpc":"2.0","id":"req-call","method":"tools/call","params":{"name":"server_ping","arguments":{}}}' \
   https://YOUR_SERVICE_URL/mcp
+```
+
+Successful hosted JSON responses now use protocol-native MCP bodies:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "req-call",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"status\":\"ok\",\"timestamp\":\"...\"}"
+      }
+    ],
+    "isError": false
+  }
+}
 ```
 
 Open or resume an SSE stream:

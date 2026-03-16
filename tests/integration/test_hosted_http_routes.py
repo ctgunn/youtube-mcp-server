@@ -21,6 +21,7 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
             },
             body=json.dumps(
                 {
+                    "jsonrpc": "2.0",
                     "id": "req-init-routes",
                     "method": "initialize",
                     "params": {"clientInfo": {"name": "client", "version": "1.0.0"}},
@@ -81,7 +82,7 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         self.assertEqual(missing_path.status, 404)
         self.assertEqual(missing_path.payload["error"]["code"], "RESOURCE_NOT_FOUND")
 
-    def test_hosted_mcp_initialize_and_session_list_use_json_envelope(self):
+    def test_hosted_mcp_initialize_and_session_list_use_json_protocol_result(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
         session_id = self._initialize_session(app)
         response = execute_hosted_request(
@@ -93,12 +94,12 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
                 "Accept": "application/json, text/event-stream",
                 "MCP-Session-Id": session_id,
             },
-            body=json.dumps({"id": "req-hosted-1", "method": "tools/list", "params": {}}).encode("utf-8"),
+            body=json.dumps({"jsonrpc": "2.0", "id": "req-hosted-1", "method": "tools/list", "params": {}}).encode("utf-8"),
         )
         self.assertEqual(response.status, 200)
         self.assertEqual(response.headers["Content-Type"], "application/json")
-        self.assertTrue(response.payload["success"])
-        self.assertIsInstance(response.payload["data"], list)
+        self.assertEqual(response.payload["jsonrpc"], "2.0")
+        self.assertIsInstance(response.payload["result"]["tools"], list)
 
 
 if __name__ == "__main__":

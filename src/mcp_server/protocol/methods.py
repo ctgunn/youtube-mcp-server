@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+
 from mcp_server.protocol.envelope import error_response, success_response
+from mcp_server.transport.streaming import SUPPORTED_MCP_PROTOCOL_VERSIONS
 
 
 UNKNOWN_TOOL_MESSAGE = "Tool not found."
@@ -26,12 +29,26 @@ def _validate_payload(payload):
     return True, request_id, (method, params), None
 
 
+def _serialize_tool_result(result) -> dict:
+    return {
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps(result, sort_keys=True),
+            }
+        ],
+        "isError": False,
+    }
+
+
 def _parse_call_params(request_id, params):
-    tool_name = params.get("toolName")
+    tool_name = params.get("name")
+    if tool_name is None:
+        tool_name = params.get("toolName")
     if not isinstance(tool_name, str) or not tool_name.strip():
         return None, None, error_response(
             "INVALID_ARGUMENT",
-            "toolName is required",
+            "name is required",
             request_id=request_id,
         )
 
@@ -56,8 +73,11 @@ def _handle_initialize(request_id, params):
         )
     return success_response(
         {
-            "serverName": "youtube-mcp-server",
-            "serverVersion": "0.1.0",
+            "protocolVersion": SUPPORTED_MCP_PROTOCOL_VERSIONS[0],
+            "serverInfo": {
+                "name": "youtube-mcp-server",
+                "version": "0.1.0",
+            },
             "capabilities": {"tools": {"listChanged": False}},
         },
         request_id=request_id,
@@ -65,7 +85,7 @@ def _handle_initialize(request_id, params):
 
 
 def _handle_list(request_id, _params, dispatcher):
-    return success_response(dispatcher.list_tools(), request_id=request_id)
+    return success_response({"tools": dispatcher.list_tools()}, request_id=request_id)
 
 
 def _handle_call(request_id, params, dispatcher):
@@ -87,7 +107,7 @@ def _handle_call(request_id, params, dispatcher):
     except Exception:
         return error_response("INTERNAL_ERROR", "Unexpected tool execution error.", request_id=request_id)
 
-    return success_response({"toolName": tool_name, "result": result}, request_id=request_id)
+    return success_response(_serialize_tool_result(result), request_id=request_id)
 
 
 def route_mcp_request(payload: dict, dispatcher) -> dict:

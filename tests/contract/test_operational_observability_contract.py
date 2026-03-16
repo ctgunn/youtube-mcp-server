@@ -30,10 +30,10 @@ class OperationalObservabilityContractTests(unittest.TestCase):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
         payload = app.handle("/missing", {})
 
-        self.assertFalse(payload["success"])
+        self.assertEqual(payload["jsonrpc"], "2.0")
         self.assertIn("code", payload["error"])
         self.assertIn("message", payload["error"])
-        self.assertIn("details", payload["error"])
+        self.assertIn("data", payload["error"])
 
     def test_hosted_invalid_path_and_method_statuses(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
@@ -47,11 +47,11 @@ class OperationalObservabilityContractTests(unittest.TestCase):
 
     def test_error_shape_for_invalid_method(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
-        payload = app.handle("/mcp", {"method": "", "params": {}})
+        payload = app.handle("/mcp", {"jsonrpc": "2.0", "method": "", "params": {}})
 
-        self.assertFalse(payload["success"])
-        self.assertEqual(payload["error"].keys(), {"code", "message", "details"})
-        self.assertTrue(str(payload["meta"].get("requestId", "")).startswith("req-"))
+        self.assertEqual(payload["jsonrpc"], "2.0")
+        self.assertEqual(payload["error"].keys(), {"code", "message", "data"})
+        self.assertTrue(str(payload.get("id", "")).startswith("req-"))
 
     def test_hosted_runtime_log_event_contract(self):
         stdout = io.StringIO()
@@ -63,7 +63,7 @@ class OperationalObservabilityContractTests(unittest.TestCase):
             method="POST",
             path="/mcp",
             headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
-            body=b'{"id":"req-contract-init","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-contract-init","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
         )
         execute_hosted_request(
             app,
@@ -74,7 +74,7 @@ class OperationalObservabilityContractTests(unittest.TestCase):
                 "Accept": "application/json, text/event-stream",
                 "MCP-Session-Id": init.headers["MCP-Session-Id"],
             },
-            body=b'{"id":"req-contract-log","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-contract-log","method":"tools/call","params":{"name":"server_ping","arguments":{}}}',
         )
         health_event = json.loads(stdout.getvalue().splitlines()[0])
         tool_event = json.loads(stdout.getvalue().splitlines()[-1])
