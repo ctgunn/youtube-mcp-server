@@ -117,11 +117,24 @@ class MCPTransportContractTests(unittest.TestCase):
         self.assertTrue(response["meta"]["requestId"].startswith("req-"))
 
     def test_hosted_mcp_status_codes_and_json_error_envelope(self):
+        init = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+            body=b'{"id":"req-hosted-init","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+        )
+        self.assertEqual(init.status, 200)
+
         success = execute_hosted_request(
             self.app,
             method="POST",
             path="/mcp",
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": init.headers["MCP-Session-Id"],
+            },
             body=b'{"id":"req-hosted-c1","method":"tools/list","params":{}}',
         )
         self.assertEqual(success.status, 200)
@@ -132,7 +145,11 @@ class MCPTransportContractTests(unittest.TestCase):
             self.app,
             method="POST",
             path="/mcp",
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": init.headers["MCP-Session-Id"],
+            },
             body=b'{"id":"req-hosted-c2","method":"","params":{}}',
         )
         self.assertEqual(invalid.status, 400)

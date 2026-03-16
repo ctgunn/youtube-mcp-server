@@ -15,3 +15,15 @@ def build_tool_call_payload(request_id, tool_name, arguments=None):
             "arguments": arguments or {},
         },
     )
+
+
+def stream_headers(session_id=None, *, include_json=True, protocol_version=None, origin=None):
+    accept = "application/json, text/event-stream" if include_json else "text/event-stream"
+    headers = {"Accept": accept}
+    if session_id:
+        headers["MCP-Session-Id"] = session_id
+    if protocol_version:
+        headers["MCP-Protocol-Version"] = protocol_version
+    if origin:
+        headers["Origin"] = origin
+    return headers

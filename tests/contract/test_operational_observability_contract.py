@@ -58,11 +58,22 @@ class OperationalObservabilityContractTests(unittest.TestCase):
         stderr = io.StringIO()
         app = create_app(env={"MCP_ENVIRONMENT": "dev"}, runtime_stdout=stdout, runtime_stderr=stderr)
         execute_hosted_request(app, method="GET", path="/health")
+        init = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+            body=b'{"id":"req-contract-init","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+        )
         execute_hosted_request(
             app,
             method="POST",
             path="/mcp",
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": init.headers["MCP-Session-Id"],
+            },
             body=b'{"id":"req-contract-log","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}',
         )
         health_event = json.loads(stdout.getvalue().splitlines()[0])
@@ -72,6 +83,7 @@ class OperationalObservabilityContractTests(unittest.TestCase):
             {"timestamp", "severity", "requestId", "path", "status", "latencyMs"},
         )
         self.assertEqual(tool_event["toolName"], "server_ping")
+        self.assertEqual(tool_event["methodName"], "tools/call")
         self.assertEqual(tool_event["path"], "/mcp")
 
 

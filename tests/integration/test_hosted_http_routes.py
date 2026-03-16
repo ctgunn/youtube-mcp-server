@@ -10,6 +10,26 @@ from mcp_server.cloud_run_entrypoint import execute_hosted_request
 
 
 class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
+    def _initialize_session(self, app):
+        response = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+            },
+            body=json.dumps(
+                {
+                    "id": "req-init-routes",
+                    "method": "initialize",
+                    "params": {"clientInfo": {"name": "client", "version": "1.0.0"}},
+                }
+            ).encode("utf-8"),
+        )
+        self.assertEqual(response.status, 200)
+        return response.headers["MCP-Session-Id"]
+
     def test_health_and_ready_use_expected_hosted_statuses(self):
         ready_app = create_app(env={"MCP_ENVIRONMENT": "dev"})
         ready = execute_hosted_request(ready_app, method="GET", path="/ready")
@@ -34,7 +54,7 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
             app,
             method="POST",
             path="/mcp",
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
             body=b'{"id":"req-bad"',
         )
         self.assertEqual(malformed.status, 400)
@@ -44,7 +64,7 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
             app,
             method="POST",
             path="/mcp",
-            headers={"Content-Type": "text/plain"},
+            headers={"Content-Type": "text/plain", "Accept": "application/json, text/event-stream"},
             body=b"plain-text",
         )
         self.assertEqual(unsupported_media_type.status, 415)
@@ -53,7 +73,7 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
     def test_unsupported_method_and_unknown_path_use_distinct_statuses(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
 
-        wrong_method = execute_hosted_request(app, method="GET", path="/mcp")
+        wrong_method = execute_hosted_request(app, method="DELETE", path="/mcp")
         self.assertEqual(wrong_method.status, 405)
         self.assertEqual(wrong_method.payload["error"]["code"], "METHOD_NOT_ALLOWED")
 
@@ -61,13 +81,18 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         self.assertEqual(missing_path.status, 404)
         self.assertEqual(missing_path.payload["error"]["code"], "RESOURCE_NOT_FOUND")
 
-    def test_hosted_mcp_success_uses_json_envelope(self):
+    def test_hosted_mcp_initialize_and_session_list_use_json_envelope(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+        session_id = self._initialize_session(app)
         response = execute_hosted_request(
             app,
             method="POST",
             path="/mcp",
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": session_id,
+            },
             body=json.dumps({"id": "req-hosted-1", "method": "tools/list", "params": {}}).encode("utf-8"),
         )
         self.assertEqual(response.status, 200)

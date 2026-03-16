@@ -352,7 +352,54 @@ def serialize_verification_run(run: HostedVerificationRun) -> dict:
     }
 
 
-Requester = Callable[[str, object], dict]
+Requester = Callable[[str, object], object]
+
+
+def _parse_sse_events(body: bytes | str) -> list[dict[str, str]]:
+    text = body.decode("utf-8") if isinstance(body, bytes) else str(body or "")
+    events: list[dict[str, str]] = []
+    current: dict[str, str] = {}
+    for line in text.splitlines():
+        if not line.strip():
+            if current:
+                events.append(current)
+                current = {}
+            continue
+        key, _, value = line.partition(":")
+        current[key] = value.lstrip()
+    if current:
+        events.append(current)
+    return events
+
+
+def _normalize_request_result(result: object) -> dict:
+    if isinstance(result, dict):
+        return result
+
+    status = getattr(result, "status", None)
+    headers = getattr(result, "headers", {}) or {}
+    payload = getattr(result, "payload", None)
+    body = getattr(result, "body", b"")
+    normalized = dict(payload or {})
+    if status is not None:
+        normalized["statusCode"] = status
+
+    content_type = headers.get("Content-Type") or headers.get("content-type")
+    if content_type == "text/event-stream":
+        events = _parse_sse_events(body)
+        normalized["_sseEvents"] = events
+        for event in reversed(events):
+            data = event.get("data", "")
+            if not data:
+                continue
+            try:
+                decoded = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(decoded, dict):
+                normalized.update(decoded)
+                break
+    return normalized
 
 
 def run_hosted_verification(
@@ -399,7 +446,7 @@ def run_hosted_verification(
         )
         return ok
 
-    health_payload = requester("/health", {})
+    health_payload = _normalize_request_result(requester("/health", {}))
     if not _append(
         "liveness",
         health_payload,
@@ -408,7 +455,7 @@ def run_hosted_verification(
     ):
         return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
 
-    ready_payload = requester("/ready", {})
+    ready_payload = _normalize_request_result(requester("/ready", {}))
     if not _append(
         "readiness",
         ready_payload,
@@ -417,13 +464,15 @@ def run_hosted_verification(
     ):
         return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
 
-    initialize_payload = requester(
+    initialize_payload = _normalize_request_result(
+        requester(
         "/mcp",
         {
             "id": "verify-init",
             "method": "initialize",
             "params": {"clientInfo": {"name": "cloud-run-verifier", "version": "1.0.0"}},
         },
+        )
     )
     if not _append(
         "initialize",
@@ -433,7 +482,7 @@ def run_hosted_verification(
     ):
         return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
 
-    list_payload = requester("/mcp", {"id": "verify-list", "method": "tools/list", "params": {}})
+    list_payload = _normalize_request_result(requester("/mcp", {"id": "verify-list", "method": "tools/list", "params": {}}))
     if not _append(
         "list-tools",
         list_payload,
@@ -444,13 +493,15 @@ def run_hosted_verification(
     ):
         return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
 
-    call_payload = requester(
+    call_payload = _normalize_request_result(
+        requester(
         "/mcp",
         {
             "id": "verify-call",
             "method": "tools/call",
             "params": {"toolName": baseline_tool_name, "arguments": {}},
         },
+        )
     )
     _append(
         "baseline-tool-call",

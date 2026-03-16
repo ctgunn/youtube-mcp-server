@@ -77,6 +77,43 @@ PYTHONPATH=src python3 scripts/verify_cloud_run_foundation.py \
   --evidence-file artifacts/cloud-run-verification.txt
 ```
 
+The hosted verifier now exercises the streamable MCP transport rather than the
+older bare `POST /mcp` flow. It performs `initialize`, captures the returned
+`MCP-Session-Id`, reuses that session for subsequent MCP requests, and accepts
+both `application/json` and `text/event-stream` responses as required by the
+hosted transport contract.
+
+Manual streamable MCP verification examples:
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"id":"req-init","method":"initialize","params":{"clientInfo":{"name":"manual","version":"1.0.0"}}}' \
+  https://YOUR_SERVICE_URL/mcp
+```
+
+Use the returned `MCP-Session-Id` for subsequent requests:
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'MCP-Session-Id: SESSION_ID' \
+  -d '{"id":"req-call","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}' \
+  https://YOUR_SERVICE_URL/mcp
+```
+
+Open or resume an SSE stream:
+
+```bash
+curl -i \
+  -H 'Accept: text/event-stream' \
+  -H 'MCP-Session-Id: SESSION_ID' \
+  -H 'Last-Event-ID: STREAM_EVENT_ID' \
+  https://YOUR_SERVICE_URL/mcp
+```
+
 You can still provide `--service-url`, `--revision-name`, `--service-name`,
 `--runtime-identity`, `--min-instances`, `--max-instances`, `--concurrency`,
 and `--timeout-seconds` directly when a deployment record file is not available.
