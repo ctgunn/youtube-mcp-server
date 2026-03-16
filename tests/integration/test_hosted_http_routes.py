@@ -100,6 +100,32 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         self.assertEqual(response.headers["Content-Type"], "application/json")
         self.assertEqual(response.payload["jsonrpc"], "2.0")
         self.assertIsInstance(response.payload["result"]["tools"], list)
+        self.assertIn("inputSchema", response.payload["result"]["tools"][0])
+
+    def test_hosted_tool_call_returns_structured_content(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+        session_id = self._initialize_session(app)
+        response = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": session_id,
+            },
+            body=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "req-hosted-call",
+                    "method": "tools/call",
+                    "params": {"name": "server_ping", "arguments": {}},
+                }
+            ).encode("utf-8"),
+        )
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.headers["Content-Type"], "text/event-stream")
+        self.assertIn('"structuredContent"', response.body.decode("utf-8"))
 
 
 if __name__ == "__main__":

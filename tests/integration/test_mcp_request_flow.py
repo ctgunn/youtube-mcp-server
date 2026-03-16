@@ -41,6 +41,7 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         list_resp = app.handle("/mcp", list_payload)
         names = [tool["name"] for tool in list_resp["result"]["tools"]]
         self.assertIn("server_ping", names)
+        self.assertIn("inputSchema", list_resp["result"]["tools"][0])
 
         call_payload = {
             "jsonrpc": "2.0",
@@ -49,7 +50,9 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
             "params": {"name": "server_ping", "arguments": {}},
         }
         call_resp = app.handle("/mcp", call_payload)
-        payload = json.loads(call_resp["result"]["content"][0]["text"])
+        content_item = call_resp["result"]["content"][0]
+        payload = json.loads(content_item["text"])
+        self.assertEqual(content_item["structuredContent"]["status"], "ok")
         self.assertEqual(payload["status"], "ok")
         self.assertIn("timestamp", payload)
 
@@ -64,12 +67,15 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         }
         first = app.handle("/mcp", payload)
         second = app.handle("/mcp", payload | {"id": "req-r2"})
-        first_payload = json.loads(first["result"]["content"][0]["text"])
-        second_payload = json.loads(second["result"]["content"][0]["text"])
+        first_content = first["result"]["content"][0]
+        second_content = second["result"]["content"][0]
+        first_payload = json.loads(first_content["text"])
+        second_payload = json.loads(second_content["text"])
         self.assertEqual(first_payload["status"], "ok")
         self.assertEqual(second_payload["status"], "ok")
         self.assertIsInstance(first_payload["timestamp"], str)
         self.assertIsInstance(second_payload["timestamp"], str)
+        self.assertEqual(set(first_content.keys()), set(second_content.keys()))
 
     def test_server_info_configured_and_fallback(self):
         configured = MCPHTTPTransport(
@@ -88,10 +94,12 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "params": {"name": "server_info", "arguments": {}},
             },
         )
-        configured_payload = json.loads(configured_resp["result"]["content"][0]["text"])
+        configured_content = configured_resp["result"]["content"][0]
+        configured_payload = json.loads(configured_content["text"])
         self.assertEqual(configured_payload["version"], "9.9.9")
         self.assertEqual(configured_payload["environment"], "staging")
         self.assertEqual(configured_payload["build"]["buildId"], "b-1")
+        self.assertEqual(configured_content["structuredContent"], configured_payload)
 
         fallback = MCPHTTPTransport(server_metadata={"version": "1.0.0"})
         fallback_resp = fallback.handle(
@@ -121,10 +129,12 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "params": {"name": "server_list_tools", "arguments": {}},
             },
         )
-        baseline_names = [entry["name"] for entry in json.loads(baseline["result"]["content"][0]["text"])]
+        baseline_content = baseline["result"]["content"][0]
+        baseline_names = [entry["name"] for entry in baseline_content["structuredContent"]]
         self.assertIn("server_ping", baseline_names)
         self.assertIn("server_info", baseline_names)
         self.assertIn("server_list_tools", baseline_names)
+        self.assertIn("inputSchema", baseline_content["structuredContent"][0])
 
         dispatcher.register_tool(
             name="extra_tool",
@@ -142,7 +152,7 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "params": {"name": "server_list_tools", "arguments": {}},
             },
         )
-        updated_names = [entry["name"] for entry in json.loads(updated["result"]["content"][0]["text"])]
+        updated_names = [entry["name"] for entry in updated["result"]["content"][0]["structuredContent"]]
         self.assertIn("extra_tool", updated_names)
 
     def test_register_list_call_happy_path(self):
@@ -157,6 +167,10 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
 
         list_resp = app.handle("/mcp", {"jsonrpc": "2.0", "id": "req-i4", "method": "tools/list", "params": {}})
         self.assertEqual([tool["name"] for tool in list_resp["result"]["tools"]], ["echo"])
+        self.assertEqual(
+            list_resp["result"]["tools"][0]["inputSchema"],
+            {"type": "object", "properties": {"value": {"type": "string"}}, "additionalProperties": False},
+        )
 
         call_resp = app.handle(
             "/mcp",
@@ -167,7 +181,9 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "params": {"name": "echo", "arguments": {"value": "hello"}},
             },
         )
-        self.assertEqual(json.loads(call_resp["result"]["content"][0]["text"])["value"], "hello")
+        content_item = call_resp["result"]["content"][0]
+        self.assertEqual(content_item["structuredContent"]["value"], "hello")
+        self.assertEqual(json.loads(content_item["text"])["value"], "hello")
 
     def test_unknown_tool_returns_error_without_execution(self):
         called = {"value": False}

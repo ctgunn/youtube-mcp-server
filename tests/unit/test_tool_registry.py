@@ -8,6 +8,30 @@ from mcp_server.tools.dispatcher import InMemoryToolDispatcher, ToolRegistration
 
 
 class ToolRegistryTests(unittest.TestCase):
+    def test_list_tools_exposes_complete_descriptors(self):
+        dispatcher = InMemoryToolDispatcher(tools=[])
+        dispatcher.register_tool(
+            name="alpha",
+            description="Alpha",
+            input_schema={"type": "object", "properties": {"value": {"type": "string"}}, "additionalProperties": False},
+            handler=lambda _: {"ok": True},
+        )
+
+        self.assertEqual(
+            dispatcher.list_tools(),
+            [
+                {
+                    "name": "alpha",
+                    "description": "Alpha",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"value": {"type": "string"}},
+                        "additionalProperties": False,
+                    },
+                }
+            ],
+        )
+
     def test_register_tool_requires_description(self):
         dispatcher = InMemoryToolDispatcher(tools=[])
         with self.assertRaises(ToolRegistrationError):
@@ -25,6 +49,16 @@ class ToolRegistryTests(unittest.TestCase):
                 name="alpha",
                 description="Alpha",
                 input_schema=None,
+                handler=lambda _: {},
+            )
+
+    def test_register_tool_requires_object_input_schema(self):
+        dispatcher = InMemoryToolDispatcher(tools=[])
+        with self.assertRaises(ToolRegistrationError):
+            dispatcher.register_tool(
+                name="alpha",
+                description="Alpha",
+                input_schema={"type": "array"},
                 handler=lambda _: {},
             )
 

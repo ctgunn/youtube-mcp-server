@@ -33,7 +33,7 @@ class HostedHTTPResult:
 
 
 def _json_result(status: int, payload: dict, extra_headers: Mapping[str, str] | None = None) -> HostedHTTPResult:
-    body = json.dumps(payload).encode("utf-8")
+    body = json.dumps(payload, sort_keys=True).encode("utf-8")
     headers = {"Content-Type": JSON_CONTENT_TYPE}
     if extra_headers:
         headers.update(extra_headers)
