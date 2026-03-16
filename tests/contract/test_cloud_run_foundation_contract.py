@@ -25,9 +25,24 @@ class CloudRunFoundationContractTests(unittest.TestCase):
         app_payloads = {
             "/health": {"status": "ok", "statusCode": 200},
             "/ready": {"status": "ready", "checks": {"configuration": "pass"}, "statusCode": 200},
-            "initialize": {"success": True, "data": {"capabilities": {"tools": {"listChanged": False}}}, "statusCode": 200},
-            "tools/list": {"success": True, "data": [{"name": "server_ping"}], "statusCode": 200},
-            "tools/call": {"success": True, "data": {"toolName": "server_ping", "result": {"status": "ok"}}, "statusCode": 200},
+            "initialize": {
+                "jsonrpc": "2.0",
+                "id": "verify-init",
+                "result": {"capabilities": {"tools": {"listChanged": False}}},
+                "statusCode": 200,
+            },
+            "tools/list": {
+                "jsonrpc": "2.0",
+                "id": "verify-list",
+                "result": {"tools": [{"name": "server_ping"}]},
+                "statusCode": 200,
+            },
+            "tools/call": {
+                "jsonrpc": "2.0",
+                "id": "verify-call",
+                "result": {"content": [{"type": "text", "text": "{\"status\":\"ok\"}"}], "isError": False},
+                "statusCode": 200,
+            },
         }
 
         def requester(path, payload):

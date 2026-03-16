@@ -113,7 +113,7 @@ def hosted_status_code(classification: HostedRequestClassification, response: di
         return 400
     if classification.path_class == "ready" and isinstance(response, dict) and response.get("status") == "not_ready":
         return 503
-    if classification.path_class == "mcp" and isinstance(response, dict) and response.get("success") is False:
+    if classification.path_class == "mcp" and isinstance(response, dict) and "error" in response:
         return 400
     return 200
 
@@ -159,14 +159,10 @@ class MCPHTTPTransport:
             if isinstance(mcp_payload, dict) and not mcp_payload.get("id"):
                 mcp_payload = {**mcp_payload, "id": context.request_id}
             response = route_mcp_request(mcp_payload, self.dispatcher)
-            if isinstance(response, dict):
-                meta = response.get("meta")
-                if isinstance(meta, dict) and not meta.get("requestId"):
-                    meta["requestId"] = context.request_id
 
         outcome = "success"
         if isinstance(response, dict):
-            if response.get("success") is False:
+            if "error" in response:
                 outcome = "error"
             elif response.get("status") == "not_ready":
                 outcome = "error"

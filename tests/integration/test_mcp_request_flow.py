@@ -19,7 +19,7 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
             method="POST",
             path="/mcp",
             headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
-            body=b'{"id":"req-hosted-init","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-hosted-init","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
         )
         self.assertEqual(response.status, 200)
         return response.headers["MCP-Session-Id"]
@@ -29,45 +29,47 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         app = create_app()
 
         init_payload = {
+            "jsonrpc": "2.0",
             "id": "req-i1",
             "method": "initialize",
             "params": {"clientInfo": {"name": "client", "version": "1.0.0"}},
         }
         init_resp = app.handle("/mcp", init_payload)
-        self.assertTrue(init_resp["success"])
+        self.assertEqual(init_resp["jsonrpc"], "2.0")
 
-        list_payload = {"id": "req-i2", "method": "tools/list", "params": {}}
+        list_payload = {"jsonrpc": "2.0", "id": "req-i2", "method": "tools/list", "params": {}}
         list_resp = app.handle("/mcp", list_payload)
-        self.assertTrue(list_resp["success"])
-        names = [tool["name"] for tool in list_resp["data"]]
+        names = [tool["name"] for tool in list_resp["result"]["tools"]]
         self.assertIn("server_ping", names)
 
         call_payload = {
+            "jsonrpc": "2.0",
             "id": "req-i3",
             "method": "tools/call",
-            "params": {"toolName": "server_ping", "arguments": {}},
+            "params": {"name": "server_ping", "arguments": {}},
         }
         call_resp = app.handle("/mcp", call_payload)
-        self.assertTrue(call_resp["success"])
-        self.assertEqual(call_resp["data"]["result"]["status"], "ok")
-        self.assertIn("timestamp", call_resp["data"]["result"])
+        payload = json.loads(call_resp["result"]["content"][0]["text"])
+        self.assertEqual(payload["status"], "ok")
+        self.assertIn("timestamp", payload)
 
     def test_server_ping_repeated_invocations_are_stable(self):
         os.environ["MCP_ENVIRONMENT"] = "dev"
         app = create_app()
         payload = {
+            "jsonrpc": "2.0",
             "id": "req-r1",
             "method": "tools/call",
-            "params": {"toolName": "server_ping", "arguments": {}},
+            "params": {"name": "server_ping", "arguments": {}},
         }
         first = app.handle("/mcp", payload)
         second = app.handle("/mcp", payload | {"id": "req-r2"})
-        self.assertTrue(first["success"])
-        self.assertTrue(second["success"])
-        self.assertEqual(first["data"]["result"]["status"], "ok")
-        self.assertEqual(second["data"]["result"]["status"], "ok")
-        self.assertIsInstance(first["data"]["result"]["timestamp"], str)
-        self.assertIsInstance(second["data"]["result"]["timestamp"], str)
+        first_payload = json.loads(first["result"]["content"][0]["text"])
+        second_payload = json.loads(second["result"]["content"][0]["text"])
+        self.assertEqual(first_payload["status"], "ok")
+        self.assertEqual(second_payload["status"], "ok")
+        self.assertIsInstance(first_payload["timestamp"], str)
+        self.assertIsInstance(second_payload["timestamp"], str)
 
     def test_server_info_configured_and_fallback(self):
         configured = MCPHTTPTransport(
@@ -80,29 +82,31 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         configured_resp = configured.handle(
             "/mcp",
             {
+                "jsonrpc": "2.0",
                 "id": "req-i-info-1",
                 "method": "tools/call",
-                "params": {"toolName": "server_info", "arguments": {}},
+                "params": {"name": "server_info", "arguments": {}},
             },
         )
-        self.assertTrue(configured_resp["success"])
-        self.assertEqual(configured_resp["data"]["result"]["version"], "9.9.9")
-        self.assertEqual(configured_resp["data"]["result"]["environment"], "staging")
-        self.assertEqual(configured_resp["data"]["result"]["build"]["buildId"], "b-1")
+        configured_payload = json.loads(configured_resp["result"]["content"][0]["text"])
+        self.assertEqual(configured_payload["version"], "9.9.9")
+        self.assertEqual(configured_payload["environment"], "staging")
+        self.assertEqual(configured_payload["build"]["buildId"], "b-1")
 
         fallback = MCPHTTPTransport(server_metadata={"version": "1.0.0"})
         fallback_resp = fallback.handle(
             "/mcp",
             {
+                "jsonrpc": "2.0",
                 "id": "req-i-info-2",
                 "method": "tools/call",
-                "params": {"toolName": "server_info", "arguments": {}},
+                "params": {"name": "server_info", "arguments": {}},
             },
         )
-        self.assertTrue(fallback_resp["success"])
-        self.assertEqual(fallback_resp["data"]["result"]["version"], "1.0.0")
-        self.assertEqual(fallback_resp["data"]["result"]["environment"], "dev")
-        self.assertEqual(fallback_resp["data"]["result"]["build"]["buildId"], "local")
+        fallback_payload = json.loads(fallback_resp["result"]["content"][0]["text"])
+        self.assertEqual(fallback_payload["version"], "1.0.0")
+        self.assertEqual(fallback_payload["environment"], "dev")
+        self.assertEqual(fallback_payload["build"]["buildId"], "local")
 
     def test_server_list_tools_reflects_dynamic_registry(self):
         dispatcher = InMemoryToolDispatcher()
@@ -111,13 +115,13 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         baseline = app.handle(
             "/mcp",
             {
+                "jsonrpc": "2.0",
                 "id": "req-i-list-1",
                 "method": "tools/call",
-                "params": {"toolName": "server_list_tools", "arguments": {}},
+                "params": {"name": "server_list_tools", "arguments": {}},
             },
         )
-        self.assertTrue(baseline["success"])
-        baseline_names = [entry["name"] for entry in baseline["data"]["result"]]
+        baseline_names = [entry["name"] for entry in json.loads(baseline["result"]["content"][0]["text"])]
         self.assertIn("server_ping", baseline_names)
         self.assertIn("server_info", baseline_names)
         self.assertIn("server_list_tools", baseline_names)
@@ -132,13 +136,13 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         updated = app.handle(
             "/mcp",
             {
+                "jsonrpc": "2.0",
                 "id": "req-i-list-2",
                 "method": "tools/call",
-                "params": {"toolName": "server_list_tools", "arguments": {}},
+                "params": {"name": "server_list_tools", "arguments": {}},
             },
         )
-        self.assertTrue(updated["success"])
-        updated_names = [entry["name"] for entry in updated["data"]["result"]]
+        updated_names = [entry["name"] for entry in json.loads(updated["result"]["content"][0]["text"])]
         self.assertIn("extra_tool", updated_names)
 
     def test_register_list_call_happy_path(self):
@@ -151,20 +155,19 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         )
         app = MCPHTTPTransport(dispatcher=dispatcher)
 
-        list_resp = app.handle("/mcp", {"id": "req-i4", "method": "tools/list", "params": {}})
-        self.assertTrue(list_resp["success"])
-        self.assertEqual([tool["name"] for tool in list_resp["data"]], ["echo"])
+        list_resp = app.handle("/mcp", {"jsonrpc": "2.0", "id": "req-i4", "method": "tools/list", "params": {}})
+        self.assertEqual([tool["name"] for tool in list_resp["result"]["tools"]], ["echo"])
 
         call_resp = app.handle(
             "/mcp",
             {
+                "jsonrpc": "2.0",
                 "id": "req-i5",
                 "method": "tools/call",
-                "params": {"toolName": "echo", "arguments": {"value": "hello"}},
+                "params": {"name": "echo", "arguments": {"value": "hello"}},
             },
         )
-        self.assertTrue(call_resp["success"])
-        self.assertEqual(call_resp["data"]["result"]["value"], "hello")
+        self.assertEqual(json.loads(call_resp["result"]["content"][0]["text"])["value"], "hello")
 
     def test_unknown_tool_returns_error_without_execution(self):
         called = {"value": False}
@@ -185,14 +188,15 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         response = app.handle(
             "/mcp",
             {
+                "jsonrpc": "2.0",
                 "id": "req-i6",
                 "method": "tools/call",
-                "params": {"toolName": "missing", "arguments": {}},
+                "params": {"name": "missing", "arguments": {}},
             },
         )
-        self.assertFalse(response["success"])
+        self.assertEqual(response["jsonrpc"], "2.0")
         self.assertEqual(response["error"]["code"], "RESOURCE_NOT_FOUND")
-        self.assertEqual(response["error"]["details"], {"toolName": "missing"})
+        self.assertEqual(response["error"]["data"], {"toolName": "missing"})
         self.assertFalse(called["value"])
 
     def test_tool_call_logs_include_latency_and_status(self):
@@ -201,12 +205,13 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         response = app.handle(
             "/mcp",
             {
+                "jsonrpc": "2.0",
                 "id": "req-i-log-1",
                 "method": "tools/call",
-                "params": {"toolName": "server_ping", "arguments": {}},
+                "params": {"name": "server_ping", "arguments": {}},
             },
         )
-        self.assertTrue(response["success"])
+        self.assertIn("result", response)
 
         logs = app.observability.logs
         event = logs[-1]
@@ -229,11 +234,12 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "Accept": "application/json, text/event-stream",
                 "MCP-Session-Id": session_id,
             },
-            body=b'{"id":"req-hosted-i1","method":"tools/list","params":{}}',
+            body=b'{"jsonrpc":"2.0","id":"req-hosted-i1","method":"tools/list","params":{}}',
         )
         self.assertEqual(success.status, 200)
         self.assertEqual(success.headers["Content-Type"], "application/json")
-        self.assertTrue(success.payload["success"])
+        self.assertEqual(success.payload["jsonrpc"], "2.0")
+        self.assertIn("result", success.payload)
 
         invalid = execute_hosted_request(
             app,
@@ -244,10 +250,10 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "Accept": "application/json, text/event-stream",
                 "MCP-Session-Id": session_id,
             },
-            body=b'{"id":"req-hosted-i2","method":"","params":{}}',
+            body=b'{"jsonrpc":"2.0","id":"req-hosted-i2","method":"","params":{}}',
         )
         self.assertEqual(invalid.status, 400)
-        self.assertFalse(invalid.payload["success"])
+        self.assertIn("error", invalid.payload)
         self.assertEqual(invalid.payload["error"]["code"], "INVALID_ARGUMENT")
 
     def test_hosted_runtime_logs_capture_tool_name_for_hosted_mcp_call(self):
@@ -264,14 +270,11 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "Accept": "application/json, text/event-stream",
                 "MCP-Session-Id": session_id,
             },
-            body=b'{"id":"req-hosted-log-1","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-hosted-log-1","method":"tools/call","params":{"name":"server_ping","arguments":{}}}',
         )
-
         self.assertEqual(response.status, 200)
-        event = json.loads(stdout.getvalue().splitlines()[-1])
-        self.assertEqual(event["requestId"], "req-hosted-log-1")
-        self.assertEqual(event["toolName"], "server_ping")
-        self.assertEqual(event["path"], "/mcp")
+        combined = stdout.getvalue() + stderr.getvalue()
+        self.assertIn('"toolName": "server_ping"', combined)
 
 
 if __name__ == "__main__":

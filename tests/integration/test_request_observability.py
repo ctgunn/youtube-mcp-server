@@ -15,7 +15,7 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
         response = app.handle("/unknown", {})
 
-        self.assertFalse(response["success"])
+        self.assertIn("error", response)
         logs = app.observability.logs
         self.assertGreaterEqual(len(logs), 1)
         self.assertEqual(logs[-1]["path"], "/unknown")
@@ -47,24 +47,26 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
         payload = app.handle(
             "/mcp",
             {
+                "jsonrpc": "2.0",
                 "method": "tools/list",
                 "params": {},
             },
         )
-        self.assertTrue(payload["success"])
-        self.assertTrue(payload["meta"]["requestId"].startswith("req-"))
+        self.assertEqual(payload["jsonrpc"], "2.0")
+        self.assertTrue(str(payload["id"]).startswith("req-"))
 
         logs = app.observability.logs
-        self.assertEqual(logs[-1]["requestId"], payload["meta"]["requestId"])
+        self.assertEqual(logs[-1]["requestId"], payload["id"])
 
     def test_tool_logs_include_tool_name(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
         app.handle(
             "/mcp",
             {
+                "jsonrpc": "2.0",
                 "id": "req-tool-1",
                 "method": "tools/call",
-                "params": {"toolName": "server_ping", "arguments": {}},
+                "params": {"name": "server_ping", "arguments": {}},
             },
         )
 
@@ -77,8 +79,8 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
     def test_metrics_count_and_latency_outputs(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
         app.handle("/health", {})
-        app.handle("/mcp", {"id": "req-m1", "method": "tools/list", "params": {}})
-        app.handle("/mcp", {"id": "req-m2", "method": "tools/call", "params": {"toolName": "missing", "arguments": {}}})
+        app.handle("/mcp", {"jsonrpc": "2.0", "id": "req-m1", "method": "tools/list", "params": {}})
+        app.handle("/mcp", {"jsonrpc": "2.0", "id": "req-m2", "method": "tools/call", "params": {"name": "missing", "arguments": {}}})
 
         snapshot = app.observability.snapshot()
         self.assertGreaterEqual(snapshot["counts"]["/health"]["success"], 1)
@@ -92,8 +94,8 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
 
         app.handle("/health", {})
         app.handle("/ready", {})
-        app.handle("/mcp", {"id": "req-r1", "method": "initialize", "params": {"clientInfo": {"name": "x"}}})
-        app.handle("/mcp", {"id": "req-r2", "method": "tools/list", "params": {}})
+        app.handle("/mcp", {"jsonrpc": "2.0", "id": "req-r1", "method": "initialize", "params": {"clientInfo": {"name": "x"}}})
+        app.handle("/mcp", {"jsonrpc": "2.0", "id": "req-r2", "method": "tools/list", "params": {}})
         app.handle("/nope", {})
 
         snapshot = app.observability.snapshot()
@@ -126,9 +128,10 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
         app.handle(
             "/mcp",
             {
+                "jsonrpc": "2.0",
                 "id": "req-runtime-tool-1",
                 "method": "tools/call",
-                "params": {"toolName": "server_ping", "arguments": {}},
+                "params": {"name": "server_ping", "arguments": {}},
             },
         )
 
@@ -147,7 +150,7 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
             method="POST",
             path="/mcp",
             headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
-            body=b'{"id":"req-stream-log-init","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-stream-log-init","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
         )
         execute_hosted_request(
             app,
@@ -158,7 +161,7 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
                 "Accept": "application/json, text/event-stream",
                 "MCP-Session-Id": init.headers["MCP-Session-Id"],
             },
-            body=b'{"id":"req-stream-log-call","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-stream-log-call","method":"tools/call","params":{"name":"server_ping","arguments":{}}}',
         )
 
         events = [json.loads(line) for line in stdout.getvalue().splitlines()]

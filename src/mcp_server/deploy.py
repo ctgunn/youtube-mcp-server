@@ -402,6 +402,29 @@ def _normalize_request_result(result: object) -> dict:
     return normalized
 
 
+def _result_tools(payload: dict) -> list[dict]:
+    result = payload.get("result")
+    if isinstance(result, dict):
+        tools = result.get("tools")
+        if isinstance(tools, list):
+            return tools
+    return []
+
+
+def _result_content_text(payload: dict) -> str | None:
+    result = payload.get("result")
+    if not isinstance(result, dict):
+        return None
+    content = result.get("content")
+    if not isinstance(content, list) or not content:
+        return None
+    first = content[0]
+    if not isinstance(first, dict):
+        return None
+    text = first.get("text")
+    return text if isinstance(text, str) else None
+
+
 def run_hosted_verification(
     revision: HostedRevisionRecord,
     requester: Requester,
@@ -468,6 +491,7 @@ def run_hosted_verification(
         requester(
         "/mcp",
         {
+            "jsonrpc": "2.0",
             "id": "verify-init",
             "method": "initialize",
             "params": {"clientInfo": {"name": "cloud-run-verifier", "version": "1.0.0"}},
@@ -477,17 +501,19 @@ def run_hosted_verification(
     if not _append(
         "initialize",
         initialize_payload,
-        lambda payload: payload.get("success") is True and "capabilities" in payload.get("data", {}),
+        lambda payload: isinstance(payload.get("result"), dict) and "capabilities" in payload.get("result", {}),
         "Hosted MCP initialize returned declared capabilities.",
     ):
         return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
 
-    list_payload = _normalize_request_result(requester("/mcp", {"id": "verify-list", "method": "tools/list", "params": {}}))
+    list_payload = _normalize_request_result(
+        requester("/mcp", {"jsonrpc": "2.0", "id": "verify-list", "method": "tools/list", "params": {}})
+    )
     if not _append(
         "list-tools",
         list_payload,
-        lambda payload: payload.get("success") is True and any(
-            tool.get("name") == baseline_tool_name for tool in payload.get("data", [])
+        lambda payload: any(
+            tool.get("name") == baseline_tool_name for tool in _result_tools(payload)
         ),
         "Hosted MCP tool discovery returned the baseline tool set.",
     ):
@@ -497,16 +523,17 @@ def run_hosted_verification(
         requester(
         "/mcp",
         {
+            "jsonrpc": "2.0",
             "id": "verify-call",
             "method": "tools/call",
-            "params": {"toolName": baseline_tool_name, "arguments": {}},
+            "params": {"name": baseline_tool_name, "arguments": {}},
         },
         )
     )
     _append(
         "baseline-tool-call",
         call_payload,
-        lambda payload: payload.get("success") is True and payload.get("data", {}).get("toolName") == baseline_tool_name,
+        lambda payload: _result_content_text(payload) is not None,
         "Hosted baseline tool invocation returned a successful structured response.",
     )
     overall = "pass" if all(item.result == "pass" for item in checks) else "fail"
