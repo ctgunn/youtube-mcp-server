@@ -114,13 +114,21 @@ Successful hosted JSON responses now use protocol-native MCP bodies:
     "content": [
       {
         "type": "text",
-        "text": "{\"status\":\"ok\",\"timestamp\":\"...\"}"
+        "text": "{\"status\":\"ok\",\"timestamp\":\"...\"}",
+        "structuredContent": {
+          "status": "ok",
+          "timestamp": "..."
+        }
       }
     ],
     "isError": false
   }
 }
 ```
+
+Tool discovery responses now include complete baseline tool metadata, including
+`inputSchema`, so hosted MCP clients can construct valid calls from `tools/list`
+without separate tool documentation.
 
 Open or resume an SSE stream:
 

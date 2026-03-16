@@ -61,9 +61,24 @@ class InvokeErrorMappingTests(unittest.TestCase):
         }
         response = route_mcp_request(payload, InMemoryToolDispatcher())
         self.assertEqual(response["jsonrpc"], "2.0")
-        payload = json.loads(response["result"]["content"][0]["text"])
+        content_item = response["result"]["content"][0]
+        self.assertEqual(content_item["type"], "text")
+        self.assertEqual(content_item["structuredContent"]["status"], "ok")
+        payload = json.loads(content_item["text"])
         self.assertEqual(payload["status"], "ok")
 
+    def test_successful_tool_call_preserves_list_structured_content(self):
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-call-5",
+            "method": "tools/call",
+            "params": {"name": "server_list_tools", "arguments": {}},
+        }
+        response = route_mcp_request(payload, InMemoryToolDispatcher())
+        self.assertEqual(response["jsonrpc"], "2.0")
+        content_item = response["result"]["content"][0]
+        self.assertIsInstance(content_item["structuredContent"], list)
+        self.assertIn("inputSchema", content_item["structuredContent"][0])
 
 if __name__ == "__main__":
     unittest.main()

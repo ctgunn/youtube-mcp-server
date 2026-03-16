@@ -40,6 +40,14 @@ class BaselineServerToolsTests(unittest.TestCase):
         self.assertEqual(result["build"]["commit"], "abc123")
         self.assertEqual(result["build"]["buildTime"], "unknown")
 
+    def test_server_list_tools_returns_complete_tool_descriptors(self):
+        dispatcher = InMemoryToolDispatcher()
+        result = dispatcher.call_tool("server_list_tools", {})
+        self.assertGreaterEqual(len(result), 1)
+        self.assertIn("name", result[0])
+        self.assertIn("description", result[0])
+        self.assertIn("inputSchema", result[0])
+
 
 if __name__ == "__main__":
     unittest.main()
