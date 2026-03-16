@@ -17,6 +17,8 @@ class ListToolsMethodTests(unittest.TestCase):
         self.assertIsInstance(response["result"]["tools"], list)
         self.assertGreaterEqual(len(response["result"]["tools"]), 1)
         self.assertIn("name", response["result"]["tools"][0])
+        self.assertIn("description", response["result"]["tools"][0])
+        self.assertIn("inputSchema", response["result"]["tools"][0])
 
     def test_list_tools_with_empty_registry(self):
         dispatcher = InMemoryToolDispatcher(tools=[])
@@ -42,6 +44,10 @@ class ListToolsMethodTests(unittest.TestCase):
         payload = {"jsonrpc": "2.0", "id": "req-list-order", "method": "tools/list", "params": {}}
         response = route_mcp_request(payload, dispatcher)
         self.assertEqual([item["name"] for item in response["result"]["tools"]], ["alpha", "Zulu"])
+        self.assertEqual(
+            response["result"]["tools"][0]["inputSchema"],
+            {"type": "object", "properties": {}, "additionalProperties": False},
+        )
 
     def test_server_list_tools_matches_tools_list_descriptors(self):
         dispatcher = InMemoryToolDispatcher()
@@ -58,7 +64,14 @@ class ListToolsMethodTests(unittest.TestCase):
             },
             dispatcher,
         )
-        self.assertEqual(json.loads(call_response["result"]["content"][0]["text"]), list_response["result"]["tools"])
+        self.assertEqual(
+            call_response["result"]["content"][0]["structuredContent"],
+            list_response["result"]["tools"],
+        )
+        self.assertEqual(
+            json.loads(call_response["result"]["content"][0]["text"]),
+            list_response["result"]["tools"],
+        )
 
 
 if __name__ == "__main__":

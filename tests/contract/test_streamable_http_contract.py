@@ -54,6 +54,7 @@ class StreamableHTTPContractTests(unittest.TestCase):
         events = parse_sse_payload(result.body)
         self.assertEqual(len(events), 2)
         self.assertIn('"result"', events[1]["data"])
+        self.assertIn('"structuredContent"', events[1]["data"])
 
     def test_get_stream_requires_valid_session(self):
         missing = execute_hosted_request(

@@ -30,13 +30,16 @@ def _validate_payload(payload):
 
 
 def _serialize_tool_result(result) -> dict:
+    content = {
+        "type": "text",
+        "text": json.dumps(result, sort_keys=True),
+    }
+    if isinstance(result, (dict, list)):
+        content["structuredContent"] = result
+    else:
+        content["structuredContent"] = {"value": result}
     return {
-        "content": [
-            {
-                "type": "text",
-                "text": json.dumps(result, sort_keys=True),
-            }
-        ],
+        "content": [content],
         "isError": False,
     }
 

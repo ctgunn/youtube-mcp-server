@@ -4,7 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.tools.dispatcher import DuplicateToolError, InMemoryToolDispatcher
+from mcp_server.tools.dispatcher import DuplicateToolError, InMemoryToolDispatcher, ToolRegistrationError
 
 
 class ToolRegistryDuplicateTests(unittest.TestCase):
@@ -24,6 +24,19 @@ class ToolRegistryDuplicateTests(unittest.TestCase):
                 input_schema={"type": "object", "properties": {}, "additionalProperties": False},
                 handler=lambda _: {"ok": True},
             )
+
+    def test_invalid_schema_registration_never_reaches_discovery(self):
+        dispatcher = InMemoryToolDispatcher(tools=[])
+
+        with self.assertRaises(ToolRegistrationError):
+            dispatcher.register_tool(
+                name="broken_tool",
+                description="Broken",
+                input_schema={"type": "array"},
+                handler=lambda _: {"ok": True},
+            )
+
+        self.assertEqual(dispatcher.list_tools(), [])
 
 
 if __name__ == "__main__":

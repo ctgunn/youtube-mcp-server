@@ -16,6 +16,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - In-memory runtime state only for transport sessions, stream cursors, and event queues; planning and verification artifacts are file-based (009-mcp-streamable-http-transport)
 - Python 3.11 + Python standard-library HTTP server and JSON tooling, in-repo MCP transport/protocol/config/observability modules, MCP Streamable HTTP transport behavior from FND-009, MCP protocol-native request/result/error semantics for hosted and local flows (010-mcp-protocol-alignment)
 - In-memory runtime state only for tool registry, request context, and hosted transport sessions; planning artifacts are file-based (010-mcp-protocol-alignment)
+- Python 3.11 + Python standard-library HTTP server and JSON tooling, in-repo MCP transport/protocol/config/observability modules, in-repo tool registry and dispatcher modules, MCP-native protocol contract from FND-010 (011-tool-metadata-result-alignment)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -36,9 +37,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 011-tool-metadata-result-alignment: Added Python 3.11 + Python standard-library HTTP server and JSON tooling, in-repo MCP transport/protocol/config/observability modules, in-repo tool registry and dispatcher modules, MCP-native protocol contract from FND-010
 - 010-mcp-protocol-alignment: Added Python 3.11 + Python standard-library HTTP server and JSON tooling, in-repo MCP transport/protocol/config/observability modules, MCP Streamable HTTP transport behavior from FND-009, MCP protocol-native request/result/error semantics for hosted and local flows
 - 009-mcp-streamable-http-transport: Added Python 3.11 + Python standard-library HTTP server, Python standard-library threading and queue primitives, in-repo MCP transport/protocol/config/observability modules, MCP Streamable HTTP specification (protocol version `2025-11-25`) for transport behavior
-- 008-deployment-cloud-observability: Added Python 3.11 + Python standard-library HTTP server, Python standard-library subprocess and JSON tooling, in-repo MCP transport/protocol/config/observability modules
 
 
 <!-- MANUAL ADDITIONS START -->

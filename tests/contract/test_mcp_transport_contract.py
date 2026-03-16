@@ -40,6 +40,7 @@ class MCPTransportContractTests(unittest.TestCase):
         response = self.app.handle("/mcp", payload)
         self.assertEqual(response["jsonrpc"], "2.0")
         self.assertIsInstance(response["result"]["tools"], list)
+        self.assertIn("inputSchema", response["result"]["tools"][0])
 
     def test_tools_call_success_and_unknown_error(self):
         success_payload = {
@@ -50,8 +51,10 @@ class MCPTransportContractTests(unittest.TestCase):
         }
         success_response = self.app.handle("/mcp", success_payload)
         self.assertEqual(success_response["jsonrpc"], "2.0")
-        result_payload = json.loads(success_response["result"]["content"][0]["text"])
+        content_item = success_response["result"]["content"][0]
+        result_payload = json.loads(content_item["text"])
         self.assertEqual(result_payload["status"], "ok")
+        self.assertEqual(content_item["structuredContent"]["status"], "ok")
 
         fail_payload = {
             "jsonrpc": "2.0",
@@ -73,7 +76,9 @@ class MCPTransportContractTests(unittest.TestCase):
             "params": {"name": "server_info", "arguments": {}},
         }
         response = self.app.handle("/mcp", payload)
-        result = json.loads(response["result"]["content"][0]["text"])
+        content_item = response["result"]["content"][0]
+        result = json.loads(content_item["text"])
+        self.assertEqual(content_item["structuredContent"]["version"], result["version"])
         self.assertIn("version", result)
         self.assertIn("environment", result)
         self.assertIn("build", result)
@@ -89,11 +94,14 @@ class MCPTransportContractTests(unittest.TestCase):
             "params": {"name": "server_list_tools", "arguments": {}},
         }
         response = self.app.handle("/mcp", payload)
-        entries = json.loads(response["result"]["content"][0]["text"])
+        content_item = response["result"]["content"][0]
+        entries = json.loads(content_item["text"])
+        self.assertEqual(content_item["structuredContent"], entries)
         names = [entry["name"] for entry in entries]
         self.assertIn("server_ping", names)
         self.assertIn("server_info", names)
         self.assertIn("server_list_tools", names)
+        self.assertIn("inputSchema", entries[0])
 
     def test_tools_call_invalid_arguments_contract(self):
         dispatcher = InMemoryToolDispatcher(tools=[])
