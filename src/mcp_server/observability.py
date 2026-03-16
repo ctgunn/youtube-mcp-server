@@ -129,6 +129,8 @@ class InMemoryObservability:
             "status": outcome,
             "latencyMs": round(max(float(latency_ms), 0.0), 3),
         }
+        if context.method_name:
+            event["methodName"] = context.method_name
         if tool_name:
             event["toolName"] = tool_name
         self._logs.append(event)

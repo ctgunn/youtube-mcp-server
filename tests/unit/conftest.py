@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Any
 
 sys.path.insert(0, os.path.abspath("src"))
 
@@ -42,3 +43,21 @@ def sample_server_metadata(**overrides):
     if build_overrides:
         metadata["build"].update(build_overrides)
     return metadata
+
+
+def parse_sse_payload(body: bytes | str) -> list[dict[str, Any]]:
+    text = body.decode("utf-8") if isinstance(body, bytes) else body
+    events: list[dict[str, Any]] = []
+    current: dict[str, Any] = {}
+    for line in text.splitlines():
+        if not line.strip():
+            if current:
+                events.append(current)
+                current = {}
+            continue
+        key, _, value = line.partition(":")
+        current.setdefault(key, "")
+        current[key] = value.lstrip()
+    if current:
+        events.append(current)
+    return events

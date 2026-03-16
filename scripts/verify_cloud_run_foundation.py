@@ -18,8 +18,12 @@ from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, wri
 
 
 def _http_request(base_url: str, path: str, payload: object) -> dict:
+    if not hasattr(_http_request, "_session_id"):
+        _http_request._session_id = None  # type: ignore[attr-defined]
     url = f"{base_url.rstrip('/')}{path}"
-    headers = {"Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    if getattr(_http_request, "_session_id", None) and path == "/mcp":
+        headers["MCP-Session-Id"] = _http_request._session_id  # type: ignore[attr-defined]
     data = json.dumps(payload).encode("utf-8")
     if path in {"/health", "/ready"}:
         req = request.Request(url, headers=headers, method="GET")
@@ -30,8 +34,14 @@ def _http_request(base_url: str, path: str, payload: object) -> dict:
     try:
         with request.urlopen(req if body is None else req, timeout=30) as response:
             content = response.read().decode("utf-8")
-            result = json.loads(content) if content else {}
+            content_type = response.headers.get("Content-Type", "")
+            if "text/event-stream" in content_type:
+                result = {"_sseBody": content}
+            else:
+                result = json.loads(content) if content else {}
             result["statusCode"] = response.status
+            if response.headers.get("MCP-Session-Id"):
+                _http_request._session_id = response.headers["MCP-Session-Id"]  # type: ignore[attr-defined]
             return result
     except error.HTTPError as exc:
         content = exc.read().decode("utf-8")

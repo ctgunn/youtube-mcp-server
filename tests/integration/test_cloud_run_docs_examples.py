@@ -9,6 +9,9 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         self.assertIn("scripts/verify_cloud_run_foundation.py", content)
         self.assertIn("SERVICE_ACCOUNT_EMAIL", content)
         self.assertIn("TIMEOUT_SECONDS", content)
+        self.assertIn("MCP-Session-Id", content)
+        self.assertIn("text/event-stream", content)
+        self.assertIn("Last-Event-ID", content)
 
     def test_env_example_contains_hosted_deploy_inputs(self):
         content = Path(".env.example").read_text()

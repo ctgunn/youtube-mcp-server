@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import tempfile
@@ -11,6 +12,30 @@ from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, wri
 
 
 class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
+    def _hosted_requester(self, app):
+        session_state = {"session_id": None}
+
+        def _request(path, payload):
+            if path in {"/health", "/ready"}:
+                return execute_hosted_request(app, method="GET", path=path)
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+            }
+            if session_state["session_id"]:
+                headers["MCP-Session-Id"] = session_state["session_id"]
+            result = execute_hosted_request(
+                app,
+                method="POST",
+                path=path,
+                headers=headers,
+                body=json.dumps(payload).encode("utf-8"),
+            )
+            session_state["session_id"] = result.headers.get("MCP-Session-Id", session_state["session_id"])
+            return result
+
+        return _request
+
     def _revision(self) -> HostedRevisionRecord:
         return HostedRevisionRecord(
             revision_name="rev-001",
@@ -25,20 +50,24 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
 
     def test_ready_app_passes_full_hosted_verification(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
-        run = run_hosted_verification(self._revision(), requester=app.handle, evidence_path="artifacts/verify.txt")
+        run = run_hosted_verification(
+            self._revision(),
+            requester=self._hosted_requester(app),
+            evidence_path="artifacts/verify.txt",
+        )
         self.assertEqual(run.overall_result, "pass")
         self.assertEqual(len(run.checks), 5)
         self.assertTrue(all(check.result == "pass" for check in run.checks))
 
     def test_not_ready_app_fails_before_mcp_checks(self):
         app = create_app(env={"MCP_ENVIRONMENT": "staging"}, validate_startup=False)
-        run = run_hosted_verification(self._revision(), requester=app.handle)
+        run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
         self.assertEqual(run.overall_result, "fail")
         self.assertEqual([check.check_name for check in run.checks], ["liveness", "readiness"])
 
     def test_verification_evidence_is_written(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
-        run = run_hosted_verification(self._revision(), requester=app.handle)
+        run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
         with tempfile.TemporaryDirectory() as tmp:
             path = write_verification_evidence(os.path.join(tmp, "verification.txt"), run)
             content = path.read_text()
@@ -58,6 +87,13 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         hosted_not_ready = execute_hosted_request(not_ready_app, method="GET", path="/ready")
         self.assertEqual(hosted_not_ready.status, 503)
         self.assertEqual(hosted_not_ready.payload["status"], local_not_ready["status"])
+
+    def test_hosted_verification_uses_session_aware_transport(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+        requester = self._hosted_requester(app)
+        run = run_hosted_verification(self._revision(), requester=requester)
+        baseline = [check for check in run.checks if check.check_name == "baseline-tool-call"][0]
+        self.assertEqual(baseline.result, "pass")
 
 
 if __name__ == "__main__":

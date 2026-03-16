@@ -1,0 +1,103 @@
+import json
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.abspath("src"))
+
+from mcp_server.app import create_app
+from mcp_server.cloud_run_entrypoint import execute_hosted_request
+from tests.integration.conftest import parse_sse_payload, stream_headers
+
+
+class StreamableHTTPTransportIntegrationTests(unittest.TestCase):
+    def setUp(self):
+        self.app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+
+    def _initialize_session(self) -> str:
+        response = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers()},
+            body=json.dumps(
+                {
+                    "id": "req-init-1",
+                    "method": "initialize",
+                    "params": {"clientInfo": {"name": "client", "version": "1.0.0"}},
+                }
+            ).encode("utf-8"),
+        )
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.headers["Content-Type"], "application/json")
+        return response.headers["MCP-Session-Id"]
+
+    def test_initialize_returns_json_and_session_header(self):
+        session_id = self._initialize_session()
+        self.assertTrue(session_id)
+
+    def test_invalid_session_and_invalid_accept_are_rejected(self):
+        invalid_session = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers(session_id="missing")},
+            body=b'{"id":"req-tools","method":"tools/list","params":{}}',
+        )
+        self.assertEqual(invalid_session.status, 404)
+        self.assertEqual(invalid_session.payload["error"]["code"], "RESOURCE_NOT_FOUND")
+
+        invalid_accept = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            body=b'{"id":"req-tools","method":"tools/list","params":{}}',
+        )
+        self.assertEqual(invalid_accept.status, 400)
+        self.assertEqual(invalid_accept.payload["error"]["code"], "INVALID_ARGUMENT")
+
+    def test_tools_call_streams_over_sse(self):
+        session_id = self._initialize_session()
+        response = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers(session_id=session_id)},
+            body=b'{"id":"req-call-1","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}',
+        )
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.headers["Content-Type"], "text/event-stream")
+        events = parse_sse_payload(response.body)
+        self.assertEqual(len(events), 2)
+        self.assertIn('"toolName": "server_ping"', events[1]["data"])
+
+    def test_get_stream_replays_queued_server_events(self):
+        session_id = self._initialize_session()
+        self.app.queue_server_event(session_id, {"jsonrpc": "2.0", "method": "notifications/message", "params": {"text": "hi"}})
+
+        first = execute_hosted_request(
+            self.app,
+            method="GET",
+            path="/mcp",
+            headers=stream_headers(session_id=session_id, include_json=False),
+        )
+        self.assertEqual(first.status, 200)
+        self.assertEqual(first.headers["Content-Type"], "text/event-stream")
+        events = parse_sse_payload(first.body)
+        self.assertGreaterEqual(len(events), 1)
+        replay_from = events[0]["id"]
+
+        self.app.queue_server_event(session_id, {"jsonrpc": "2.0", "method": "notifications/message", "params": {"text": "again"}})
+        replay = execute_hosted_request(
+            self.app,
+            method="GET",
+            path="/mcp",
+            headers={**stream_headers(session_id=session_id, include_json=False), "Last-Event-ID": replay_from},
+        )
+        replay_events = parse_sse_payload(replay.body)
+        self.assertTrue(any('"again"' in event["data"] for event in replay_events))
+
+
+if __name__ == "__main__":
+    unittest.main()
