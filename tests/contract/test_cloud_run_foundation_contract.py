@@ -34,13 +34,34 @@ class CloudRunFoundationContractTests(unittest.TestCase):
             "tools/list": {
                 "jsonrpc": "2.0",
                 "id": "verify-list",
-                "result": {"tools": [{"name": "server_ping"}]},
+                "result": {
+                    "tools": [
+                        {
+                            "name": "server_ping",
+                            "description": "Return service status and timestamp",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {},
+                                "additionalProperties": False,
+                            },
+                        }
+                    ]
+                },
                 "statusCode": 200,
             },
             "tools/call": {
                 "jsonrpc": "2.0",
                 "id": "verify-call",
-                "result": {"content": [{"type": "text", "text": "{\"status\":\"ok\"}"}], "isError": False},
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "{\"status\":\"ok\"}",
+                            "structuredContent": {"status": "ok"},
+                        }
+                    ],
+                    "isError": False,
+                },
                 "statusCode": 200,
             },
         }
@@ -53,6 +74,11 @@ class CloudRunFoundationContractTests(unittest.TestCase):
         run = run_hosted_verification(self.revision, requester, evidence_path="artifacts/verify.txt")
         self.assertEqual([check.check_name for check in run.checks], ["liveness", "readiness", "initialize", "list-tools", "baseline-tool-call"])
         self.assertEqual(run.overall_result, "pass")
+        self.assertIn("inputSchema", app_payloads["tools/list"]["result"]["tools"][0])
+        self.assertEqual(
+            app_payloads["tools/call"]["result"]["content"][0]["structuredContent"],
+            {"status": "ok"},
+        )
 
         serialized = serialize_verification_run(run)
         self.assertEqual(serialized["checks"][0].keys(), {"checkName", "endpointUrl", "executedAt", "result", "summary", "statusCode", "evidenceLocation"})

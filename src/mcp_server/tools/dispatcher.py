@@ -86,6 +86,8 @@ class InMemoryToolDispatcher:
             raise ToolRegistrationError("tool description is required")
         if not isinstance(input_schema, dict):
             raise ToolRegistrationError("inputSchema must be an object")
+        if input_schema.get("type") != "object":
+            raise ToolRegistrationError("inputSchema must define an object schema")
         if not callable(handler):
             raise ToolRegistrationError("tool handler must be callable")
 
@@ -101,16 +103,18 @@ class InMemoryToolDispatcher:
             "handler": handler,
         }
 
+    def _tool_descriptor(self, entry: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "name": entry["name"],
+            "description": entry["description"],
+            "inputSchema": entry["inputSchema"],
+        }
+
     def list_tools(self):
         items = []
         for normalized in sorted(self._tools.keys()):
             entry = self._tools[normalized]
-            items.append(
-                {
-                    "name": entry["name"],
-                    "description": entry["description"],
-                }
-            )
+            items.append(self._tool_descriptor(entry))
         return items
 
     def _baseline_tool_definitions(self):
