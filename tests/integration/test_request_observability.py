@@ -7,6 +7,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
+from mcp_server.cloud_run_entrypoint import execute_hosted_request
 
 
 class RequestObservabilityIntegrationTests(unittest.TestCase):
@@ -135,6 +136,37 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
         tool_event = json.loads(stdout.getvalue().splitlines()[-1])
         self.assertNotIn("toolName", ready_event)
         self.assertEqual(tool_event["toolName"], "server_ping")
+
+    def test_hosted_streamable_requests_log_method_name(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"}, runtime_stdout=stdout, runtime_stderr=stderr)
+
+        init = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+            body=b'{"id":"req-stream-log-init","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+        )
+        execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": init.headers["MCP-Session-Id"],
+            },
+            body=b'{"id":"req-stream-log-call","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}',
+        )
+
+        events = [json.loads(line) for line in stdout.getvalue().splitlines()]
+        init_event = [event for event in events if event["requestId"] == "req-stream-log-init"][-1]
+        call_event = [event for event in events if event["requestId"] == "req-stream-log-call"][-1]
+        self.assertEqual(init_event["methodName"], "initialize")
+        self.assertEqual(call_event["methodName"], "tools/call")
+        self.assertEqual(call_event["toolName"], "server_ping")
 
 
 if __name__ == "__main__":
