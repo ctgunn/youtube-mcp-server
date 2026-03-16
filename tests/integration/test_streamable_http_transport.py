@@ -22,6 +22,7 @@ class StreamableHTTPTransportIntegrationTests(unittest.TestCase):
             headers={"Content-Type": "application/json", **stream_headers()},
             body=json.dumps(
                 {
+                    "jsonrpc": "2.0",
                     "id": "req-init-1",
                     "method": "initialize",
                     "params": {"clientInfo": {"name": "client", "version": "1.0.0"}},
@@ -42,7 +43,7 @@ class StreamableHTTPTransportIntegrationTests(unittest.TestCase):
             method="POST",
             path="/mcp",
             headers={"Content-Type": "application/json", **stream_headers(session_id="missing")},
-            body=b'{"id":"req-tools","method":"tools/list","params":{}}',
+            body=b'{"jsonrpc":"2.0","id":"req-tools","method":"tools/list","params":{}}',
         )
         self.assertEqual(invalid_session.status, 404)
         self.assertEqual(invalid_session.payload["error"]["code"], "RESOURCE_NOT_FOUND")
@@ -52,7 +53,7 @@ class StreamableHTTPTransportIntegrationTests(unittest.TestCase):
             method="POST",
             path="/mcp",
             headers={"Content-Type": "application/json", "Accept": "application/json"},
-            body=b'{"id":"req-tools","method":"tools/list","params":{}}',
+            body=b'{"jsonrpc":"2.0","id":"req-tools","method":"tools/list","params":{}}',
         )
         self.assertEqual(invalid_accept.status, 400)
         self.assertEqual(invalid_accept.payload["error"]["code"], "INVALID_ARGUMENT")
@@ -64,13 +65,13 @@ class StreamableHTTPTransportIntegrationTests(unittest.TestCase):
             method="POST",
             path="/mcp",
             headers={"Content-Type": "application/json", **stream_headers(session_id=session_id)},
-            body=b'{"id":"req-call-1","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-call-1","method":"tools/call","params":{"name":"server_ping","arguments":{}}}',
         )
         self.assertEqual(response.status, 200)
         self.assertEqual(response.headers["Content-Type"], "text/event-stream")
         events = parse_sse_payload(response.body)
         self.assertEqual(len(events), 2)
-        self.assertIn('"toolName": "server_ping"', events[1]["data"])
+        self.assertIn('"result"', events[1]["data"])
 
     def test_get_stream_replays_queued_server_events(self):
         session_id = self._initialize_session()

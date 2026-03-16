@@ -14,19 +14,23 @@ class InitializeMethodTests(unittest.TestCase):
 
     def test_initialize_success(self):
         payload = {
+            "jsonrpc": "2.0",
             "id": "req-init",
             "method": "initialize",
             "params": {"clientInfo": {"name": "test", "version": "1.0.0"}},
         }
         response = route_mcp_request(payload, self.dispatcher)
-        self.assertTrue(response["success"])
-        self.assertIn("serverName", response["data"])
-        self.assertIn("capabilities", response["data"])
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["id"], "req-init")
+        self.assertIn("protocolVersion", response["result"])
+        self.assertIn("serverInfo", response["result"])
+        self.assertIn("capabilities", response["result"])
 
     def test_initialize_missing_client_info_returns_invalid_argument(self):
-        payload = {"id": "req-init-2", "method": "initialize", "params": {}}
+        payload = {"jsonrpc": "2.0", "id": "req-init-2", "method": "initialize", "params": {}}
         response = route_mcp_request(payload, self.dispatcher)
-        self.assertFalse(response["success"])
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["id"], "req-init-2")
         self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
 
 

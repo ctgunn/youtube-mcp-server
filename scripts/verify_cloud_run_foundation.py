@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Hosted verification CLI for the foundation Cloud Run deployment."""
+"""Hosted verification CLI for the foundation Cloud Run deployment.
+
+The verifier preserves the hosted streamable transport while validating
+protocol-native MCP request and response bodies.
+"""
 
 from __future__ import annotations
 
@@ -116,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         timeout_seconds=timeout_seconds,
         status="created",
     )
+    _http_request._session_id = None  # type: ignore[attr-defined]
     run = run_hosted_verification(
         revision,
         requester=lambda path, payload: _http_request(service_url, path, payload),

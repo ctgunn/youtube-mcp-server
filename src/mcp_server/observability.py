@@ -40,7 +40,9 @@ def build_request_context(path: str, payload: Any) -> RequestContext:
 
         params = payload.get("params")
         if isinstance(params, dict):
-            raw_tool_name = params.get("toolName")
+            raw_tool_name = params.get("name")
+            if not _is_non_empty_string(raw_tool_name):
+                raw_tool_name = params.get("toolName")
             if _is_non_empty_string(raw_tool_name):
                 tool_name = raw_tool_name
 

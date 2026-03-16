@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import unittest
@@ -13,16 +14,16 @@ class MethodRoutingTests(unittest.TestCase):
         self.dispatcher = InMemoryToolDispatcher()
 
     def test_unsupported_method_returns_structured_error(self):
-        payload = {"id": "req-1", "method": "unknown/method", "params": {}}
+        payload = {"jsonrpc": "2.0", "id": "req-1", "method": "unknown/method", "params": {}}
         response = route_mcp_request(payload, self.dispatcher)
-        self.assertFalse(response["success"])
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["id"], "req-1")
         self.assertEqual(response["error"]["code"], "METHOD_NOT_SUPPORTED")
-        self.assertEqual(response["meta"]["requestId"], "req-1")
 
     def test_non_object_params_returns_invalid_argument(self):
-        payload = {"id": "req-2", "method": "initialize", "params": "bad"}
+        payload = {"jsonrpc": "2.0", "id": "req-2", "method": "initialize", "params": "bad"}
         response = route_mcp_request(payload, self.dispatcher)
-        self.assertFalse(response["success"])
+        self.assertEqual(response["jsonrpc"], "2.0")
         self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
 
     def test_registered_tool_dispatch_success(self):
@@ -34,20 +35,21 @@ class MethodRoutingTests(unittest.TestCase):
             handler=lambda arguments: {"value": arguments.get("value", "")},
         )
         payload = {
+            "jsonrpc": "2.0",
             "id": "req-3",
             "method": "tools/call",
-            "params": {"toolName": "echo", "arguments": {"value": "ok"}},
+            "params": {"name": "echo", "arguments": {"value": "ok"}},
         }
         response = route_mcp_request(payload, dispatcher)
-        self.assertTrue(response["success"])
-        self.assertEqual(response["data"]["toolName"], "echo")
-        self.assertEqual(response["data"]["result"]["value"], "ok")
+        self.assertEqual(response["jsonrpc"], "2.0")
+        payload = json.loads(response["result"]["content"][0]["text"])
+        self.assertEqual(payload["value"], "ok")
 
     def test_baseline_tools_are_discoverable(self):
-        payload = {"id": "req-4", "method": "tools/list", "params": {}}
+        payload = {"jsonrpc": "2.0", "id": "req-4", "method": "tools/list", "params": {}}
         response = route_mcp_request(payload, self.dispatcher)
-        self.assertTrue(response["success"])
-        names = [item["name"] for item in response["data"]]
+        self.assertEqual(response["jsonrpc"], "2.0")
+        names = [item["name"] for item in response["result"]["tools"]]
         self.assertIn("server_ping", names)
         self.assertIn("server_info", names)
         self.assertIn("server_list_tools", names)
