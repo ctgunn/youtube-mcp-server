@@ -11,13 +11,14 @@ from mcp_server.health import health_payload, readiness_payload
 from mcp_server.observability import InMemoryObservability, build_request_context
 from mcp_server.protocol.envelope import error_response
 from mcp_server.protocol.methods import route_mcp_request
+from mcp_server.transport.streaming import StreamManager
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 
 JSON_CONTENT_TYPE = "application/json"
 SUPPORTED_HOSTED_METHODS = {
     "/health": {"GET"},
     "/ready": {"GET"},
-    "/mcp": {"POST"},
+    "/mcp": {"GET", "POST"},
 }
 
 
@@ -130,6 +131,7 @@ class MCPHTTPTransport:
     ):
         self.dispatcher = dispatcher or InMemoryToolDispatcher(server_metadata=server_metadata)
         self.observability = InMemoryObservability(runtime_stdout=runtime_stdout, runtime_stderr=runtime_stderr)
+        self.stream_manager = StreamManager()
         self.startup_validation = startup_validation or StartupValidationResult(
             is_valid=True,
             profile="dev",
@@ -175,3 +177,11 @@ class MCPHTTPTransport:
             latency_ms=(perf_counter() - started_at) * 1000.0,
         )
         return response
+
+    def queue_server_event(self, session_id: str, payload: dict) -> None:
+        self.stream_manager.enqueue_event(
+            session_id=session_id,
+            payload=payload,
+            event_type="message",
+            payload_class="jsonrpc_notification",
+        )

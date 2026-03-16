@@ -37,6 +37,10 @@ fi
 
 export PYTHONPATH="${ROOT_DIR}/src:${PYTHONPATH:-}"
 
+# The resulting deployment record is the expected input for the
+# session-aware streamable transport verifier in
+# scripts/verify_cloud_run_foundation.py.
+
 python3 - <<'PY'
 from mcp_server.deploy import (
     deployment_input_from_mapping,

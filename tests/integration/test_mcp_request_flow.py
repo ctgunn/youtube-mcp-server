@@ -13,6 +13,17 @@ from mcp_server.transport.http import MCPHTTPTransport
 
 
 class MCPRequestFlowIntegrationTests(unittest.TestCase):
+    def _initialize_hosted_session(self, app):
+        response = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+            body=b'{"id":"req-hosted-init","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+        )
+        self.assertEqual(response.status, 200)
+        return response.headers["MCP-Session-Id"]
+
     def test_initialize_list_call_sequence(self):
         os.environ["MCP_ENVIRONMENT"] = "dev"
         app = create_app()
@@ -208,11 +219,16 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
     def test_hosted_mcp_success_and_invalid_request_behaviors(self):
         os.environ["MCP_ENVIRONMENT"] = "dev"
         app = create_app()
+        session_id = self._initialize_hosted_session(app)
         success = execute_hosted_request(
             app,
             method="POST",
             path="/mcp",
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": session_id,
+            },
             body=b'{"id":"req-hosted-i1","method":"tools/list","params":{}}',
         )
         self.assertEqual(success.status, 200)
@@ -223,7 +239,11 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
             app,
             method="POST",
             path="/mcp",
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": session_id,
+            },
             body=b'{"id":"req-hosted-i2","method":"","params":{}}',
         )
         self.assertEqual(invalid.status, 400)
@@ -234,11 +254,16 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         stdout = io.StringIO()
         stderr = io.StringIO()
         app = create_app(env={"MCP_ENVIRONMENT": "dev"}, runtime_stdout=stdout, runtime_stderr=stderr)
+        session_id = self._initialize_hosted_session(app)
         response = execute_hosted_request(
             app,
             method="POST",
             path="/mcp",
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": session_id,
+            },
             body=b'{"id":"req-hosted-log-1","method":"tools/call","params":{"toolName":"server_ping","arguments":{}}}',
         )
 
