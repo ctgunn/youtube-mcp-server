@@ -7,7 +7,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
-from mcp_server.cloud_run_entrypoint import execute_hosted_request
+from mcp_server.cloud_run_entrypoint import build_asgi_app, execute_hosted_request
 
 
 class RequestObservabilityIntegrationTests(unittest.TestCase):
@@ -170,6 +170,24 @@ class RequestObservabilityIntegrationTests(unittest.TestCase):
         self.assertEqual(init_event["methodName"], "initialize")
         self.assertEqual(call_event["methodName"], "tools/call")
         self.assertEqual(call_event["toolName"], "server_ping")
+
+    def test_migrated_runtime_lifecycle_events_emit_to_stdout(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        hosted_app = build_asgi_app(
+            env={"MCP_ENVIRONMENT": "dev"},
+            validate_startup=False,
+            runtime_stdout=stdout,
+            runtime_stderr=stderr,
+        )
+        transport = getattr(hosted_app, "transport", getattr(getattr(hosted_app, "state", None), "transport", None))
+
+        transport.start_runtime()
+        transport.stop_runtime()
+
+        events = [json.loads(line) for line in stdout.getvalue().splitlines()]
+        self.assertEqual(events[0]["event"], "runtime.startup")
+        self.assertEqual(events[-1]["event"], "runtime.shutdown")
 
 
 if __name__ == "__main__":

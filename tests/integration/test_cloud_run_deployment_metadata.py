@@ -54,6 +54,8 @@ class CloudRunDeploymentMetadataIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["revisionName"], "youtube-mcp-server-00008")
         self.assertEqual(payload["serviceUrl"], "https://example-service.run.app")
         self.assertEqual(payload["runtimeSettings"]["runtimeIdentity"], "svc@example.iam.gserviceaccount.com")
+        self.assertEqual(payload["runtimeSettings"]["serverImplementation"], "uvicorn")
+        self.assertEqual(payload["runtimeSettings"]["appModule"], "mcp_server.cloud_run_entrypoint:app")
 
     def test_deploy_script_marks_incomplete_when_metadata_is_missing(self):
         with tempfile.TemporaryDirectory() as tmp:

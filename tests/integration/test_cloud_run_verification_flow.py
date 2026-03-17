@@ -74,6 +74,7 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         self.assertIn("revisionName: rev-001", content)
         self.assertIn("checkName: liveness", content)
         self.assertIn("checkName: baseline-tool-call", content)
+        self.assertIn("runtimeIdentity: svc@example.iam.gserviceaccount.com", content)
 
     def test_hosted_route_payloads_remain_consistent_with_verification_inputs(self):
         ready_app = create_app(env={"MCP_ENVIRONMENT": "dev"})
@@ -94,6 +95,11 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         run = run_hosted_verification(self._revision(), requester=requester)
         baseline = [check for check in run.checks if check.check_name == "baseline-tool-call"][0]
         self.assertEqual(baseline.result, "pass")
+
+    def test_verification_serialization_carries_runtime_identity(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+        run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
+        self.assertEqual(run.revision_name, "rev-001")
 
 
 if __name__ == "__main__":

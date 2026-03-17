@@ -6,7 +6,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
-from mcp_server.cloud_run_entrypoint import execute_hosted_request
+from mcp_server.cloud_run_entrypoint import build_asgi_app, execute_hosted_request
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.transport.http import MCPHTTPTransport
 
@@ -15,6 +15,10 @@ class MCPTransportContractTests(unittest.TestCase):
     def setUp(self):
         os.environ["MCP_ENVIRONMENT"] = "dev"
         self.app = create_app()
+
+    def _runtime_transport(self, env=None):
+        hosted_app = build_asgi_app(env=env, validate_startup=False)
+        return getattr(hosted_app, "transport", getattr(getattr(hosted_app, "state", None), "transport", None))
 
     def test_initialize_contract_success(self):
         payload = {
@@ -171,6 +175,15 @@ class MCPTransportContractTests(unittest.TestCase):
         self.assertEqual(invalid.payload["jsonrpc"], "2.0")
         self.assertEqual(invalid.payload["error"]["code"], "INVALID_ARGUMENT")
         self.assertEqual(invalid.payload["error"].keys(), {"code", "message", "data"})
+
+    def test_migrated_runtime_preserves_health_and_ready_routes(self):
+        transport = self._runtime_transport(env={"MCP_ENVIRONMENT": "staging"})
+        health = execute_hosted_request(transport, method="GET", path="/health")
+        ready = execute_hosted_request(transport, method="GET", path="/ready")
+        self.assertEqual(health.status, 200)
+        self.assertEqual(health.payload["status"], "ok")
+        self.assertEqual(ready.status, 503)
+        self.assertEqual(ready.payload["status"], "not_ready")
 
 
 if __name__ == "__main__":
