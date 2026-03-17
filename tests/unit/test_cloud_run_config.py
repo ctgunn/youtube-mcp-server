@@ -66,6 +66,8 @@ class CloudRunConfigUnitTests(unittest.TestCase):
         self.assertIn("--concurrency 20", rendered)
         self.assertIn("--timeout 180", rendered)
         self.assertIn("--set-secrets YOUTUBE_API_KEY=YOUTUBE_API_KEY:latest", rendered)
+        self.assertIn("MCP_SERVER_IMPLEMENTATION=uvicorn", rendered)
+        self.assertIn("MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app", rendered)
 
     def test_invalid_scaling_inputs_raise(self):
         settings = deployment_input_from_mapping(

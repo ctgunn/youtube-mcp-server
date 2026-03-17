@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import TextIO
 
-from mcp_server.config import StartupValidationResult
-from mcp_server.health import health_payload, readiness_payload
+from mcp_server.config import HostedRuntimeSettings, StartupValidationResult
+from mcp_server.health import RuntimeLifecycleState, health_payload, initialize_runtime_lifecycle, readiness_payload
 from mcp_server.observability import InMemoryObservability, build_request_context
 from mcp_server.protocol.envelope import error_response
 from mcp_server.protocol.methods import route_mcp_request
@@ -126,6 +126,8 @@ class MCPHTTPTransport:
         dispatcher=None,
         server_metadata=None,
         startup_validation=None,
+        runtime_lifecycle: RuntimeLifecycleState | None = None,
+        runtime_settings: HostedRuntimeSettings | None = None,
         runtime_stdout: TextIO | None = None,
         runtime_stderr: TextIO | None = None,
     ):
@@ -138,15 +140,17 @@ class MCPHTTPTransport:
             failures=(),
             checked_at="unknown",
         )
+        self.runtime_lifecycle = runtime_lifecycle or initialize_runtime_lifecycle(self.startup_validation)
+        self.runtime_settings = runtime_settings
 
     def handle(self, path: str, payload: dict) -> dict:
         context = build_request_context(path, payload)
         started_at = perf_counter()
 
         if path == "/health":
-            response = health_payload()
+            response = health_payload(self.runtime_lifecycle)
         elif path == "/ready":
-            response = readiness_payload(self.startup_validation)
+            response = readiness_payload(self.startup_validation, self.runtime_lifecycle)
         elif path != "/mcp":
             response = error_response(
                 "RESOURCE_NOT_FOUND",

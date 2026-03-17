@@ -63,6 +63,18 @@ def classify_endpoint(path: str) -> str:
     return "not_found"
 
 
+def runtime_event(event_name: str, status: str, details: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "severity": "INFO" if status == "success" else "ERROR",
+        "event": event_name,
+        "status": status,
+    }
+    if details:
+        payload.update(details)
+    return payload
+
+
 def _percentile(values: list[float], percentile: float) -> float:
     if not values:
         return 0.0
@@ -145,3 +157,6 @@ class InMemoryObservability:
         stream.write(json.dumps(event, sort_keys=True) + "\n")
         if hasattr(stream, "flush"):
             stream.flush()
+
+    def emit_runtime_event(self, event_name: str, status: str, details: dict[str, Any] | None = None) -> None:
+        self._emit_runtime_event(runtime_event(event_name, status, details))

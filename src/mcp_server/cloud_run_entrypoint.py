@@ -1,16 +1,19 @@
-"""Minimal HTTP entrypoint for hosted execution."""
+"""Hosted runtime entrypoint for local and Cloud Run execution."""
 
 from __future__ import annotations
 
 import json
 import os
 import sys
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Mapping
+from typing import Any, Mapping
 from urllib.parse import urlparse
 
 from mcp_server.app import create_app
+from mcp_server.config import load_hosted_runtime_settings
+from mcp_server.health import RuntimeLifecycleState
 from mcp_server.protocol.envelope import error_response
 from mcp_server.transport.http import JSON_CONTENT_TYPE, classify_hosted_request, hosted_status_code
 from mcp_server.transport.streaming import (
@@ -23,6 +26,18 @@ from mcp_server.transport.streaming import (
     normalize_accept_header,
 )
 
+try:
+    from fastapi import FastAPI, Request, Response
+except ImportError:  # pragma: no cover - exercised when optional deps are absent
+    FastAPI = None
+    Request = Any
+    Response = Any
+
+try:
+    import uvicorn
+except ImportError:  # pragma: no cover - exercised when optional deps are absent
+    uvicorn = None
+
 
 @dataclass(frozen=True)
 class HostedHTTPResult:
@@ -30,6 +45,38 @@ class HostedHTTPResult:
     headers: dict[str, str]
     payload: dict | None
     body: bytes
+
+
+class HostedASGIApplication:
+    """ASGI wrapper around the hosted request executor."""
+
+    def __init__(self, transport):
+        self.transport = transport
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await send({"type": "http.response.start", "status": 500, "headers": []})
+            await send({"type": "http.response.body", "body": b"Unsupported scope type."})
+            return
+
+        headers = {key.decode("latin-1"): value.decode("latin-1") for key, value in scope.get("headers", [])}
+        body = b""
+        more_body = True
+        while more_body:
+            message = await receive()
+            body += message.get("body", b"")
+            more_body = message.get("more_body", False)
+
+        result = execute_hosted_request(
+            self.transport,
+            method=scope.get("method", "GET"),
+            path=scope.get("path", "/"),
+            headers=headers,
+            body=body,
+        )
+        response_headers = [[key.encode("latin-1"), value.encode("latin-1")] for key, value in result.headers.items()]
+        await send({"type": "http.response.start", "status": result.status, "headers": response_headers})
+        await send({"type": "http.response.body", "body": result.body})
 
 
 def _json_result(status: int, payload: dict, extra_headers: Mapping[str, str] | None = None) -> HostedHTTPResult:
@@ -240,9 +287,95 @@ def execute_hosted_request(
     return _json_result(hosted_status_code(classification, response), response, extra_headers=extra_headers)
 
 
+def build_asgi_app(
+    env: Mapping[str, str] | None = None,
+    validate_startup: bool = True,
+    runtime_stdout=None,
+    runtime_stderr=None,
+):
+    transport = create_app(
+        env=env,
+        validate_startup=validate_startup,
+        runtime_stdout=runtime_stdout,
+        runtime_stderr=runtime_stderr,
+    )
+    transport.runtime_lifecycle = RuntimeLifecycleState()
+    if not transport.startup_validation.is_valid:
+        transport.runtime_lifecycle.mark_degraded(
+            {
+                "code": "CONFIG_VALIDATION_ERROR",
+                "message": "Required configuration is invalid or incomplete.",
+            }
+        )
+
+    def _start_runtime() -> None:
+        if transport.startup_validation.is_valid:
+            transport.runtime_lifecycle.mark_ready()
+            transport.observability.emit_runtime_event(
+                "runtime.startup",
+                "success",
+                {"runtime": transport.runtime_settings.server_implementation},
+            )
+        else:
+            transport.runtime_lifecycle.mark_degraded(
+                {
+                    "code": "CONFIG_VALIDATION_ERROR",
+                    "message": "Required configuration is invalid or incomplete.",
+                }
+            )
+            transport.observability.emit_runtime_event("runtime.startup", "error")
+
+    def _stop_runtime() -> None:
+        transport.runtime_lifecycle.mark_stopping()
+        transport.observability.emit_runtime_event("runtime.shutdown", "success")
+        transport.runtime_lifecycle.mark_stopped()
+
+    transport.start_runtime = _start_runtime
+    transport.stop_runtime = _stop_runtime
+
+    @asynccontextmanager
+    async def _lifespan(_app):
+        transport.start_runtime()
+        try:
+            yield
+        finally:
+            transport.stop_runtime()
+
+    if FastAPI is not None:
+        app = FastAPI(lifespan=_lifespan)
+
+        @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+        async def hosted_route(request: Request, path: str) -> Response:
+            body = await request.body()
+            result = execute_hosted_request(
+                transport,
+                method=request.method,
+                path="/" + path,
+                headers=request.headers,
+                body=body,
+            )
+            return Response(content=result.body, status_code=result.status, headers=result.headers)
+
+        app.state.transport = transport
+        return app
+
+    return HostedASGIApplication(transport)
+
+
 def run_server() -> None:
+    runtime_settings = load_hosted_runtime_settings(os.environ)
+    if uvicorn is not None:
+        uvicorn.run(
+            build_asgi_app(runtime_stdout=sys.stdout, runtime_stderr=sys.stderr),
+            host=runtime_settings.host,
+            port=runtime_settings.port,
+            log_level=runtime_settings.log_level,
+            reload=runtime_settings.reload_enabled,
+        )
+        return
+
     transport = create_app(runtime_stdout=sys.stdout, runtime_stderr=sys.stderr)
-    port = int(os.environ.get("PORT", "8080"))
+    port = runtime_settings.port
 
     class Handler(BaseHTTPRequestHandler):
         def _send_result(self, result: HostedHTTPResult) -> None:
@@ -286,3 +419,6 @@ def run_server() -> None:
 
 if __name__ == "__main__":
     run_server()
+
+
+app = build_asgi_app(validate_startup=False)
