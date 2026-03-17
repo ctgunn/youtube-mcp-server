@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from urllib import error, request
@@ -26,6 +27,12 @@ def _http_request(base_url: str, path: str, payload: object) -> dict:
         _http_request._session_id = None  # type: ignore[attr-defined]
     url = f"{base_url.rstrip('/')}{path}"
     headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    auth_token = getattr(_http_request, "_auth_token", None)
+    origin = getattr(_http_request, "_origin", None)
+    if auth_token and path == "/mcp":
+        headers["Authorization"] = f"Bearer {auth_token}"
+    if origin and path == "/mcp":
+        headers["Origin"] = origin
     if getattr(_http_request, "_session_id", None) and path == "/mcp":
         headers["MCP-Session-Id"] = _http_request._session_id  # type: ignore[attr-defined]
     data = json.dumps(payload).encode("utf-8")
@@ -65,6 +72,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-instances", type=int)
     parser.add_argument("--concurrency", type=int)
     parser.add_argument("--timeout-seconds", type=int)
+    parser.add_argument("--auth-token")
+    parser.add_argument("--origin")
     parser.add_argument("--evidence-file", default="artifacts/cloud-run-verification.txt")
     args = parser.parse_args(argv)
 
@@ -84,6 +93,8 @@ def main(argv: list[str] | None = None) -> int:
     timeout_seconds = (
         args.timeout_seconds if args.timeout_seconds is not None else runtime_settings.get("timeoutSeconds")
     )
+    auth_token = args.auth_token or os.environ.get("MCP_AUTH_TOKEN")
+    origin = args.origin or os.environ.get("MCP_ALLOWED_ORIGIN")
 
     missing = [
         name
@@ -121,6 +132,8 @@ def main(argv: list[str] | None = None) -> int:
         status="created",
     )
     _http_request._session_id = None  # type: ignore[attr-defined]
+    _http_request._auth_token = auth_token  # type: ignore[attr-defined]
+    _http_request._origin = origin  # type: ignore[attr-defined]
     run = run_hosted_verification(
         revision,
         requester=lambda path, payload: _http_request(service_url, path, payload),

@@ -20,6 +20,12 @@ SUPPORTED_HOSTED_METHODS = {
     "/ready": {"GET"},
     "/mcp": {"GET", "POST"},
 }
+SECURITY_STATUS_CODES = {
+    "unauthenticated": 401,
+    "invalid_credential": 403,
+    "origin_denied": 403,
+    "malformed_security_input": 400,
+}
 
 
 @dataclass(frozen=True)
@@ -116,6 +122,10 @@ def hosted_status_code(classification: HostedRequestClassification, response: di
     if classification.path_class == "mcp" and isinstance(response, dict) and "error" in response:
         return 400
     return 200
+
+
+def hosted_security_status_code(decision_category: str) -> int:
+    return SECURITY_STATUS_CODES.get(decision_category, 403)
 
 
 class MCPHTTPTransport:

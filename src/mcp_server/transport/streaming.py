@@ -95,6 +95,10 @@ class StreamManager:
             raise InvalidSessionError(session_id)
         return session
 
+    def has_session(self, session_id: str) -> bool:
+        session = self._sessions.get(session_id)
+        return session is not None and session.state != "closed"
+
     def touch_session(self, session_id: str) -> HostedMCPSession:
         session = self.get_session(session_id)
         session.last_activity_at = _timestamp()
