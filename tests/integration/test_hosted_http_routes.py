@@ -6,10 +6,14 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
-from mcp_server.cloud_run_entrypoint import execute_hosted_request
+from mcp_server.cloud_run_entrypoint import build_asgi_app, execute_hosted_request
 
 
 class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
+    def _runtime_transport(self):
+        hosted_app = build_asgi_app(validate_startup=False)
+        return getattr(hosted_app, "transport", getattr(getattr(hosted_app, "state", None), "transport", None))
+
     def _initialize_session(self, app):
         response = execute_hosted_request(
             app,
@@ -126,6 +130,28 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         self.assertEqual(response.status, 200)
         self.assertEqual(response.headers["Content-Type"], "text/event-stream")
         self.assertIn('"structuredContent"', response.body.decode("utf-8"))
+
+    def test_migrated_runtime_transport_preserves_mcp_route_execution(self):
+        transport = self._runtime_transport()
+        response = execute_hosted_request(
+            transport,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+            },
+            body=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "req-asgi-routes-init",
+                    "method": "initialize",
+                    "params": {"clientInfo": {"name": "client", "version": "1.0.0"}},
+                }
+            ).encode("utf-8"),
+        )
+        self.assertEqual(response.status, 200)
+        self.assertIn("MCP-Session-Id", response.headers)
 
 
 if __name__ == "__main__":

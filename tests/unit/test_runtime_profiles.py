@@ -4,7 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.config import PROFILE_REQUIREMENTS, SUPPORTED_PROFILES, validate_runtime_config
+from mcp_server.config import PROFILE_REQUIREMENTS, SUPPORTED_PROFILES, load_hosted_runtime_settings, validate_runtime_config
 
 
 class RuntimeProfileTests(unittest.TestCase):
@@ -26,6 +26,12 @@ class RuntimeProfileTests(unittest.TestCase):
         result = validate_runtime_config({"MCP_ENVIRONMENT": "prod"})
         self.assertFalse(result.is_valid)
         self.assertTrue(any(item.key == "YOUTUBE_API_KEY" for item in result.failures))
+
+    def test_hosted_runtime_settings_defaults_to_uvicorn_entrypoint(self):
+        settings = load_hosted_runtime_settings({})
+        self.assertEqual(settings.server_implementation, "uvicorn")
+        self.assertEqual(settings.app_module, "mcp_server.cloud_run_entrypoint:app")
+        self.assertEqual(settings.port, 8080)
 
 
 if __name__ == "__main__":

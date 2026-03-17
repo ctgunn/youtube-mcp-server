@@ -99,6 +99,39 @@ class StreamableHTTPTransportIntegrationTests(unittest.TestCase):
         replay_events = parse_sse_payload(replay.body)
         self.assertTrue(any('"again"' in event["data"] for event in replay_events))
 
+    def test_concurrent_sessions_remain_isolated(self):
+        first_session = self._initialize_session()
+        second_session = self._initialize_session()
+
+        self.app.queue_server_event(
+            first_session,
+            {"jsonrpc": "2.0", "method": "notifications/message", "params": {"text": "first-only"}},
+        )
+        self.app.queue_server_event(
+            second_session,
+            {"jsonrpc": "2.0", "method": "notifications/message", "params": {"text": "second-only"}},
+        )
+
+        first_response = execute_hosted_request(
+            self.app,
+            method="GET",
+            path="/mcp",
+            headers=stream_headers(session_id=first_session, include_json=False),
+        )
+        second_response = execute_hosted_request(
+            self.app,
+            method="GET",
+            path="/mcp",
+            headers=stream_headers(session_id=second_session, include_json=False),
+        )
+
+        first_events = parse_sse_payload(first_response.body)
+        second_events = parse_sse_payload(second_response.body)
+        self.assertTrue(any('"first-only"' in event["data"] for event in first_events))
+        self.assertFalse(any('"second-only"' in event["data"] for event in first_events))
+        self.assertTrue(any('"second-only"' in event["data"] for event in second_events))
+        self.assertFalse(any('"first-only"' in event["data"] for event in second_events))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,7 +7,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
-from mcp_server.cloud_run_entrypoint import execute_hosted_request
+from mcp_server.cloud_run_entrypoint import build_asgi_app, execute_hosted_request
 
 
 class OperationalObservabilityContractTests(unittest.TestCase):
@@ -85,6 +85,26 @@ class OperationalObservabilityContractTests(unittest.TestCase):
         self.assertEqual(tool_event["toolName"], "server_ping")
         self.assertEqual(tool_event["methodName"], "tools/call")
         self.assertEqual(tool_event["path"], "/mcp")
+
+    def test_migrated_runtime_emits_startup_and_shutdown_events(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        hosted_app = build_asgi_app(
+            env={"MCP_ENVIRONMENT": "dev"},
+            validate_startup=False,
+            runtime_stdout=stdout,
+            runtime_stderr=stderr,
+        )
+        transport = getattr(hosted_app, "transport", getattr(getattr(hosted_app, "state", None), "transport", None))
+
+        transport.start_runtime()
+        transport.stop_runtime()
+
+        events = [json.loads(line) for line in stdout.getvalue().splitlines()]
+        self.assertEqual(events[0]["event"], "runtime.startup")
+        self.assertEqual(events[0]["status"], "success")
+        self.assertEqual(events[-1]["event"], "runtime.shutdown")
+        self.assertEqual(events[-1]["status"], "success")
 
 
 if __name__ == "__main__":

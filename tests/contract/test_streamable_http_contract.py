@@ -6,7 +6,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
-from mcp_server.cloud_run_entrypoint import execute_hosted_request
+from mcp_server.cloud_run_entrypoint import build_asgi_app, execute_hosted_request
 from tests.contract.conftest import stream_headers
 from tests.unit.conftest import parse_sse_payload
 
@@ -74,6 +74,13 @@ class StreamableHTTPContractTests(unittest.TestCase):
         )
         self.assertEqual(valid.status, 200)
         self.assertEqual(valid.headers["Content-Type"], "text/event-stream")
+
+    def test_migrated_runtime_exposes_asgi_application_with_transport(self):
+        hosted_app = build_asgi_app(validate_startup=False)
+        transport = getattr(hosted_app, "transport", getattr(getattr(hosted_app, "state", None), "transport", None))
+        self.assertIsNotNone(transport)
+        self.assertEqual(transport.runtime_settings.server_implementation, "uvicorn")
+        self.assertEqual(transport.runtime_settings.app_module, "mcp_server.cloud_run_entrypoint:app")
 
     def test_invalid_protocol_version_and_origin_fail(self):
         invalid_version = execute_hosted_request(

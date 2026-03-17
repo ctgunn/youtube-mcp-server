@@ -72,6 +72,7 @@ class CloudRunDeploymentAssetsIntegrationTests(unittest.TestCase):
         dockerignore = Path(".dockerignore").read_text()
         self.assertIn("FROM python:3.11-slim", dockerfile)
         self.assertIn("mcp_server.cloud_run_entrypoint", dockerfile)
+        self.assertIn("python3\", \"-m\", \"uvicorn\"", dockerfile)
         for pattern in (".git/", ".env", ".codex/", "specs/"):
             self.assertIn(pattern, dockerignore)
 

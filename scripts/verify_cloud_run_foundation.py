@@ -127,7 +127,15 @@ def main(argv: list[str] | None = None) -> int:
         evidence_path=args.evidence_file,
     )
     evidence_path = write_verification_evidence(Path(args.evidence_file), run)
-    print(json.dumps({"overallResult": run.overall_result, "evidenceFile": str(evidence_path)}))
+    print(
+        json.dumps(
+            {
+                "overallResult": run.overall_result,
+                "runtimeIdentity": revision.runtime_identity,
+                "evidenceFile": str(evidence_path),
+            }
+        )
+    )
     return 0 if run.overall_result == "pass" else 1
 
 

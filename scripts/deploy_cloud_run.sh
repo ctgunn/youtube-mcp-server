@@ -36,6 +36,8 @@ else
 fi
 
 export PYTHONPATH="${ROOT_DIR}/src:${PYTHONPATH:-}"
+export MCP_SERVER_IMPLEMENTATION="${MCP_SERVER_IMPLEMENTATION:-uvicorn}"
+export MCP_ASGI_APP="${MCP_ASGI_APP:-mcp_server.cloud_run_entrypoint:app}"
 
 # The resulting deployment record is the expected input for the
 # session-aware streamable transport verifier in

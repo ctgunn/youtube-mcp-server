@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 from typing import Mapping, TextIO
 
-from mcp_server.config import ConfigValidationError, StartupValidationResult, ensure_runtime_config
+from mcp_server.config import ConfigValidationError, StartupValidationResult, ensure_runtime_config, load_hosted_runtime_settings
+from mcp_server.health import initialize_runtime_lifecycle
 from mcp_server.transport.http import MCPHTTPTransport
 
 
@@ -35,16 +36,20 @@ def create_app(
 ) -> MCPHTTPTransport:
     """Create an app-like transport object for local execution and tests."""
     runtime_env = dict(os.environ if env is None else env)
+    runtime_settings = load_hosted_runtime_settings(runtime_env)
     try:
         validation = ensure_runtime_config(runtime_env)
     except ConfigValidationError as exc:
         if validate_startup:
             raise RuntimeError(_build_startup_error(exc.result)) from exc
         validation = exc.result
+    lifecycle = initialize_runtime_lifecycle(validation)
 
     return MCPHTTPTransport(
         server_metadata=load_server_metadata(runtime_env),
         startup_validation=validation,
+        runtime_lifecycle=lifecycle,
+        runtime_settings=runtime_settings,
         runtime_stdout=runtime_stdout,
         runtime_stderr=runtime_stderr,
     )

@@ -5,10 +5,14 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
-from mcp_server.cloud_run_entrypoint import execute_hosted_request
+from mcp_server.cloud_run_entrypoint import build_asgi_app, execute_hosted_request
 
 
 class ReadinessContractTests(unittest.TestCase):
+    def _runtime_transport(self, env=None):
+        hosted_app = build_asgi_app(env=env, validate_startup=False)
+        return getattr(hosted_app, "transport", getattr(getattr(hosted_app, "state", None), "transport", None))
+
     def test_health_contract_shape(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
         payload = app.handle("/health", {})
@@ -40,6 +44,17 @@ class ReadinessContractTests(unittest.TestCase):
         response = execute_hosted_request(app, method="GET", path="/health")
         self.assertEqual(response.status, 200)
         self.assertEqual(response.payload, {"status": "ok"})
+
+    def test_migrated_runtime_is_not_ready_until_startup_runs(self):
+        transport = self._runtime_transport(env={"MCP_ENVIRONMENT": "dev"})
+        before_start = execute_hosted_request(transport, method="GET", path="/ready")
+        self.assertEqual(before_start.status, 503)
+        self.assertEqual(before_start.payload["checks"]["runtime"], "fail")
+
+        transport.start_runtime()
+        after_start = execute_hosted_request(transport, method="GET", path="/ready")
+        self.assertEqual(after_start.status, 200)
+        self.assertEqual(after_start.payload["checks"]["runtime"], "pass")
 
     def test_startup_validation_error_details_shape(self):
         with self.assertRaisesRegex(RuntimeError, "MCP_ENVIRONMENT"):
