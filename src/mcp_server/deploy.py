@@ -83,6 +83,9 @@ def deployment_input_from_mapping(values: Mapping[str, object]) -> DeploymentInp
         "MCP_BUILD_ID": str(values.get("MCP_BUILD_ID", "local")).strip() or "local",
         "MCP_BUILD_COMMIT": str(values.get("MCP_BUILD_COMMIT", "unknown")).strip() or "unknown",
         "MCP_BUILD_TIME": str(values.get("MCP_BUILD_TIME", "unknown")).strip() or "unknown",
+        "MCP_SERVER_IMPLEMENTATION": str(values.get("MCP_SERVER_IMPLEMENTATION", "uvicorn")).strip() or "uvicorn",
+        "MCP_ASGI_APP": str(values.get("MCP_ASGI_APP", "mcp_server.cloud_run_entrypoint:app")).strip()
+        or "mcp_server.cloud_run_entrypoint:app",
     }
     return DeploymentInputSet(
         environment=str(values.get("MCP_ENVIRONMENT", "")).strip(),
@@ -149,6 +152,8 @@ class RuntimeSettingsSnapshot:
     timeout_seconds: int
     secret_reference_names: tuple[str, ...]
     config_summary: Mapping[str, str]
+    server_implementation: str = "uvicorn"
+    app_module: str = "mcp_server.cloud_run_entrypoint:app"
 
 
 @dataclass(frozen=True)
@@ -169,6 +174,8 @@ def snapshot_runtime_settings(settings: DeploymentInputSet) -> RuntimeSettingsSn
         service_name=settings.service_name,
         environment_profile=settings.environment,
         runtime_identity=settings.runtime_identity,
+        server_implementation=settings.config_values["MCP_SERVER_IMPLEMENTATION"],
+        app_module=settings.config_values["MCP_ASGI_APP"],
         min_instances=settings.min_instances,
         max_instances=settings.max_instances,
         concurrency=settings.concurrency,
@@ -192,6 +199,8 @@ def serialize_deployment_run(record: DeploymentRunRecord) -> dict:
             "serviceName": record.runtime_settings.service_name,
             "environmentProfile": record.runtime_settings.environment_profile,
             "runtimeIdentity": record.runtime_settings.runtime_identity,
+            "serverImplementation": record.runtime_settings.server_implementation,
+            "appModule": record.runtime_settings.app_module,
             "minInstances": record.runtime_settings.min_instances,
             "maxInstances": record.runtime_settings.max_instances,
             "concurrency": record.runtime_settings.concurrency,
@@ -325,6 +334,7 @@ class VerificationCheckResult:
 @dataclass(frozen=True)
 class HostedVerificationRun:
     revision_name: str
+    runtime_identity: str
     started_at: str
     completed_at: str | None
     overall_result: str
@@ -334,6 +344,7 @@ class HostedVerificationRun:
 def serialize_verification_run(run: HostedVerificationRun) -> dict:
     return {
         "revisionName": run.revision_name,
+        "runtimeIdentity": run.runtime_identity,
         "startedAt": run.started_at,
         "completedAt": run.completed_at,
         "overallResult": run.overall_result,
@@ -476,7 +487,7 @@ def run_hosted_verification(
         lambda payload: payload.get("status") == "ok",
         "Hosted liveness endpoint returned healthy status.",
     ):
-        return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
+        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
     ready_payload = _normalize_request_result(requester("/ready", {}))
     if not _append(
@@ -485,7 +496,7 @@ def run_hosted_verification(
         lambda payload: payload.get("status") == "ready",
         "Hosted readiness endpoint returned ready status.",
     ):
-        return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
+        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
     initialize_payload = _normalize_request_result(
         requester(
@@ -504,7 +515,7 @@ def run_hosted_verification(
         lambda payload: isinstance(payload.get("result"), dict) and "capabilities" in payload.get("result", {}),
         "Hosted MCP initialize returned declared capabilities.",
     ):
-        return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
+        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
     list_payload = _normalize_request_result(
         requester("/mcp", {"jsonrpc": "2.0", "id": "verify-list", "method": "tools/list", "params": {}})
@@ -517,7 +528,7 @@ def run_hosted_verification(
         ),
         "Hosted MCP tool discovery returned the baseline tool set.",
     ):
-        return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), "fail", tuple(checks))
+        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
     call_payload = _normalize_request_result(
         requester(
@@ -537,7 +548,7 @@ def run_hosted_verification(
         "Hosted baseline tool invocation returned a successful structured response.",
     )
     overall = "pass" if all(item.result == "pass" for item in checks) else "fail"
-    return HostedVerificationRun(revision.revision_name, started_at, _now_iso(), overall, tuple(checks))
+    return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), overall, tuple(checks))
 
 
 def write_verification_evidence(destination: str | Path, run: HostedVerificationRun) -> Path:
@@ -546,6 +557,7 @@ def write_verification_evidence(destination: str | Path, run: HostedVerification
     payload = serialize_verification_run(run)
     lines = [
         f"revisionName: {payload['revisionName']}",
+        f"runtimeIdentity: {payload['runtimeIdentity']}",
         f"startedAt: {payload['startedAt']}",
         f"completedAt: {payload['completedAt']}",
         f"overallResult: {payload['overallResult']}",

@@ -1,6 +1,14 @@
 # youtube-mcp-server
 An MCP-compliant server that wraps the YouTube Data API and exposes searchable tools for use in OpenAI Agent Builder workflows, deployable via Google Cloud Run.
 
+## Local dependency bootstrap
+
+Install the hosted runtime dependencies from the repository root:
+
+```bash
+python3 -m pip install -e .
+```
+
 ## Engineering workflow
 
 Feature specification, planning, and implementation in this repository follow a
@@ -24,6 +32,8 @@ Required deployment inputs:
 - `SERVICE_NAME`
 - `IMAGE_REFERENCE`
 - `SERVICE_ACCOUNT_EMAIL`
+- `MCP_SERVER_IMPLEMENTATION` (`uvicorn`)
+- `MCP_ASGI_APP` (`mcp_server.cloud_run_entrypoint:app`)
 - `MCP_ENVIRONMENT`
 - `MIN_INSTANCES`
 - `MAX_INSTANCES`
@@ -39,6 +49,8 @@ REGION=us-central1 \
 SERVICE_NAME=youtube-mcp-server \
 IMAGE_REFERENCE=us-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
 SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com \
+MCP_SERVER_IMPLEMENTATION=uvicorn \
+MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \
 MCP_ENVIRONMENT=staging \
 MIN_INSTANCES=0 \
 MAX_INSTANCES=2 \
@@ -51,6 +63,8 @@ bash scripts/deploy_cloud_run.sh
 The deployment workflow now returns a JSON deployment record containing the
 deployment outcome, revision name, hosted service URL, and runtime settings
 summary. Save that record and use it as the handoff into hosted verification.
+The runtime settings summary includes `serverImplementation=uvicorn` and
+`appModule=mcp_server.cloud_run_entrypoint:app`.
 
 Example:
 
@@ -60,6 +74,8 @@ REGION=us-central1 \
 SERVICE_NAME=youtube-mcp-server \
 IMAGE_REFERENCE=us-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
 SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com \
+MCP_SERVER_IMPLEMENTATION=uvicorn \
+MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \
 MCP_ENVIRONMENT=staging \
 MIN_INSTANCES=0 \
 MAX_INSTANCES=2 \
@@ -147,6 +163,12 @@ and `--timeout-seconds` directly when a deployment record file is not available.
 Hosted runtime requests emit structured JSON log events to runtime stdout/stderr
 with `timestamp`, `severity`, `requestId`, `path`, `status`, `latencyMs`, and
 `toolName` when the request reaches tool dispatch.
+
+Start the migrated hosted runtime locally with the ASGI entrypoint:
+
+```bash
+PYTHONPATH=src python3 -m uvicorn mcp_server.cloud_run_entrypoint:app --host 0.0.0.0 --port 8080
+```
 
 The verification output must record pass/fail results for:
 

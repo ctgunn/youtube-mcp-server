@@ -7,6 +7,8 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         content = Path("README.md").read_text()
         self.assertIn("scripts/deploy_cloud_run.sh", content)
         self.assertIn("scripts/verify_cloud_run_foundation.py", content)
+        self.assertIn("python3 -m uvicorn", content)
+        self.assertIn("mcp_server.cloud_run_entrypoint:app", content)
         self.assertIn("SERVICE_ACCOUNT_EMAIL", content)
         self.assertIn("TIMEOUT_SECONDS", content)
         self.assertIn("MCP-Session-Id", content)
@@ -21,6 +23,8 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
             "SERVICE_NAME",
             "IMAGE_REFERENCE",
             "SERVICE_ACCOUNT_EMAIL",
+            "MCP_SERVER_IMPLEMENTATION",
+            "MCP_ASGI_APP",
             "MIN_INSTANCES",
             "MAX_INSTANCES",
             "CONCURRENCY",

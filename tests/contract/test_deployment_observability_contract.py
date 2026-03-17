@@ -66,6 +66,8 @@ class DeploymentObservabilityContractTests(unittest.TestCase):
                 "serviceName",
                 "environmentProfile",
                 "runtimeIdentity",
+                "serverImplementation",
+                "appModule",
                 "minInstances",
                 "maxInstances",
                 "concurrency",
