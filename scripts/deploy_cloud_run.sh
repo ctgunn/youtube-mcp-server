@@ -30,7 +30,7 @@ if [[ "${MCP_ENVIRONMENT}" != "dev" && "${MCP_ENVIRONMENT}" != "staging" && "${M
 fi
 
 if [[ "${MCP_ENVIRONMENT}" == "staging" || "${MCP_ENVIRONMENT}" == "prod" ]]; then
-  : "${SECRET_REFERENCES:=YOUTUBE_API_KEY}"
+  : "${SECRET_REFERENCES:=YOUTUBE_API_KEY,MCP_AUTH_TOKEN}"
 else
   : "${SECRET_REFERENCES:=}"
 fi
@@ -38,6 +38,9 @@ fi
 export PYTHONPATH="${ROOT_DIR}/src:${PYTHONPATH:-}"
 export MCP_SERVER_IMPLEMENTATION="${MCP_SERVER_IMPLEMENTATION:-uvicorn}"
 export MCP_ASGI_APP="${MCP_ASGI_APP:-mcp_server.cloud_run_entrypoint:app}"
+export MCP_AUTH_REQUIRED="${MCP_AUTH_REQUIRED:-}"
+export MCP_ALLOWED_ORIGINS="${MCP_ALLOWED_ORIGINS:-}"
+export MCP_ALLOW_ORIGINLESS_CLIENTS="${MCP_ALLOW_ORIGINLESS_CLIENTS:-}"
 
 # The resulting deployment record is the expected input for the
 # session-aware streamable transport verifier in

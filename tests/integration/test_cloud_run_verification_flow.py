@@ -12,7 +12,7 @@ from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, wri
 
 
 class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
-    def _hosted_requester(self, app):
+    def _hosted_requester(self, app, *, auth_token=None, origin=None):
         session_state = {"session_id": None}
 
         def _request(path, payload):
@@ -22,6 +22,10 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
                 "Content-Type": "application/json",
                 "Accept": "application/json, text/event-stream",
             }
+            if auth_token:
+                headers["Authorization"] = f"Bearer {auth_token}"
+            if origin:
+                headers["Origin"] = origin
             if session_state["session_id"]:
                 headers["MCP-Session-Id"] = session_state["session_id"]
             result = execute_hosted_request(
@@ -100,6 +104,19 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
         run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
         self.assertEqual(run.revision_name, "rev-001")
+
+    def test_secure_app_passes_verification_with_authentication(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev", "MCP_AUTH_TOKEN": "verify-token"})
+        run = run_hosted_verification(
+            self._revision(),
+            requester=self._hosted_requester(app, auth_token="verify-token"),
+        )
+        self.assertEqual(run.overall_result, "pass")
+
+    def test_secure_app_fails_verification_without_authentication(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev", "MCP_AUTH_TOKEN": "verify-token"})
+        run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
+        self.assertEqual(run.overall_result, "fail")
 
 
 if __name__ == "__main__":
