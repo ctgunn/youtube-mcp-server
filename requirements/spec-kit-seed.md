@@ -245,6 +245,74 @@ Acceptance criteria:
 Dependencies:
 - `FND-010`, `FND-011`, `FND-013`
 
+### FND-015: Hosted MCP Session Durability
+Description:
+Eliminate process-local session fragility so hosted streamable MCP sessions remain usable under real Cloud Run routing, scaling, and restart behavior.
+
+Primary stories:
+- As an MCP consumer, I can initialize a hosted session and continue using it without random `session not found` failures caused by instance routing.
+- As an operator, I can deploy the hosted MCP service on Cloud Run with confidence that session continuity does not depend on undocumented single-instance assumptions.
+
+Acceptance criteria:
+- Hosted MCP session behavior is reliable under the supported Cloud Run deployment topology and does not depend on process-local memory alone.
+- Session establishment, follow-up `GET`, and follow-up `POST` flows remain valid across the supported hosted routing model.
+- The deployment and verification story explicitly documents any required session-affinity, single-instance, or shared-state assumptions.
+- Contract and integration coverage includes hosted session continuation and reconnect scenarios relevant to the chosen session strategy.
+
+Dependencies:
+- `FND-009`, `FND-012`, `FND-013`
+
+### FND-016: Browser-Originated MCP Access + CORS Support
+Description:
+Complete the browser-facing hosted access contract by adding explicit preflight and response-header behavior for approved browser-originated MCP clients.
+
+Primary stories:
+- As a browser-originated MCP consumer, I can complete preflight and authenticated hosted requests when my origin is allowed.
+- As an operator, I can distinguish supported browser access from denied browser access using stable transport behavior rather than implicit failures.
+
+Acceptance criteria:
+- Hosted MCP routes explicitly handle browser preflight behavior for supported paths and methods.
+- Approved browser-originated requests receive the required CORS response headers for the documented access model.
+- Disallowed origins and unsupported browser request patterns fail with stable documented behavior.
+- Browser-originated verification coverage is added for both successful and denied hosted access scenarios.
+
+Dependencies:
+- `FND-013`
+
+### FND-017: Retrieval Tool Contract Completeness
+Description:
+Complete the machine-readable tool contract for foundational retrieval tools so MCP clients can construct valid `search` and `fetch` calls from discovery output alone.
+
+Primary stories:
+- As an MCP client, I can infer a valid `fetch` request shape directly from tool discovery without trial-and-error.
+- As a developer, I can rely on the published tool schema to describe real validation rules instead of deferring core requirements to runtime-only checks.
+
+Acceptance criteria:
+- `search` and `fetch` discovery metadata fully expresses the required invocation contract in machine-readable form.
+- `fetch` metadata clearly represents the valid required-input combinations supported by the server.
+- Runtime validation and discovered schema stay aligned for successful and failing calls.
+- Contract examples and hosted verification evidence demonstrate that clients can construct valid retrieval requests from discovery output alone.
+
+Dependencies:
+- `FND-011`, `FND-014`
+
+### FND-018: JSON-RPC / MCP Error Code Alignment
+Description:
+Align hosted and local error responses with the expected JSON-RPC / MCP error-code conventions so downstream clients do not have to tolerate server-specific error-code typing.
+
+Primary stories:
+- As an MCP client, I receive error responses whose code fields follow the expected protocol conventions.
+- As a developer, I can map transport, validation, protocol, and tool failures through one documented error-code contract without mixing protocol-native and server-specific code formats.
+
+Acceptance criteria:
+- Error responses use protocol-aligned error-code types and documented mappings for covered transport, protocol, validation, and tool failure categories.
+- Hosted and local error behavior remain consistent for equivalent malformed request, unsupported method, invalid argument, authentication, and tool execution scenarios.
+- Client-visible error payloads remain safe and structured while removing ambiguous server-specific code typing.
+- Contract and integration coverage prove the aligned error-code behavior for representative success-adjacent failure paths.
+
+Dependencies:
+- `FND-010`, `FND-013`
+
 ### YT-101: YouTube Client Integration Layer
 Description:
 Build typed wrapper for YouTube Data API v3 with auth, retry, quota, and error mapping.
@@ -257,7 +325,7 @@ Acceptance criteria:
 - Quota and upstream errors map to standard server errors.
 
 Dependencies:
-- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`
+- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`
 
 ### YT-102: Video Tools
 Description:
@@ -372,12 +440,16 @@ Dependencies:
 12. `FND-012`
 13. `FND-013`
 14. `FND-014`
-15. `YT-101`
-16. `YT-102` + `YT-103` (parallel)
-17. `YT-104`
-18. `YT-105`
-19. `OPS-201`
-20. `OPS-202`
+15. `FND-015`
+16. `FND-016`
+17. `FND-017`
+18. `FND-018`
+19. `YT-101`
+20. `YT-102` + `YT-103` (parallel)
+21. `YT-104`
+22. `YT-105`
+23. `OPS-201`
+24. `OPS-202`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
