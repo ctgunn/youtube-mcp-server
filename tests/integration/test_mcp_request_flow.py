@@ -77,6 +77,77 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         self.assertIsInstance(second_payload["timestamp"], str)
         self.assertEqual(set(first_content.keys()), set(second_content.keys()))
 
+    def test_search_tool_success_and_no_result_flows(self):
+        os.environ["MCP_ENVIRONMENT"] = "dev"
+        app = create_app()
+
+        success = app.handle(
+            "/mcp",
+            {
+                "jsonrpc": "2.0",
+                "id": "req-search-1",
+                "method": "tools/call",
+                "params": {"name": "search", "arguments": {"query": "remote MCP research", "pageSize": 2}},
+            },
+        )
+        success_content = success["result"]["content"][0]["structuredContent"]
+        self.assertGreaterEqual(success_content["totalReturned"], 1)
+        self.assertEqual(success_content["results"][0]["position"], 1)
+        self.assertIn("resourceId", success_content["results"][0])
+
+        empty = app.handle(
+            "/mcp",
+            {
+                "jsonrpc": "2.0",
+                "id": "req-search-2",
+                "method": "tools/call",
+                "params": {"name": "search", "arguments": {"query": "no-match-sentinel", "pageSize": 2}},
+            },
+        )
+        empty_content = empty["result"]["content"][0]["structuredContent"]
+        self.assertEqual(empty_content["results"], [])
+        self.assertEqual(empty_content["totalReturned"], 0)
+
+    def test_search_to_fetch_handoff_and_missing_fetch(self):
+        os.environ["MCP_ENVIRONMENT"] = "dev"
+        app = create_app()
+
+        search = app.handle(
+            "/mcp",
+            {
+                "jsonrpc": "2.0",
+                "id": "req-search-3",
+                "method": "tools/call",
+                "params": {"name": "search", "arguments": {"query": "remote MCP research", "pageSize": 1}},
+            },
+        )
+        result = search["result"]["content"][0]["structuredContent"]["results"][0]
+
+        fetch = app.handle(
+            "/mcp",
+            {
+                "jsonrpc": "2.0",
+                "id": "req-fetch-1",
+                "method": "tools/call",
+                "params": {"name": "fetch", "arguments": {"resourceId": result["resourceId"], "uri": result["uri"]}},
+            },
+        )
+        fetch_content = fetch["result"]["content"][0]["structuredContent"]
+        self.assertEqual(fetch_content["resourceId"], result["resourceId"])
+        self.assertEqual(fetch_content["uri"], result["uri"])
+        self.assertIn("content", fetch_content)
+
+        missing = app.handle(
+            "/mcp",
+            {
+                "jsonrpc": "2.0",
+                "id": "req-fetch-2",
+                "method": "tools/call",
+                "params": {"name": "fetch", "arguments": {"resourceId": "missing-resource"}},
+            },
+        )
+        self.assertEqual(missing["error"]["code"], "RESOURCE_NOT_FOUND")
+
     def test_server_info_configured_and_fallback(self):
         configured = MCPHTTPTransport(
             server_metadata={
