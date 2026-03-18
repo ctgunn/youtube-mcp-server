@@ -41,6 +41,7 @@ class CloudRunConfigUnitTests(unittest.TestCase):
             }
         )
         self.assertIn("YOUTUBE_API_KEY secret reference is required for staging and prod", settings.validate())
+        self.assertIn("MCP_AUTH_TOKEN secret reference is required for staging and prod", settings.validate())
 
     def test_build_deploy_command_contains_required_runtime_flags(self):
         settings = deployment_input_from_mapping(
@@ -55,7 +56,7 @@ class CloudRunConfigUnitTests(unittest.TestCase):
                 "MAX_INSTANCES": "3",
                 "CONCURRENCY": "20",
                 "TIMEOUT_SECONDS": "180",
-                "SECRET_REFERENCES": "YOUTUBE_API_KEY",
+                "SECRET_REFERENCES": "YOUTUBE_API_KEY,MCP_AUTH_TOKEN",
             }
         )
         command = build_deploy_command(settings)
@@ -65,7 +66,7 @@ class CloudRunConfigUnitTests(unittest.TestCase):
         self.assertIn("--max-instances 3", rendered)
         self.assertIn("--concurrency 20", rendered)
         self.assertIn("--timeout 180", rendered)
-        self.assertIn("--set-secrets YOUTUBE_API_KEY=YOUTUBE_API_KEY:latest", rendered)
+        self.assertIn("--set-secrets YOUTUBE_API_KEY=YOUTUBE_API_KEY:latest,MCP_AUTH_TOKEN=MCP_AUTH_TOKEN:latest", rendered)
         self.assertIn("MCP_SERVER_IMPLEMENTATION=uvicorn", rendered)
         self.assertIn("MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app", rendered)
 

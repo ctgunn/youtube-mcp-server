@@ -37,11 +37,21 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                 "result": {
                     "tools": [
                         {
-                            "name": "server_ping",
-                            "description": "Return service status and timestamp",
+                            "name": "search",
+                            "description": "Discover relevant sources for deep research workflows.",
                             "inputSchema": {
                                 "type": "object",
-                                "properties": {},
+                                "required": ["query"],
+                                "properties": {"query": {"type": "string", "minLength": 1}},
+                                "additionalProperties": False,
+                            },
+                        },
+                        {
+                            "name": "fetch",
+                            "description": "Retrieve a selected source in consumable content form.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {"resourceId": {"type": "string"}},
                                 "additionalProperties": False,
                             },
                         }
@@ -49,15 +59,45 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                 },
                 "statusCode": 200,
             },
-            "tools/call": {
+            "search-call": {
                 "jsonrpc": "2.0",
-                "id": "verify-call",
+                "id": "verify-search",
                 "result": {
                     "content": [
                         {
                             "type": "text",
-                            "text": "{\"status\":\"ok\"}",
-                            "structuredContent": {"status": "ok"},
+                            "text": "{\"results\":[{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"title\":\"Remote MCP Research Workflows\",\"position\":1}],\"totalReturned\":1}",
+                            "structuredContent": {
+                                "results": [
+                                    {
+                                        "resourceId": "res_remote_mcp_001",
+                                        "uri": "https://example.com/remote-mcp-research",
+                                        "title": "Remote MCP Research Workflows",
+                                        "position": 1,
+                                    }
+                                ],
+                                "totalReturned": 1,
+                            },
+                        }
+                    ],
+                    "isError": False,
+                },
+                "statusCode": 200,
+            },
+            "fetch-call": {
+                "jsonrpc": "2.0",
+                "id": "verify-fetch",
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"content\":\"Retrieved content\",\"retrievalStatus\":\"complete\"}",
+                            "structuredContent": {
+                                "resourceId": "res_remote_mcp_001",
+                                "uri": "https://example.com/remote-mcp-research",
+                                "content": "Retrieved content",
+                                "retrievalStatus": "complete",
+                            },
                         }
                     ],
                     "isError": False,
@@ -69,15 +109,22 @@ class CloudRunFoundationContractTests(unittest.TestCase):
         def requester(path, payload):
             if path != "/mcp":
                 return app_payloads[path]
+            if payload["method"] == "tools/call" and payload["params"]["name"] == "search":
+                return app_payloads["search-call"]
+            if payload["method"] == "tools/call" and payload["params"]["name"] == "fetch":
+                return app_payloads["fetch-call"]
             return app_payloads[payload["method"]]
 
         run = run_hosted_verification(self.revision, requester, evidence_path="artifacts/verify.txt")
-        self.assertEqual([check.check_name for check in run.checks], ["liveness", "readiness", "initialize", "list-tools", "baseline-tool-call"])
+        self.assertEqual(
+            [check.check_name for check in run.checks],
+            ["liveness", "readiness", "initialize", "list-tools", "search-tool-call", "fetch-tool-call"],
+        )
         self.assertEqual(run.overall_result, "pass")
         self.assertIn("inputSchema", app_payloads["tools/list"]["result"]["tools"][0])
         self.assertEqual(
-            app_payloads["tools/call"]["result"]["content"][0]["structuredContent"],
-            {"status": "ok"},
+            app_payloads["fetch-call"]["result"]["content"][0]["structuredContent"]["retrievalStatus"],
+            "complete",
         )
 
         serialized = serialize_verification_run(run)

@@ -22,7 +22,7 @@ class CloudRunDeployExecutionUnitTests(unittest.TestCase):
                 "MAX_INSTANCES": "2",
                 "CONCURRENCY": "20",
                 "TIMEOUT_SECONDS": "180",
-                "SECRET_REFERENCES": "YOUTUBE_API_KEY",
+                "SECRET_REFERENCES": "YOUTUBE_API_KEY,MCP_AUTH_TOKEN",
             }
         )
 

@@ -13,11 +13,11 @@ class ProfileStartupMatrixTests(unittest.TestCase):
         self.assertEqual(app.handle("/ready", {})["status"], "ready")
 
     def test_staging_profile_requires_secret(self):
-        app = create_app(env={"MCP_ENVIRONMENT": "staging", "YOUTUBE_API_KEY": "abc"})
+        app = create_app(env={"MCP_ENVIRONMENT": "staging", "YOUTUBE_API_KEY": "abc", "MCP_AUTH_TOKEN": "token"})
         self.assertEqual(app.handle("/ready", {})["status"], "ready")
 
     def test_prod_profile_requires_secret(self):
-        app = create_app(env={"MCP_ENVIRONMENT": "prod", "YOUTUBE_API_KEY": "abc"})
+        app = create_app(env={"MCP_ENVIRONMENT": "prod", "YOUTUBE_API_KEY": "abc", "MCP_AUTH_TOKEN": "token"})
         self.assertEqual(app.handle("/ready", {})["status"], "ready")
 
     def test_unsupported_profile_fails(self):
