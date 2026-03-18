@@ -36,6 +36,10 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Streaming-capable hosted runtime in place for production MCP transport behavior.
 - Remote MCP transport hardening in place (origin-aware handling and documented auth strategy).
 - Foundation `search` and `fetch` tools implemented for deep research-compatible retrieval flows.
+- Hosted MCP session continuity remains reliable under the supported Cloud Run routing and scaling model.
+- Browser-originated hosted MCP access is either fully supported with explicit CORS/preflight behavior or explicitly documented as out of scope for the current release.
+- Foundational retrieval tool schemas fully describe valid invocation shapes for MCP consumers.
+- Error codes are aligned to the expected JSON-RPC / MCP conventions used by downstream clients.
 - Config, logging, error handling, containerization, and CI checks in place.
 
 ### 5.2 Minimum Server Features
@@ -76,7 +80,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 ### 5.5 Error Handling and Validation Requirements
 - Central error mapper to normalize internal exceptions into MCP-safe responses.
 - Input validation at tool boundary (JSON schema).
-- Error shape must include `code`, `message`, and optional `details`.
+- Error shape must include protocol-aligned `code`, `message`, and optional `details`.
 - No stack traces returned to clients.
 
 ### 5.6 Logging and Observability Requirements
@@ -106,6 +110,8 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - Hosted MCP transport verification passes against deployed URL.
   - MCP initialize/list tools/invoke baseline tools works against deployed URL.
   - Hosted `search` and `fetch` verification paths are documented and executable.
+  - Hosted MCP session continuation succeeds under the supported Cloud Run session model.
+  - If browser-originated clients are in scope, approved browser access and denied-origin behavior are both verified.
 
 ### 5.9 Foundation Acceptance Criteria (Exit Gate for Tool Work)
 - MCP server successfully initializes from an MCP client.
@@ -114,6 +120,9 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Tool discovery returns complete MCP-relevant metadata for registered tools.
 - Tool invocation returns MCP-compatible result structures.
 - `search` and `fetch` are available and callable end-to-end.
+- Hosted MCP session behavior is reliable for the supported Cloud Run deployment model.
+- Retrieval tool schemas are complete enough for clients to construct valid calls from discovery output alone.
+- Error codes follow the protocol conventions expected by supported MCP consumers.
 - Structured logs appear in Cloud Logging for each request.
 - Health/readiness endpoints pass in Cloud Run.
 - CI checks pass (lint/typecheck/tests).
@@ -181,6 +190,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Use dedicated service account with least-privilege IAM.
 - Support environment-based config (`dev`, `staging`, `prod`).
 - Support the selected remote MCP transport behavior reliably in the hosted Cloud Run environment.
+- Document and enforce the hosted session strategy required to keep MCP session continuity reliable under Cloud Run.
 
 ## 10. Security and Compliance Requirements
 - Secrets stored and injected securely.
@@ -190,6 +200,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Rate limiting or request throttling guardrails for abuse prevention.
 - For transcript/caption tools, enforce authorization checks and explicit errors when caption access is not permitted.
 - Remote MCP transport must include origin-aware handling and a documented authentication strategy appropriate for hosted consumption.
+- If browser-originated access is supported, the hosted service must provide explicit CORS and preflight behavior for approved and denied browser clients.
 
 ## 11. Reliability and Performance Requirements
 - Availability target: 99.5% monthly (v1 target).
@@ -217,6 +228,9 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Phase 0 foundation acceptance criteria are fully met.
 - Remote MCP transport is usable by intended hosted consumers.
 - `search` and `fetch` are implemented and callable via MCP for deep research-oriented flows.
+- Hosted session continuity is reliable for the supported deployment model.
+- Tool discovery metadata is sufficient for supported MCP clients to construct valid foundational tool requests.
+- Error codes and error payloads match the supported protocol expectations for downstream consumers.
 - All 16 tools in Sections 6.1-6.4 are implemented and callable via MCP.
 - Every tool validates inputs and returns structured errors.
 - Cloud Run deployment succeeds and serves MCP traffic.
@@ -229,12 +243,15 @@ This phase establishes a working MCP server before any YouTube tools are added.
 1. Complete MCP server foundation (transport, registry, baseline tools, health endpoints).
 2. Align foundation transport and protocol behavior to a standards-compliant remote MCP profile.
 3. Add foundation `search` and `fetch` support for deep research-compatible flows.
-4. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
-5. Define YouTube tool schemas and response contracts.
-6. Implement video/channel/playlist tools.
-7. Implement transcript retrieval/search flows.
-8. Add auth, secrets, and quota/error handling hardening.
-9. Add monitoring, alerts, and release documentation.
+4. Make hosted MCP sessions reliable for the supported Cloud Run routing and scaling model.
+5. Complete browser/CORS behavior and remaining hosted access hardening for supported client types.
+6. Finish foundational retrieval schema completeness and protocol-aligned error-code behavior.
+7. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
+8. Define YouTube tool schemas and response contracts.
+9. Implement video/channel/playlist tools.
+10. Implement transcript retrieval/search flows.
+11. Add auth, secrets, and quota/error handling hardening.
+12. Add monitoring, alerts, and release documentation.
 
 ## 16. Open Decisions
 - Final transcript fallback approach when official captions are unavailable.
