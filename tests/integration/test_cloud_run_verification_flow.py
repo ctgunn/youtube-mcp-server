@@ -60,7 +60,7 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
             evidence_path="artifacts/verify.txt",
         )
         self.assertEqual(run.overall_result, "pass")
-        self.assertEqual(len(run.checks), 5)
+        self.assertEqual(len(run.checks), 6)
         self.assertTrue(all(check.result == "pass" for check in run.checks))
 
     def test_not_ready_app_fails_before_mcp_checks(self):
@@ -77,7 +77,8 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
             content = path.read_text()
         self.assertIn("revisionName: rev-001", content)
         self.assertIn("checkName: liveness", content)
-        self.assertIn("checkName: baseline-tool-call", content)
+        self.assertIn("checkName: search-tool-call", content)
+        self.assertIn("checkName: fetch-tool-call", content)
         self.assertIn("runtimeIdentity: svc@example.iam.gserviceaccount.com", content)
 
     def test_hosted_route_payloads_remain_consistent_with_verification_inputs(self):
@@ -97,8 +98,10 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
         requester = self._hosted_requester(app)
         run = run_hosted_verification(self._revision(), requester=requester)
-        baseline = [check for check in run.checks if check.check_name == "baseline-tool-call"][0]
-        self.assertEqual(baseline.result, "pass")
+        search = [check for check in run.checks if check.check_name == "search-tool-call"][0]
+        fetch = [check for check in run.checks if check.check_name == "fetch-tool-call"][0]
+        self.assertEqual(search.result, "pass")
+        self.assertEqual(fetch.result, "pass")
 
     def test_verification_serialization_carries_runtime_identity(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})

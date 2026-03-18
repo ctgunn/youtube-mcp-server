@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from mcp_server.tools.retrieval import FETCH_TOOL_SCHEMA, SEARCH_TOOL_SCHEMA, fetch_tool, search_tool
+
 BASELINE_TOOL_SCHEMAS = {
     "server_ping": {
         "type": "object",
@@ -27,6 +29,8 @@ BASELINE_TOOL_DESCRIPTIONS = {
     "server_ping": "Return service status and timestamp",
     "server_info": "Return server version, environment, and build metadata",
     "server_list_tools": "Return currently registered tool names and descriptions",
+    "search": "Discover relevant sources for deep research workflows.",
+    "fetch": "Retrieve a selected source in consumable content form.",
 }
 
 DEFAULT_SERVER_METADATA = {
@@ -137,6 +141,18 @@ class InMemoryToolDispatcher:
                 "inputSchema": BASELINE_TOOL_SCHEMAS["server_list_tools"],
                 "handler": self._server_list_tools,
             },
+            {
+                "name": "search",
+                "description": BASELINE_TOOL_DESCRIPTIONS["search"],
+                "inputSchema": SEARCH_TOOL_SCHEMA,
+                "handler": search_tool,
+            },
+            {
+                "name": "fetch",
+                "description": BASELINE_TOOL_DESCRIPTIONS["fetch"],
+                "inputSchema": FETCH_TOOL_SCHEMA,
+                "handler": fetch_tool,
+            },
         ]
 
     def _normalize_server_metadata(self, server_metadata):
@@ -174,6 +190,23 @@ class InMemoryToolDispatcher:
             unexpected = [key for key in arguments.keys() if key not in allowed]
             if unexpected:
                 raise ValueError(f"arguments contain unsupported field: {unexpected[0]}")
+
+        if isinstance(properties, dict):
+            for key, value in arguments.items():
+                definition = properties.get(key, {})
+                expected_type = definition.get("type")
+                if expected_type == "string":
+                    if not isinstance(value, str):
+                        raise ValueError(f"{key} must be a string")
+                    min_length = definition.get("minLength")
+                    if isinstance(min_length, int) and len(value) < min_length:
+                        raise ValueError(f"{key} must be at least {min_length} characters")
+                elif expected_type == "integer":
+                    if not isinstance(value, int):
+                        raise ValueError(f"{key} must be an integer")
+                    minimum = definition.get("minimum")
+                    if isinstance(minimum, int) and value < minimum:
+                        raise ValueError(f"{key} must be greater than or equal to {minimum}")
 
     def call_tool(self, tool_name: str, arguments=None):
         arguments = arguments or {}

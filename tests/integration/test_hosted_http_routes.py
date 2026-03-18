@@ -131,6 +131,54 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         self.assertEqual(response.headers["Content-Type"], "text/event-stream")
         self.assertIn('"structuredContent"', response.body.decode("utf-8"))
 
+    def test_hosted_search_and_fetch_routes_return_streamed_structured_content(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+        session_id = self._initialize_session(app)
+
+        search_response = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": session_id,
+            },
+            body=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "req-hosted-search",
+                    "method": "tools/call",
+                    "params": {"name": "search", "arguments": {"query": "remote MCP research", "pageSize": 1}},
+                }
+            ).encode("utf-8"),
+        )
+        search_body = search_response.body.decode("utf-8")
+        self.assertEqual(search_response.status, 200)
+        self.assertIn('"resourceId": "res_remote_mcp_001"', search_body)
+
+        fetch_response = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": session_id,
+            },
+            body=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "req-hosted-fetch",
+                    "method": "tools/call",
+                    "params": {"name": "fetch", "arguments": {"resourceId": "res_remote_mcp_001"}},
+                }
+            ).encode("utf-8"),
+        )
+        fetch_body = fetch_response.body.decode("utf-8")
+        self.assertEqual(fetch_response.status, 200)
+        self.assertIn('"retrievalStatus": "complete"', fetch_body)
+
     def test_migrated_runtime_transport_preserves_mcp_route_execution(self):
         transport = self._runtime_transport()
         response = execute_hosted_request(
