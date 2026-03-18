@@ -21,6 +21,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - In-memory runtime state only for tool registry, request context, readiness state, and MCP streaming sessions; planning artifacts are file-based (012-hosted-runtime-migration)
 - Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Python standard library transport/config/logging modules (013-remote-mcp-security)
 - In-memory runtime state only; configuration and secrets are environment/secret-backed (013-remote-mcp-security)
+- Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Python standard library JSON/HTTP/config/logging modules (014-deep-research-tools)
+- In-memory runtime state only; no persistent storage for retrieval references or fetched conten (014-deep-research-tools)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -41,9 +43,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 014-deep-research-tools: Added Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Python standard library JSON/HTTP/config/logging modules
 - 013-remote-mcp-security: Added Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Python standard library transport/config/logging modules
 - 012-hosted-runtime-migration: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, existing in-repo MCP transport/protocol/config/observability modules, current streamable transport session helpers
-- 011-tool-metadata-result-alignment: Added Python 3.11 + Python standard-library HTTP server and JSON tooling, in-repo MCP transport/protocol/config/observability modules, in-repo tool registry and dispatcher modules, MCP-native protocol contract from FND-010
 
 
 <!-- MANUAL ADDITIONS START -->
