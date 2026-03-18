@@ -441,6 +441,19 @@ def _result_content_text(payload: dict) -> str | None:
     return text if isinstance(text, str) else None
 
 
+def _result_structured_content(payload: dict):
+    result = payload.get("result")
+    if not isinstance(result, dict):
+        return None
+    content = result.get("content")
+    if not isinstance(content, list) or not content:
+        return None
+    first = content[0]
+    if not isinstance(first, dict):
+        return None
+    return first.get("structuredContent")
+
+
 def run_hosted_verification(
     revision: HostedRevisionRecord,
     requester: Requester,
@@ -456,15 +469,17 @@ def run_hosted_verification(
         "liveness": "Inspect the deployed revision startup logs and confirm the container is listening on the expected port.",
         "readiness": "Review runtime configuration and secret injection, then redeploy or re-run verification.",
         "initialize": "Confirm the hosted MCP endpoint is reachable and the initialize method is still supported.",
-        "list-tools": "Confirm the hosted registry includes the baseline tools before re-running verification.",
-        "baseline-tool-call": "Inspect hosted tool dispatch logs and baseline tool registration before re-running verification.",
+        "list-tools": "Confirm the hosted registry includes the search and fetch tools before re-running verification.",
+        "search-tool-call": "Inspect hosted search tool registration and structured search results before re-running verification.",
+        "fetch-tool-call": "Inspect hosted fetch tool registration and retrieval result shaping before re-running verification.",
     }
     stage = {
         "liveness": "deployment-time",
         "readiness": "readiness-time",
         "initialize": "MCP-time",
         "list-tools": "MCP-time",
-        "baseline-tool-call": "MCP-time",
+        "search-tool-call": "MCP-time",
+        "fetch-tool-call": "MCP-time",
     }
 
     def _append(check_name: str, payload: dict, expected: Callable[[dict], bool], summary: str) -> bool:
@@ -528,29 +543,52 @@ def run_hosted_verification(
     if not _append(
         "list-tools",
         list_payload,
-        lambda payload: any(
-            tool.get("name") == baseline_tool_name for tool in _result_tools(payload)
-        ),
-        "Hosted MCP tool discovery returned the baseline tool set.",
+        lambda payload: {"search", "fetch"}.issubset({tool.get("name") for tool in _result_tools(payload)}),
+        "Hosted MCP tool discovery returned the deep research tool set.",
     ):
         return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
-    call_payload = _normalize_request_result(
+    search_payload = _normalize_request_result(
         requester(
         "/mcp",
         {
             "jsonrpc": "2.0",
-            "id": "verify-call",
+            "id": "verify-search",
             "method": "tools/call",
-            "params": {"name": baseline_tool_name, "arguments": {}},
+            "params": {"name": "search", "arguments": {"query": "remote MCP research", "pageSize": 1}},
         },
         )
     )
+    if not _append(
+        "search-tool-call",
+        search_payload,
+        lambda payload: isinstance(_result_structured_content(payload), dict)
+        and len(_result_structured_content(payload).get("results", [])) >= 1,
+        "Hosted search tool invocation returned structured candidate results.",
+    ):
+        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+
+    search_content = _result_structured_content(search_payload) or {}
+    first_result = (search_content.get("results") or [{}])[0]
+    fetch_resource_id = first_result.get("resourceId")
+    fetch_uri = first_result.get("uri")
+    fetch_payload = _normalize_request_result(
+        requester(
+            "/mcp",
+            {
+                "jsonrpc": "2.0",
+                "id": "verify-fetch",
+                "method": "tools/call",
+                "params": {"name": "fetch", "arguments": {"resourceId": fetch_resource_id, "uri": fetch_uri}},
+            },
+        )
+    )
     _append(
-        "baseline-tool-call",
-        call_payload,
-        lambda payload: _result_content_text(payload) is not None,
-        "Hosted baseline tool invocation returned a successful structured response.",
+        "fetch-tool-call",
+        fetch_payload,
+        lambda payload: isinstance(_result_structured_content(payload), dict)
+        and _result_structured_content(payload).get("resourceId") == fetch_resource_id,
+        "Hosted fetch tool invocation returned structured retrieved content.",
     )
     overall = "pass" if all(item.result == "pass" for item in checks) else "fail"
     return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), overall, tuple(checks))

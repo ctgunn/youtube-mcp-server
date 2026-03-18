@@ -161,6 +161,34 @@ Tool discovery responses now include complete baseline tool metadata, including
 `inputSchema`, so hosted MCP clients can construct valid calls from `tools/list`
 without separate tool documentation.
 
+Deep research foundation verification now also expects the hosted tool catalog
+to expose `search` and `fetch`, and it exercises both tools as part of the
+protected MCP smoke path.
+
+Representative hosted `search` example:
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
+  -H 'MCP-Session-Id: SESSION_ID' \
+  -d '{"jsonrpc":"2.0","id":"req-search","method":"tools/call","params":{"name":"search","arguments":{"query":"remote MCP research","pageSize":1}}}' \
+  https://YOUR_SERVICE_URL/mcp
+```
+
+Representative hosted `fetch` example using the selected search result:
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
+  -H 'MCP-Session-Id: SESSION_ID' \
+  -d '{"jsonrpc":"2.0","id":"req-fetch","method":"tools/call","params":{"name":"fetch","arguments":{"resourceId":"res_remote_mcp_001","uri":"https://example.com/remote-mcp-research"}}}' \
+  https://YOUR_SERVICE_URL/mcp
+```
+
 Open or resume an SSE stream:
 
 ```bash
@@ -199,4 +227,5 @@ The verification output must record pass/fail results for:
 - `readiness`
 - `initialize`
 - `list-tools`
-- `baseline-tool-call`
+- `search-tool-call`
+- `fetch-tool-call`

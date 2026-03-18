@@ -34,6 +34,7 @@ class RuntimeConfigValidationTests(unittest.TestCase):
             {
                 "MCP_ENVIRONMENT": "staging",
                 "YOUTUBE_API_KEY": "secret-value",
+                "MCP_AUTH_TOKEN": "token",
             }
         )
         self.assertTrue(result.is_valid)

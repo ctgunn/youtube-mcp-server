@@ -6,6 +6,7 @@ import json
 
 from mcp_server.protocol.envelope import error_response, success_response
 from mcp_server.transport.streaming import SUPPORTED_MCP_PROTOCOL_VERSIONS
+from mcp_server.tools.retrieval import RetrievalError
 
 
 UNKNOWN_TOOL_MESSAGE = "Tool not found."
@@ -105,6 +106,8 @@ def _handle_call(request_id, params, dispatcher):
             request_id=request_id,
             details={"toolName": tool_name},
         )
+    except RetrievalError as exc:
+        return error_response(exc.mcp_code, str(exc), request_id=request_id, details=exc.details)
     except ValueError as exc:
         return error_response("INVALID_ARGUMENT", str(exc), request_id=request_id)
     except Exception:
