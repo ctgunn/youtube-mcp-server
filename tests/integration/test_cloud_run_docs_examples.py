@@ -14,6 +14,9 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         self.assertIn("MCP-Session-Id", content)
         self.assertIn("text/event-stream", content)
         self.assertIn("Last-Event-ID", content)
+        self.assertIn("Authorization: Bearer", content)
+        self.assertIn("MCP_AUTH_TOKEN", content)
+        self.assertIn("MCP_ALLOWED_ORIGINS", content)
 
     def test_env_example_contains_hosted_deploy_inputs(self):
         content = Path(".env.example").read_text()
@@ -29,6 +32,9 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
             "MAX_INSTANCES",
             "CONCURRENCY",
             "TIMEOUT_SECONDS",
+            "MCP_AUTH_TOKEN",
+            "MCP_ALLOWED_ORIGINS",
+            "MCP_ALLOW_ORIGINLESS_CLIENTS",
         ):
             self.assertIn(f"{key}=", content)
 

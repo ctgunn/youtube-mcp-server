@@ -42,6 +42,20 @@ class ReadinessFlowTests(unittest.TestCase):
         after = execute_hosted_request(transport, method="GET", path="/ready")
         self.assertEqual(after.status, 200)
 
+    def test_ready_remains_public_while_protected_mcp_requires_auth(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev", "MCP_AUTH_TOKEN": "ready-token"})
+        ready = execute_hosted_request(app, method="GET", path="/ready")
+        self.assertEqual(ready.status, 200)
+
+        mcp = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+            body=b'{"jsonrpc":"2.0","id":"req-ready-sec","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+        )
+        self.assertEqual(mcp.status, 401)
+
 
 if __name__ == "__main__":
     unittest.main()

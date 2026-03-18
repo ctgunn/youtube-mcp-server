@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Mapping
 
+from mcp_server.security import HostedSecuritySettings, parse_allowed_origins
+
 SUPPORTED_PROFILES = {"dev", "staging", "prod"}
 
 PROFILE_REQUIREMENTS = {
@@ -15,11 +17,11 @@ PROFILE_REQUIREMENTS = {
     },
     "staging": {
         "required_config": ["MCP_ENVIRONMENT"],
-        "required_secrets": ["YOUTUBE_API_KEY"],
+        "required_secrets": ["YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"],
     },
     "prod": {
         "required_config": ["MCP_ENVIRONMENT"],
-        "required_secrets": ["YOUTUBE_API_KEY"],
+        "required_secrets": ["YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"],
     },
 }
 
@@ -60,6 +62,8 @@ class HostedRuntimeSettings:
     log_level: str
     reload_enabled: bool
     rollback_command: str
+    environment: str
+    security: HostedSecuritySettings
 
 
 def _now_iso() -> str:
@@ -74,10 +78,20 @@ def _value(env: Mapping[str, str], key: str) -> str | None:
     return cleaned or None
 
 
+def _bool_value(env: Mapping[str, str], key: str, default: bool) -> bool:
+    raw = _value(env, key)
+    if raw is None:
+        return default
+    return raw.lower() in {"1", "true", "yes", "on"}
+
+
 def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSettings:
     port_text = _value(env, "PORT") or "8080"
     log_level = (_value(env, "MCP_SERVER_LOG_LEVEL") or "info").lower()
     reload_enabled = (_value(env, "MCP_SERVER_RELOAD") or "false").lower() in {"1", "true", "yes", "on"}
+    environment = _value(env, "MCP_ENVIRONMENT") or "dev"
+    auth_token = _value(env, "MCP_AUTH_TOKEN")
+    auth_required = _bool_value(env, "MCP_AUTH_REQUIRED", default=(environment in {"staging", "prod"} or auth_token is not None))
     return HostedRuntimeSettings(
         host=_value(env, "HOST") or "0.0.0.0",
         port=int(port_text),
@@ -86,6 +100,13 @@ def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSetting
         log_level=log_level,
         reload_enabled=reload_enabled,
         rollback_command="python3 -m mcp_server.cloud_run_entrypoint",
+        environment=environment,
+        security=HostedSecuritySettings(
+            auth_required=auth_required,
+            auth_token=auth_token,
+            allowed_origins=parse_allowed_origins(_value(env, "MCP_ALLOWED_ORIGINS")),
+            allow_originless_clients=_bool_value(env, "MCP_ALLOW_ORIGINLESS_CLIENTS", default=True),
+        ),
     )
 
 
@@ -107,6 +128,9 @@ def validate_runtime_config(env: Mapping[str, str]) -> StartupValidationResult:
     for key in requirements["required_secrets"]:
         if not _value(env, key):
             failures.append(ValidationFailure(key, "missing required secret", is_secret=True))
+
+    if _value(env, "MCP_ALLOWED_ORIGINS") and not parse_allowed_origins(_value(env, "MCP_ALLOWED_ORIGINS")):
+        failures.append(ValidationFailure("MCP_ALLOWED_ORIGINS", "must contain one or more valid absolute origins"))
 
     return StartupValidationResult(
         is_valid=(len(failures) == 0),

@@ -150,6 +150,23 @@ class InMemoryObservability:
         self._logs.append(event)
         self._emit_runtime_event(event)
 
+    def emit_security_decision(self, decision: dict[str, Any]) -> None:
+        event = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "severity": "INFO" if decision.get("decision") == "accepted" else "ERROR",
+            "event": "security.decision",
+            "requestId": decision.get("requestId"),
+            "path": decision.get("path"),
+            "status": "success" if decision.get("decision") == "accepted" else "error",
+            "decision": decision.get("decision"),
+            "decisionCategory": decision.get("decisionCategory"),
+            "clientType": decision.get("clientType"),
+            "authPresent": bool(decision.get("authPresent")),
+            "originPresent": bool(decision.get("originPresent")),
+        }
+        self._logs.append(event)
+        self._emit_runtime_event(event)
+
     def _emit_runtime_event(self, event: dict[str, Any]) -> None:
         stream = self._runtime_stderr if event["status"] == "error" else self._runtime_stdout
         if stream is None:
