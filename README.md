@@ -20,6 +20,9 @@ must include explicit failing-test, minimal-pass, and refactor phases.
 - `MCP_ENVIRONMENT` is required and must be one of `dev`, `staging`, or `prod`.
 - Startup fails fast when required profile configuration is missing or invalid.
 - `YOUTUBE_API_KEY` is required for `staging` and `prod`.
+- `MCP_AUTH_TOKEN` is required for `staging` and `prod` hosted MCP access.
+- `MCP_ALLOWED_ORIGINS` defines the browser origin allowlist for protected `/mcp` requests.
+- `MCP_ALLOW_ORIGINLESS_CLIENTS` controls whether non-browser callers without `Origin` can proceed to authentication checks.
 - `GET /health` returns liveness (`{"status":"ok"}`).
 - `GET /ready` returns readiness based on startup config/secret validation.
 
@@ -35,11 +38,14 @@ Required deployment inputs:
 - `MCP_SERVER_IMPLEMENTATION` (`uvicorn`)
 - `MCP_ASGI_APP` (`mcp_server.cloud_run_entrypoint:app`)
 - `MCP_ENVIRONMENT`
+- `MCP_AUTH_REQUIRED`
+- `MCP_ALLOWED_ORIGINS`
+- `MCP_ALLOW_ORIGINLESS_CLIENTS`
 - `MIN_INSTANCES`
 - `MAX_INSTANCES`
 - `CONCURRENCY`
 - `TIMEOUT_SECONDS`
-- `SECRET_REFERENCES` (`YOUTUBE_API_KEY` is required for `staging` and `prod`)
+- `SECRET_REFERENCES` (`YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN` are required for `staging` and `prod`)
 
 Execute the deployment workflow with explicit revision settings:
 
@@ -52,11 +58,14 @@ SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com
 MCP_SERVER_IMPLEMENTATION=uvicorn \
 MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \
 MCP_ENVIRONMENT=staging \
+MCP_AUTH_REQUIRED=true \
+MCP_ALLOWED_ORIGINS=https://chat.openai.com \
+MCP_ALLOW_ORIGINLESS_CLIENTS=true \
 MIN_INSTANCES=0 \
 MAX_INSTANCES=2 \
 CONCURRENCY=20 \
 TIMEOUT_SECONDS=180 \
-SECRET_REFERENCES=YOUTUBE_API_KEY \
+SECRET_REFERENCES=YOUTUBE_API_KEY,MCP_AUTH_TOKEN \
 bash scripts/deploy_cloud_run.sh
 ```
 
@@ -77,11 +86,14 @@ SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com
 MCP_SERVER_IMPLEMENTATION=uvicorn \
 MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \
 MCP_ENVIRONMENT=staging \
+MCP_AUTH_REQUIRED=true \
+MCP_ALLOWED_ORIGINS=https://chat.openai.com \
+MCP_ALLOW_ORIGINLESS_CLIENTS=true \
 MIN_INSTANCES=0 \
 MAX_INSTANCES=2 \
 CONCURRENCY=20 \
 TIMEOUT_SECONDS=180 \
-SECRET_REFERENCES=YOUTUBE_API_KEY \
+SECRET_REFERENCES=YOUTUBE_API_KEY,MCP_AUTH_TOKEN \
 bash scripts/deploy_cloud_run.sh > artifacts/cloud-run-deployment.json
 ```
 
@@ -90,6 +102,7 @@ Verify the hosted foundation revision after deployment:
 ```bash
 PYTHONPATH=src python3 scripts/verify_cloud_run_foundation.py \
   --deployment-record artifacts/cloud-run-deployment.json \
+  --auth-token "$MCP_AUTH_TOKEN" \
   --evidence-file artifacts/cloud-run-verification.txt
 ```
 
@@ -105,6 +118,7 @@ Manual streamable MCP verification examples:
 curl -i \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
+  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
   -d '{"jsonrpc":"2.0","id":"req-init","method":"initialize","params":{"clientInfo":{"name":"manual","version":"1.0.0"}}}' \
   https://YOUR_SERVICE_URL/mcp
 ```
@@ -115,6 +129,7 @@ Use the returned `MCP-Session-Id` for subsequent requests:
 curl -i \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
+  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
   -H 'MCP-Session-Id: SESSION_ID' \
   -d '{"jsonrpc":"2.0","id":"req-call","method":"tools/call","params":{"name":"server_ping","arguments":{}}}' \
   https://YOUR_SERVICE_URL/mcp
@@ -151,10 +166,18 @@ Open or resume an SSE stream:
 ```bash
 curl -i \
   -H 'Accept: text/event-stream' \
+  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
   -H 'MCP-Session-Id: SESSION_ID' \
   -H 'Last-Event-ID: STREAM_EVENT_ID' \
   https://YOUR_SERVICE_URL/mcp
 ```
+
+Protected `/mcp` requests now follow these hosted security rules:
+
+- Browser callers that send `Origin` must match `MCP_ALLOWED_ORIGINS`.
+- Non-browser callers may omit `Origin` only when `MCP_ALLOW_ORIGINLESS_CLIENTS=true`.
+- Protected `/mcp` requests must send `Authorization: Bearer ...`.
+- Missing auth returns `401`, denied origin returns `403`, and malformed security headers return `400`.
 
 You can still provide `--service-url`, `--revision-name`, `--service-name`,
 `--runtime-identity`, `--min-instances`, `--max-instances`, `--concurrency`,

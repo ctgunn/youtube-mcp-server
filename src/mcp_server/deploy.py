@@ -64,8 +64,10 @@ class DeploymentInputSet:
         missing_config = sorted(key for key in required_config if not _clean_env_value(self.config_values.get(key)))
         if missing_config:
             failures.append(f"missing required config values: {', '.join(missing_config)}")
-        if self.environment in {"staging", "prod"} and "YOUTUBE_API_KEY" not in self.secret_references:
-            failures.append("YOUTUBE_API_KEY secret reference is required for staging and prod")
+        if self.environment in {"staging", "prod"}:
+            for secret_name in ("YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"):
+                if secret_name not in self.secret_references:
+                    failures.append(f"{secret_name} secret reference is required for staging and prod")
         return failures
 
 
@@ -86,6 +88,9 @@ def deployment_input_from_mapping(values: Mapping[str, object]) -> DeploymentInp
         "MCP_SERVER_IMPLEMENTATION": str(values.get("MCP_SERVER_IMPLEMENTATION", "uvicorn")).strip() or "uvicorn",
         "MCP_ASGI_APP": str(values.get("MCP_ASGI_APP", "mcp_server.cloud_run_entrypoint:app")).strip()
         or "mcp_server.cloud_run_entrypoint:app",
+        "MCP_AUTH_REQUIRED": str(values.get("MCP_AUTH_REQUIRED", "")).strip(),
+        "MCP_ALLOWED_ORIGINS": str(values.get("MCP_ALLOWED_ORIGINS", "")).strip(),
+        "MCP_ALLOW_ORIGINLESS_CLIENTS": str(values.get("MCP_ALLOW_ORIGINLESS_CLIENTS", "")).strip(),
     }
     return DeploymentInputSet(
         environment=str(values.get("MCP_ENVIRONMENT", "")).strip(),

@@ -8,14 +8,16 @@ import sys
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from time import perf_counter
 from typing import Any, Mapping
-from urllib.parse import urlparse
 
 from mcp_server.app import create_app
 from mcp_server.config import load_hosted_runtime_settings
 from mcp_server.health import RuntimeLifecycleState
+from mcp_server.observability import RequestContext, generate_request_id
 from mcp_server.protocol.envelope import error_response
-from mcp_server.transport.http import JSON_CONTENT_TYPE, classify_hosted_request, hosted_status_code
+from mcp_server.security import evaluate_security_request
+from mcp_server.transport.http import JSON_CONTENT_TYPE, classify_hosted_request, hosted_security_status_code, hosted_status_code
 from mcp_server.transport.streaming import (
     JSON_CONTENT_TYPE as STREAM_JSON_CONTENT_TYPE,
     MCP_PROTOCOL_VERSION_HEADER,
@@ -121,19 +123,6 @@ def _normalize_headers(headers: Mapping[str, str] | None) -> dict[str, str]:
     return {key.lower(): value for key, value in dict(headers or {}).items()}
 
 
-def _validate_origin(request_headers: Mapping[str, str]) -> bool:
-    origin = request_headers.get("origin")
-    if not origin:
-        return True
-    host = request_headers.get("host", "")
-    origin_host = urlparse(origin).netloc
-    if not origin_host:
-        return False
-    if origin_host == host:
-        return True
-    return origin_host.startswith("localhost") or origin_host.startswith("127.0.0.1")
-
-
 def _protocol_version_or_default(request_headers: Mapping[str, str], payload: dict | None = None) -> str:
     header_version = request_headers.get(MCP_PROTOCOL_VERSION_HEADER.lower())
     if header_version:
@@ -156,6 +145,7 @@ def execute_hosted_request(
     headers: Mapping[str, str] | None = None,
     body: bytes | None = None,
 ) -> HostedHTTPResult:
+    started_at = perf_counter()
     request_headers = _normalize_headers(headers)
     raw_body = body or b""
     classification = classify_hosted_request(
@@ -182,8 +172,46 @@ def execute_hosted_request(
         payload = transport.handle(path, {})
         return _json_result(hosted_status_code(classification, payload), payload)
 
-    if not _validate_origin(request_headers):
-        return _json_result(403, error_response("FORBIDDEN", "Origin is not allowed."))
+    request_id = generate_request_id()
+    security_decision = evaluate_security_request(
+        request_headers,
+        transport.runtime_settings.security,
+        path=path,
+        request_id=request_id,
+        environment=transport.runtime_settings.environment,
+    )
+    transport.observability.emit_security_decision(
+        {
+            "requestId": security_decision.request_id,
+            "path": security_decision.path,
+            "decision": security_decision.decision,
+            "decisionCategory": security_decision.decision_category,
+            "clientType": security_decision.client_type,
+            "authPresent": security_decision.auth_present,
+            "originPresent": security_decision.origin_present,
+        }
+    )
+    if not security_decision.tool_execution_allowed:
+        transport.observability.record(
+            RequestContext(request_id=security_decision.request_id, path=path),
+            "error",
+            (perf_counter() - started_at) * 1000.0,
+        )
+        message = {
+            "unauthenticated": "Authentication is required.",
+            "invalid_credential": "Credential is not valid for hosted MCP access.",
+            "origin_denied": "Origin is not allowed.",
+            "malformed_security_input": "Security headers are malformed.",
+        }.get(security_decision.decision_category, "Hosted request is not allowed.")
+        return _json_result(
+            hosted_security_status_code(security_decision.decision_category),
+            error_response(
+                security_decision.decision_category.upper(),
+                message,
+                request_id=security_decision.request_id,
+                details={"category": security_decision.decision_category},
+            ),
+        )
 
     if method.upper() == "GET":
         if not _require_accept(request_headers, {SSE_CONTENT_TYPE}):
@@ -195,7 +223,8 @@ def execute_hosted_request(
             protocol_version = _protocol_version_or_default(request_headers)
             if protocol_version not in SUPPORTED_MCP_PROTOCOL_VERSIONS:
                 return _json_result(400, error_response("INVALID_ARGUMENT", "Unsupported MCP protocol version."))
-            _ = transport.stream_manager.get_session(session_id)
+            if not transport.stream_manager.has_session(session_id):
+                raise KeyError(session_id)
         except KeyError:
             return _json_result(404, error_response("RESOURCE_NOT_FOUND", "Session not found.", details={"sessionId": session_id}))
 
@@ -262,6 +291,8 @@ def execute_hosted_request(
     if not session_id:
         return _json_result(400, error_response("INVALID_ARGUMENT", "MCP-Session-Id is required."))
     try:
+        if not transport.stream_manager.has_session(session_id):
+            raise KeyError(session_id)
         transport.stream_manager.touch_session(session_id)
     except KeyError:
         return _json_result(404, error_response("RESOURCE_NOT_FOUND", "Session not found.", details={"sessionId": session_id}))

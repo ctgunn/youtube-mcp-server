@@ -19,6 +19,25 @@ class OperationalObservabilityContractTests(unittest.TestCase):
         self.assertEqual(ready["status"], "ready")
         self.assertEqual(ready["checks"]["configuration"], "pass")
 
+    def test_security_denial_emits_auditable_runtime_event(self):
+        import io
+        import json
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        app = create_app(env={"MCP_ENVIRONMENT": "dev", "MCP_AUTH_TOKEN": "obs-token"}, runtime_stdout=stdout, runtime_stderr=stderr)
+        execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+            body=b'{"jsonrpc":"2.0","id":"req-ops-sec","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+        )
+        event = [json.loads(line) for line in stderr.getvalue().splitlines() if line.strip()][0]
+        self.assertEqual(event["event"], "security.decision")
+        self.assertEqual(event["decisionCategory"], "unauthenticated")
+        self.assertEqual(event["path"], "/mcp")
+
     def test_ready_not_ready_contract_shape(self):
         app = create_app(env={"MCP_ENVIRONMENT": "staging"}, validate_startup=False)
         payload = app.handle("/ready", {})
