@@ -18,7 +18,7 @@ JSON_CONTENT_TYPE = "application/json"
 SUPPORTED_HOSTED_METHODS = {
     "/health": {"GET"},
     "/ready": {"GET"},
-    "/mcp": {"GET", "POST"},
+    "/mcp": {"GET", "POST", "OPTIONS"},
 }
 SECURITY_STATUS_CODES = {
     "unauthenticated": 401,
@@ -80,6 +80,15 @@ def classify_hosted_request(
             outcome_class="success",
         )
 
+    if normalized_method == "OPTIONS":
+        return HostedRequestClassification(
+            path_class=path_class,
+            method_class="supported",
+            media_type_class="not_applicable",
+            body_class="ignored",
+            outcome_class="browser_preflight",
+        )
+
     normalized_content_type = _normalize_content_type(content_type)
     if normalized_content_type != JSON_CONTENT_TYPE:
         return HostedRequestClassification(
@@ -117,6 +126,8 @@ def hosted_status_code(classification: HostedRequestClassification, response: di
         return 415
     if classification.outcome_class == "bad_request":
         return 400
+    if classification.outcome_class == "browser_preflight":
+        return 204
     if classification.path_class == "ready" and isinstance(response, dict) and response.get("status") == "not_ready":
         return 503
     if classification.path_class == "mcp" and isinstance(response, dict) and "error" in response:

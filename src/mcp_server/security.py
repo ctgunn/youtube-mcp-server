@@ -7,6 +7,21 @@ import hashlib
 from typing import Mapping
 from urllib.parse import urlparse
 
+DEFAULT_BROWSER_ACCESSIBLE_ROUTES = ("/mcp",)
+DEFAULT_BROWSER_ALLOWED_METHODS = ("GET", "POST")
+DEFAULT_BROWSER_ALLOWED_REQUEST_HEADERS = (
+    "authorization",
+    "content-type",
+    "mcp-session-id",
+    "last-event-id",
+    "mcp-protocol-version",
+)
+DEFAULT_BROWSER_EXPOSED_RESPONSE_HEADERS = (
+    "MCP-Session-Id",
+    "MCP-Protocol-Version",
+    "X-Stream-Id",
+)
+
 
 @dataclass(frozen=True)
 class HostedSecuritySettings:
@@ -14,6 +29,11 @@ class HostedSecuritySettings:
     auth_token: str | None
     allowed_origins: tuple[str, ...]
     allow_originless_clients: bool
+    browser_accessible_routes: tuple[str, ...] = DEFAULT_BROWSER_ACCESSIBLE_ROUTES
+    browser_allowed_methods: tuple[str, ...] = DEFAULT_BROWSER_ALLOWED_METHODS
+    browser_allowed_request_headers: tuple[str, ...] = DEFAULT_BROWSER_ALLOWED_REQUEST_HEADERS
+    browser_exposed_response_headers: tuple[str, ...] = DEFAULT_BROWSER_EXPOSED_RESPONSE_HEADERS
+    browser_preflight_max_age_seconds: int = 600
 
 
 @dataclass(frozen=True)
@@ -49,6 +69,15 @@ class SecurityDecision:
     credential_state: str
 
 
+@dataclass(frozen=True)
+class BrowserPreflightEvaluation:
+    decision_category: str
+    status_code: int
+    origin_value: str | None
+    requested_method: str | None
+    requested_headers: tuple[str, ...]
+
+
 def normalize_origin(value: str | None) -> str | None:
     text = str(value or "").strip()
     if not text:
@@ -66,6 +95,123 @@ def parse_allowed_origins(raw: str | None) -> tuple[str, ...]:
         if normalized:
             items.append(normalized)
     return tuple(dict.fromkeys(items))
+
+
+def parse_requested_headers(raw: str | None) -> tuple[str, ...]:
+    headers: list[str] = []
+    for entry in str(raw or "").split(","):
+        cleaned = entry.strip().lower()
+        if cleaned:
+            headers.append(cleaned)
+    return tuple(dict.fromkeys(headers))
+
+
+def evaluate_browser_preflight(
+    *,
+    path: str,
+    request_headers: Mapping[str, str],
+    settings: HostedSecuritySettings,
+) -> BrowserPreflightEvaluation:
+    origin = evaluate_origin(request_headers, settings)
+    if origin.match_result == "denied":
+        return BrowserPreflightEvaluation(
+            decision_category=origin.reason_code if origin.reason_code == "malformed_origin" else "origin_denied",
+            status_code=400 if origin.reason_code == "malformed_origin" else 403,
+            origin_value=origin.origin_value,
+            requested_method=None,
+            requested_headers=(),
+        )
+
+    if not origin.origin_present:
+        return BrowserPreflightEvaluation(
+            decision_category="malformed_security_input",
+            status_code=400,
+            origin_value=None,
+            requested_method=None,
+            requested_headers=(),
+        )
+
+    if path not in settings.browser_accessible_routes:
+        return BrowserPreflightEvaluation(
+            decision_category="unsupported_browser_route",
+            status_code=405,
+            origin_value=origin.origin_value,
+            requested_method=None,
+            requested_headers=(),
+        )
+
+    requested_method = str(request_headers.get("access-control-request-method") or "").strip().upper()
+    if not requested_method:
+        return BrowserPreflightEvaluation(
+            decision_category="malformed_security_input",
+            status_code=400,
+            origin_value=origin.origin_value,
+            requested_method=None,
+            requested_headers=(),
+        )
+    if requested_method not in settings.browser_allowed_methods:
+        return BrowserPreflightEvaluation(
+            decision_category="unsupported_browser_method",
+            status_code=405,
+            origin_value=origin.origin_value,
+            requested_method=requested_method,
+            requested_headers=(),
+        )
+
+    requested_headers = parse_requested_headers(request_headers.get("access-control-request-headers"))
+    unsupported_headers = [header for header in requested_headers if header not in settings.browser_allowed_request_headers]
+    if unsupported_headers:
+        return BrowserPreflightEvaluation(
+            decision_category="unsupported_browser_headers",
+            status_code=400,
+            origin_value=origin.origin_value,
+            requested_method=requested_method,
+            requested_headers=requested_headers,
+        )
+
+    return BrowserPreflightEvaluation(
+        decision_category="approved",
+        status_code=204,
+        origin_value=origin.origin_value,
+        requested_method=requested_method,
+        requested_headers=requested_headers,
+    )
+
+
+def browser_preflight_headers(
+    evaluation: BrowserPreflightEvaluation,
+    settings: HostedSecuritySettings,
+) -> dict[str, str]:
+    if evaluation.decision_category != "approved" or evaluation.origin_value is None:
+        return {}
+    allow_headers = evaluation.requested_headers or settings.browser_allowed_request_headers
+    return {
+        "Access-Control-Allow-Origin": evaluation.origin_value,
+        "Access-Control-Allow-Methods": ", ".join(settings.browser_allowed_methods),
+        "Access-Control-Allow-Headers": ", ".join(allow_headers),
+        "Access-Control-Max-Age": str(settings.browser_preflight_max_age_seconds),
+        "Vary": "Origin, Access-Control-Request-Method, Access-Control-Request-Headers",
+    }
+
+
+def browser_response_headers(
+    *,
+    path: str,
+    request_headers: Mapping[str, str],
+    settings: HostedSecuritySettings,
+) -> dict[str, str]:
+    origin = evaluate_origin(request_headers, settings)
+    if (
+        not origin.origin_present
+        or origin.match_result != "allowed"
+        or path not in settings.browser_accessible_routes
+    ):
+        return {}
+    return {
+        "Access-Control-Allow-Origin": origin.origin_value or "",
+        "Access-Control-Expose-Headers": ", ".join(settings.browser_exposed_response_headers),
+        "Vary": "Origin",
+    }
 
 
 def parse_bearer_token(authorization: str | None) -> tuple[str | None, str | None, str]:
