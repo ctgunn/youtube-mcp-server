@@ -4,6 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
+from mcp_server.security import HostedSecuritySettings, browser_response_headers
 from mcp_server.transport.http import HostedRequestClassification, classify_hosted_request, hosted_status_code
 
 
@@ -71,6 +72,44 @@ class HostedHTTPSemanticsUnitTests(unittest.TestCase):
         not_found = classify_hosted_request(method="GET", path="/missing")
         self.assertEqual(not_found.outcome_class, "not_found")
         self.assertEqual(hosted_status_code(not_found), 404)
+
+    def test_browser_preflight_classification_is_distinct(self):
+        classification = classify_hosted_request(method="OPTIONS", path="/mcp")
+        self.assertEqual(
+            classification,
+            HostedRequestClassification(
+                path_class="mcp",
+                method_class="supported",
+                media_type_class="not_applicable",
+                body_class="ignored",
+                outcome_class="browser_preflight",
+            ),
+        )
+        self.assertEqual(hosted_status_code(classification), 204)
+
+    def test_browser_preflight_method_not_allowed_stays_distinct(self):
+        classification = classify_hosted_request(method="OPTIONS", path="/health")
+        self.assertEqual(classification.outcome_class, "method_not_allowed")
+        self.assertEqual(hosted_status_code(classification), 405)
+
+    def test_browser_response_headers_do_not_apply_to_originless_clients(self):
+        settings = HostedSecuritySettings(
+            auth_required=False,
+            auth_token=None,
+            allowed_origins=("http://localhost:3000",),
+            allow_originless_clients=True,
+        )
+        self.assertEqual(
+            browser_response_headers(path="/mcp", request_headers={}, settings=settings),
+            {},
+        )
+        browser_headers = browser_response_headers(
+            path="/mcp",
+            request_headers={"origin": "http://localhost:3000"},
+            settings=settings,
+        )
+        self.assertEqual(browser_headers["Access-Control-Allow-Origin"], "http://localhost:3000")
+        self.assertIn("MCP-Session-Id", browser_headers["Access-Control-Expose-Headers"])
 
 
 if __name__ == "__main__":

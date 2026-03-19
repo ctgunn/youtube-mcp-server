@@ -29,10 +29,9 @@ def _http_request(base_url: str, path: str, payload: object) -> dict:
     headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
     auth_token = getattr(_http_request, "_auth_token", None)
     origin = getattr(_http_request, "_origin", None)
-    if auth_token and path == "/mcp":
-        headers["Authorization"] = f"Bearer {auth_token}"
-    if origin and path == "/mcp":
-        headers["Origin"] = origin
+    origin_override = origin
+    access_control_request_method = None
+    access_control_request_headers = None
     if getattr(_http_request, "_session_id", None) and path == "/mcp":
         headers["MCP-Session-Id"] = _http_request._session_id  # type: ignore[attr-defined]
     http_method = "POST"
@@ -42,16 +41,36 @@ def _http_request(base_url: str, path: str, payload: object) -> dict:
         http_method = str(payload.get("__httpMethod", "POST")).upper()
         session_override = payload.get("__sessionId")
         last_event_id = payload.get("__lastEventId")
+        origin_override = payload.get("__origin", origin_override)
+        access_control_request_method = payload.get("__accessControlRequestMethod")
+        access_control_request_headers = payload.get("__accessControlRequestHeaders")
         payload = {key: value for key, value in payload.items() if not str(key).startswith("__")}
+    if auth_token and path == "/mcp" and http_method != "OPTIONS":
+        headers["Authorization"] = f"Bearer {auth_token}"
+    if origin_override:
+        headers["Origin"] = origin_override
     if session_override and path == "/mcp":
         headers["MCP-Session-Id"] = session_override
     if last_event_id and path == "/mcp":
         headers["Last-Event-ID"] = last_event_id
-    data = json.dumps(payload).encode("utf-8") if http_method != "GET" else None
-    if path in {"/health", "/ready"} or http_method == "GET":
-        req = request.Request(url, headers=headers, method="GET")
-    else:
+    if http_method == "OPTIONS":
+        headers.pop("Content-Type", None)
+        headers["Accept"] = "application/json"
+        if access_control_request_method:
+            headers["Access-Control-Request-Method"] = str(access_control_request_method)
+        if access_control_request_headers:
+            headers["Access-Control-Request-Headers"] = (
+                ", ".join(access_control_request_headers)
+                if isinstance(access_control_request_headers, list)
+                else str(access_control_request_headers)
+            )
+    data = json.dumps(payload).encode("utf-8") if http_method not in {"GET", "OPTIONS"} else None
+    if path in {"/health", "/ready"} and http_method == "POST":
         req = request.Request(url, data=data, headers=headers, method="POST")
+    elif http_method in {"GET", "OPTIONS"} or path in {"/health", "/ready"}:
+        req = request.Request(url, headers=headers, method=http_method if http_method in {"GET", "OPTIONS"} else "GET")
+    else:
+        req = request.Request(url, data=data, headers=headers, method=http_method)
     try:
         with request.urlopen(req, timeout=30) as response:
             content = response.read().decode("utf-8")
@@ -61,6 +80,7 @@ def _http_request(base_url: str, path: str, payload: object) -> dict:
             else:
                 result = json.loads(content) if content else {}
             result["statusCode"] = response.status
+            result["_headers"] = dict(response.headers.items())
             if response.headers.get("MCP-Session-Id"):
                 _http_request._session_id = response.headers["MCP-Session-Id"]  # type: ignore[attr-defined]
             return result
@@ -68,6 +88,7 @@ def _http_request(base_url: str, path: str, payload: object) -> dict:
         content = exc.read().decode("utf-8")
         payload_data = json.loads(content) if content else {}
         payload_data["statusCode"] = exc.code
+        payload_data["_headers"] = dict(exc.headers.items())
         return payload_data
 
 
@@ -148,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         revision,
         requester=lambda path, payload: _http_request(service_url, path, payload),
         evidence_path=args.evidence_file,
+        browser_origin=origin,
     )
     evidence_path = write_verification_evidence(Path(args.evidence_file), run)
     print(

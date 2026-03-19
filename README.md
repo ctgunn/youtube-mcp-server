@@ -31,6 +31,24 @@ must include explicit failing-test, minimal-pass, and refactor phases.
 - `GET /health` returns liveness (`{"status":"ok"}`).
 - `GET /ready` returns readiness based on startup config/secret validation.
 
+## Browser-originated hosted MCP access
+
+- Browser-originated access is explicitly supported only for `/mcp`.
+- Approved browser clients must pass preflight before sending authenticated hosted MCP requests.
+- Successful browser preflight for `/mcp` returns `Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, and `Access-Control-Allow-Headers`.
+- Successful approved-origin `/mcp` responses expose `MCP-Session-Id`, `MCP-Protocol-Version`, and `X-Stream-Id` so browser clients can continue hosted MCP flows.
+- Denied origins and unsupported browser request patterns fail explicitly instead of relying on implicit browser blocking.
+
+Representative browser preflight example:
+
+```bash
+curl -i -X OPTIONS \
+  -H 'Origin: http://localhost:3000' \
+  -H 'Access-Control-Request-Method: POST' \
+  -H 'Access-Control-Request-Headers: authorization, content-type' \
+  https://YOUR_SERVICE_URL/mcp
+```
+
 ## Cloud Run foundation deployment
 
 Required deployment inputs:
@@ -258,3 +276,7 @@ The verification output must record pass/fail results for:
 - `session-get-continuation`
 - `session-reconnect`
 - `session-invalid`
+- `browser-preflight-approved`
+- `browser-request-approved`
+- `browser-origin-denied`
+- `browser-request-unsupported`

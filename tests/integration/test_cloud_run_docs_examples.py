@@ -17,6 +17,8 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         self.assertIn("Authorization: Bearer", content)
         self.assertIn("MCP_AUTH_TOKEN", content)
         self.assertIn("MCP_ALLOWED_ORIGINS", content)
+        self.assertIn("Access-Control-Request-Method", content)
+        self.assertIn("http://localhost:3000", content)
         self.assertIn('"name":"search"', content)
         self.assertIn('"name":"fetch"', content)
         self.assertIn("remote MCP research", content)

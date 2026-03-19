@@ -221,6 +221,28 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         self.assertEqual(response.status, 404)
         self.assertEqual(response.payload["error"]["code"], "RESOURCE_NOT_FOUND")
 
+    def test_browser_preflight_is_supported_for_mcp(self):
+        app = create_app(
+            env={
+                "MCP_ENVIRONMENT": "dev",
+                "MCP_AUTH_TOKEN": "routes-token",
+                "MCP_ALLOWED_ORIGINS": "http://localhost:3000",
+            }
+        )
+        response = execute_hosted_request(
+            app,
+            method="OPTIONS",
+            path="/mcp",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization, content-type",
+            },
+        )
+        self.assertEqual(response.status, 204)
+        self.assertEqual(response.body, b"")
+        self.assertEqual(response.headers["Access-Control-Allow-Origin"], "http://localhost:3000")
+
 
 if __name__ == "__main__":
     unittest.main()
