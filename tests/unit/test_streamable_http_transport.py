@@ -4,11 +4,16 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
+from mcp_server.config import HostedSessionSettings
 from mcp_server.transport.streaming import StreamManager, encode_sse, normalize_accept_header
+from mcp_server.transport.session_store import reset_memory_session_store_registry
 from tests.unit.conftest import parse_sse_payload
 
 
 class StreamableHTTPTransportUnitTests(unittest.TestCase):
+    def tearDown(self):
+        reset_memory_session_store_registry()
+
     def test_session_registry_lifecycle(self):
         manager = StreamManager()
         session = manager.create_session(protocol_version="2025-11-25", client_metadata={"name": "client"})
@@ -44,6 +49,22 @@ class StreamableHTTPTransportUnitTests(unittest.TestCase):
     def test_accept_header_normalization(self):
         normalized = normalize_accept_header("application/json; charset=utf-8, text/event-stream")
         self.assertEqual(normalized, {"application/json", "text/event-stream"})
+
+    def test_shared_store_managers_can_resume_same_session(self):
+        settings = HostedSessionSettings(
+            backend="memory",
+            store_url="memory://transport-unit-shared",
+            durability_required=True,
+            session_ttl_seconds=600,
+            replay_ttl_seconds=120,
+        )
+        first = StreamManager.from_session_settings(settings)
+        second = StreamManager.from_session_settings(settings)
+
+        session = first.create_session(protocol_version="2025-11-25")
+        touched = second.touch_session(session.session_id)
+        self.assertEqual(touched.session_id, session.session_id)
+        self.assertEqual(second.session_store_status().continuity_mode, "shared_state")
 
 
 if __name__ == "__main__":

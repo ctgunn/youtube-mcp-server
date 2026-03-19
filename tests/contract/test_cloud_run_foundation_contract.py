@@ -59,73 +59,71 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                 },
                 "statusCode": 200,
             },
-            "search-call": {
+            "server-ping-call": {
                 "jsonrpc": "2.0",
-                "id": "verify-search",
+                "id": "verify-replay-seed",
                 "result": {
                     "content": [
                         {
                             "type": "text",
-                            "text": "{\"results\":[{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"title\":\"Remote MCP Research Workflows\",\"position\":1}],\"totalReturned\":1}",
+                            "text": "{\"status\":\"ok\",\"timestamp\":\"2026-03-18T00:00:00Z\"}",
                             "structuredContent": {
-                                "results": [
-                                    {
-                                        "resourceId": "res_remote_mcp_001",
-                                        "uri": "https://example.com/remote-mcp-research",
-                                        "title": "Remote MCP Research Workflows",
-                                        "position": 1,
-                                    }
-                                ],
-                                "totalReturned": 1,
+                                "status": "ok",
+                                "timestamp": "2026-03-18T00:00:00Z",
                             },
                         }
                     ],
                     "isError": False,
                 },
                 "statusCode": 200,
+                "_sseEvents": [
+                    {"id": "stream-1:1", "data": ""},
+                    {"id": "stream-1:2", "data": "{\"jsonrpc\":\"2.0\",\"id\":\"verify-replay-seed\",\"result\":{\"content\":[{\"type\":\"text\",\"structuredContent\":{\"status\":\"ok\"}}],\"isError\":false}}"},
+                ],
             },
-            "fetch-call": {
-                "jsonrpc": "2.0",
-                "id": "verify-fetch",
-                "result": {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"content\":\"Retrieved content\",\"retrievalStatus\":\"complete\"}",
-                            "structuredContent": {
-                                "resourceId": "res_remote_mcp_001",
-                                "uri": "https://example.com/remote-mcp-research",
-                                "content": "Retrieved content",
-                                "retrievalStatus": "complete",
-                            },
-                        }
-                    ],
-                    "isError": False,
-                },
+            "get-continuation": {"statusCode": 200, "_sseEvents": [{"id": "stream-2:1", "data": ""}]},
+            "reconnect": {
                 "statusCode": 200,
+                "_sseEvents": [
+                    {"id": "stream-1:2", "data": "{\"jsonrpc\":\"2.0\",\"id\":\"verify-replay-seed\",\"result\":{\"content\":[{\"type\":\"text\",\"structuredContent\":{\"status\":\"ok\"}}],\"isError\":false}}"}
+                ],
+            },
+            "invalid-session": {
+                "statusCode": 404,
+                "error": {"code": "RESOURCE_NOT_FOUND", "details": {"category": "invalid_session"}},
             },
         }
 
         def requester(path, payload):
             if path != "/mcp":
                 return app_payloads[path]
-            if payload["method"] == "tools/call" and payload["params"]["name"] == "search":
-                return app_payloads["search-call"]
-            if payload["method"] == "tools/call" and payload["params"]["name"] == "fetch":
-                return app_payloads["fetch-call"]
+            if payload.get("__httpMethod") == "GET" and payload.get("__sessionId") == "missing-session":
+                return app_payloads["invalid-session"]
+            if payload.get("__httpMethod") == "GET" and payload.get("__lastEventId"):
+                return app_payloads["reconnect"]
+            if payload.get("__httpMethod") == "GET":
+                return app_payloads["get-continuation"]
+            if payload["method"] == "tools/call" and payload["params"]["name"] == "server_ping":
+                return app_payloads["server-ping-call"]
             return app_payloads[payload["method"]]
 
         run = run_hosted_verification(self.revision, requester, evidence_path="artifacts/verify.txt")
         self.assertEqual(
             [check.check_name for check in run.checks],
-            ["liveness", "readiness", "initialize", "list-tools", "search-tool-call", "fetch-tool-call"],
+            [
+                "liveness",
+                "readiness",
+                "initialize",
+                "list-tools",
+                "session-post-continuation",
+                "session-get-continuation",
+                "session-reconnect",
+                "session-invalid",
+            ],
         )
         self.assertEqual(run.overall_result, "pass")
         self.assertIn("inputSchema", app_payloads["tools/list"]["result"]["tools"][0])
-        self.assertEqual(
-            app_payloads["fetch-call"]["result"]["content"][0]["structuredContent"]["retrievalStatus"],
-            "complete",
-        )
+        self.assertEqual(app_payloads["server-ping-call"]["result"]["content"][0]["structuredContent"]["status"], "ok")
 
         serialized = serialize_verification_run(run)
         self.assertEqual(serialized["checks"][0].keys(), {"checkName", "endpointUrl", "executedAt", "result", "summary", "statusCode", "evidenceLocation"})

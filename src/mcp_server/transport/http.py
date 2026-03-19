@@ -143,7 +143,12 @@ class MCPHTTPTransport:
     ):
         self.dispatcher = dispatcher or InMemoryToolDispatcher(server_metadata=server_metadata)
         self.observability = InMemoryObservability(runtime_stdout=runtime_stdout, runtime_stderr=runtime_stderr)
-        self.stream_manager = StreamManager()
+        session_settings = runtime_settings.session if runtime_settings is not None else None
+        self.stream_manager = (
+            StreamManager.from_session_settings(session_settings)
+            if session_settings is not None
+            else StreamManager()
+        )
         self.startup_validation = startup_validation or StartupValidationResult(
             is_valid=True,
             profile="dev",
@@ -152,6 +157,10 @@ class MCPHTTPTransport:
         )
         self.runtime_lifecycle = runtime_lifecycle or initialize_runtime_lifecycle(self.startup_validation)
         self.runtime_settings = runtime_settings
+        if runtime_settings is not None:
+            durability = self.stream_manager.durability_status(required=runtime_settings.session.durability_required)
+            if not durability["available"] and runtime_settings.session.durability_required:
+                self.runtime_lifecycle.mark_degraded(durability["reason"])
 
     def handle(self, path: str, payload: dict) -> dict:
         context = build_request_context(path, payload)
@@ -160,7 +169,12 @@ class MCPHTTPTransport:
         if path == "/health":
             response = health_payload(self.runtime_lifecycle)
         elif path == "/ready":
-            response = readiness_payload(self.startup_validation, self.runtime_lifecycle)
+            session_durability = None
+            if self.runtime_settings is not None:
+                session_durability = self.stream_manager.durability_status(
+                    required=self.runtime_settings.session.durability_required
+                )
+            response = readiness_payload(self.startup_validation, self.runtime_lifecycle, session_durability=session_durability)
         elif path != "/mcp":
             response = error_response(
                 "RESOURCE_NOT_FOUND",

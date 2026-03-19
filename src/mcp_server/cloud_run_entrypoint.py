@@ -19,11 +19,14 @@ from mcp_server.protocol.envelope import error_response
 from mcp_server.security import evaluate_security_request
 from mcp_server.transport.http import JSON_CONTENT_TYPE, classify_hosted_request, hosted_security_status_code, hosted_status_code
 from mcp_server.transport.streaming import (
+    ExpiredSessionError,
     JSON_CONTENT_TYPE as STREAM_JSON_CONTENT_TYPE,
     MCP_PROTOCOL_VERSION_HEADER,
     MCP_SESSION_ID_HEADER,
+    ReplayUnavailableError,
     SSE_CONTENT_TYPE,
     SUPPORTED_MCP_PROTOCOL_VERSIONS,
+    InvalidSessionError,
     encode_sse,
     normalize_accept_header,
 )
@@ -223,12 +226,53 @@ def execute_hosted_request(
             protocol_version = _protocol_version_or_default(request_headers)
             if protocol_version not in SUPPORTED_MCP_PROTOCOL_VERSIONS:
                 return _json_result(400, error_response("INVALID_ARGUMENT", "Unsupported MCP protocol version."))
-            if not transport.stream_manager.has_session(session_id):
-                raise KeyError(session_id)
-        except KeyError:
+            transport.stream_manager.touch_session(session_id)
+            transport.observability.emit_session_decision(
+                {"requestId": request_id, "path": path, "sessionId": session_id, "sessionOutcome": "continued"}
+            )
+        except InvalidSessionError:
+            transport.observability.emit_session_decision(
+                {
+                    "requestId": request_id,
+                    "path": path,
+                    "sessionId": session_id,
+                    "sessionOutcome": "invalid_session",
+                    "reasonCode": "INVALID_SESSION",
+                }
+            )
             return _json_result(404, error_response("RESOURCE_NOT_FOUND", "Session not found.", details={"sessionId": session_id}))
+        except ExpiredSessionError:
+            transport.observability.emit_session_decision(
+                {
+                    "requestId": request_id,
+                    "path": path,
+                    "sessionId": session_id,
+                    "sessionOutcome": "expired_session",
+                    "reasonCode": "EXPIRED_SESSION",
+                }
+            )
+            return _json_result(404, error_response("RESOURCE_NOT_FOUND", "Session expired.", details={"sessionId": session_id, "category": "expired_session"}))
 
-        stream, events = transport.stream_manager.events_after(session_id, request_headers.get("last-event-id"))
+        try:
+            stream, events = transport.stream_manager.events_after(session_id, request_headers.get("last-event-id"))
+        except ReplayUnavailableError:
+            transport.observability.emit_session_decision(
+                {
+                    "requestId": request_id,
+                    "path": path,
+                    "sessionId": session_id,
+                    "sessionOutcome": "replay_unavailable",
+                    "reasonCode": "REPLAY_UNAVAILABLE",
+                }
+            )
+            return _json_result(
+                409,
+                error_response(
+                    "INVALID_ARGUMENT",
+                    "Replay history is no longer available for this session.",
+                    details={"sessionId": session_id, "category": "replay_unavailable"},
+                ),
+            )
         body_text = encode_sse(events)
         return _sse_result(
             200,
@@ -291,11 +335,32 @@ def execute_hosted_request(
     if not session_id:
         return _json_result(400, error_response("INVALID_ARGUMENT", "MCP-Session-Id is required."))
     try:
-        if not transport.stream_manager.has_session(session_id):
-            raise KeyError(session_id)
         transport.stream_manager.touch_session(session_id)
-    except KeyError:
+        transport.observability.emit_session_decision(
+            {"requestId": request_id, "path": path, "sessionId": session_id, "sessionOutcome": "continued"}
+        )
+    except InvalidSessionError:
+        transport.observability.emit_session_decision(
+            {
+                "requestId": request_id,
+                "path": path,
+                "sessionId": session_id,
+                "sessionOutcome": "invalid_session",
+                "reasonCode": "INVALID_SESSION",
+            }
+        )
         return _json_result(404, error_response("RESOURCE_NOT_FOUND", "Session not found.", details={"sessionId": session_id}))
+    except ExpiredSessionError:
+        transport.observability.emit_session_decision(
+            {
+                "requestId": request_id,
+                "path": path,
+                "sessionId": session_id,
+                "sessionOutcome": "expired_session",
+                "reasonCode": "EXPIRED_SESSION",
+            }
+        )
+        return _json_result(404, error_response("RESOURCE_NOT_FOUND", "Session expired.", details={"sessionId": session_id, "category": "expired_session"}))
 
     if not payload.get("id"):
         return _empty_result(
@@ -340,7 +405,8 @@ def build_asgi_app(
         )
 
     def _start_runtime() -> None:
-        if transport.startup_validation.is_valid:
+        durability = transport.stream_manager.durability_status(required=transport.runtime_settings.session.durability_required)
+        if transport.startup_validation.is_valid and durability["available"]:
             transport.runtime_lifecycle.mark_ready()
             transport.observability.emit_runtime_event(
                 "runtime.startup",
@@ -348,12 +414,11 @@ def build_asgi_app(
                 {"runtime": transport.runtime_settings.server_implementation},
             )
         else:
-            transport.runtime_lifecycle.mark_degraded(
-                {
-                    "code": "CONFIG_VALIDATION_ERROR",
-                    "message": "Required configuration is invalid or incomplete.",
-                }
-            )
+            reason = durability["reason"] if not durability["available"] else {
+                "code": "CONFIG_VALIDATION_ERROR",
+                "message": "Required configuration is invalid or incomplete.",
+            }
+            transport.runtime_lifecycle.mark_degraded(reason)
             transport.observability.emit_runtime_event("runtime.startup", "error")
 
     def _stop_runtime() -> None:

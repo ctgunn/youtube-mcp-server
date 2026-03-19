@@ -45,6 +45,16 @@ class ReadinessContractTests(unittest.TestCase):
         self.assertEqual(response.status, 200)
         self.assertEqual(response.payload, {"status": "ok"})
 
+    def test_durable_session_requirement_makes_ready_fail_without_shared_backend(self):
+        app = create_app(
+            env={"MCP_ENVIRONMENT": "dev", "MCP_SESSION_DURABILITY_REQUIRED": "true"},
+            validate_startup=False,
+        )
+        response = execute_hosted_request(app, method="GET", path="/ready")
+        self.assertEqual(response.status, 503)
+        self.assertEqual(response.payload["reason"]["code"], "SESSION_DURABILITY_UNAVAILABLE")
+        self.assertEqual(response.payload["checks"]["sessionDurability"], "fail")
+
     def test_migrated_runtime_is_not_ready_until_startup_runs(self):
         transport = self._runtime_transport(env={"MCP_ENVIRONMENT": "dev"})
         before_start = execute_hosted_request(transport, method="GET", path="/ready")

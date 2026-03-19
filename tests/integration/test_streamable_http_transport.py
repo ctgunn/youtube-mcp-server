@@ -7,12 +7,16 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
 from mcp_server.cloud_run_entrypoint import execute_hosted_request
+from mcp_server.transport.session_store import reset_memory_session_store_registry
 from tests.integration.conftest import parse_sse_payload, stream_headers
 
 
 class StreamableHTTPTransportIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+
+    def tearDown(self):
+        reset_memory_session_store_registry()
 
     def _initialize_session(self) -> str:
         response = execute_hosted_request(
@@ -131,6 +135,32 @@ class StreamableHTTPTransportIntegrationTests(unittest.TestCase):
         self.assertFalse(any('"second-only"' in event["data"] for event in first_events))
         self.assertTrue(any('"second-only"' in event["data"] for event in second_events))
         self.assertFalse(any('"first-only"' in event["data"] for event in second_events))
+
+    def test_shared_backed_instances_continue_same_session(self):
+        shared_env = {
+            "MCP_ENVIRONMENT": "dev",
+            "MCP_SESSION_BACKEND": "memory",
+            "MCP_SESSION_STORE_URL": "memory://integration-shared",
+            "MCP_SESSION_DURABILITY_REQUIRED": "true",
+        }
+        first = create_app(env=shared_env)
+        second = create_app(env=shared_env)
+        init = execute_hosted_request(
+            first,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers()},
+            body=b'{"jsonrpc":"2.0","id":"req-init-shared","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+        )
+        response = execute_hosted_request(
+            second,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers(session_id=init.headers["MCP-Session-Id"])},
+            body=b'{"jsonrpc":"2.0","id":"req-list-shared","method":"tools/list","params":{}}',
+        )
+        self.assertEqual(response.status, 200)
+        self.assertIsInstance(response.payload["result"]["tools"], list)
 
 
 if __name__ == "__main__":
