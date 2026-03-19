@@ -107,6 +107,82 @@ class HostedMCPSecurityFlowsIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(init.status, 200)
 
+    def test_approved_browser_preflight_and_post_flow_share_documented_headers(self):
+        preflight = execute_hosted_request(
+            self.app,
+            method="OPTIONS",
+            path="/mcp",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization, content-type",
+            },
+        )
+        self.assertEqual(preflight.status, 204)
+        self.assertEqual(preflight.headers["Access-Control-Allow-Origin"], "http://localhost:3000")
+
+        init = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "Authorization": "Bearer integration-token",
+                "Origin": "http://localhost:3000",
+            },
+            body=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "req-browser-init",
+                    "method": "initialize",
+                    "params": {"clientInfo": {"name": "browser-client", "version": "1.0.0"}},
+                }
+            ).encode("utf-8"),
+        )
+        self.assertEqual(init.status, 200)
+        self.assertEqual(init.headers["Access-Control-Allow-Origin"], "http://localhost:3000")
+        self.assertIn("MCP-Session-Id", init.headers["Access-Control-Expose-Headers"])
+
+    def test_browser_denial_and_unsupported_preflight_patterns_are_stable(self):
+        denied = execute_hosted_request(
+            self.app,
+            method="OPTIONS",
+            path="/mcp",
+            headers={
+                "Origin": "https://evil.example",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization, content-type",
+            },
+        )
+        self.assertEqual(denied.status, 403)
+        self.assertEqual(denied.payload["error"]["code"], "ORIGIN_DENIED")
+
+        unsupported_headers = execute_hosted_request(
+            self.app,
+            method="OPTIONS",
+            path="/mcp",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "x-custom-header",
+            },
+        )
+        self.assertEqual(unsupported_headers.status, 400)
+        self.assertEqual(unsupported_headers.payload["error"]["code"], "UNSUPPORTED_BROWSER_HEADERS")
+
+        unsupported_route = execute_hosted_request(
+            self.app,
+            method="OPTIONS",
+            path="/ready",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        self.assertEqual(unsupported_route.status, 405)
+        self.assertEqual(unsupported_route.payload["error"]["code"], "UNSUPPORTED_BROWSER_ROUTE")
+
 
 if __name__ == "__main__":
     unittest.main()

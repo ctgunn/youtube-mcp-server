@@ -397,6 +397,7 @@ def _normalize_request_result(result: object) -> dict:
     payload = getattr(result, "payload", None)
     body = getattr(result, "body", b"")
     normalized = dict(payload or {})
+    normalized["_headers"] = dict(headers)
     if status is not None:
         normalized["statusCode"] = status
 
@@ -459,6 +460,8 @@ def run_hosted_verification(
     requester: Requester,
     evidence_path: str | None = None,
     baseline_tool_name: str = "server_ping",
+    browser_origin: str | None = None,
+    denied_browser_origin: str = "https://evil.example",
 ) -> HostedVerificationRun:
     """Run hosted verification in the required order."""
 
@@ -474,6 +477,10 @@ def run_hosted_verification(
         "session-get-continuation": "Inspect hosted GET continuation state and stream-session validation before re-running verification.",
         "session-reconnect": "Inspect hosted replay retention and reconnect cursor handling before re-running verification.",
         "session-invalid": "Inspect session-state error mapping for invalid or expired sessions before re-running verification.",
+        "browser-preflight-approved": "Inspect browser preflight routing and CORS allow-header generation before re-running verification.",
+        "browser-request-approved": "Inspect approved-origin response-header shaping and hosted MCP browser compatibility before re-running verification.",
+        "browser-origin-denied": "Inspect the browser origin allowlist and denial mapping before re-running verification.",
+        "browser-request-unsupported": "Inspect browser unsupported-route, method, and header handling before re-running verification.",
     }
     stage = {
         "liveness": "deployment-time",
@@ -484,6 +491,10 @@ def run_hosted_verification(
         "session-get-continuation": "MCP-time",
         "session-reconnect": "MCP-time",
         "session-invalid": "MCP-time",
+        "browser-preflight-approved": "browser-time",
+        "browser-request-approved": "browser-time",
+        "browser-origin-denied": "browser-time",
+        "browser-request-unsupported": "browser-time",
     }
 
     def _append(check_name: str, payload: dict, expected: Callable[[dict], bool], summary: str) -> bool:
@@ -633,6 +644,83 @@ def run_hosted_verification(
         lambda payload: payload.get("statusCode") == 404 and payload.get("error", {}).get("code") == "RESOURCE_NOT_FOUND",
         "Hosted MCP invalid-session handling returned the expected session-state failure.",
     )
+
+    if browser_origin:
+        approved_preflight_payload = _normalize_request_result(
+            requester(
+                "/mcp",
+                {
+                    "__httpMethod": "OPTIONS",
+                    "__origin": browser_origin,
+                    "__accessControlRequestMethod": "POST",
+                    "__accessControlRequestHeaders": ["authorization", "content-type"],
+                },
+            )
+        )
+        _append(
+            "browser-preflight-approved",
+            approved_preflight_payload,
+            lambda payload: payload.get("statusCode") == 204
+            and payload.get("_headers", {}).get("Access-Control-Allow-Origin") == browser_origin,
+            "Approved browser-origin preflight returned the documented allow headers.",
+        )
+
+        approved_browser_request_payload = _normalize_request_result(
+            requester(
+                "/mcp",
+                {
+                    "__origin": browser_origin,
+                    "jsonrpc": "2.0",
+                    "id": "verify-browser-list",
+                    "method": "tools/list",
+                    "params": {},
+                },
+            )
+        )
+        _append(
+            "browser-request-approved",
+            approved_browser_request_payload,
+            lambda payload: payload.get("statusCode") == 200
+            and payload.get("_headers", {}).get("Access-Control-Allow-Origin") == browser_origin
+            and "MCP-Session-Id" in payload.get("_headers", {}).get("Access-Control-Expose-Headers", ""),
+            "Approved browser-origin hosted MCP request returned the documented browser response headers.",
+        )
+
+        denied_browser_payload = _normalize_request_result(
+            requester(
+                "/mcp",
+                {
+                    "__httpMethod": "OPTIONS",
+                    "__origin": denied_browser_origin,
+                    "__accessControlRequestMethod": "POST",
+                    "__accessControlRequestHeaders": ["authorization", "content-type"],
+                },
+            )
+        )
+        _append(
+            "browser-origin-denied",
+            denied_browser_payload,
+            lambda payload: payload.get("statusCode") == 403 and payload.get("error", {}).get("code") == "ORIGIN_DENIED",
+            "Denied browser-origin preflight returned the documented origin denial.",
+        )
+
+        unsupported_browser_payload = _normalize_request_result(
+            requester(
+                "/ready",
+                {
+                    "__httpMethod": "OPTIONS",
+                    "__origin": browser_origin,
+                    "__accessControlRequestMethod": "GET",
+                },
+            )
+        )
+        _append(
+            "browser-request-unsupported",
+            unsupported_browser_payload,
+            lambda payload: payload.get("statusCode") == 405
+            and payload.get("error", {}).get("code") == "UNSUPPORTED_BROWSER_ROUTE",
+            "Unsupported browser request pattern returned the documented denial.",
+        )
     overall = "pass" if all(item.result == "pass" for item in checks) else "fail"
     return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), overall, tuple(checks))
 

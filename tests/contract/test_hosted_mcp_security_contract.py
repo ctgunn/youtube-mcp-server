@@ -86,10 +86,86 @@ class HostedMCPSecurityContractTests(unittest.TestCase):
             headers={
                 "Accept": "text/event-stream",
                 "Authorization": "Bearer contract-token",
+                "Origin": "http://localhost:3000",
                 "MCP-Session-Id": init.headers["MCP-Session-Id"],
             },
         )
         self.assertEqual(allowed_stream.status, 200)
+        self.assertEqual(allowed_stream.headers["Access-Control-Allow-Origin"], "http://localhost:3000")
+        self.assertIn("X-Stream-Id", allowed_stream.headers)
+
+    def test_approved_browser_preflight_returns_allow_headers(self):
+        response = execute_hosted_request(
+            self.app,
+            method="OPTIONS",
+            path="/mcp",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization, content-type",
+            },
+        )
+        self.assertEqual(response.status, 204)
+        self.assertEqual(response.headers["Access-Control-Allow-Origin"], "http://localhost:3000")
+        self.assertIn("POST", response.headers["Access-Control-Allow-Methods"])
+        self.assertIn("authorization", response.headers["Access-Control-Allow-Headers"].lower())
+
+    def test_approved_browser_initialize_exposes_session_headers(self):
+        init = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "Authorization": "Bearer contract-token",
+                "Origin": "http://localhost:3000",
+            },
+            body=self.initialize_body,
+        )
+        self.assertEqual(init.status, 200)
+        self.assertEqual(init.headers["Access-Control-Allow-Origin"], "http://localhost:3000")
+        self.assertIn("MCP-Session-Id", init.headers["Access-Control-Expose-Headers"])
+        self.assertIn("MCP-Session-Id", init.headers)
+
+    def test_disallowed_browser_preflight_is_forbidden(self):
+        response = execute_hosted_request(
+            self.app,
+            method="OPTIONS",
+            path="/mcp",
+            headers={
+                "Origin": "https://evil.example",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization, content-type",
+            },
+        )
+        self.assertEqual(response.status, 403)
+        self.assertEqual(response.payload["error"]["code"], "ORIGIN_DENIED")
+
+    def test_unsupported_browser_preflight_patterns_are_explicit(self):
+        wrong_method = execute_hosted_request(
+            self.app,
+            method="OPTIONS",
+            path="/mcp",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "DELETE",
+            },
+        )
+        self.assertEqual(wrong_method.status, 405)
+        self.assertEqual(wrong_method.payload["error"]["code"], "UNSUPPORTED_BROWSER_METHOD")
+
+        wrong_route = execute_hosted_request(
+            self.app,
+            method="OPTIONS",
+            path="/health",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        self.assertEqual(wrong_route.status, 405)
+        self.assertEqual(wrong_route.payload["error"]["code"], "UNSUPPORTED_BROWSER_ROUTE")
 
 
 if __name__ == "__main__":
