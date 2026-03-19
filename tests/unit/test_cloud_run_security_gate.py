@@ -69,6 +69,31 @@ class CloudRunSecurityGateTests(unittest.TestCase):
         self.assertEqual(response.status, 400)
         self.assertEqual(response.payload["error"]["code"], "MALFORMED_SECURITY_INPUT")
 
+    def test_malformed_origin_and_unsupported_browser_method_are_rejected(self):
+        malformed_origin = execute_hosted_request(
+            self.app,
+            method="OPTIONS",
+            path="/mcp",
+            headers={
+                "Origin": "bad-origin",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        self.assertEqual(malformed_origin.status, 400)
+        self.assertEqual(malformed_origin.payload["error"]["code"], "MALFORMED_ORIGIN")
+
+        unsupported_method = execute_hosted_request(
+            self.app,
+            method="OPTIONS",
+            path="/mcp",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "DELETE",
+            },
+        )
+        self.assertEqual(unsupported_method.status, 405)
+        self.assertEqual(unsupported_method.payload["error"]["code"], "UNSUPPORTED_BROWSER_METHOD")
+
 
 if __name__ == "__main__":
     unittest.main()

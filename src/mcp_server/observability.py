@@ -164,6 +164,12 @@ class InMemoryObservability:
             "authPresent": bool(decision.get("authPresent")),
             "originPresent": bool(decision.get("originPresent")),
         }
+        if decision.get("browserFlow"):
+            event["browserFlow"] = decision.get("browserFlow")
+        if decision.get("requestMethod"):
+            event["requestMethod"] = decision.get("requestMethod")
+        if decision.get("requestHeaders"):
+            event["requestHeaders"] = list(decision.get("requestHeaders"))
         self._logs.append(event)
         self._emit_runtime_event(event)
 

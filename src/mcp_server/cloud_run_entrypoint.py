@@ -16,7 +16,12 @@ from mcp_server.config import load_hosted_runtime_settings
 from mcp_server.health import RuntimeLifecycleState
 from mcp_server.observability import RequestContext, generate_request_id
 from mcp_server.protocol.envelope import error_response
-from mcp_server.security import evaluate_security_request
+from mcp_server.security import (
+    browser_preflight_headers,
+    browser_response_headers,
+    evaluate_browser_preflight,
+    evaluate_security_request,
+)
 from mcp_server.transport.http import JSON_CONTENT_TYPE, classify_hosted_request, hosted_security_status_code, hosted_status_code
 from mcp_server.transport.streaming import (
     ExpiredSessionError,
@@ -122,6 +127,14 @@ def _empty_result(status: int, extra_headers: Mapping[str, str] | None = None) -
     )
 
 
+def _combine_headers(*mappings: Mapping[str, str] | None) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    for mapping in mappings:
+        if mapping:
+            headers.update(mapping)
+    return headers
+
+
 def _normalize_headers(headers: Mapping[str, str] | None) -> dict[str, str]:
     return {key.lower(): value for key, value in dict(headers or {}).items()}
 
@@ -151,6 +164,43 @@ def execute_hosted_request(
     started_at = perf_counter()
     request_headers = _normalize_headers(headers)
     raw_body = body or b""
+    security_settings = transport.runtime_settings.security
+    if method.upper() == "OPTIONS" and request_headers.get("origin"):
+        request_id = generate_request_id()
+        preflight = evaluate_browser_preflight(path=path, request_headers=request_headers, settings=security_settings)
+        transport.observability.emit_security_decision(
+            {
+                "requestId": request_id,
+                "path": path,
+                "decision": "accepted" if preflight.decision_category == "approved" else "denied",
+                "decisionCategory": preflight.decision_category,
+                "clientType": "browser",
+                "authPresent": False,
+                "originPresent": True,
+                "requestMethod": preflight.requested_method,
+                "requestHeaders": list(preflight.requested_headers),
+                "browserFlow": "preflight",
+            }
+        )
+        if preflight.decision_category == "approved":
+            return _empty_result(preflight.status_code, extra_headers=browser_preflight_headers(preflight, security_settings))
+        return _json_result(
+            preflight.status_code,
+            error_response(
+                preflight.decision_category.upper(),
+                {
+                    "origin_denied": "Origin is not allowed.",
+                    "malformed_origin": "Security headers are malformed.",
+                    "malformed_security_input": "Security headers are malformed.",
+                    "unsupported_browser_route": "Browser access is not supported for this route.",
+                    "unsupported_browser_method": "Browser access is not supported for this method.",
+                    "unsupported_browser_headers": "Requested browser headers are not supported.",
+                }.get(preflight.decision_category, "Browser preflight is not allowed."),
+                request_id=request_id,
+                details={"category": preflight.decision_category},
+            ),
+        )
+
     classification = classify_hosted_request(
         method=method,
         path=path,
@@ -158,6 +208,7 @@ def execute_hosted_request(
         body_present=bool(raw_body),
         body_valid=True,
     )
+    allowed_browser_headers = browser_response_headers(path=path, request_headers=request_headers, settings=security_settings)
 
     if classification.outcome_class == "not_found":
         payload = transport.handle(path, {})
@@ -178,7 +229,7 @@ def execute_hosted_request(
     request_id = generate_request_id()
     security_decision = evaluate_security_request(
         request_headers,
-        transport.runtime_settings.security,
+        security_settings,
         path=path,
         request_id=request_id,
         environment=transport.runtime_settings.environment,
@@ -214,18 +265,31 @@ def execute_hosted_request(
                 request_id=security_decision.request_id,
                 details={"category": security_decision.decision_category},
             ),
+            extra_headers=allowed_browser_headers,
         )
 
     if method.upper() == "GET":
         if not _require_accept(request_headers, {SSE_CONTENT_TYPE}):
-            return _json_result(400, error_response("INVALID_ARGUMENT", "Accept must include text/event-stream."))
+            return _json_result(
+                400,
+                error_response("INVALID_ARGUMENT", "Accept must include text/event-stream."),
+                extra_headers=allowed_browser_headers,
+            )
         session_id = request_headers.get(MCP_SESSION_ID_HEADER.lower())
         if not session_id:
-            return _json_result(400, error_response("INVALID_ARGUMENT", "MCP-Session-Id is required."))
+            return _json_result(
+                400,
+                error_response("INVALID_ARGUMENT", "MCP-Session-Id is required."),
+                extra_headers=allowed_browser_headers,
+            )
         try:
             protocol_version = _protocol_version_or_default(request_headers)
             if protocol_version not in SUPPORTED_MCP_PROTOCOL_VERSIONS:
-                return _json_result(400, error_response("INVALID_ARGUMENT", "Unsupported MCP protocol version."))
+                return _json_result(
+                    400,
+                    error_response("INVALID_ARGUMENT", "Unsupported MCP protocol version."),
+                    extra_headers=allowed_browser_headers,
+                )
             transport.stream_manager.touch_session(session_id)
             transport.observability.emit_session_decision(
                 {"requestId": request_id, "path": path, "sessionId": session_id, "sessionOutcome": "continued"}
@@ -240,7 +304,11 @@ def execute_hosted_request(
                     "reasonCode": "INVALID_SESSION",
                 }
             )
-            return _json_result(404, error_response("RESOURCE_NOT_FOUND", "Session not found.", details={"sessionId": session_id}))
+            return _json_result(
+                404,
+                error_response("RESOURCE_NOT_FOUND", "Session not found.", details={"sessionId": session_id}),
+                extra_headers=allowed_browser_headers,
+            )
         except ExpiredSessionError:
             transport.observability.emit_session_decision(
                 {
@@ -251,7 +319,11 @@ def execute_hosted_request(
                     "reasonCode": "EXPIRED_SESSION",
                 }
             )
-            return _json_result(404, error_response("RESOURCE_NOT_FOUND", "Session expired.", details={"sessionId": session_id, "category": "expired_session"}))
+            return _json_result(
+                404,
+                error_response("RESOURCE_NOT_FOUND", "Session expired.", details={"sessionId": session_id, "category": "expired_session"}),
+                extra_headers=allowed_browser_headers,
+            )
 
         try:
             stream, events = transport.stream_manager.events_after(session_id, request_headers.get("last-event-id"))
@@ -272,22 +344,27 @@ def execute_hosted_request(
                     "Replay history is no longer available for this session.",
                     details={"sessionId": session_id, "category": "replay_unavailable"},
                 ),
+                extra_headers=allowed_browser_headers,
             )
         body_text = encode_sse(events)
         return _sse_result(
             200,
             body_text,
-            extra_headers={
+            extra_headers=_combine_headers(
+                allowed_browser_headers,
+                {
                 MCP_SESSION_ID_HEADER: session_id,
                 MCP_PROTOCOL_VERSION_HEADER: protocol_version,
                 "X-Stream-Id": stream.stream_id,
-            },
+                },
+            ),
         )
 
     if not _require_accept(request_headers, {STREAM_JSON_CONTENT_TYPE, SSE_CONTENT_TYPE}):
         return _json_result(
             400,
             error_response("INVALID_ARGUMENT", "Accept must include application/json and text/event-stream."),
+            extra_headers=allowed_browser_headers,
         )
 
     if classification.outcome_class == "unsupported_media_type":
@@ -296,7 +373,7 @@ def execute_hosted_request(
             "Content-Type must be application/json.",
             details={"contentType": request_headers.get("content-type")},
         )
-        return _json_result(hosted_status_code(classification), payload)
+        return _json_result(hosted_status_code(classification), payload, extra_headers=allowed_browser_headers)
 
     try:
         payload = json.loads(raw_body.decode("utf-8") or "{}") if raw_body else {}
@@ -308,11 +385,19 @@ def execute_hosted_request(
             body_present=bool(raw_body),
             body_valid=False,
         )
-        return _json_result(hosted_status_code(malformed), error_response("INVALID_ARGUMENT", "payload must be valid JSON"))
+        return _json_result(
+            hosted_status_code(malformed),
+            error_response("INVALID_ARGUMENT", "payload must be valid JSON"),
+            extra_headers=allowed_browser_headers,
+        )
 
     protocol_version = _protocol_version_or_default(request_headers, payload)
     if protocol_version not in SUPPORTED_MCP_PROTOCOL_VERSIONS:
-        return _json_result(400, error_response("INVALID_ARGUMENT", "Unsupported MCP protocol version."))
+        return _json_result(
+            400,
+            error_response("INVALID_ARGUMENT", "Unsupported MCP protocol version."),
+            extra_headers=allowed_browser_headers,
+        )
 
     request_method = payload.get("method") if isinstance(payload, dict) else None
     session_id = request_headers.get(MCP_SESSION_ID_HEADER.lower())
@@ -326,14 +411,21 @@ def execute_hosted_request(
         return _json_result(
             200,
             response,
-            extra_headers={
+            extra_headers=_combine_headers(
+                allowed_browser_headers,
+                {
                 MCP_SESSION_ID_HEADER: session.session_id,
                 MCP_PROTOCOL_VERSION_HEADER: protocol_version,
-            },
+                },
+            ),
         )
 
     if not session_id:
-        return _json_result(400, error_response("INVALID_ARGUMENT", "MCP-Session-Id is required."))
+        return _json_result(
+            400,
+            error_response("INVALID_ARGUMENT", "MCP-Session-Id is required."),
+            extra_headers=allowed_browser_headers,
+        )
     try:
         transport.stream_manager.touch_session(session_id)
         transport.observability.emit_session_decision(
@@ -349,7 +441,11 @@ def execute_hosted_request(
                 "reasonCode": "INVALID_SESSION",
             }
         )
-        return _json_result(404, error_response("RESOURCE_NOT_FOUND", "Session not found.", details={"sessionId": session_id}))
+        return _json_result(
+            404,
+            error_response("RESOURCE_NOT_FOUND", "Session not found.", details={"sessionId": session_id}),
+            extra_headers=allowed_browser_headers,
+        )
     except ExpiredSessionError:
         transport.observability.emit_session_decision(
             {
@@ -360,22 +456,32 @@ def execute_hosted_request(
                 "reasonCode": "EXPIRED_SESSION",
             }
         )
-        return _json_result(404, error_response("RESOURCE_NOT_FOUND", "Session expired.", details={"sessionId": session_id, "category": "expired_session"}))
+        return _json_result(
+            404,
+            error_response("RESOURCE_NOT_FOUND", "Session expired.", details={"sessionId": session_id, "category": "expired_session"}),
+            extra_headers=allowed_browser_headers,
+        )
 
     if not payload.get("id"):
         return _empty_result(
             202,
-            extra_headers={
+            extra_headers=_combine_headers(
+                allowed_browser_headers,
+                {
                 MCP_SESSION_ID_HEADER: session_id,
                 MCP_PROTOCOL_VERSION_HEADER: protocol_version,
-            },
+                },
+            ),
         )
 
     response = transport.handle(path, payload)
-    extra_headers = {
-        MCP_SESSION_ID_HEADER: session_id,
-        MCP_PROTOCOL_VERSION_HEADER: protocol_version,
-    }
+    extra_headers = _combine_headers(
+        allowed_browser_headers,
+        {
+            MCP_SESSION_ID_HEADER: session_id,
+            MCP_PROTOCOL_VERSION_HEADER: protocol_version,
+        },
+    )
     if request_method == "tools/call":
         stream, events = transport.stream_manager.build_post_response_stream(session_id, str(payload.get("id")), response)
         extra_headers["X-Stream-Id"] = stream.stream_id
@@ -440,7 +546,7 @@ def build_asgi_app(
     if FastAPI is not None:
         app = FastAPI(lifespan=_lifespan)
 
-        @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+        @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
         async def hosted_route(request: Request, path: str) -> Response:
             body = await request.body()
             result = execute_hosted_request(
@@ -505,6 +611,9 @@ def run_server() -> None:
 
         def do_DELETE(self) -> None:  # noqa: N802
             self._send_result(execute_hosted_request(transport, method="DELETE", path=self.path, headers=self.headers))
+
+        def do_OPTIONS(self) -> None:  # noqa: N802
+            self._send_result(execute_hosted_request(transport, method="OPTIONS", path=self.path, headers=self.headers))
 
         def log_message(self, format: str, *args) -> None:  # noqa: A003
             return
