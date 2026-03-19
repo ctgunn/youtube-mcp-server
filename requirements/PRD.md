@@ -40,6 +40,8 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Browser-originated hosted MCP access is either fully supported with explicit CORS/preflight behavior or explicitly documented as out of scope for the current release.
 - Foundational retrieval tool schemas fully describe valid invocation shapes for MCP consumers.
 - Error codes are aligned to the expected JSON-RPC / MCP conventions used by downstream clients.
+- Infrastructure required for the hosted platform is reproducible through versioned Infrastructure as Code rather than manual setup alone.
+- Infrastructure layout is organized so shared platform capabilities can be reproduced across supported cloud providers with provider-specific adapters where necessary.
 - Config, logging, error handling, containerization, and CI checks in place.
 
 ### 5.2 Minimum Server Features
@@ -112,6 +114,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - Hosted `search` and `fetch` verification paths are documented and executable.
   - Hosted MCP session continuation succeeds under the supported Cloud Run session model.
   - If browser-originated clients are in scope, approved browser access and denied-origin behavior are both verified.
+  - Required hosted infrastructure dependencies can be provisioned reproducibly from versioned infrastructure definitions.
 
 ### 5.9 Foundation Acceptance Criteria (Exit Gate for Tool Work)
 - MCP server successfully initializes from an MCP client.
@@ -123,6 +126,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Hosted MCP session behavior is reliable for the supported Cloud Run deployment model.
 - Retrieval tool schemas are complete enough for clients to construct valid calls from discovery output alone.
 - Error codes follow the protocol conventions expected by supported MCP consumers.
+- Hosted infrastructure dependencies are reproducible from versioned IaC for the supported deployment path.
 - Structured logs appear in Cloud Logging for each request.
 - Health/readiness endpoints pass in Cloud Run.
 - CI checks pass (lint/typecheck/tests).
@@ -191,6 +195,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Support environment-based config (`dev`, `staging`, `prod`).
 - Support the selected remote MCP transport behavior reliably in the hosted Cloud Run environment.
 - Document and enforce the hosted session strategy required to keep MCP session continuity reliable under Cloud Run.
+- Prefer reproducible infrastructure provisioning for Cloud Run, secrets, and durable hosted dependencies over manual console-only setup.
 
 ## 10. Security and Compliance Requirements
 - Secrets stored and injected securely.
@@ -223,6 +228,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Tool-by-tool usage examples with sample payloads.
 - Automated checks for lint/type/test in CI.
 - Remote MCP connection guidance documented for OpenAI Agent Builder and comparable MCP consumers.
+- Infrastructure provisioning guidance documented for the supported hosted platforms.
 
 ## 14. Acceptance Criteria (v1)
 - Phase 0 foundation acceptance criteria are fully met.
@@ -246,12 +252,14 @@ This phase establishes a working MCP server before any YouTube tools are added.
 4. Make hosted MCP sessions reliable for the supported Cloud Run routing and scaling model.
 5. Complete browser/CORS behavior and remaining hosted access hardening for supported client types.
 6. Finish foundational retrieval schema completeness and protocol-aligned error-code behavior.
-7. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
-8. Define YouTube tool schemas and response contracts.
-9. Implement video/channel/playlist tools.
-10. Implement transcript retrieval/search flows.
-11. Add auth, secrets, and quota/error handling hardening.
-12. Add monitoring, alerts, and release documentation.
+7. Add Infrastructure as Code for the hosted platform and durable-session dependencies.
+8. Organize infrastructure around a cloud-agnostic platform contract with provider-specific adapters where needed.
+9. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
+10. Define YouTube tool schemas and response contracts.
+11. Implement video/channel/playlist tools.
+12. Implement transcript retrieval/search flows.
+13. Add auth, secrets, and quota/error handling hardening.
+14. Add monitoring, alerts, and release documentation.
 
 ## 16. Open Decisions
 - Final transcript fallback approach when official captions are unavailable.
