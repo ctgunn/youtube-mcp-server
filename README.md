@@ -23,6 +23,11 @@ must include explicit failing-test, minimal-pass, and refactor phases.
 - `MCP_AUTH_TOKEN` is required for `staging` and `prod` hosted MCP access.
 - `MCP_ALLOWED_ORIGINS` defines the browser origin allowlist for protected `/mcp` requests.
 - `MCP_ALLOW_ORIGINLESS_CLIENTS` controls whether non-browser callers without `Origin` can proceed to authentication checks.
+- `MCP_SESSION_BACKEND` selects the hosted session backend (`memory` for local-only or shared-memory tests, `redis` for durable hosted deployments).
+- `MCP_SESSION_STORE_URL` points at the shared durable session backend when hosted session durability is required.
+- `MCP_SESSION_DURABILITY_REQUIRED` forces `/ready` to fail unless a healthy shared session backend is available.
+- `MCP_SESSION_TTL_SECONDS` controls how long an inactive hosted session remains reusable.
+- `MCP_SESSION_REPLAY_TTL_SECONDS` controls how long reconnect replay history is retained for `Last-Event-ID` resume flows.
 - `GET /health` returns liveness (`{"status":"ok"}`).
 - `GET /ready` returns readiness based on startup config/secret validation.
 
@@ -61,6 +66,9 @@ MCP_ENVIRONMENT=staging \
 MCP_AUTH_REQUIRED=true \
 MCP_ALLOWED_ORIGINS=https://chat.openai.com \
 MCP_ALLOW_ORIGINLESS_CLIENTS=true \
+MCP_SESSION_BACKEND=redis \
+MCP_SESSION_STORE_URL=redis://REDIS_HOST:6379/0 \
+MCP_SESSION_DURABILITY_REQUIRED=true \
 MIN_INSTANCES=0 \
 MAX_INSTANCES=2 \
 CONCURRENCY=20 \
@@ -89,6 +97,9 @@ MCP_ENVIRONMENT=staging \
 MCP_AUTH_REQUIRED=true \
 MCP_ALLOWED_ORIGINS=https://chat.openai.com \
 MCP_ALLOW_ORIGINLESS_CLIENTS=true \
+MCP_SESSION_BACKEND=redis \
+MCP_SESSION_STORE_URL=redis://REDIS_HOST:6379/0 \
+MCP_SESSION_DURABILITY_REQUIRED=true \
 MIN_INSTANCES=0 \
 MAX_INSTANCES=2 \
 CONCURRENCY=20 \
@@ -108,9 +119,10 @@ PYTHONPATH=src python3 scripts/verify_cloud_run_foundation.py \
 
 The hosted verifier now exercises the streamable MCP transport rather than the
 older bare `POST /mcp` flow. It performs `initialize`, captures the returned
-`MCP-Session-Id`, reuses that session for subsequent MCP requests, and accepts
-both `application/json` and `text/event-stream` responses as required by the
-hosted transport contract.
+`MCP-Session-Id`, reuses that session for subsequent `POST` and `GET` MCP
+requests, validates reconnect behavior with `Last-Event-ID`, and accepts both
+`application/json` and `text/event-stream` responses as required by the hosted
+transport contract.
 
 Manual streamable MCP verification examples:
 
@@ -161,11 +173,27 @@ Tool discovery responses now include complete baseline tool metadata, including
 `inputSchema`, so hosted MCP clients can construct valid calls from `tools/list`
 without separate tool documentation.
 
-Deep research foundation verification now also expects the hosted tool catalog
-to expose `search` and `fetch`, and it exercises both tools as part of the
-protected MCP smoke path.
+Representative hosted `tools/list` output still includes the deep research
+tools used in earlier foundation slices:
 
-Representative hosted `search` example:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "req-list",
+  "result": {
+    "tools": [
+      {"name":"search","description":"Discover relevant sources for deep research workflows."},
+      {"name":"fetch","description":"Retrieve a selected source in consumable content form."}
+    ]
+  }
+}
+```
+
+Hosted session durability verification expects the hosted tool catalog to
+remain discoverable and then validates session continuation through the same
+protected MCP entrypoint.
+
+Representative hosted `POST` continuation example:
 
 ```bash
 curl -i \
@@ -177,19 +205,18 @@ curl -i \
   https://YOUR_SERVICE_URL/mcp
 ```
 
-Representative hosted `fetch` example using the selected search result:
+Representative hosted reconnect example:
 
 ```bash
 curl -i \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
+  -H 'Accept: text/event-stream' \
   -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
   -H 'MCP-Session-Id: SESSION_ID' \
-  -d '{"jsonrpc":"2.0","id":"req-fetch","method":"tools/call","params":{"name":"fetch","arguments":{"resourceId":"res_remote_mcp_001","uri":"https://example.com/remote-mcp-research"}}}' \
+  -H 'Last-Event-ID: STREAM_EVENT_ID' \
   https://YOUR_SERVICE_URL/mcp
 ```
 
-Open or resume an SSE stream:
+Open or resume an SSE stream without a replay cursor:
 
 ```bash
 curl -i \
@@ -227,5 +254,7 @@ The verification output must record pass/fail results for:
 - `readiness`
 - `initialize`
 - `list-tools`
-- `search-tool-call`
-- `fetch-tool-call`
+- `session-post-continuation`
+- `session-get-continuation`
+- `session-reconnect`
+- `session-invalid`

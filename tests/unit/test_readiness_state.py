@@ -21,6 +21,19 @@ class ReadinessStateTests(unittest.TestCase):
         self.assertEqual(payload["status"], "not_ready")
         self.assertEqual(payload["reason"]["code"], "CONFIG_VALIDATION_ERROR")
 
+    def test_not_ready_payload_when_durable_sessions_are_required_but_unavailable(self):
+        result = validate_runtime_config({"MCP_ENVIRONMENT": "dev"})
+        lifecycle = initialize_runtime_lifecycle(result)
+        lifecycle.mark_degraded({"code": "SESSION_DURABILITY_UNAVAILABLE", "message": "shared session backend missing"})
+        payload = readiness_payload(
+            result,
+            lifecycle,
+            session_durability={"available": False, "reason": {"code": "SESSION_DURABILITY_UNAVAILABLE", "message": "shared session backend missing"}},
+        )
+        self.assertEqual(payload["status"], "not_ready")
+        self.assertEqual(payload["checks"]["sessionDurability"], "fail")
+        self.assertEqual(payload["reason"]["code"], "SESSION_DURABILITY_UNAVAILABLE")
+
     def test_lifecycle_transitions_from_ready_to_stopping(self):
         result = validate_runtime_config({"MCP_ENVIRONMENT": "dev"})
         lifecycle = initialize_runtime_lifecycle(result)

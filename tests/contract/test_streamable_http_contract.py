@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
 from mcp_server.cloud_run_entrypoint import build_asgi_app, execute_hosted_request
+from mcp_server.transport.session_store import reset_memory_session_store_registry
 from tests.contract.conftest import stream_headers
 from tests.unit.conftest import parse_sse_payload
 
@@ -14,6 +15,9 @@ from tests.unit.conftest import parse_sse_payload
 class StreamableHTTPContractTests(unittest.TestCase):
     def setUp(self):
         self.app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+
+    def tearDown(self):
+        reset_memory_session_store_registry()
 
     def _initialize(self):
         result = execute_hosted_request(
@@ -107,6 +111,68 @@ class StreamableHTTPContractTests(unittest.TestCase):
             body=b'{"jsonrpc":"2.0","id":"req-invalid-origin","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
         )
         self.assertEqual(invalid_origin.status, 403)
+
+    def test_follow_up_post_can_continue_on_second_instance_with_shared_store(self):
+        shared_env = {
+            "MCP_ENVIRONMENT": "dev",
+            "MCP_SESSION_BACKEND": "memory",
+            "MCP_SESSION_STORE_URL": "memory://contract-shared",
+            "MCP_SESSION_DURABILITY_REQUIRED": "true",
+        }
+        first = create_app(env=shared_env)
+        second = create_app(env=shared_env)
+        init = execute_hosted_request(
+            first,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers()},
+            body=b'{"jsonrpc":"2.0","id":"req-contract-init-shared","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+        )
+        result = execute_hosted_request(
+            second,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers(session_id=init.headers["MCP-Session-Id"])},
+            body=b'{"jsonrpc":"2.0","id":"req-contract-list-shared","method":"tools/list","params":{}}',
+        )
+        self.assertEqual(result.status, 200)
+        self.assertIn("tools", result.payload["result"])
+
+    def test_replay_unavailable_uses_distinct_failure(self):
+        shared_env = {
+            "MCP_ENVIRONMENT": "dev",
+            "MCP_SESSION_BACKEND": "memory",
+            "MCP_SESSION_STORE_URL": "memory://contract-replay",
+            "MCP_SESSION_DURABILITY_REQUIRED": "true",
+        }
+        app = create_app(env=shared_env)
+        init = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers()},
+            body=b'{"jsonrpc":"2.0","id":"req-contract-init-replay","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
+        )
+        result = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers(session_id=init.headers["MCP-Session-Id"])},
+            body=b'{"jsonrpc":"2.0","id":"req-contract-call-replay","method":"tools/call","params":{"name":"server_ping","arguments":{}}}',
+        )
+        first_event_id = parse_sse_payload(result.body)[0]["id"]
+        for stream_id in app.stream_manager.streams:
+            record = app.stream_manager._store.load_stream(stream_id)
+            record["replay_window_ends_at"] = "2000-01-01T00:00:00+00:00"
+            app.stream_manager._store.save_stream(stream_id, record)
+        replay = execute_hosted_request(
+            app,
+            method="GET",
+            path="/mcp",
+            headers={**stream_headers(session_id=init.headers["MCP-Session-Id"], include_json=False), "Last-Event-ID": first_event_id},
+        )
+        self.assertEqual(replay.status, 409)
+        self.assertEqual(replay.payload["error"]["data"]["category"], "replay_unavailable")
 
 
 if __name__ == "__main__":
