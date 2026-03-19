@@ -62,16 +62,31 @@ def health_payload(lifecycle: RuntimeLifecycleState | None = None) -> dict:
     return {"status": "ok"}
 
 
-def readiness_payload(validation: StartupValidationResult, lifecycle: RuntimeLifecycleState | None = None) -> dict:
+def readiness_payload(
+    validation: StartupValidationResult,
+    lifecycle: RuntimeLifecycleState | None = None,
+    session_durability: dict | None = None,
+) -> dict:
     lifecycle_state = lifecycle.state if lifecycle is not None else ("ready" if validation.is_valid else "degraded")
-    if validation.is_valid and lifecycle_state == "ready":
+    session_ok = True if session_durability is None else bool(session_durability.get("available", True))
+    if validation.is_valid and lifecycle_state == "ready" and session_ok:
         return {
             "status": "ready",
             "checks": {
                 "configuration": "pass",
                 "secrets": "pass",
                 "runtime": "pass",
+                "sessionDurability": "pass" if session_ok else "fail",
             },
+        }
+    reason = lifecycle.degraded_reason if lifecycle and lifecycle.degraded_reason else {
+        "code": "CONFIG_VALIDATION_ERROR",
+        "message": "Required configuration is invalid or incomplete.",
+    }
+    if session_durability and not session_ok:
+        reason = session_durability.get("reason") or {
+            "code": "SESSION_DURABILITY_UNAVAILABLE",
+            "message": "Durable hosted sessions are not available.",
         }
     return {
         "status": "not_ready",
@@ -79,9 +94,7 @@ def readiness_payload(validation: StartupValidationResult, lifecycle: RuntimeLif
             "configuration": "pass" if validation.is_valid else "fail",
             "secrets": "pass" if validation.is_valid else "fail",
             "runtime": "pass" if lifecycle_state == "ready" else "fail",
+            "sessionDurability": "pass" if session_ok else "fail",
         },
-        "reason": lifecycle.degraded_reason if lifecycle and lifecycle.degraded_reason else {
-            "code": "CONFIG_VALIDATION_ERROR",
-            "message": "Required configuration is invalid or incomplete.",
-        },
+        "reason": reason,
     }

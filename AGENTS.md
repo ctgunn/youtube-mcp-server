@@ -23,6 +23,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - In-memory runtime state only; configuration and secrets are environment/secret-backed (013-remote-mcp-security)
 - Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Python standard library JSON/HTTP/config/logging modules (014-deep-research-tools)
 - In-memory runtime state only; no persistent storage for retrieval references or fetched conten (014-deep-research-tools)
+- Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Python standard library JSON/HTTP/config/logging modules, Redis-compatible shared session store client (015-hosted-session-durability)
+- In-memory runtime state for local-only execution plus Redis-compatible shared ephemeral state for hosted session metadata, stream cursors, and replayable event history (015-hosted-session-durability)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -43,9 +45,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 015-hosted-session-durability: Added Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Python standard library JSON/HTTP/config/logging modules, Redis-compatible shared session store client
 - 014-deep-research-tools: Added Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Python standard library JSON/HTTP/config/logging modules
 - 013-remote-mcp-security: Added Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Python standard library transport/config/logging modules
-- 012-hosted-runtime-migration: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, existing in-repo MCP transport/protocol/config/observability modules, current streamable transport session helpers
 
 
 <!-- MANUAL ADDITIONS START -->

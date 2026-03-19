@@ -9,15 +9,38 @@ sys.path.insert(0, os.path.abspath("src"))
 from mcp_server.app import create_app
 from mcp_server.cloud_run_entrypoint import execute_hosted_request
 from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, write_verification_evidence
+from mcp_server.transport.session_store import reset_memory_session_store_registry
 
 
 class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
+    def tearDown(self):
+        reset_memory_session_store_registry()
+
     def _hosted_requester(self, app, *, auth_token=None, origin=None):
         session_state = {"session_id": None}
 
         def _request(path, payload):
-            if path in {"/health", "/ready"}:
-                return execute_hosted_request(app, method="GET", path=path)
+            http_method = "POST"
+            session_override = None
+            last_event_id = None
+            if isinstance(payload, dict):
+                http_method = str(payload.get("__httpMethod", "POST")).upper()
+                session_override = payload.get("__sessionId")
+                last_event_id = payload.get("__lastEventId")
+                payload = {key: value for key, value in payload.items() if not str(key).startswith("__")}
+            if path in {"/health", "/ready"} or http_method == "GET":
+                headers = {"Accept": "text/event-stream"} if path == "/mcp" else {}
+                if auth_token and path == "/mcp":
+                    headers["Authorization"] = f"Bearer {auth_token}"
+                if origin and path == "/mcp":
+                    headers["Origin"] = origin
+                if session_override:
+                    headers["MCP-Session-Id"] = session_override
+                elif session_state["session_id"] and path == "/mcp":
+                    headers["MCP-Session-Id"] = session_state["session_id"]
+                if last_event_id:
+                    headers["Last-Event-ID"] = last_event_id
+                return execute_hosted_request(app, method="GET", path=path, headers=headers)
             headers = {
                 "Content-Type": "application/json",
                 "Accept": "application/json, text/event-stream",
@@ -26,7 +49,9 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
                 headers["Authorization"] = f"Bearer {auth_token}"
             if origin:
                 headers["Origin"] = origin
-            if session_state["session_id"]:
+            if session_override:
+                headers["MCP-Session-Id"] = session_override
+            elif session_state["session_id"]:
                 headers["MCP-Session-Id"] = session_state["session_id"]
             result = execute_hosted_request(
                 app,
@@ -53,14 +78,21 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         )
 
     def test_ready_app_passes_full_hosted_verification(self):
-        app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+        app = create_app(
+            env={
+                "MCP_ENVIRONMENT": "dev",
+                "MCP_SESSION_BACKEND": "memory",
+                "MCP_SESSION_STORE_URL": "memory://verify-shared",
+                "MCP_SESSION_DURABILITY_REQUIRED": "true",
+            }
+        )
         run = run_hosted_verification(
             self._revision(),
             requester=self._hosted_requester(app),
             evidence_path="artifacts/verify.txt",
         )
         self.assertEqual(run.overall_result, "pass")
-        self.assertEqual(len(run.checks), 6)
+        self.assertEqual(len(run.checks), 8)
         self.assertTrue(all(check.result == "pass" for check in run.checks))
 
     def test_not_ready_app_fails_before_mcp_checks(self):
@@ -77,8 +109,8 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
             content = path.read_text()
         self.assertIn("revisionName: rev-001", content)
         self.assertIn("checkName: liveness", content)
-        self.assertIn("checkName: search-tool-call", content)
-        self.assertIn("checkName: fetch-tool-call", content)
+        self.assertIn("checkName: session-post-continuation", content)
+        self.assertIn("checkName: session-reconnect", content)
         self.assertIn("runtimeIdentity: svc@example.iam.gserviceaccount.com", content)
 
     def test_hosted_route_payloads_remain_consistent_with_verification_inputs(self):
@@ -95,13 +127,20 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         self.assertEqual(hosted_not_ready.payload["status"], local_not_ready["status"])
 
     def test_hosted_verification_uses_session_aware_transport(self):
-        app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+        app = create_app(
+            env={
+                "MCP_ENVIRONMENT": "dev",
+                "MCP_SESSION_BACKEND": "memory",
+                "MCP_SESSION_STORE_URL": "memory://verify-shared-2",
+                "MCP_SESSION_DURABILITY_REQUIRED": "true",
+            }
+        )
         requester = self._hosted_requester(app)
         run = run_hosted_verification(self._revision(), requester=requester)
-        search = [check for check in run.checks if check.check_name == "search-tool-call"][0]
-        fetch = [check for check in run.checks if check.check_name == "fetch-tool-call"][0]
-        self.assertEqual(search.result, "pass")
-        self.assertEqual(fetch.result, "pass")
+        post = [check for check in run.checks if check.check_name == "session-post-continuation"][0]
+        replay = [check for check in run.checks if check.check_name == "session-reconnect"][0]
+        self.assertEqual(post.result, "pass")
+        self.assertEqual(replay.result, "pass")
 
     def test_verification_serialization_carries_runtime_identity(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})

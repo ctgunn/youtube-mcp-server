@@ -35,15 +35,25 @@ def _http_request(base_url: str, path: str, payload: object) -> dict:
         headers["Origin"] = origin
     if getattr(_http_request, "_session_id", None) and path == "/mcp":
         headers["MCP-Session-Id"] = _http_request._session_id  # type: ignore[attr-defined]
-    data = json.dumps(payload).encode("utf-8")
-    if path in {"/health", "/ready"}:
+    http_method = "POST"
+    session_override = None
+    last_event_id = None
+    if isinstance(payload, dict):
+        http_method = str(payload.get("__httpMethod", "POST")).upper()
+        session_override = payload.get("__sessionId")
+        last_event_id = payload.get("__lastEventId")
+        payload = {key: value for key, value in payload.items() if not str(key).startswith("__")}
+    if session_override and path == "/mcp":
+        headers["MCP-Session-Id"] = session_override
+    if last_event_id and path == "/mcp":
+        headers["Last-Event-ID"] = last_event_id
+    data = json.dumps(payload).encode("utf-8") if http_method != "GET" else None
+    if path in {"/health", "/ready"} or http_method == "GET":
         req = request.Request(url, headers=headers, method="GET")
-        body = None
     else:
         req = request.Request(url, data=data, headers=headers, method="POST")
-        body = data
     try:
-        with request.urlopen(req if body is None else req, timeout=30) as response:
+        with request.urlopen(req, timeout=30) as response:
             content = response.read().decode("utf-8")
             content_type = response.headers.get("Content-Type", "")
             if "text/event-stream" in content_type:

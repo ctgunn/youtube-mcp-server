@@ -64,6 +64,16 @@ class HostedRuntimeSettings:
     rollback_command: str
     environment: str
     security: HostedSecuritySettings
+    session: "HostedSessionSettings"
+
+
+@dataclass(frozen=True)
+class HostedSessionSettings:
+    backend: str
+    store_url: str | None
+    durability_required: bool
+    session_ttl_seconds: int
+    replay_ttl_seconds: int
 
 
 def _now_iso() -> str:
@@ -92,6 +102,11 @@ def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSetting
     environment = _value(env, "MCP_ENVIRONMENT") or "dev"
     auth_token = _value(env, "MCP_AUTH_TOKEN")
     auth_required = _bool_value(env, "MCP_AUTH_REQUIRED", default=(environment in {"staging", "prod"} or auth_token is not None))
+    session_store_url = _value(env, "MCP_SESSION_STORE_URL")
+    session_backend = (_value(env, "MCP_SESSION_BACKEND") or ("redis" if session_store_url and session_store_url.startswith("redis") else "memory")).lower()
+    session_durability_required = _bool_value(env, "MCP_SESSION_DURABILITY_REQUIRED", default=False)
+    session_ttl_seconds = int(_value(env, "MCP_SESSION_TTL_SECONDS") or "1800")
+    replay_ttl_seconds = int(_value(env, "MCP_SESSION_REPLAY_TTL_SECONDS") or "300")
     return HostedRuntimeSettings(
         host=_value(env, "HOST") or "0.0.0.0",
         port=int(port_text),
@@ -106,6 +121,13 @@ def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSetting
             auth_token=auth_token,
             allowed_origins=parse_allowed_origins(_value(env, "MCP_ALLOWED_ORIGINS")),
             allow_originless_clients=_bool_value(env, "MCP_ALLOW_ORIGINLESS_CLIENTS", default=True),
+        ),
+        session=HostedSessionSettings(
+            backend=session_backend,
+            store_url=session_store_url,
+            durability_required=session_durability_required,
+            session_ttl_seconds=session_ttl_seconds,
+            replay_ttl_seconds=replay_ttl_seconds,
         ),
     )
 
@@ -131,6 +153,18 @@ def validate_runtime_config(env: Mapping[str, str]) -> StartupValidationResult:
 
     if _value(env, "MCP_ALLOWED_ORIGINS") and not parse_allowed_origins(_value(env, "MCP_ALLOWED_ORIGINS")):
         failures.append(ValidationFailure("MCP_ALLOWED_ORIGINS", "must contain one or more valid absolute origins"))
+    session_backend = (_value(env, "MCP_SESSION_BACKEND") or ("redis" if (_value(env, "MCP_SESSION_STORE_URL") or "").startswith("redis") else "memory")).lower()
+    if session_backend not in {"memory", "redis"}:
+        failures.append(ValidationFailure("MCP_SESSION_BACKEND", "must be one of memory or redis"))
+    for key in ("MCP_SESSION_TTL_SECONDS", "MCP_SESSION_REPLAY_TTL_SECONDS"):
+        value = _value(env, key)
+        if value is None:
+            continue
+        try:
+            if int(value) <= 0:
+                failures.append(ValidationFailure(key, "must be a positive integer"))
+        except ValueError:
+            failures.append(ValidationFailure(key, "must be a positive integer"))
 
     return StartupValidationResult(
         is_valid=(len(failures) == 0),
