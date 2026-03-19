@@ -313,6 +313,40 @@ Acceptance criteria:
 Dependencies:
 - `FND-010`, `FND-013`
 
+### FND-019: Infrastructure as Code Foundation
+Description:
+Introduce Infrastructure as Code for the hosted MCP platform so required infrastructure can be provisioned reproducibly rather than relying on manual cloud console setup.
+
+Primary stories:
+- As an operator, I can provision the infrastructure required by the hosted MCP service from versioned code.
+- As a maintainer, I can review infrastructure changes alongside application changes and trust that required dependencies are created consistently.
+
+Acceptance criteria:
+- Infrastructure required for the hosted MCP foundation is defined in versioned IaC rather than only in manual setup steps.
+- The IaC covers the currently required hosted dependencies, including application runtime infrastructure, secret/config integration points, and durable session backend requirements.
+- Environment-specific inputs are documented and injectable without modifying application code.
+- Operator documentation includes one reproducible infrastructure provisioning path and one reproducible application deployment path.
+
+Dependencies:
+- `FND-015`, `FND-016`, `FND-017`, `FND-018`
+
+### FND-020: Cloud-Agnostic Infrastructure Module Strategy
+Description:
+Design and implement a cloud-agnostic infrastructure layout so the MCP platform can be reproduced across supported providers without rewriting the application-level deployment model for each cloud.
+
+Primary stories:
+- As an operator, I can understand which infrastructure capabilities are required regardless of cloud provider.
+- As a maintainer, I can add or adapt provider-specific infrastructure modules while preserving one shared platform contract for the MCP service.
+
+Acceptance criteria:
+- IaC is organized around provider-agnostic platform capabilities with provider-specific implementations where needed.
+- The infrastructure contract identifies the shared requirements for hosted runtime, networking, secrets, observability integration, and durable session storage across supported clouds.
+- At least one secondary provider path beyond the current primary cloud target is planned or scaffolded strongly enough to prove the layout is not locked to one provider-specific design.
+- Documentation makes clear which parts of the infrastructure model are portable and which parts are provider-specific adapters.
+
+Dependencies:
+- `FND-019`
+
 ### YT-101: YouTube Client Integration Layer
 Description:
 Build typed wrapper for YouTube Data API v3 with auth, retry, quota, and error mapping.
@@ -325,7 +359,7 @@ Acceptance criteria:
 - Quota and upstream errors map to standard server errors.
 
 Dependencies:
-- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`
+- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`, `FND-019`, `FND-020`
 
 ### YT-102: Video Tools
 Description:
@@ -444,12 +478,14 @@ Dependencies:
 16. `FND-016`
 17. `FND-017`
 18. `FND-018`
-19. `YT-101`
-20. `YT-102` + `YT-103` (parallel)
-21. `YT-104`
-22. `YT-105`
-23. `OPS-201`
-24. `OPS-202`
+19. `FND-019`
+20. `FND-020`
+21. `YT-101`
+22. `YT-102` + `YT-103` (parallel)
+23. `YT-104`
+24. `YT-105`
+25. `OPS-201`
+26. `OPS-202`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
