@@ -7,9 +7,13 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
 from mcp_server.cloud_run_entrypoint import build_asgi_app, execute_hosted_request
+from mcp_server.transport.session_store import reset_memory_session_store_registry
 
 
 class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
+    def tearDown(self):
+        reset_memory_session_store_registry()
+
     def _runtime_transport(self):
         hosted_app = build_asgi_app(validate_startup=False)
         return getattr(hosted_app, "transport", getattr(getattr(hosted_app, "state", None), "transport", None))
@@ -200,6 +204,22 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(response.status, 200)
         self.assertIn("MCP-Session-Id", response.headers)
+
+    def test_invalid_session_response_remains_distinct_from_tool_errors(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+        response = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": "missing-session",
+            },
+            body=b'{"jsonrpc":"2.0","id":"req-missing-session","method":"tools/list","params":{}}',
+        )
+        self.assertEqual(response.status, 404)
+        self.assertEqual(response.payload["error"]["code"], "RESOURCE_NOT_FOUND")
 
 
 if __name__ == "__main__":

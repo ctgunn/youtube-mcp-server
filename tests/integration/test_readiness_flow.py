@@ -56,6 +56,15 @@ class ReadinessFlowTests(unittest.TestCase):
         )
         self.assertEqual(mcp.status, 401)
 
+    def test_ready_reports_not_ready_when_durable_session_backend_is_required_but_not_shared(self):
+        app = create_app(
+            env={"MCP_ENVIRONMENT": "dev", "MCP_SESSION_DURABILITY_REQUIRED": "true"},
+            validate_startup=False,
+        )
+        ready = execute_hosted_request(app, method="GET", path="/ready")
+        self.assertEqual(ready.status, 503)
+        self.assertEqual(ready.payload["reason"]["code"], "SESSION_DURABILITY_UNAVAILABLE")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -469,17 +469,21 @@ def run_hosted_verification(
         "liveness": "Inspect the deployed revision startup logs and confirm the container is listening on the expected port.",
         "readiness": "Review runtime configuration and secret injection, then redeploy or re-run verification.",
         "initialize": "Confirm the hosted MCP endpoint is reachable and the initialize method is still supported.",
-        "list-tools": "Confirm the hosted registry includes the search and fetch tools before re-running verification.",
-        "search-tool-call": "Inspect hosted search tool registration and structured search results before re-running verification.",
-        "fetch-tool-call": "Inspect hosted fetch tool registration and retrieval result shaping before re-running verification.",
+        "list-tools": "Confirm the hosted registry remains discoverable before re-running verification.",
+        "session-post-continuation": "Inspect hosted POST continuation state, shared session storage, and session validation before re-running verification.",
+        "session-get-continuation": "Inspect hosted GET continuation state and stream-session validation before re-running verification.",
+        "session-reconnect": "Inspect hosted replay retention and reconnect cursor handling before re-running verification.",
+        "session-invalid": "Inspect session-state error mapping for invalid or expired sessions before re-running verification.",
     }
     stage = {
         "liveness": "deployment-time",
         "readiness": "readiness-time",
         "initialize": "MCP-time",
         "list-tools": "MCP-time",
-        "search-tool-call": "MCP-time",
-        "fetch-tool-call": "MCP-time",
+        "session-post-continuation": "MCP-time",
+        "session-get-continuation": "MCP-time",
+        "session-reconnect": "MCP-time",
+        "session-invalid": "MCP-time",
     }
 
     def _append(check_name: str, payload: dict, expected: Callable[[dict], bool], summary: str) -> bool:
@@ -548,47 +552,86 @@ def run_hosted_verification(
     ):
         return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
-    search_payload = _normalize_request_result(
+    post_continuation_payload = _normalize_request_result(
         requester(
         "/mcp",
         {
             "jsonrpc": "2.0",
-            "id": "verify-search",
-            "method": "tools/call",
-            "params": {"name": "search", "arguments": {"query": "remote MCP research", "pageSize": 1}},
+            "id": "verify-post-continuation",
+            "method": "tools/list",
+            "params": {},
         },
         )
     )
     if not _append(
-        "search-tool-call",
-        search_payload,
-        lambda payload: isinstance(_result_structured_content(payload), dict)
-        and len(_result_structured_content(payload).get("results", [])) >= 1,
-        "Hosted search tool invocation returned structured candidate results.",
+        "session-post-continuation",
+        post_continuation_payload,
+        lambda payload: isinstance(payload.get("result"), dict) and isinstance(payload.get("result", {}).get("tools"), list),
+        "Hosted MCP POST continuation succeeded with the initialized session.",
     ):
         return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
-    search_content = _result_structured_content(search_payload) or {}
-    first_result = (search_content.get("results") or [{}])[0]
-    fetch_resource_id = first_result.get("resourceId")
-    fetch_uri = first_result.get("uri")
-    fetch_payload = _normalize_request_result(
+    get_continuation_payload = _normalize_request_result(
+        requester(
+            "/mcp",
+            {
+                "__httpMethod": "GET",
+            },
+        )
+    )
+    if not _append(
+        "session-get-continuation",
+        get_continuation_payload,
+        lambda payload: isinstance(payload.get("_sseEvents"), list) and len(payload.get("_sseEvents", [])) >= 1,
+        "Hosted MCP GET continuation succeeded for the active session.",
+    ):
+        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+
+    replay_seed_payload = _normalize_request_result(
         requester(
             "/mcp",
             {
                 "jsonrpc": "2.0",
-                "id": "verify-fetch",
+                "id": "verify-replay-seed",
                 "method": "tools/call",
-                "params": {"name": "fetch", "arguments": {"resourceId": fetch_resource_id, "uri": fetch_uri}},
+                "params": {"name": baseline_tool_name, "arguments": {}},
+            },
+        )
+    )
+    replay_events = replay_seed_payload.get("_sseEvents", [])
+    replay_cursor = replay_events[0]["id"] if replay_events else None
+    reconnect_payload = _normalize_request_result(
+        requester(
+            "/mcp",
+            {
+                "__httpMethod": "GET",
+                "__lastEventId": replay_cursor,
+            },
+        )
+    )
+    if not _append(
+        "session-reconnect",
+        reconnect_payload,
+        lambda payload: isinstance(payload.get("_sseEvents"), list)
+        and any('"result"' in event.get("data", "") for event in payload.get("_sseEvents", [])),
+        "Hosted MCP reconnect replayed retained events for the active session.",
+    ):
+        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+
+    invalid_payload = _normalize_request_result(
+        requester(
+            "/mcp",
+            {
+                "__httpMethod": "GET",
+                "__sessionId": "missing-session",
             },
         )
     )
     _append(
-        "fetch-tool-call",
-        fetch_payload,
-        lambda payload: isinstance(_result_structured_content(payload), dict)
-        and _result_structured_content(payload).get("resourceId") == fetch_resource_id,
-        "Hosted fetch tool invocation returned structured retrieved content.",
+        "session-invalid",
+        invalid_payload,
+        lambda payload: payload.get("statusCode") == 404 and payload.get("error", {}).get("code") == "RESOURCE_NOT_FOUND",
+        "Hosted MCP invalid-session handling returned the expected session-state failure.",
     )
     overall = "pass" if all(item.result == "pass" for item in checks) else "fail"
     return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), overall, tuple(checks))
