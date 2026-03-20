@@ -208,6 +208,36 @@ class InMemoryToolDispatcher:
                     if isinstance(minimum, int) and value < minimum:
                         raise ValueError(f"{key} must be greater than or equal to {minimum}")
 
+        self._validate_composed_schema(schema, arguments)
+
+    def _validate_composed_schema(self, schema: dict, arguments: dict):
+        self._validate_required_combinations("oneOf", schema, arguments)
+        self._validate_required_combinations("anyOf", schema, arguments)
+
+    def _validate_required_combinations(self, keyword: str, schema: dict, arguments: dict):
+        options = schema.get(keyword)
+        if not isinstance(options, list):
+            return
+
+        matched = False
+        for option in options:
+            if not isinstance(option, dict):
+                continue
+            required = option.get("required", [])
+            if not isinstance(required, list):
+                continue
+            if all(field in arguments for field in required):
+                matched = True
+                break
+
+        if not matched:
+            required_sets = []
+            for option in options:
+                if isinstance(option, dict) and isinstance(option.get("required"), list) and option["required"]:
+                    required_sets.append(" + ".join(option["required"]))
+            if required_sets:
+                raise ValueError(f"arguments must satisfy one of the required combinations: {', '.join(required_sets)}")
+
     def call_tool(self, tool_name: str, arguments=None):
         arguments = arguments or {}
         if not isinstance(arguments, dict):

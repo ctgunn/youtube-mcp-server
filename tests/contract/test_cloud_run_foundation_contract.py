@@ -51,12 +51,114 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                             "description": "Retrieve a selected source in consumable content form.",
                             "inputSchema": {
                                 "type": "object",
-                                "properties": {"resourceId": {"type": "string"}},
+                                "properties": {
+                                    "resourceId": {"type": "string", "minLength": 1},
+                                    "uri": {"type": "string", "minLength": 1},
+                                },
+                                "oneOf": [
+                                    {"required": ["resourceId"]},
+                                    {"required": ["uri"]},
+                                    {"required": ["resourceId", "uri"]},
+                                ],
                                 "additionalProperties": False,
                             },
                         }
                     ]
                 },
+                "statusCode": 200,
+            },
+            "search-tool-call": {
+                "jsonrpc": "2.0",
+                "id": "verify-search-tool-call",
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "{\"results\":[{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"title\":\"Remote MCP Research Workflows\",\"position\":1}],\"totalReturned\":1}",
+                            "structuredContent": {
+                                "results": [
+                                    {
+                                        "resourceId": "res_remote_mcp_001",
+                                        "uri": "https://example.com/remote-mcp-research",
+                                        "title": "Remote MCP Research Workflows",
+                                        "position": 1,
+                                    }
+                                ],
+                                "totalReturned": 1,
+                            },
+                        }
+                    ],
+                    "isError": False,
+                },
+                "statusCode": 200,
+            },
+            "fetch-tool-call-resource-id": {
+                "jsonrpc": "2.0",
+                "id": "verify-fetch-by-id",
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"retrievalStatus\":\"complete\"}",
+                            "structuredContent": {
+                                "resourceId": "res_remote_mcp_001",
+                                "uri": "https://example.com/remote-mcp-research",
+                                "retrievalStatus": "complete",
+                            },
+                        }
+                    ],
+                    "isError": False,
+                },
+                "statusCode": 200,
+            },
+            "fetch-tool-call-uri": {
+                "jsonrpc": "2.0",
+                "id": "verify-fetch-by-uri",
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"retrievalStatus\":\"complete\"}",
+                            "structuredContent": {
+                                "resourceId": "res_remote_mcp_001",
+                                "uri": "https://example.com/remote-mcp-research",
+                                "retrievalStatus": "complete",
+                            },
+                        }
+                    ],
+                    "isError": False,
+                },
+                "statusCode": 200,
+            },
+            "fetch-tool-call-both": {
+                "jsonrpc": "2.0",
+                "id": "verify-fetch-by-both",
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"retrievalStatus\":\"complete\"}",
+                            "structuredContent": {
+                                "resourceId": "res_remote_mcp_001",
+                                "uri": "https://example.com/remote-mcp-research",
+                                "retrievalStatus": "complete",
+                            },
+                        }
+                    ],
+                    "isError": False,
+                },
+                "statusCode": 200,
+            },
+            "fetch-tool-call-missing": {
+                "jsonrpc": "2.0",
+                "id": "verify-fetch-missing",
+                "error": {"code": "INVALID_ARGUMENT", "message": "resourceId or uri is required"},
+                "statusCode": 200,
+            },
+            "fetch-tool-call-conflict": {
+                "jsonrpc": "2.0",
+                "id": "verify-fetch-conflict",
+                "error": {"code": "INVALID_ARGUMENT", "message": "resourceId and uri must identify the same source"},
                 "statusCode": 200,
             },
             "server-ping-call": {
@@ -105,6 +207,22 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                 return app_payloads["get-continuation"]
             if payload["method"] == "tools/call" and payload["params"]["name"] == "server_ping":
                 return app_payloads["server-ping-call"]
+            if payload["method"] == "tools/call" and payload["params"]["name"] == "search":
+                return app_payloads["search-tool-call"]
+            if payload["method"] == "tools/call" and payload["params"]["name"] == "fetch":
+                arguments = payload["params"]["arguments"]
+                if not arguments:
+                    return app_payloads["fetch-tool-call-missing"]
+                if arguments == {"resourceId": "res_remote_mcp_001"}:
+                    return app_payloads["fetch-tool-call-resource-id"]
+                if arguments == {"uri": "https://example.com/remote-mcp-research"}:
+                    return app_payloads["fetch-tool-call-uri"]
+                if arguments == {
+                    "resourceId": "res_remote_mcp_001",
+                    "uri": "https://example.com/remote-mcp-research",
+                }:
+                    return app_payloads["fetch-tool-call-both"]
+                return app_payloads["fetch-tool-call-conflict"]
             return app_payloads[payload["method"]]
 
         run = run_hosted_verification(self.revision, requester, evidence_path="artifacts/verify.txt")
@@ -115,6 +233,12 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                 "readiness",
                 "initialize",
                 "list-tools",
+                "search-tool-call",
+                "fetch-tool-call-resource-id",
+                "fetch-tool-call-uri",
+                "fetch-tool-call-both",
+                "fetch-tool-call-missing",
+                "fetch-tool-call-conflict",
                 "session-post-continuation",
                 "session-get-continuation",
                 "session-reconnect",
