@@ -20,9 +20,14 @@ SEARCH_TOOL_SCHEMA = {
 FETCH_TOOL_SCHEMA = {
     "type": "object",
     "properties": {
-        "resourceId": {"type": "string"},
+        "resourceId": {"type": "string", "minLength": 1},
         "uri": {"type": "string", "minLength": 1},
     },
+    "oneOf": [
+        {"required": ["resourceId"]},
+        {"required": ["uri"]},
+        {"required": ["resourceId", "uri"]},
+    ],
     "additionalProperties": False,
 }
 

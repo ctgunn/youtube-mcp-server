@@ -23,6 +23,39 @@ class RetrievalToolUnitTests(unittest.TestCase):
         self.assertIn("fetch", tools)
         self.assertIn("resourceId", tools["fetch"]["inputSchema"]["properties"])
         self.assertIn("uri", tools["fetch"]["inputSchema"]["properties"])
+        self.assertEqual(
+            tools["fetch"]["inputSchema"]["oneOf"],
+            [
+                {"required": ["resourceId"]},
+                {"required": ["uri"]},
+                {"required": ["resourceId", "uri"]},
+            ],
+        )
+        self.assertEqual(tools["fetch"]["inputSchema"]["properties"]["resourceId"]["minLength"], 1)
+        self.assertEqual(tools["fetch"]["inputSchema"]["properties"]["uri"]["minLength"], 1)
+
+    def test_dispatcher_enforces_one_of_schema_combinations(self):
+        dispatcher = InMemoryToolDispatcher(tools=[])
+        dispatcher.register_tool(
+            name="combo_tool",
+            description="Validate oneOf combinations",
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "left": {"type": "string", "minLength": 1},
+                    "right": {"type": "string", "minLength": 1},
+                },
+                "oneOf": [
+                    {"required": ["left"]},
+                    {"required": ["right"]},
+                    {"required": ["left", "right"]},
+                ],
+                "additionalProperties": False,
+            },
+            handler=lambda arguments: arguments,
+        )
+        with self.assertRaisesRegex(ValueError, "required"):
+            dispatcher.call_tool("combo_tool", {})
 
     def test_search_rejects_blank_query(self):
         payload = {
@@ -34,6 +67,17 @@ class RetrievalToolUnitTests(unittest.TestCase):
         response = route_mcp_request(payload, InMemoryToolDispatcher())
         self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
         self.assertIn("query", response["error"]["message"].lower())
+
+    def test_search_rejects_unsupported_field(self):
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-search-extra",
+            "method": "tools/call",
+            "params": {"name": "search", "arguments": {"query": "remote MCP research", "unsupported": True}},
+        }
+        response = route_mcp_request(payload, InMemoryToolDispatcher())
+        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertIn("unsupported field", response["error"]["message"].lower())
 
     def test_search_returns_empty_results_without_error(self):
         payload = {
@@ -84,6 +128,18 @@ class RetrievalToolUnitTests(unittest.TestCase):
         }
         response = route_mcp_request(payload, InMemoryToolDispatcher())
         self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+
+    def test_fetch_accepts_uri_only_request(self):
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-fetch-uri",
+            "method": "tools/call",
+            "params": {"name": "fetch", "arguments": {"uri": "https://example.com/remote-mcp-research"}},
+        }
+        response = route_mcp_request(payload, InMemoryToolDispatcher())
+        structured = response["result"]["content"][0]["structuredContent"]
+        self.assertEqual(structured["resourceId"], "res_remote_mcp_001")
+        self.assertEqual(structured["uri"], "https://example.com/remote-mcp-research")
 
     def test_fetch_returns_content_for_known_resource(self):
         payload = {

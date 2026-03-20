@@ -139,6 +139,22 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
         session_id = self._initialize_session(app)
 
+        list_response = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": session_id,
+            },
+            body=b'{"jsonrpc":"2.0","id":"req-hosted-list","method":"tools/list","params":{}}',
+        )
+        self.assertEqual(list_response.status, 200)
+        list_payload = list_response.payload["result"]["tools"]
+        fetch_tool = [tool for tool in list_payload if tool["name"] == "fetch"][0]
+        self.assertIn("oneOf", fetch_tool["inputSchema"])
+
         search_response = execute_hosted_request(
             app,
             method="POST",
@@ -182,6 +198,27 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         fetch_body = fetch_response.body.decode("utf-8")
         self.assertEqual(fetch_response.status, 200)
         self.assertIn('"retrievalStatus": "complete"', fetch_body)
+
+        fetch_by_uri_response = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": session_id,
+            },
+            body=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "req-hosted-fetch-uri",
+                    "method": "tools/call",
+                    "params": {"name": "fetch", "arguments": {"uri": "https://example.com/remote-mcp-research"}},
+                }
+            ).encode("utf-8"),
+        )
+        self.assertEqual(fetch_by_uri_response.status, 200)
+        self.assertIn('"resourceId": "res_remote_mcp_001"', fetch_by_uri_response.body.decode("utf-8"))
 
     def test_migrated_runtime_transport_preserves_mcp_route_execution(self):
         transport = self._runtime_transport()

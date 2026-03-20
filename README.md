@@ -207,6 +207,14 @@ tools used in earlier foundation slices:
 }
 ```
 
+For retrieval-contract completeness work, hosted discovery is expected to be
+strong enough that clients can build:
+
+- a valid `search` request from the published `query`, `pageSize`, and `cursor` schema
+- a valid `fetch` request by `resourceId`
+- a valid `fetch` request by `uri`
+- a valid `fetch` request by matching `resourceId` plus `uri`
+
 Hosted session durability verification expects the hosted tool catalog to
 remain discoverable and then validates session continuation through the same
 protected MCP entrypoint.
@@ -220,6 +228,28 @@ curl -i \
   -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
   -H 'MCP-Session-Id: SESSION_ID' \
   -d '{"jsonrpc":"2.0","id":"req-search","method":"tools/call","params":{"name":"search","arguments":{"query":"remote MCP research","pageSize":1}}}' \
+  https://YOUR_SERVICE_URL/mcp
+```
+
+Representative hosted `fetch` examples derived from discovery:
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
+  -H 'MCP-Session-Id: SESSION_ID' \
+  -d '{"jsonrpc":"2.0","id":"req-fetch-uri","method":"tools/call","params":{"name":"fetch","arguments":{"uri":"https://example.com/remote-mcp-research"}}}' \
+  https://YOUR_SERVICE_URL/mcp
+```
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
+  -H 'MCP-Session-Id: SESSION_ID' \
+  -d '{"jsonrpc":"2.0","id":"req-fetch-both","method":"tools/call","params":{"name":"fetch","arguments":{"resourceId":"res_remote_mcp_001","uri":"https://example.com/remote-mcp-research"}}}' \
   https://YOUR_SERVICE_URL/mcp
 ```
 
@@ -272,6 +302,12 @@ The verification output must record pass/fail results for:
 - `readiness`
 - `initialize`
 - `list-tools`
+- `search-tool-call`
+- `fetch-tool-call-resource-id`
+- `fetch-tool-call-uri`
+- `fetch-tool-call-both`
+- `fetch-tool-call-missing`
+- `fetch-tool-call-conflict`
 - `session-post-continuation`
 - `session-get-continuation`
 - `session-reconnect`
