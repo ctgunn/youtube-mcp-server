@@ -108,6 +108,20 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         self.assertEqual(empty_content["results"], [])
         self.assertEqual(empty_content["totalReturned"], 0)
 
+        invalid = app.handle(
+            "/mcp",
+            {
+                "jsonrpc": "2.0",
+                "id": "req-search-invalid-extra",
+                "method": "tools/call",
+                "params": {
+                    "name": "search",
+                    "arguments": {"query": "remote MCP research", "pageSize": 1, "unsupported": True},
+                },
+            },
+        )
+        self.assertEqual(invalid["error"]["code"], "INVALID_ARGUMENT")
+
     def test_search_to_fetch_handoff_and_missing_fetch(self):
         os.environ["MCP_ENVIRONMENT"] = "dev"
         app = create_app()
@@ -137,6 +151,17 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         self.assertEqual(fetch_content["uri"], result["uri"])
         self.assertIn("content", fetch_content)
 
+        fetch_by_uri = app.handle(
+            "/mcp",
+            {
+                "jsonrpc": "2.0",
+                "id": "req-fetch-uri",
+                "method": "tools/call",
+                "params": {"name": "fetch", "arguments": {"uri": result["uri"]}},
+            },
+        )
+        self.assertEqual(fetch_by_uri["result"]["content"][0]["structuredContent"]["resourceId"], result["resourceId"])
+
         missing = app.handle(
             "/mcp",
             {
@@ -147,6 +172,20 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
             },
         )
         self.assertEqual(missing["error"]["code"], "RESOURCE_NOT_FOUND")
+
+        conflict = app.handle(
+            "/mcp",
+            {
+                "jsonrpc": "2.0",
+                "id": "req-fetch-3",
+                "method": "tools/call",
+                "params": {
+                    "name": "fetch",
+                    "arguments": {"resourceId": result["resourceId"], "uri": "https://example.com/not-the-same"},
+                },
+            },
+        )
+        self.assertEqual(conflict["error"]["code"], "INVALID_ARGUMENT")
 
     def test_server_info_configured_and_fallback(self):
         configured = MCPHTTPTransport(

@@ -111,7 +111,7 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
             browser_origin="http://localhost:3000",
         )
         self.assertEqual(run.overall_result, "pass")
-        self.assertEqual(len(run.checks), 12)
+        self.assertEqual(len(run.checks), 18)
         self.assertTrue(all(check.result == "pass" for check in run.checks))
 
     def test_not_ready_app_fails_before_mcp_checks(self):
@@ -133,6 +133,12 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         self.assertIn("revisionName: rev-001", content)
         self.assertIn("checkName: liveness", content)
         self.assertIn("checkName: session-post-continuation", content)
+        self.assertIn("checkName: search-tool-call", content)
+        self.assertIn("checkName: fetch-tool-call-resource-id", content)
+        self.assertIn("checkName: fetch-tool-call-uri", content)
+        self.assertIn("checkName: fetch-tool-call-both", content)
+        self.assertIn("checkName: fetch-tool-call-missing", content)
+        self.assertIn("checkName: fetch-tool-call-conflict", content)
         self.assertIn("checkName: browser-preflight-approved", content)
         self.assertIn("checkName: browser-origin-denied", content)
         self.assertIn("checkName: session-reconnect", content)

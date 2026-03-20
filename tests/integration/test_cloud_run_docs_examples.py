@@ -22,6 +22,10 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         self.assertIn('"name":"search"', content)
         self.assertIn('"name":"fetch"', content)
         self.assertIn("remote MCP research", content)
+        self.assertIn("req-fetch-uri", content)
+        self.assertIn("req-fetch-both", content)
+        self.assertIn("resourceId", content)
+        self.assertIn("uri", content)
 
     def test_env_example_contains_hosted_deploy_inputs(self):
         content = Path(".env.example").read_text()

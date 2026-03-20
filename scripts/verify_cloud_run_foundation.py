@@ -178,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
                 "overallResult": run.overall_result,
                 "runtimeIdentity": revision.runtime_identity,
                 "evidenceFile": str(evidence_path),
+                "checkNames": [check.check_name for check in run.checks],
             }
         )
     )
