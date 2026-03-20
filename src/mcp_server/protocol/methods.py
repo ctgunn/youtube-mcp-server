@@ -109,7 +109,7 @@ def _handle_call(request_id, params, dispatcher):
     except RetrievalError as exc:
         return error_response(exc.mcp_code, str(exc), request_id=request_id, details=exc.details)
     except ValueError as exc:
-        return error_response("INVALID_ARGUMENT", str(exc), request_id=request_id)
+        return error_response("INVALID_ARGUMENT", str(exc), request_id=request_id, details={"toolName": tool_name})
     except Exception:
         return error_response("INTERNAL_ERROR", "Unexpected tool execution error.", request_id=request_id)
 
