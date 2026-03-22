@@ -42,6 +42,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Error codes are aligned to the expected JSON-RPC / MCP conventions used by downstream clients.
 - Infrastructure required for the hosted platform is reproducible through versioned Infrastructure as Code rather than manual setup alone.
 - Infrastructure layout is organized so shared platform capabilities can be reproduced across supported cloud providers with provider-specific adapters where necessary.
+- Local execution remains a supported first-class mode for development, verification, and debugging without requiring cloud infrastructure provisioning.
 - Config, logging, error handling, containerization, and CI checks in place.
 
 ### 5.2 Minimum Server Features
@@ -99,6 +100,8 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - `.env.example` included with documented variables.
 - README section: local startup + MCP client connection instructions.
 - Local verification path for the selected remote MCP transport documented.
+- Local execution MUST remain possible without provisioning cloud infrastructure first.
+- If hosted-like local verification requires supporting dependencies such as a durable session backend, that path MUST be reproducible and documented separately from the minimal local run path.
 
 ### 5.8 Cloud Run Standup Requirements (Phase 0)
 - Build container image for server.
@@ -127,6 +130,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Retrieval tool schemas are complete enough for clients to construct valid calls from discovery output alone.
 - Error codes follow the protocol conventions expected by supported MCP consumers.
 - Hosted infrastructure dependencies are reproducible from versioned IaC for the supported deployment path.
+- Local runtime and verification workflows remain supported after infrastructure automation is introduced.
 - Structured logs appear in Cloud Logging for each request.
 - Health/readiness endpoints pass in Cloud Run.
 - CI checks pass (lint/typecheck/tests).
