@@ -99,7 +99,8 @@ class DeepResearchToolsContractTests(unittest.TestCase):
                 "params": {"name": "search", "arguments": {"query": ""}},
             },
         )
-        self.assertEqual(invalid_search["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(invalid_search["error"]["code"], -32602)
+        self.assertEqual(invalid_search["error"]["data"]["category"], "invalid_argument")
 
         missing_fetch = self.app.handle(
             "/mcp",
@@ -110,7 +111,7 @@ class DeepResearchToolsContractTests(unittest.TestCase):
                 "params": {"name": "fetch", "arguments": {"resourceId": "missing-resource"}},
             },
         )
-        self.assertEqual(missing_fetch["error"]["code"], "RESOURCE_NOT_FOUND")
+        self.assertEqual(missing_fetch["error"]["code"], -32001)
         self.assertEqual(missing_fetch["error"]["data"]["category"], "unavailable_source")
 
         conflicting_fetch = self.app.handle(
@@ -125,7 +126,8 @@ class DeepResearchToolsContractTests(unittest.TestCase):
                 },
             },
         )
-        self.assertEqual(conflicting_fetch["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(conflicting_fetch["error"]["code"], -32602)
+        self.assertEqual(conflicting_fetch["error"]["data"]["category"], "invalid_argument")
 
     def test_hosted_contract_exposes_search_and_fetch_on_protected_mcp_route(self):
         session_id = self._initialize_hosted_session()

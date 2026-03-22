@@ -36,7 +36,8 @@ class HostedMCPSecurityContractTests(unittest.TestCase):
             body=self.initialize_body,
         )
         self.assertEqual(response.status, 401)
-        self.assertEqual(response.payload["error"]["code"], "UNAUTHENTICATED")
+        self.assertEqual(response.payload["error"]["code"], -32002)
+        self.assertEqual(response.payload["error"]["data"]["category"], "unauthenticated")
         self.assertNotIn("MCP-Session-Id", response.headers)
 
     def test_disallowed_browser_origin_is_forbidden(self):
@@ -53,7 +54,8 @@ class HostedMCPSecurityContractTests(unittest.TestCase):
             body=self.initialize_body,
         )
         self.assertEqual(response.status, 403)
-        self.assertEqual(response.payload["error"]["code"], "ORIGIN_DENIED")
+        self.assertEqual(response.payload["error"]["code"], -32003)
+        self.assertEqual(response.payload["error"]["data"]["category"], "origin_denied")
 
     def test_authorized_initialize_and_stream_access_succeed(self):
         init = execute_hosted_request(
@@ -140,7 +142,8 @@ class HostedMCPSecurityContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(response.status, 403)
-        self.assertEqual(response.payload["error"]["code"], "ORIGIN_DENIED")
+        self.assertEqual(response.payload["error"]["code"], -32003)
+        self.assertEqual(response.payload["error"]["data"]["category"], "origin_denied")
 
     def test_unsupported_browser_preflight_patterns_are_explicit(self):
         wrong_method = execute_hosted_request(
@@ -153,7 +156,8 @@ class HostedMCPSecurityContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(wrong_method.status, 405)
-        self.assertEqual(wrong_method.payload["error"]["code"], "UNSUPPORTED_BROWSER_METHOD")
+        self.assertEqual(wrong_method.payload["error"]["code"], -32601)
+        self.assertEqual(wrong_method.payload["error"]["data"]["category"], "unsupported_browser_method")
 
         wrong_route = execute_hosted_request(
             self.app,
@@ -165,7 +169,8 @@ class HostedMCPSecurityContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(wrong_route.status, 405)
-        self.assertEqual(wrong_route.payload["error"]["code"], "UNSUPPORTED_BROWSER_ROUTE")
+        self.assertEqual(wrong_route.payload["error"]["code"], -32601)
+        self.assertEqual(wrong_route.payload["error"]["data"]["category"], "unsupported_browser_route")
 
 
 if __name__ == "__main__":

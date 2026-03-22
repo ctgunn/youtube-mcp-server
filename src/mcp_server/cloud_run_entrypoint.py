@@ -15,7 +15,7 @@ from mcp_server.app import create_app
 from mcp_server.config import load_hosted_runtime_settings
 from mcp_server.health import RuntimeLifecycleState
 from mcp_server.observability import RequestContext, generate_request_id
-from mcp_server.protocol.envelope import error_response
+from mcp_server.protocol.envelope import error_response_for_category
 from mcp_server.security import (
     browser_preflight_headers,
     browser_response_headers,
@@ -153,6 +153,21 @@ def _require_accept(request_headers: Mapping[str, str], required: set[str]) -> b
     return required.issubset(accept_types)
 
 
+def _preflight_error_category(decision_category: str) -> str:
+    return {
+        "malformed_origin": "malformed_origin",
+        "malformed_security_input": "malformed_security_input",
+        "unsupported_browser_headers": "unsupported_browser_headers",
+        "unsupported_browser_method": "unsupported_browser_method",
+        "unsupported_browser_route": "unsupported_browser_route",
+        "origin_denied": "origin_denied",
+    }.get(decision_category, "forbidden")
+
+
+def _request_error(category: str, message: str, *, request_id=None, details: Mapping[str, Any] | None = None) -> dict:
+    return error_response_for_category(category, message, request_id=request_id, details=dict(details or {}))
+
+
 def execute_hosted_request(
     transport,
     *,
@@ -186,8 +201,8 @@ def execute_hosted_request(
             return _empty_result(preflight.status_code, extra_headers=browser_preflight_headers(preflight, security_settings))
         return _json_result(
             preflight.status_code,
-            error_response(
-                preflight.decision_category.upper(),
+            _request_error(
+                _preflight_error_category(preflight.decision_category),
                 {
                     "origin_denied": "Origin is not allowed.",
                     "malformed_origin": "Security headers are malformed.",
@@ -215,8 +230,8 @@ def execute_hosted_request(
         return _json_result(hosted_status_code(classification, payload), payload)
 
     if classification.outcome_class == "method_not_allowed":
-        payload = error_response(
-            "METHOD_NOT_ALLOWED",
+        payload = _request_error(
+            "method_not_allowed",
             "HTTP method is not allowed for this path.",
             details={"method": method.upper(), "path": path},
         )
@@ -259,8 +274,8 @@ def execute_hosted_request(
         }.get(security_decision.decision_category, "Hosted request is not allowed.")
         return _json_result(
             hosted_security_status_code(security_decision.decision_category),
-            error_response(
-                security_decision.decision_category.upper(),
+            _request_error(
+                security_decision.decision_category,
                 message,
                 request_id=security_decision.request_id,
                 details={"category": security_decision.decision_category},
@@ -272,14 +287,14 @@ def execute_hosted_request(
         if not _require_accept(request_headers, {SSE_CONTENT_TYPE}):
             return _json_result(
                 400,
-                error_response("INVALID_ARGUMENT", "Accept must include text/event-stream."),
+                _request_error("invalid_argument", "Accept must include text/event-stream."),
                 extra_headers=allowed_browser_headers,
             )
         session_id = request_headers.get(MCP_SESSION_ID_HEADER.lower())
         if not session_id:
             return _json_result(
                 400,
-                error_response("INVALID_ARGUMENT", "MCP-Session-Id is required."),
+                _request_error("invalid_argument", "MCP-Session-Id is required."),
                 extra_headers=allowed_browser_headers,
             )
         try:
@@ -287,7 +302,7 @@ def execute_hosted_request(
             if protocol_version not in SUPPORTED_MCP_PROTOCOL_VERSIONS:
                 return _json_result(
                     400,
-                    error_response("INVALID_ARGUMENT", "Unsupported MCP protocol version."),
+                    _request_error("invalid_argument", "Unsupported MCP protocol version."),
                     extra_headers=allowed_browser_headers,
                 )
             transport.stream_manager.touch_session(session_id)
@@ -306,7 +321,7 @@ def execute_hosted_request(
             )
             return _json_result(
                 404,
-                error_response("RESOURCE_NOT_FOUND", "Session not found.", details={"sessionId": session_id}),
+                _request_error("session_not_found", "Session not found.", details={"sessionId": session_id}),
                 extra_headers=allowed_browser_headers,
             )
         except ExpiredSessionError:
@@ -321,7 +336,7 @@ def execute_hosted_request(
             )
             return _json_result(
                 404,
-                error_response("RESOURCE_NOT_FOUND", "Session expired.", details={"sessionId": session_id, "category": "expired_session"}),
+                _request_error("expired_session", "Session expired.", details={"sessionId": session_id}),
                 extra_headers=allowed_browser_headers,
             )
 
@@ -339,8 +354,8 @@ def execute_hosted_request(
             )
             return _json_result(
                 409,
-                error_response(
-                    "INVALID_ARGUMENT",
+                _request_error(
+                    "replay_unavailable",
                     "Replay history is no longer available for this session.",
                     details={"sessionId": session_id, "category": "replay_unavailable"},
                 ),
@@ -363,13 +378,13 @@ def execute_hosted_request(
     if not _require_accept(request_headers, {STREAM_JSON_CONTENT_TYPE, SSE_CONTENT_TYPE}):
         return _json_result(
             400,
-            error_response("INVALID_ARGUMENT", "Accept must include application/json and text/event-stream."),
+            _request_error("invalid_argument", "Accept must include application/json and text/event-stream."),
             extra_headers=allowed_browser_headers,
         )
 
     if classification.outcome_class == "unsupported_media_type":
-        payload = error_response(
-            "UNSUPPORTED_MEDIA_TYPE",
+        payload = _request_error(
+            "unsupported_media_type",
             "Content-Type must be application/json.",
             details={"contentType": request_headers.get("content-type")},
         )
@@ -387,7 +402,7 @@ def execute_hosted_request(
         )
         return _json_result(
             hosted_status_code(malformed),
-            error_response("INVALID_ARGUMENT", "payload must be valid JSON"),
+            _request_error("invalid_json", "payload must be valid JSON"),
             extra_headers=allowed_browser_headers,
         )
 
@@ -395,7 +410,7 @@ def execute_hosted_request(
     if protocol_version not in SUPPORTED_MCP_PROTOCOL_VERSIONS:
         return _json_result(
             400,
-            error_response("INVALID_ARGUMENT", "Unsupported MCP protocol version."),
+            _request_error("invalid_argument", "Unsupported MCP protocol version."),
             extra_headers=allowed_browser_headers,
         )
 
@@ -423,7 +438,7 @@ def execute_hosted_request(
     if not session_id:
         return _json_result(
             400,
-            error_response("INVALID_ARGUMENT", "MCP-Session-Id is required."),
+            _request_error("invalid_argument", "MCP-Session-Id is required."),
             extra_headers=allowed_browser_headers,
         )
     try:
@@ -443,7 +458,7 @@ def execute_hosted_request(
         )
         return _json_result(
             404,
-            error_response("RESOURCE_NOT_FOUND", "Session not found.", details={"sessionId": session_id}),
+            _request_error("session_not_found", "Session not found.", details={"sessionId": session_id}),
             extra_headers=allowed_browser_headers,
         )
     except ExpiredSessionError:
@@ -458,7 +473,7 @@ def execute_hosted_request(
         )
         return _json_result(
             404,
-            error_response("RESOURCE_NOT_FOUND", "Session expired.", details={"sessionId": session_id, "category": "expired_session"}),
+            _request_error("expired_session", "Session expired.", details={"sessionId": session_id}),
             extra_headers=allowed_browser_headers,
         )
 

@@ -128,7 +128,9 @@ You **MUST** consider the user input before proceeding (if not empty).
 9. Completion validation:
    - Verify all required tasks are completed
    - Check that implemented features match the original specification
-   - Validate that tests pass and coverage meets requirements
+   - Validate that the full repository test suite passes after the final code changes; targeted test runs are insufficient for completion
+   - If any test fails in that full-suite run, fix the failure before considering the functionality complete
+   - Validate that coverage meets requirements
    - Confirm the implementation follows the technical plan
    - Report final status with summary of completed work
 

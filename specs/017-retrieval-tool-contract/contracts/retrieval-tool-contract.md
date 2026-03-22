@@ -140,8 +140,8 @@ Representative categories:
 
 | Category | When It Applies | Expected MCP Error Code Family |
 |----------|-----------------|--------------------------------|
-| `invalid_input` | Missing required `search` query, malformed retrieval fields, missing `fetch` identifiers, or conflicting `fetch` identifiers | `INVALID_ARGUMENT` |
-| `unavailable_source` | `fetch` identifiers are well-formed but do not resolve to an available source | `RESOURCE_NOT_FOUND` or equivalent retrieval-safe code |
+| `invalid_input` | Missing required `search` query, malformed retrieval fields, missing `fetch` identifiers, or conflicting `fetch` identifiers | Numeric invalid-argument code (`-32602`) |
+| `unavailable_source` | `fetch` identifiers are well-formed but do not resolve to an available source | Numeric resource-missing code (`-32001`) or equivalent retrieval-safe numeric code |
 
 Rules:
 - Invalid retrieval shapes MUST fail with stable structured errors.

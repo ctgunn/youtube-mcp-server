@@ -35,8 +35,9 @@
 - [ ] Plan includes explicit Red-Green-Refactor steps for each phase and user story
 - [ ] Red phase identifies failing tests before implementation tasks begin
 - [ ] Green phase limits implementation to minimum code required for passing tests
-- [ ] Refactor phase includes cleanup tasks with full regression test re-run
+- [ ] Refactor phase includes cleanup tasks with a full repository test-suite re-run
 - [ ] Integration and regression coverage strategy is documented
+- [ ] Plan names the command that proves the full repository test suite passes before completion
 - [ ] Observability, security, and simplicity constraints are addressed
 
 ## Project Structure
