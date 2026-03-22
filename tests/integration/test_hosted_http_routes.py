@@ -67,7 +67,8 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
             body=b'{"id":"req-bad"',
         )
         self.assertEqual(malformed.status, 400)
-        self.assertEqual(malformed.payload["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(malformed.payload["error"]["code"], -32600)
+        self.assertEqual(malformed.payload["error"]["data"]["category"], "invalid_json")
 
         unsupported_media_type = execute_hosted_request(
             app,
@@ -77,18 +78,21 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
             body=b"plain-text",
         )
         self.assertEqual(unsupported_media_type.status, 415)
-        self.assertEqual(unsupported_media_type.payload["error"]["code"], "UNSUPPORTED_MEDIA_TYPE")
+        self.assertEqual(unsupported_media_type.payload["error"]["code"], -32602)
+        self.assertEqual(unsupported_media_type.payload["error"]["data"]["category"], "unsupported_media_type")
 
     def test_unsupported_method_and_unknown_path_use_distinct_statuses(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
 
         wrong_method = execute_hosted_request(app, method="DELETE", path="/mcp")
         self.assertEqual(wrong_method.status, 405)
-        self.assertEqual(wrong_method.payload["error"]["code"], "METHOD_NOT_ALLOWED")
+        self.assertEqual(wrong_method.payload["error"]["code"], -32601)
+        self.assertEqual(wrong_method.payload["error"]["data"]["category"], "method_not_allowed")
 
         missing_path = execute_hosted_request(app, method="GET", path="/missing")
         self.assertEqual(missing_path.status, 404)
-        self.assertEqual(missing_path.payload["error"]["code"], "RESOURCE_NOT_FOUND")
+        self.assertEqual(missing_path.payload["error"]["code"], -32001)
+        self.assertEqual(missing_path.payload["error"]["data"]["category"], "path_not_found")
 
     def test_hosted_mcp_initialize_and_session_list_use_json_protocol_result(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
@@ -256,7 +260,8 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
             body=b'{"jsonrpc":"2.0","id":"req-missing-session","method":"tools/list","params":{}}',
         )
         self.assertEqual(response.status, 404)
-        self.assertEqual(response.payload["error"]["code"], "RESOURCE_NOT_FOUND")
+        self.assertEqual(response.payload["error"]["code"], -32001)
+        self.assertEqual(response.payload["error"]["data"]["category"], "session_not_found")
 
     def test_browser_preflight_is_supported_for_mcp(self):
         app = create_app(

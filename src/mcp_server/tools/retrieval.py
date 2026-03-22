@@ -47,11 +47,10 @@ class RetrievalSource:
 class RetrievalError(Exception):
     """Structured retrieval error for MCP-safe mapping."""
 
-    def __init__(self, mcp_code: str, message: str, *, category: str, details: dict[str, Any] | None = None):
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None):
         super().__init__(message)
-        self.mcp_code = mcp_code
         self.category = category
-        self.details = {"category": category, **(details or {})}
+        self.details = details or {}
 
 
 SAMPLE_SOURCES: tuple[RetrievalSource, ...] = (
@@ -195,7 +194,6 @@ def fetch_tool(arguments: dict[str, Any]) -> dict[str, Any]:
     source = source_from_id or source_from_uri
     if source is None:
         raise RetrievalError(
-            "RESOURCE_NOT_FOUND",
             "Requested source is not available.",
             category="unavailable_source",
             details={"resourceId": resource_id, "uri": uri},

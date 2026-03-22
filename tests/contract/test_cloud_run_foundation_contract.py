@@ -152,13 +152,13 @@ class CloudRunFoundationContractTests(unittest.TestCase):
             "fetch-tool-call-missing": {
                 "jsonrpc": "2.0",
                 "id": "verify-fetch-missing",
-                "error": {"code": "INVALID_ARGUMENT", "message": "resourceId or uri is required"},
+                "error": {"code": -32602, "message": "resourceId or uri is required", "data": {"category": "invalid_argument"}},
                 "statusCode": 200,
             },
             "fetch-tool-call-conflict": {
                 "jsonrpc": "2.0",
                 "id": "verify-fetch-conflict",
-                "error": {"code": "INVALID_ARGUMENT", "message": "resourceId and uri must identify the same source"},
+                "error": {"code": -32602, "message": "resourceId and uri must identify the same source", "data": {"category": "invalid_argument"}},
                 "statusCode": 200,
             },
             "server-ping-call": {
@@ -192,7 +192,7 @@ class CloudRunFoundationContractTests(unittest.TestCase):
             },
             "invalid-session": {
                 "statusCode": 404,
-                "error": {"code": "RESOURCE_NOT_FOUND", "details": {"category": "invalid_session"}},
+                "error": {"code": -32001, "data": {"category": "session_not_found"}},
             },
         }
 

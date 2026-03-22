@@ -2,7 +2,8 @@
 """Hosted verification CLI for the foundation Cloud Run deployment.
 
 The verifier preserves the hosted streamable transport while validating
-protocol-native MCP request and response bodies.
+protocol-native MCP request and response bodies, including numeric MCP error
+codes for covered failure paths.
 """
 
 from __future__ import annotations
@@ -176,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(
             {
                 "overallResult": run.overall_result,
+                "errorCodeContract": "numeric",
                 "runtimeIdentity": revision.runtime_identity,
                 "evidenceFile": str(evidence_path),
                 "checkNames": [check.check_name for check in run.checks],

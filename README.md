@@ -13,7 +13,9 @@ python3 -m pip install -e .
 
 Feature specification, planning, and implementation in this repository follow a
 mandatory Red-Green-Refactor TDD workflow. Every feature plan and task list
-must include explicit failing-test, minimal-pass, and refactor phases.
+must include explicit failing-test, minimal-pass, and refactor phases. Work is
+not complete until the full repository test suite has been run after the final
+code changes and every test is passing.
 
 ## Runtime configuration profiles
 
@@ -140,7 +142,9 @@ older bare `POST /mcp` flow. It performs `initialize`, captures the returned
 `MCP-Session-Id`, reuses that session for subsequent `POST` and `GET` MCP
 requests, validates reconnect behavior with `Last-Event-ID`, and accepts both
 `application/json` and `text/event-stream` responses as required by the hosted
-transport contract.
+transport contract. Covered hosted MCP failures now use numeric `error.code`
+values and stable `error.data.category` details rather than legacy string-style
+top-level error codes.
 
 Manual streamable MCP verification examples:
 
@@ -183,6 +187,39 @@ Successful hosted JSON responses now use protocol-native MCP bodies:
       }
     ],
     "isError": false
+  }
+}
+```
+
+Representative hosted failure responses now use numeric MCP error codes:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "req-invalid",
+  "error": {
+    "code": -32602,
+    "message": "arguments must be an object",
+    "data": {
+      "category": "invalid_argument"
+    }
+  }
+}
+```
+
+Representative hosted resource-missing failures use the shared numeric mapping:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "req-missing-tool",
+  "error": {
+    "code": -32001,
+    "message": "Tool not found.",
+    "data": {
+      "category": "unknown_tool",
+      "toolName": "missing_tool"
+    }
   }
 }
 ```

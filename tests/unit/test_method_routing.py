@@ -18,13 +18,15 @@ class MethodRoutingTests(unittest.TestCase):
         response = route_mcp_request(payload, self.dispatcher)
         self.assertEqual(response["jsonrpc"], "2.0")
         self.assertEqual(response["id"], "req-1")
-        self.assertEqual(response["error"]["code"], "METHOD_NOT_SUPPORTED")
+        self.assertEqual(response["error"]["code"], -32601)
+        self.assertEqual(response["error"]["data"]["category"], "unsupported_method")
 
     def test_non_object_params_returns_invalid_argument(self):
         payload = {"jsonrpc": "2.0", "id": "req-2", "method": "initialize", "params": "bad"}
         response = route_mcp_request(payload, self.dispatcher)
         self.assertEqual(response["jsonrpc"], "2.0")
-        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(response["error"]["code"], -32600)
+        self.assertEqual(response["error"]["data"]["category"], "malformed_request")
 
     def test_registered_tool_dispatch_success(self):
         dispatcher = InMemoryToolDispatcher(tools=[])

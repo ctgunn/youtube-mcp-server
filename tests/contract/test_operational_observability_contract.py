@@ -58,11 +58,13 @@ class OperationalObservabilityContractTests(unittest.TestCase):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})
         missing = execute_hosted_request(app, method="GET", path="/missing")
         self.assertEqual(missing.status, 404)
-        self.assertEqual(missing.payload["error"]["code"], "RESOURCE_NOT_FOUND")
+        self.assertEqual(missing.payload["error"]["code"], -32001)
+        self.assertEqual(missing.payload["error"]["data"]["category"], "path_not_found")
 
         wrong_method = execute_hosted_request(app, method="POST", path="/health")
         self.assertEqual(wrong_method.status, 405)
-        self.assertEqual(wrong_method.payload["error"]["code"], "METHOD_NOT_ALLOWED")
+        self.assertEqual(wrong_method.payload["error"]["code"], -32601)
+        self.assertEqual(wrong_method.payload["error"]["data"]["category"], "method_not_allowed")
 
     def test_error_shape_for_invalid_method(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev"})

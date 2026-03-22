@@ -31,7 +31,8 @@ class InitializeMethodTests(unittest.TestCase):
         response = route_mcp_request(payload, self.dispatcher)
         self.assertEqual(response["jsonrpc"], "2.0")
         self.assertEqual(response["id"], "req-init-2")
-        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(response["error"]["data"]["category"], "invalid_argument")
 
 
 if __name__ == "__main__":

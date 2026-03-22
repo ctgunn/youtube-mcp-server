@@ -50,7 +50,8 @@ class StreamableHTTPTransportIntegrationTests(unittest.TestCase):
             body=b'{"jsonrpc":"2.0","id":"req-tools","method":"tools/list","params":{}}',
         )
         self.assertEqual(invalid_session.status, 404)
-        self.assertEqual(invalid_session.payload["error"]["code"], "RESOURCE_NOT_FOUND")
+        self.assertEqual(invalid_session.payload["error"]["code"], -32001)
+        self.assertEqual(invalid_session.payload["error"]["data"]["category"], "session_not_found")
 
         invalid_accept = execute_hosted_request(
             self.app,
@@ -60,7 +61,8 @@ class StreamableHTTPTransportIntegrationTests(unittest.TestCase):
             body=b'{"jsonrpc":"2.0","id":"req-tools","method":"tools/list","params":{}}',
         )
         self.assertEqual(invalid_accept.status, 400)
-        self.assertEqual(invalid_accept.payload["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(invalid_accept.payload["error"]["code"], -32602)
+        self.assertEqual(invalid_accept.payload["error"]["data"]["category"], "invalid_argument")
 
     def test_tools_call_streams_over_sse(self):
         session_id = self._initialize_session()
