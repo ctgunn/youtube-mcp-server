@@ -68,7 +68,7 @@ The tasks.md should be immediately executable - each task must be specific enoug
 
 **CRITICAL**: Tasks MUST be organized by user story to enable independent implementation and testing.
 
-**Tests are MANDATORY**: Generate test tasks for every user story and for foundational behavior that can affect user-facing outcomes.
+**Tests are MANDATORY**: Generate test tasks for every user story and for foundational behavior that can affect user-facing outcomes. Include an explicit final task to run the full repository test suite and fix any failures before the feature is considered complete.
 
 ### Checklist Format (REQUIRED)
 

@@ -5,7 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.protocol.envelope import error_response, success_response
+from mcp_server.protocol.envelope import error_response, error_response_for_category, success_response
 from mcp_server.protocol.methods import route_mcp_request
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 
@@ -22,24 +22,23 @@ class EnvelopeContractTests(unittest.TestCase):
 
     def test_error_response_shape_and_sanitization(self):
         message = "RuntimeError: boom\nTraceback (most recent call last)"
-        response = error_response(
-            "INTERNAL_ERROR", message, request_id="req-2", details={"k": "v"}
-        )
+        response = error_response(-32603, message, request_id="req-2", details={"k": "v"})
         self.assertEqual(response["jsonrpc"], "2.0")
         self.assertEqual(response["id"], "req-2")
-        self.assertEqual(response["error"]["code"], "INTERNAL_ERROR")
+        self.assertEqual(response["error"]["code"], -32603)
         self.assertIn("boom", response["error"]["message"])
         self.assertNotIn("Traceback", response["error"]["message"])
         self.assertEqual(response["error"]["data"], {"k": "v"})
 
     def test_error_response_allows_tool_detail_payload(self):
-        response = error_response(
-            "RESOURCE_NOT_FOUND",
+        response = error_response_for_category(
+            "unknown_tool",
             "Tool not found.",
             request_id="req-3",
             details={"toolName": "missing"},
         )
-        self.assertEqual(response["error"]["data"], {"toolName": "missing"})
+        self.assertEqual(response["error"]["code"], -32001)
+        self.assertEqual(response["error"]["data"], {"category": "unknown_tool", "toolName": "missing"})
 
     def test_error_response_does_not_expose_secret_values(self):
         response = error_response(
@@ -53,7 +52,7 @@ class EnvelopeContractTests(unittest.TestCase):
         self.assertNotIn("secret-value", rendered)
 
     def test_error_response_always_contains_code_message_data_keys(self):
-        response = error_response("INVALID_ARGUMENT", "bad request")
+        response = error_response(-32602, "bad request")
         self.assertEqual(set(response["error"].keys()), {"code", "message", "data"})
         self.assertIsNone(response["error"]["data"])
 
@@ -89,7 +88,8 @@ class EnvelopeContractTests(unittest.TestCase):
         self.assertEqual(failure["jsonrpc"], "2.0")
         self.assertEqual(failure["id"], "req-5")
         self.assertIn("error", failure)
-        self.assertEqual(failure["error"]["code"], "RESOURCE_NOT_FOUND")
+        self.assertEqual(failure["error"]["code"], -32001)
+        self.assertEqual(failure["error"]["data"]["category"], "unknown_tool")
 
 
 if __name__ == "__main__":

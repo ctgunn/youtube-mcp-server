@@ -37,7 +37,8 @@ class MCPTransportContractTests(unittest.TestCase):
         payload = {"jsonrpc": "2.0", "id": "req-c2", "method": "initialize", "params": {}}
         response = self.app.handle("/mcp", payload)
         self.assertEqual(response["jsonrpc"], "2.0")
-        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(response["error"]["data"]["category"], "invalid_argument")
 
     def test_tools_list_contract(self):
         payload = {"jsonrpc": "2.0", "id": "req-c3", "method": "tools/list", "params": {}}
@@ -68,8 +69,8 @@ class MCPTransportContractTests(unittest.TestCase):
         }
         fail_response = self.app.handle("/mcp", fail_payload)
         self.assertEqual(fail_response["jsonrpc"], "2.0")
-        self.assertEqual(fail_response["error"]["code"], "RESOURCE_NOT_FOUND")
-        self.assertEqual(fail_response["error"]["data"], {"toolName": "missing"})
+        self.assertEqual(fail_response["error"]["code"], -32001)
+        self.assertEqual(fail_response["error"]["data"], {"category": "unknown_tool", "toolName": "missing"})
         self.assertIn("timestamp", result_payload)
 
     def test_server_info_contract(self):
@@ -125,7 +126,8 @@ class MCPTransportContractTests(unittest.TestCase):
         }
         response = app.handle("/mcp", payload)
         self.assertEqual(response["jsonrpc"], "2.0")
-        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(response["error"]["data"]["category"], "invalid_argument")
         self.assertIn("unsupported field", response["error"]["message"])
 
     def test_generated_request_id_when_payload_id_missing(self):
@@ -173,7 +175,8 @@ class MCPTransportContractTests(unittest.TestCase):
         )
         self.assertEqual(invalid.status, 400)
         self.assertEqual(invalid.payload["jsonrpc"], "2.0")
-        self.assertEqual(invalid.payload["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(invalid.payload["error"]["code"], -32600)
+        self.assertEqual(invalid.payload["error"]["data"]["category"], "malformed_request")
         self.assertEqual(invalid.payload["error"].keys(), {"code", "message", "data"})
 
     def test_migrated_runtime_preserves_health_and_ready_routes(self):

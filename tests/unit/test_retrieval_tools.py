@@ -65,7 +65,8 @@ class RetrievalToolUnitTests(unittest.TestCase):
             "params": {"name": "search", "arguments": {"query": ""}},
         }
         response = route_mcp_request(payload, InMemoryToolDispatcher())
-        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(response["error"]["data"]["category"], "invalid_argument")
         self.assertIn("query", response["error"]["message"].lower())
 
     def test_search_rejects_unsupported_field(self):
@@ -76,7 +77,8 @@ class RetrievalToolUnitTests(unittest.TestCase):
             "params": {"name": "search", "arguments": {"query": "remote MCP research", "unsupported": True}},
         }
         response = route_mcp_request(payload, InMemoryToolDispatcher())
-        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(response["error"]["data"]["category"], "invalid_argument")
         self.assertIn("unsupported field", response["error"]["message"].lower())
 
     def test_search_returns_empty_results_without_error(self):
@@ -114,7 +116,8 @@ class RetrievalToolUnitTests(unittest.TestCase):
             "params": {"name": "fetch", "arguments": {}},
         }
         response = route_mcp_request(payload, InMemoryToolDispatcher())
-        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(response["error"]["data"]["category"], "invalid_argument")
 
     def test_fetch_rejects_conflicting_resource_id_and_uri(self):
         payload = {
@@ -127,7 +130,8 @@ class RetrievalToolUnitTests(unittest.TestCase):
             },
         }
         response = route_mcp_request(payload, InMemoryToolDispatcher())
-        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(response["error"]["data"]["category"], "invalid_argument")
 
     def test_fetch_accepts_uri_only_request(self):
         payload = {
@@ -165,7 +169,7 @@ class RetrievalToolUnitTests(unittest.TestCase):
             "params": {"name": "fetch", "arguments": {"resourceId": "missing-resource"}},
         }
         response = route_mcp_request(payload, InMemoryToolDispatcher())
-        self.assertEqual(response["error"]["code"], "RESOURCE_NOT_FOUND")
+        self.assertEqual(response["error"]["code"], -32001)
         self.assertEqual(response["error"]["data"]["category"], "unavailable_source")
 
 

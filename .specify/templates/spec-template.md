@@ -79,9 +79,9 @@
 
 - Define how each user story will start with failing tests (Red).
 - Define the minimal implementation boundary required to pass those tests (Green).
-- Define expected refactoring scope after tests pass, including regression safety checks (Refactor).
+- Define expected refactoring scope after tests pass, including a required full repository test-suite check after changes (Refactor).
 - List required test levels for this feature (unit, integration, contract, end-to-end as applicable).
-- Include concrete test evidence expectations for pull request review.
+- Include concrete test evidence expectations for pull request review, including the full-suite command and expected passing result.
 
 ## Requirements *(mandatory)*
 

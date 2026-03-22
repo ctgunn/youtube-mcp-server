@@ -113,6 +113,10 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         self.assertEqual(run.overall_result, "pass")
         self.assertEqual(len(run.checks), 18)
         self.assertTrue(all(check.result == "pass" for check in run.checks))
+        by_name = {check.check_name: check for check in run.checks}
+        self.assertEqual(by_name["fetch-tool-call-missing"].result, "pass")
+        self.assertEqual(by_name["fetch-tool-call-conflict"].result, "pass")
+        self.assertEqual(by_name["session-invalid"].result, "pass")
 
     def test_not_ready_app_fails_before_mcp_checks(self):
         app = create_app(env={"MCP_ENVIRONMENT": "staging"}, validate_startup=False)

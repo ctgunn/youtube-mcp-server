@@ -120,7 +120,8 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 },
             },
         )
-        self.assertEqual(invalid["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(invalid["error"]["code"], -32602)
+        self.assertEqual(invalid["error"]["data"]["category"], "invalid_argument")
 
     def test_search_to_fetch_handoff_and_missing_fetch(self):
         os.environ["MCP_ENVIRONMENT"] = "dev"
@@ -171,7 +172,8 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "params": {"name": "fetch", "arguments": {"resourceId": "missing-resource"}},
             },
         )
-        self.assertEqual(missing["error"]["code"], "RESOURCE_NOT_FOUND")
+        self.assertEqual(missing["error"]["code"], -32001)
+        self.assertEqual(missing["error"]["data"]["category"], "unavailable_source")
 
         conflict = app.handle(
             "/mcp",
@@ -185,7 +187,8 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 },
             },
         )
-        self.assertEqual(conflict["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(conflict["error"]["code"], -32602)
+        self.assertEqual(conflict["error"]["data"]["category"], "invalid_argument")
 
     def test_server_info_configured_and_fallback(self):
         configured = MCPHTTPTransport(
@@ -321,8 +324,8 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
             },
         )
         self.assertEqual(response["jsonrpc"], "2.0")
-        self.assertEqual(response["error"]["code"], "RESOURCE_NOT_FOUND")
-        self.assertEqual(response["error"]["data"], {"toolName": "missing"})
+        self.assertEqual(response["error"]["code"], -32001)
+        self.assertEqual(response["error"]["data"], {"category": "unknown_tool", "toolName": "missing"})
         self.assertFalse(called["value"])
 
     def test_tool_call_logs_include_latency_and_status(self):
@@ -380,7 +383,8 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(invalid.status, 400)
         self.assertIn("error", invalid.payload)
-        self.assertEqual(invalid.payload["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(invalid.payload["error"]["code"], -32600)
+        self.assertEqual(invalid.payload["error"]["data"]["category"], "malformed_request")
 
     def test_hosted_runtime_logs_capture_tool_name_for_hosted_mcp_call(self):
         stdout = io.StringIO()
