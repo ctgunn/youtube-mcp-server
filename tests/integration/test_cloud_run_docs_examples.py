@@ -26,6 +26,10 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         self.assertIn("req-fetch-both", content)
         self.assertIn("resourceId", content)
         self.assertIn("uri", content)
+        self.assertIn('"code": -32602', content)
+        self.assertIn('"code": -32001', content)
+        self.assertIn('"category": "invalid_argument"', content)
+        self.assertIn('"category": "unknown_tool"', content)
 
     def test_env_example_contains_hosted_deploy_inputs(self):
         content = Path(".env.example").read_text()

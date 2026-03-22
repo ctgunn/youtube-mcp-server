@@ -156,7 +156,8 @@ class HostedMCPSecurityFlowsIntegrationTests(unittest.TestCase):
             },
         )
         self.assertEqual(denied.status, 403)
-        self.assertEqual(denied.payload["error"]["code"], "ORIGIN_DENIED")
+        self.assertEqual(denied.payload["error"]["code"], -32003)
+        self.assertEqual(denied.payload["error"]["data"]["category"], "origin_denied")
 
         unsupported_headers = execute_hosted_request(
             self.app,
@@ -169,7 +170,8 @@ class HostedMCPSecurityFlowsIntegrationTests(unittest.TestCase):
             },
         )
         self.assertEqual(unsupported_headers.status, 400)
-        self.assertEqual(unsupported_headers.payload["error"]["code"], "UNSUPPORTED_BROWSER_HEADERS")
+        self.assertEqual(unsupported_headers.payload["error"]["code"], -32602)
+        self.assertEqual(unsupported_headers.payload["error"]["data"]["category"], "unsupported_browser_headers")
 
         unsupported_route = execute_hosted_request(
             self.app,
@@ -181,7 +183,8 @@ class HostedMCPSecurityFlowsIntegrationTests(unittest.TestCase):
             },
         )
         self.assertEqual(unsupported_route.status, 405)
-        self.assertEqual(unsupported_route.payload["error"]["code"], "UNSUPPORTED_BROWSER_ROUTE")
+        self.assertEqual(unsupported_route.payload["error"]["code"], -32601)
+        self.assertEqual(unsupported_route.payload["error"]["data"]["category"], "unsupported_browser_route")
 
 
 if __name__ == "__main__":

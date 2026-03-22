@@ -36,7 +36,8 @@ class CloudRunSecurityGateTests(unittest.TestCase):
             body=self.payload,
         )
         self.assertEqual(response.status, 401)
-        self.assertEqual(response.payload["error"]["code"], "UNAUTHENTICATED")
+        self.assertEqual(response.payload["error"]["code"], -32002)
+        self.assertEqual(response.payload["error"]["data"]["category"], "unauthenticated")
 
     def test_disallowed_origin_is_rejected(self):
         response = execute_hosted_request(
@@ -52,7 +53,8 @@ class CloudRunSecurityGateTests(unittest.TestCase):
             body=self.payload,
         )
         self.assertEqual(response.status, 403)
-        self.assertEqual(response.payload["error"]["code"], "ORIGIN_DENIED")
+        self.assertEqual(response.payload["error"]["code"], -32003)
+        self.assertEqual(response.payload["error"]["data"]["category"], "origin_denied")
 
     def test_malformed_auth_is_rejected(self):
         response = execute_hosted_request(
@@ -67,7 +69,8 @@ class CloudRunSecurityGateTests(unittest.TestCase):
             body=self.payload,
         )
         self.assertEqual(response.status, 400)
-        self.assertEqual(response.payload["error"]["code"], "MALFORMED_SECURITY_INPUT")
+        self.assertEqual(response.payload["error"]["code"], -32600)
+        self.assertEqual(response.payload["error"]["data"]["category"], "malformed_security_input")
 
     def test_malformed_origin_and_unsupported_browser_method_are_rejected(self):
         malformed_origin = execute_hosted_request(
@@ -80,7 +83,8 @@ class CloudRunSecurityGateTests(unittest.TestCase):
             },
         )
         self.assertEqual(malformed_origin.status, 400)
-        self.assertEqual(malformed_origin.payload["error"]["code"], "MALFORMED_ORIGIN")
+        self.assertEqual(malformed_origin.payload["error"]["code"], -32600)
+        self.assertEqual(malformed_origin.payload["error"]["data"]["category"], "malformed_origin")
 
         unsupported_method = execute_hosted_request(
             self.app,
@@ -92,7 +96,8 @@ class CloudRunSecurityGateTests(unittest.TestCase):
             },
         )
         self.assertEqual(unsupported_method.status, 405)
-        self.assertEqual(unsupported_method.payload["error"]["code"], "UNSUPPORTED_BROWSER_METHOD")
+        self.assertEqual(unsupported_method.payload["error"]["code"], -32601)
+        self.assertEqual(unsupported_method.payload["error"]["data"]["category"], "unsupported_browser_method")
 
 
 if __name__ == "__main__":

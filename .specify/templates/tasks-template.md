@@ -8,7 +8,7 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: Test tasks are REQUIRED. Every user story and foundational change must include Red-Green-Refactor coverage tasks.
+**Tests**: Test tasks are REQUIRED. Every user story and foundational change must include Red-Green-Refactor coverage tasks. Completion requires a passing full repository test-suite run after the final code changes.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -159,6 +159,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX [P] Additional regression/unit tests in tests/unit/
 - [ ] TXXX Security hardening
 - [ ] TXXX Run quickstart.md validation
+- [ ] TXXX Run the full repository test suite and resolve any failing tests before completion
 
 ---
 
@@ -186,6 +187,7 @@ Examples of foundational tasks (adjust based on your project):
 - Services before endpoints
 - Core implementation before integration (Green)
 - Refactor only after tests pass; re-run full affected test suites (Refactor)
+- Before marking the story or feature complete, run the full repository test suite and fix any failures
 - Story complete before moving to next priority
 
 ### Parallel Opportunities
@@ -251,6 +253,7 @@ With multiple developers:
 - Each user story should be independently completable and testable
 - Verify tests fail before implementing
 - Verify refactor tasks preserve behavior and keep tests passing
+- Never treat targeted test runs as final completion evidence; the full repository suite must pass
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence

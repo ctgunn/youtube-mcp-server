@@ -9,7 +9,7 @@ from typing import TextIO
 from mcp_server.config import HostedRuntimeSettings, StartupValidationResult
 from mcp_server.health import RuntimeLifecycleState, health_payload, initialize_runtime_lifecycle, readiness_payload
 from mcp_server.observability import InMemoryObservability, build_request_context
-from mcp_server.protocol.envelope import error_response
+from mcp_server.protocol.envelope import error_response_for_category
 from mcp_server.protocol.methods import route_mcp_request
 from mcp_server.transport.streaming import StreamManager
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
@@ -187,8 +187,8 @@ class MCPHTTPTransport:
                 )
             response = readiness_payload(self.startup_validation, self.runtime_lifecycle, session_durability=session_durability)
         elif path != "/mcp":
-            response = error_response(
-                "RESOURCE_NOT_FOUND",
+            response = error_response_for_category(
+                "path_not_found",
                 "Path not found.",
                 request_id=context.request_id,
                 details={"path": path},

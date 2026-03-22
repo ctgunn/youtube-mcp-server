@@ -19,8 +19,8 @@ class InvokeErrorMappingTests(unittest.TestCase):
         }
         response = route_mcp_request(payload, InMemoryToolDispatcher())
         self.assertEqual(response["jsonrpc"], "2.0")
-        self.assertEqual(response["error"]["code"], "RESOURCE_NOT_FOUND")
-        self.assertEqual(response["error"]["data"], {"toolName": "unknown_tool"})
+        self.assertEqual(response["error"]["code"], -32001)
+        self.assertEqual(response["error"]["data"], {"category": "unknown_tool", "toolName": "unknown_tool"})
 
     def test_invalid_arguments_type_returns_invalid_argument(self):
         payload = {
@@ -31,7 +31,8 @@ class InvokeErrorMappingTests(unittest.TestCase):
         }
         response = route_mcp_request(payload, InMemoryToolDispatcher())
         self.assertEqual(response["jsonrpc"], "2.0")
-        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(response["error"]["data"]["category"], "invalid_argument")
 
     def test_invalid_arguments_against_contract_returns_invalid_argument(self):
         dispatcher = InMemoryToolDispatcher(tools=[])
@@ -49,7 +50,8 @@ class InvokeErrorMappingTests(unittest.TestCase):
         }
         response = route_mcp_request(payload, dispatcher)
         self.assertEqual(response["jsonrpc"], "2.0")
-        self.assertEqual(response["error"]["code"], "INVALID_ARGUMENT")
+        self.assertEqual(response["error"]["code"], -32602)
+        self.assertEqual(response["error"]["data"]["category"], "invalid_argument")
         self.assertIn("unsupported field", response["error"]["message"])
 
     def test_successful_tool_call_returns_protocol_native_content(self):

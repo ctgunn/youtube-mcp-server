@@ -676,7 +676,8 @@ def run_hosted_verification(
     _append(
         "fetch-tool-call-missing",
         missing_fetch_payload,
-        lambda payload: payload.get("error", {}).get("code") == "INVALID_ARGUMENT",
+        lambda payload: payload.get("error", {}).get("code") == -32602
+        and payload.get("error", {}).get("data", {}).get("category") == "invalid_argument",
         "Hosted MCP fetch call without identifiers returned the documented invalid-input failure.",
     )
 
@@ -697,7 +698,8 @@ def run_hosted_verification(
     _append(
         "fetch-tool-call-conflict",
         conflicting_fetch_payload,
-        lambda payload: payload.get("error", {}).get("code") == "INVALID_ARGUMENT",
+        lambda payload: payload.get("error", {}).get("code") == -32602
+        and payload.get("error", {}).get("data", {}).get("category") == "invalid_argument",
         "Hosted MCP fetch call with conflicting identifiers returned the documented invalid-input failure.",
     )
 
@@ -779,7 +781,9 @@ def run_hosted_verification(
     _append(
         "session-invalid",
         invalid_payload,
-        lambda payload: payload.get("statusCode") == 404 and payload.get("error", {}).get("code") == "RESOURCE_NOT_FOUND",
+        lambda payload: payload.get("statusCode") == 404
+        and payload.get("error", {}).get("code") == -32001
+        and payload.get("error", {}).get("data", {}).get("category") == "session_not_found",
         "Hosted MCP invalid-session handling returned the expected session-state failure.",
     )
 
@@ -838,7 +842,9 @@ def run_hosted_verification(
         _append(
             "browser-origin-denied",
             denied_browser_payload,
-            lambda payload: payload.get("statusCode") == 403 and payload.get("error", {}).get("code") == "ORIGIN_DENIED",
+            lambda payload: payload.get("statusCode") == 403
+            and payload.get("error", {}).get("code") == -32003
+            and payload.get("error", {}).get("data", {}).get("category") == "origin_denied",
             "Denied browser-origin preflight returned the documented origin denial.",
         )
 
@@ -856,7 +862,8 @@ def run_hosted_verification(
             "browser-request-unsupported",
             unsupported_browser_payload,
             lambda payload: payload.get("statusCode") == 405
-            and payload.get("error", {}).get("code") == "UNSUPPORTED_BROWSER_ROUTE",
+            and payload.get("error", {}).get("code") == -32601
+            and payload.get("error", {}).get("data", {}).get("category") == "unsupported_browser_route",
             "Unsupported browser request pattern returned the documented denial.",
         )
     overall = "pass" if all(item.result == "pass" for item in checks) else "fail"
