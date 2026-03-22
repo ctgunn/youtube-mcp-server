@@ -326,6 +326,9 @@ Acceptance criteria:
 - The IaC covers the currently required hosted dependencies, including application runtime infrastructure, secret/config integration points, and durable session backend requirements.
 - Environment-specific inputs are documented and injectable without modifying application code.
 - Operator documentation includes one reproducible infrastructure provisioning path and one reproducible application deployment path.
+- Local execution remains supported without requiring cloud infrastructure provisioning as a prerequisite.
+- Documentation distinguishes the minimum local runtime path from the full hosted-infrastructure provisioning path.
+- If durable hosted dependencies such as Redis are needed for hosted-like local verification, that local dependency path is reproducible and documented separately from the cloud provisioning path.
 
 Dependencies:
 - `FND-015`, `FND-016`, `FND-017`, `FND-018`
@@ -343,6 +346,9 @@ Acceptance criteria:
 - The infrastructure contract identifies the shared requirements for hosted runtime, networking, secrets, observability integration, and durable session storage across supported clouds.
 - At least one secondary provider path beyond the current primary cloud target is planned or scaffolded strongly enough to prove the layout is not locked to one provider-specific design.
 - Documentation makes clear which parts of the infrastructure model are portable and which parts are provider-specific adapters.
+- The provider-agnostic infrastructure layout preserves a first-class local runtime path for development and verification.
+- Cloud-provider modules do not become a prerequisite for running the MCP server locally or for executing the minimal local verification workflow.
+- Documentation explains how local execution, hosted-like local execution, and cloud deployment relate to the same shared platform contract.
 
 Dependencies:
 - `FND-019`
