@@ -1,0 +1,25 @@
+project_id            = "my-gcp-project"
+region                = "us-central1"
+environment           = "staging"
+service_name          = "youtube-mcp-server"
+service_account_name  = "youtube-mcp-server"
+bootstrap_image_reference = "us-docker.pkg.dev/cloudrun/container/hello"
+
+min_instances = 0
+max_instances = 2
+concurrency   = 20
+timeout_seconds = 180
+
+mcp_auth_required            = true
+mcp_allowed_origins          = "https://chat.openai.com"
+mcp_allow_originless_clients = true
+
+session_backend              = "redis"
+session_durability_required  = true
+session_ttl_seconds          = 1800
+session_replay_ttl_seconds   = 300
+
+secret_names = [
+  "YOUTUBE_API_KEY",
+  "MCP_AUTH_TOKEN",
+]

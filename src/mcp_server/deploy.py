@@ -91,6 +91,11 @@ def deployment_input_from_mapping(values: Mapping[str, object]) -> DeploymentInp
         "MCP_AUTH_REQUIRED": str(values.get("MCP_AUTH_REQUIRED", "")).strip(),
         "MCP_ALLOWED_ORIGINS": str(values.get("MCP_ALLOWED_ORIGINS", "")).strip(),
         "MCP_ALLOW_ORIGINLESS_CLIENTS": str(values.get("MCP_ALLOW_ORIGINLESS_CLIENTS", "")).strip(),
+        "MCP_SESSION_BACKEND": str(values.get("MCP_SESSION_BACKEND", "")).strip(),
+        "MCP_SESSION_STORE_URL": str(values.get("MCP_SESSION_STORE_URL", "")).strip(),
+        "MCP_SESSION_DURABILITY_REQUIRED": str(values.get("MCP_SESSION_DURABILITY_REQUIRED", "")).strip(),
+        "MCP_SESSION_TTL_SECONDS": str(values.get("MCP_SESSION_TTL_SECONDS", "")).strip(),
+        "MCP_SESSION_REPLAY_TTL_SECONDS": str(values.get("MCP_SESSION_REPLAY_TTL_SECONDS", "")).strip(),
     }
     return DeploymentInputSet(
         environment=str(values.get("MCP_ENVIRONMENT", "")).strip(),
@@ -106,6 +111,99 @@ def deployment_input_from_mapping(values: Mapping[str, object]) -> DeploymentInp
         concurrency=int(values.get("CONCURRENCY", 80)),
         timeout_seconds=int(values.get("TIMEOUT_SECONDS", 300)),
     )
+
+
+IAC_OUTPUT_ALIASES = {
+    "PROJECT_ID": ("PROJECT_ID", "project_id"),
+    "REGION": ("REGION", "region"),
+    "MCP_ENVIRONMENT": ("MCP_ENVIRONMENT", "environment", "mcp_environment"),
+    "SERVICE_NAME": ("SERVICE_NAME", "service_name"),
+    "SERVICE_ACCOUNT_EMAIL": ("SERVICE_ACCOUNT_EMAIL", "service_account_email"),
+    "MCP_AUTH_REQUIRED": ("MCP_AUTH_REQUIRED", "mcp_auth_required"),
+    "MCP_ALLOWED_ORIGINS": ("MCP_ALLOWED_ORIGINS", "mcp_allowed_origins"),
+    "MCP_ALLOW_ORIGINLESS_CLIENTS": ("MCP_ALLOW_ORIGINLESS_CLIENTS", "mcp_allow_originless_clients"),
+    "MCP_SESSION_BACKEND": ("MCP_SESSION_BACKEND", "mcp_session_backend", "session_backend"),
+    "MCP_SESSION_STORE_URL": ("MCP_SESSION_STORE_URL", "mcp_session_store_url", "session_store_url"),
+    "MCP_SESSION_DURABILITY_REQUIRED": (
+        "MCP_SESSION_DURABILITY_REQUIRED",
+        "mcp_session_durability_required",
+        "session_durability_required",
+    ),
+    "MCP_SESSION_TTL_SECONDS": ("MCP_SESSION_TTL_SECONDS", "mcp_session_ttl_seconds", "session_ttl_seconds"),
+    "MCP_SESSION_REPLAY_TTL_SECONDS": (
+        "MCP_SESSION_REPLAY_TTL_SECONDS",
+        "mcp_session_replay_ttl_seconds",
+        "session_replay_ttl_seconds",
+    ),
+    "MIN_INSTANCES": ("MIN_INSTANCES", "min_instances"),
+    "MAX_INSTANCES": ("MAX_INSTANCES", "max_instances"),
+    "CONCURRENCY": ("CONCURRENCY", "concurrency"),
+    "TIMEOUT_SECONDS": ("TIMEOUT_SECONDS", "timeout_seconds"),
+    "SECRET_REFERENCES": ("SECRET_REFERENCES", "secret_reference_names", "secret_references"),
+}
+
+
+def load_iac_outputs_file(path: str | Path) -> dict:
+    payload = json.loads(Path(path).read_text())
+    if isinstance(payload, dict) and isinstance(payload.get("outputs"), dict):
+        return payload["outputs"]
+    if not isinstance(payload, dict):
+        raise ValueError("IaC outputs file must contain a JSON object.")
+    return payload
+
+
+def _normalize_iac_value(value: object) -> object:
+    if isinstance(value, dict) and "value" in value:
+        return value["value"]
+    return value
+
+
+def iac_outputs_to_mapping(outputs: Mapping[str, object]) -> dict[str, str]:
+    resolved: dict[str, str] = {}
+    for env_key, aliases in IAC_OUTPUT_ALIASES.items():
+        for alias in aliases:
+            if alias not in outputs:
+                continue
+            value = _normalize_iac_value(outputs[alias])
+            if value is None:
+                continue
+            if isinstance(value, bool):
+                resolved[env_key] = "true" if value else "false"
+            elif isinstance(value, (list, tuple)):
+                resolved[env_key] = ",".join(str(item) for item in value if str(item).strip())
+            else:
+                text = str(value).strip()
+                if text:
+                    resolved[env_key] = text
+            break
+    return resolved
+
+
+def merge_deployment_values(
+    base_values: Mapping[str, object],
+    explicit_values: Mapping[str, object],
+) -> dict[str, object]:
+    merged: dict[str, object] = dict(base_values)
+    for key, value in explicit_values.items():
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            merged[key] = text
+    return merged
+
+
+def deployment_input_from_iac_outputs(
+    outputs: Mapping[str, object],
+    *,
+    image_reference: str,
+    explicit_values: Mapping[str, object] | None = None,
+) -> DeploymentInputSet:
+    merged: dict[str, object] = merge_deployment_values(
+        iac_outputs_to_mapping(outputs),
+        {"IMAGE_REFERENCE": image_reference, **dict(explicit_values or {})},
+    )
+    return deployment_input_from_mapping(merged)
 
 
 def build_deploy_command(settings: DeploymentInputSet) -> list[str]:
