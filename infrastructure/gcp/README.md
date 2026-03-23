@@ -1,6 +1,6 @@
 # GCP Infrastructure Foundation
 
-This directory provisions the hosted MCP platform foundation for FND-019.
+This directory provisions the hosted MCP platform foundation for FND-019 and serves as the primary provider adapter for the shared platform contract defined in FND-020.
 
 ## What this provisions
 
@@ -9,6 +9,8 @@ This directory provisions the hosted MCP platform foundation for FND-019.
 - Secret Manager integration points for `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`
 - Redis-compatible shared session backend for hosted session durability
 - Outputs that feed the existing `scripts/deploy_cloud_run.sh` workflow
+
+This is the provider-specific implementation of the current hosted runtime, identity, secrets, observability handoff, and durable-session capabilities. FND-020 treats this directory as the primary provider adapter rather than as the full platform model.
 
 ## Required inputs
 
