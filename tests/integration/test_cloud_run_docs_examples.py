@@ -30,6 +30,10 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         self.assertIn('"code": -32001', content)
         self.assertIn('"category": "invalid_argument"', content)
         self.assertIn('"category": "unknown_tool"', content)
+        self.assertIn("Minimal local runtime path", content)
+        self.assertIn("Hosted-like local verification path", content)
+        self.assertIn("docker compose -f infrastructure/local/compose.yaml up -d", content)
+        self.assertIn("INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json", content)
 
     def test_env_example_contains_hosted_deploy_inputs(self):
         content = Path(".env.example").read_text()
@@ -48,6 +52,7 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
             "MCP_AUTH_TOKEN",
             "MCP_ALLOWED_ORIGINS",
             "MCP_ALLOW_ORIGINLESS_CLIENTS",
+            "INFRA_OUTPUTS_FILE",
         ):
             self.assertIn(f"{key}=", content)
 

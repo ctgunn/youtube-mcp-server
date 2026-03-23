@@ -238,3 +238,16 @@ Thumbs.db
 **/.codex/*auth*
 **/.codex/*config*
 **/.codex/*version*
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.lock.hcl
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
