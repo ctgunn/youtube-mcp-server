@@ -29,6 +29,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Redis client, Python standard library JSON/HTTP/config/logging modules (017-retrieval-tool-contract)
 - In-memory runtime state only for tool registry, request handling, and retrieval sample data; no new persistent storage required for this slice (017-retrieval-tool-contract)
 - In-memory runtime state only for request handling, tool dispatch, observability state, and hosted session metadata backed by the existing shared session store where already configured (018-mcp-error-alignment)
+- Python 3.11 for service and verification tooling; Terraform-compatible IaC definitions for infrastructure provisioning + FastAPI, Pydantic v2, Uvicorn, Redis client, Google Cloud Run deployment surface, Secret Manager integration points, Redis-compatible shared session backend, Docker Compose for hosted-like local dependency startup (019-iac-foundation)
+- In-memory runtime state for the app; Redis-compatible shared ephemeral state for hosted sessions; file-based infrastructure definitions and operator documentation (019-iac-foundation)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -49,9 +51,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 019-iac-foundation: Added Python 3.11 for service and verification tooling; Terraform-compatible IaC definitions for infrastructure provisioning + FastAPI, Pydantic v2, Uvicorn, Redis client, Google Cloud Run deployment surface, Secret Manager integration points, Redis-compatible shared session backend, Docker Compose for hosted-like local dependency startup
 - 018-mcp-error-alignment: Added Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Redis client, Python standard library JSON/HTTP/config/logging modules
 - 017-retrieval-tool-contract: Added Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Redis client, Python standard library JSON/HTTP/config/logging modules
-- 016-browser-mcp-cors: Added Python 3.11 + FastAPI, Uvicorn, Pydantic v2, Python standard library JSON/HTTP/config/logging modules
 
 
 <!-- MANUAL ADDITIONS START -->
