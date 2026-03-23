@@ -9,6 +9,44 @@ Install the hosted runtime dependencies from the repository root:
 python3 -m pip install -e .
 ```
 
+## Minimal local runtime path
+
+Use the minimal local runtime path when you only need local development and do
+not need Redis-backed session durability:
+
+```bash
+MCP_ENVIRONMENT=dev \
+MCP_SESSION_BACKEND=memory \
+PYTHONPATH=src python3 -m uvicorn mcp_server.cloud_run_entrypoint:app --host 0.0.0.0 --port 8080
+```
+
+This path does not require cloud provisioning or local infrastructure under
+`infrastructure/`.
+
+## Hosted-like local verification path
+
+Use the hosted-like local verification path when you need to exercise the same
+Redis-backed session settings used by the hosted deployment without provisioning
+cloud infrastructure first:
+
+```bash
+docker compose -f infrastructure/local/compose.yaml up -d
+```
+
+```bash
+MCP_ENVIRONMENT=dev \
+MCP_SESSION_BACKEND=redis \
+MCP_SESSION_STORE_URL=redis://127.0.0.1:6379/0 \
+MCP_SESSION_DURABILITY_REQUIRED=true \
+PYTHONPATH=src python3 -m uvicorn mcp_server.cloud_run_entrypoint:app --host 0.0.0.0 --port 8080
+```
+
+When finished:
+
+```bash
+docker compose -f infrastructure/local/compose.yaml down
+```
+
 ## Engineering workflow
 
 Feature specification, planning, and implementation in this repository follow a
@@ -71,6 +109,7 @@ Required deployment inputs:
 - `CONCURRENCY`
 - `TIMEOUT_SECONDS`
 - `SECRET_REFERENCES` (`YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN` are required for `staging` and `prod`)
+- `INFRA_OUTPUTS_FILE` (optional Terraform `output -json` handoff file for pre-provisioned infrastructure)
 
 Execute the deployment workflow with explicit revision settings:
 
@@ -94,6 +133,16 @@ MAX_INSTANCES=2 \
 CONCURRENCY=20 \
 TIMEOUT_SECONDS=180 \
 SECRET_REFERENCES=YOUTUBE_API_KEY,MCP_AUTH_TOKEN \
+bash scripts/deploy_cloud_run.sh
+```
+
+If you provisioned the hosted platform through the Terraform workflow in
+`infrastructure/gcp/`, you can pass the exported outputs file directly into the
+deployment workflow instead of retyping the provisioned values:
+
+```bash
+INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json \
+IMAGE_REFERENCE=us-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
 bash scripts/deploy_cloud_run.sh
 ```
 
