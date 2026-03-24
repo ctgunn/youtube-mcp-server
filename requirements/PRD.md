@@ -8,6 +8,7 @@ Build an MCP-compliant server that exposes YouTube data and transcript workflows
 - Expose reliable YouTube tools through MCP.
 - Support interoperable remote MCP consumption from OpenAI Agent Builder and other MCP-capable services.
 - Establish deep research-compatible MCP foundations before domain-specific YouTube tool expansion.
+- Distinguish generic MCP compatibility from OpenAI-specific retrieval compatibility where OpenAI currently documents additional expectations.
 - Support video, channel, playlist, and transcript workflows.
 - Deploy as a production-ready Cloud Run service.
 - Keep response formats structured for agent consumption.
@@ -37,11 +38,14 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Remote MCP transport hardening in place (origin-aware handling and documented auth strategy).
 - Foundation `search` and `fetch` tools implemented for deep research-compatible retrieval flows.
 - Hosted MCP session continuity remains reliable under the supported Cloud Run routing and scaling model.
+- Cloud Run service is publicly reachable in the way required for trusted remote MCP consumers, while preserving application-layer authentication at the MCP endpoint.
 - Browser-originated hosted MCP access is either fully supported with explicit CORS/preflight behavior or explicitly documented as out of scope for the current release.
 - Foundational retrieval tool schemas fully describe valid invocation shapes for MCP consumers.
+- Foundational retrieval tools align to the current OpenAI compatibility contract when the target integration is ChatGPT apps, deep research, or company knowledge-style retrieval.
 - Error codes are aligned to the expected JSON-RPC / MCP conventions used by downstream clients.
 - Infrastructure required for the hosted platform is reproducible through versioned Infrastructure as Code rather than manual setup alone.
 - Infrastructure layout is organized so shared platform capabilities can be reproduced across supported cloud providers with provider-specific adapters where necessary.
+- Provider-specific hosted infrastructure wiring includes the IAM and network plumbing required for runtime secret access and durable session connectivity.
 - Local execution remains a supported first-class mode for development, verification, and debugging without requiring cloud infrastructure provisioning.
 - Config, logging, error handling, containerization, and CI checks in place.
 
@@ -61,6 +65,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Foundation retrieval tools:
   - `search`: returns deep research-compatible search results in MCP-compatible content format.
   - `fetch`: returns deep research-compatible fetched content in MCP-compatible content format.
+  - If the target integration is OpenAI ChatGPT apps, deep research, or company knowledge, `search` and `fetch` must follow the current OpenAI compatibility contract rather than an internal-only retrieval shape.
 
 ### 5.3 Foundation Architecture Requirements
 - Layered modules:
@@ -79,6 +84,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Environment profiles: `dev`, `staging`, `prod`.
 - Secret-backed values (API keys/tokens) loaded from Secret Manager in deployed environments.
 - Fail-fast startup behavior when required config is missing.
+- Hosted readiness must also reflect missing or unusable hosted dependencies that are required for the selected deployment mode.
 
 ### 5.5 Error Handling and Validation Requirements
 - Central error mapper to normalize internal exceptions into MCP-safe responses.
@@ -110,12 +116,16 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - min/max instances.
   - concurrency and timeout configured.
   - required env vars + secret references.
+  - explicit public reachability configuration appropriate for remote MCP consumers.
+  - required IAM and network wiring for Secret Manager and durable session connectivity.
 - Verify:
   - `/health` and `/ready` pass.
   - Hosted MCP transport verification passes against deployed URL.
   - MCP initialize/list tools/invoke baseline tools works against deployed URL.
   - Hosted `search` and `fetch` verification paths are documented and executable.
   - Hosted MCP session continuation succeeds under the supported Cloud Run session model.
+  - Failed `initialize` requests do not create hosted sessions or return continuation headers.
+  - Cloud Run IAM/public-access failures can be distinguished from MCP-layer auth failures.
   - If browser-originated clients are in scope, approved browser access and denied-origin behavior are both verified.
   - Required hosted infrastructure dependencies can be provisioned reproducibly from versioned infrastructure definitions.
 
@@ -126,10 +136,13 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Tool discovery returns complete MCP-relevant metadata for registered tools.
 - Tool invocation returns MCP-compatible result structures.
 - `search` and `fetch` are available and callable end-to-end.
+- OpenAI-targeted retrieval mode, if claimed as supported, uses the currently documented OpenAI-compatible `search` / `fetch` contract.
 - Hosted MCP session behavior is reliable for the supported Cloud Run deployment model.
+- Failed initialize handshakes do not leave behind usable hosted sessions.
 - Retrieval tool schemas are complete enough for clients to construct valid calls from discovery output alone.
 - Error codes follow the protocol conventions expected by supported MCP consumers.
 - Hosted infrastructure dependencies are reproducible from versioned IaC for the supported deployment path.
+- Hosted deployment includes the provider-specific IAM and network wiring needed for secrets and durable session state.
 - Local runtime and verification workflows remain supported after infrastructure automation is introduced.
 - Structured logs appear in Cloud Logging for each request.
 - Health/readiness endpoints pass in Cloud Run.
@@ -199,6 +212,9 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Support environment-based config (`dev`, `staging`, `prod`).
 - Support the selected remote MCP transport behavior reliably in the hosted Cloud Run environment.
 - Document and enforce the hosted session strategy required to keep MCP session continuity reliable under Cloud Run.
+- Make the hosted service publicly reachable for trusted remote MCP consumers by explicit Cloud Run configuration, not by assumption.
+- Document how Cloud Run public reachability interacts with MCP-layer authentication so operators do not confuse network reachability with application authorization.
+- Provider-specific infrastructure must include the IAM and network plumbing required for runtime secret access and durable hosted session storage.
 - Prefer reproducible infrastructure provisioning for Cloud Run, secrets, and durable hosted dependencies over manual console-only setup.
 
 ## 10. Security and Compliance Requirements
@@ -232,18 +248,22 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Tool-by-tool usage examples with sample payloads.
 - Automated checks for lint/type/test in CI.
 - Remote MCP connection guidance documented for OpenAI Agent Builder and comparable MCP consumers.
+- Documentation distinguishes generic remote MCP usage from OpenAI-specific retrieval compatibility requirements.
 - Infrastructure provisioning guidance documented for the supported hosted platforms.
 
 ## 14. Acceptance Criteria (v1)
 - Phase 0 foundation acceptance criteria are fully met.
 - Remote MCP transport is usable by intended hosted consumers.
 - `search` and `fetch` are implemented and callable via MCP for deep research-oriented flows.
+- If OpenAI ChatGPT apps / deep research compatibility is claimed, `search` and `fetch` match the currently documented OpenAI compatibility contract.
 - Hosted session continuity is reliable for the supported deployment model.
+- Failed initialize requests do not create or expose hosted continuation sessions.
 - Tool discovery metadata is sufficient for supported MCP clients to construct valid foundational tool requests.
 - Error codes and error payloads match the supported protocol expectations for downstream consumers.
 - All 16 tools in Sections 6.1-6.4 are implemented and callable via MCP.
 - Every tool validates inputs and returns structured errors.
 - Cloud Run deployment succeeds and serves MCP traffic.
+- Cloud Run deployment is publicly reachable to trusted remote MCP consumers using an explicit documented configuration.
 - Secrets are managed through Secret Manager.
 - Logs and core metrics are visible in Google Cloud.
 - README includes setup, config, run, and deploy instructions.
@@ -258,12 +278,16 @@ This phase establishes a working MCP server before any YouTube tools are added.
 6. Finish foundational retrieval schema completeness and protocol-aligned error-code behavior.
 7. Add Infrastructure as Code for the hosted platform and durable-session dependencies.
 8. Organize infrastructure around a cloud-agnostic platform contract with provider-specific adapters where needed.
-9. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
-10. Define YouTube tool schemas and response contracts.
-11. Implement video/channel/playlist tools.
-12. Implement transcript retrieval/search flows.
-13. Add auth, secrets, and quota/error handling hardening.
-14. Add monitoring, alerts, and release documentation.
+9. Make Cloud Run publicly reachable in the documented way required for remote MCP consumers.
+10. Complete provider-specific IAM and network wiring for Secret Manager and durable hosted session dependencies.
+11. Align foundational retrieval tools to the OpenAI compatibility contract for ChatGPT apps / deep research where that integration is in scope.
+12. Correct initialize/session lifecycle behavior so failed handshakes do not create hosted sessions.
+13. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
+14. Define YouTube tool schemas and response contracts.
+15. Implement video/channel/playlist tools.
+16. Implement transcript retrieval/search flows.
+17. Add auth, secrets, and quota/error handling hardening.
+18. Add monitoring, alerts, and release documentation.
 
 ## 16. Open Decisions
 - Final transcript fallback approach when official captions are unavailable.
@@ -271,3 +295,4 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Caching policy (TTL, storage backend, invalidation strategy).
 - Transcript scope decision: owner-authorized captions only vs optional non-YouTube fallback for broader public coverage.
 - Final MCP transport profile details for production clients, including whether any secondary transport modes beyond the primary remote MCP profile should be supported.
+- Whether OpenAI-targeted support means generic remote MCP only, or the stricter ChatGPT apps / deep research retrieval compatibility contract.

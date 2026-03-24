@@ -353,6 +353,74 @@ Acceptance criteria:
 Dependencies:
 - `FND-019`
 
+### FND-021: Cloud Run Public Reachability for Remote MCP
+Description:
+Make the hosted MCP service publicly reachable in the specific way required for trusted remote MCP consumers while preserving MCP-layer authentication inside the application surface.
+
+Primary stories:
+- As an OpenAI-hosted MCP consumer, I can reach the deployed Cloud Run service over the public Internet.
+- As an operator, I can configure Cloud Run public access intentionally instead of depending on platform defaults or console-only setup.
+
+Acceptance criteria:
+- Deployment workflow explicitly supports the Cloud Run public-invocation model required for remote MCP access.
+- Operator documentation explains the difference between Cloud Run public reachability and MCP bearer-token authentication.
+- Hosted verification can distinguish Cloud Run IAM denial from MCP-layer authentication denial.
+- Public reachability is validated with at least one reproducible operator workflow.
+
+Dependencies:
+- `FND-006`, `FND-013`, `FND-020`
+
+### FND-022: Hosted Dependency Wiring for Secrets and Durable Sessions
+Description:
+Complete the provider-specific infrastructure wiring required for the Cloud Run runtime to access Secret Manager and the durable hosted session backend in real deployments.
+
+Primary stories:
+- As an operator, I can deploy the hosted runtime with working secret access and durable session connectivity.
+- As an MCP consumer, I do not encounter readiness or continuation failures caused by missing Cloud Run network or IAM wiring.
+
+Acceptance criteria:
+- Runtime identity has the least-privilege IAM bindings required for runtime secret access.
+- Hosted runtime can reach the configured durable session backend through documented network plumbing.
+- Verification and readiness behavior cover missing secret-access and missing session-backend-connectivity failure cases.
+- Infrastructure documentation explains the required Cloud Run-to-session-backend connectivity model.
+
+Dependencies:
+- `FND-015`, `FND-019`, `FND-020`
+
+### FND-023: OpenAI Retrieval Compatibility for ChatGPT Apps and Deep Research
+Description:
+Align the foundational `search` and `fetch` tools with the current OpenAI compatibility guidance for ChatGPT apps, deep research, and company-knowledge-style retrieval integrations.
+
+Primary stories:
+- As an OpenAI retrieval integration, I can use `search` and `fetch` in the argument and result shape OpenAI currently documents.
+- As a developer, I can target OpenAI-hosted retrieval flows without relying on best-effort schema interpretation.
+
+Acceptance criteria:
+- `search` and `fetch` schemas and outputs align to the current OpenAI compatibility contract or are wrapped through an explicit compatibility adapter.
+- Documentation includes OpenAI-specific discovery and invocation examples for the supported retrieval flow.
+- Compatibility coverage proves the intended OpenAI retrieval flow works end-to-end.
+- Any intentional divergence from generic MCP or prior internal retrieval shapes is documented clearly.
+
+Dependencies:
+- `FND-014`, `FND-017`, `FND-021`
+
+### FND-024: Initialize Handshake and Session Creation Correctness
+Description:
+Ensure hosted session creation only occurs after a valid MCP initialization handshake so clients never receive a continuation session for a failed initialize request.
+
+Primary stories:
+- As an MCP client, I only receive `MCP-Session-Id` after a successful initialize response.
+- As a developer, I can trust that hosted session state reflects valid MCP lifecycle progress.
+
+Acceptance criteria:
+- Failed or malformed initialize requests do not create hosted sessions or return continuation headers.
+- Successful initialize requests create hosted sessions exactly once.
+- Hosted contract coverage includes both successful and failing initialize paths.
+- Session lifecycle documentation matches the actual handshake behavior.
+
+Dependencies:
+- `FND-009`, `FND-010`, `FND-015`
+
 ### YT-101: YouTube Client Integration Layer
 Description:
 Build typed wrapper for YouTube Data API v3 with auth, retry, quota, and error mapping.
@@ -365,7 +433,7 @@ Acceptance criteria:
 - Quota and upstream errors map to standard server errors.
 
 Dependencies:
-- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`, `FND-019`, `FND-020`
+- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`, `FND-019`, `FND-020`, `FND-021`, `FND-022`, `FND-023`, `FND-024`
 
 ### YT-102: Video Tools
 Description:
@@ -486,12 +554,16 @@ Dependencies:
 18. `FND-018`
 19. `FND-019`
 20. `FND-020`
-21. `YT-101`
-22. `YT-102` + `YT-103` (parallel)
-23. `YT-104`
-24. `YT-105`
-25. `OPS-201`
-26. `OPS-202`
+21. `FND-021`
+22. `FND-022`
+23. `FND-023`
+24. `FND-024`
+25. `YT-101`
+26. `YT-102` + `YT-103` (parallel)
+27. `YT-104`
+28. `YT-105`
+29. `OPS-201`
+30. `OPS-202`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
