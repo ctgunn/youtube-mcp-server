@@ -9,6 +9,8 @@ from pathlib import Path
 import subprocess
 from typing import Callable, Mapping
 
+from mcp_server.infrastructure_contract import is_supported_public_invocation_intent
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -31,6 +33,7 @@ class DeploymentInputSet:
     runtime_identity: str
     region: str
     project_id: str
+    public_invocation_intent: str
     secret_references: tuple[str, ...]
     config_values: Mapping[str, str]
     min_instances: int
@@ -52,6 +55,8 @@ class DeploymentInputSet:
             failures.append("region is required")
         if not self.project_id.strip():
             failures.append("project_id is required")
+        if not is_supported_public_invocation_intent(self.public_invocation_intent):
+            failures.append("public_invocation_intent must be one of public_remote_mcp, private_only")
         if self.min_instances < 0:
             failures.append("min_instances must be >= 0")
         if self.max_instances < self.min_instances:
@@ -88,6 +93,7 @@ def deployment_input_from_mapping(values: Mapping[str, object]) -> DeploymentInp
         "MCP_SERVER_IMPLEMENTATION": str(values.get("MCP_SERVER_IMPLEMENTATION", "uvicorn")).strip() or "uvicorn",
         "MCP_ASGI_APP": str(values.get("MCP_ASGI_APP", "mcp_server.cloud_run_entrypoint:app")).strip()
         or "mcp_server.cloud_run_entrypoint:app",
+        "PUBLIC_INVOCATION_INTENT": str(values.get("PUBLIC_INVOCATION_INTENT", "private_only")).strip() or "private_only",
         "MCP_AUTH_REQUIRED": str(values.get("MCP_AUTH_REQUIRED", "")).strip(),
         "MCP_ALLOWED_ORIGINS": str(values.get("MCP_ALLOWED_ORIGINS", "")).strip(),
         "MCP_ALLOW_ORIGINLESS_CLIENTS": str(values.get("MCP_ALLOW_ORIGINLESS_CLIENTS", "")).strip(),
@@ -104,6 +110,7 @@ def deployment_input_from_mapping(values: Mapping[str, object]) -> DeploymentInp
         runtime_identity=str(values.get("SERVICE_ACCOUNT_EMAIL", "")).strip(),
         region=str(values.get("REGION", "")).strip(),
         project_id=str(values.get("PROJECT_ID", "")).strip(),
+        public_invocation_intent=str(values.get("PUBLIC_INVOCATION_INTENT", "private_only")).strip() or "private_only",
         secret_references=secret_refs,
         config_values=config_values,
         min_instances=int(values.get("MIN_INSTANCES", 0)),
@@ -119,6 +126,7 @@ IAC_OUTPUT_ALIASES = {
     "MCP_ENVIRONMENT": ("MCP_ENVIRONMENT", "environment", "mcp_environment"),
     "SERVICE_NAME": ("SERVICE_NAME", "service_name"),
     "SERVICE_ACCOUNT_EMAIL": ("SERVICE_ACCOUNT_EMAIL", "service_account_email"),
+    "PUBLIC_INVOCATION_INTENT": ("PUBLIC_INVOCATION_INTENT", "public_invocation_intent"),
     "MCP_AUTH_REQUIRED": ("MCP_AUTH_REQUIRED", "mcp_auth_required"),
     "MCP_ALLOWED_ORIGINS": ("MCP_ALLOWED_ORIGINS", "mcp_allowed_origins"),
     "MCP_ALLOW_ORIGINLESS_CLIENTS": ("MCP_ALLOW_ORIGINLESS_CLIENTS", "mcp_allow_originless_clients"),
@@ -255,6 +263,7 @@ class RuntimeSettingsSnapshot:
     timeout_seconds: int
     secret_reference_names: tuple[str, ...]
     config_summary: Mapping[str, str]
+    public_invocation_intent: str = "private_only"
     server_implementation: str = "uvicorn"
     app_module: str = "mcp_server.cloud_run_entrypoint:app"
 
@@ -270,6 +279,7 @@ class DeploymentRunRecord:
     service_url: str | None = None
     failure_stage: str | None = None
     remediation: str | None = None
+    public_invocation_intent: str = "private_only"
 
 
 def snapshot_runtime_settings(settings: DeploymentInputSet) -> RuntimeSettingsSnapshot:
@@ -277,6 +287,7 @@ def snapshot_runtime_settings(settings: DeploymentInputSet) -> RuntimeSettingsSn
         service_name=settings.service_name,
         environment_profile=settings.environment,
         runtime_identity=settings.runtime_identity,
+        public_invocation_intent=settings.public_invocation_intent,
         server_implementation=settings.config_values["MCP_SERVER_IMPLEMENTATION"],
         app_module=settings.config_values["MCP_ASGI_APP"],
         min_instances=settings.min_instances,
@@ -294,14 +305,17 @@ def serialize_deployment_run(record: DeploymentRunRecord) -> dict:
         "executedAt": record.executed_at,
         "outcome": record.outcome,
         "summary": record.summary,
+        "publicInvocationIntent": record.public_invocation_intent,
         "revisionName": record.revision_name,
         "serviceUrl": record.service_url,
+        "connectionPoint": record.service_url,
         "failureStage": record.failure_stage,
         "remediation": record.remediation,
         "runtimeSettings": {
             "serviceName": record.runtime_settings.service_name,
             "environmentProfile": record.runtime_settings.environment_profile,
             "runtimeIdentity": record.runtime_settings.runtime_identity,
+            "publicInvocationIntent": record.runtime_settings.public_invocation_intent,
             "serverImplementation": record.runtime_settings.server_implementation,
             "appModule": record.runtime_settings.app_module,
             "minInstances": record.runtime_settings.min_instances,
@@ -330,6 +344,7 @@ def _build_deployment_record(
         outcome=outcome,
         summary=summary,
         runtime_settings=snapshot_runtime_settings(settings),
+        public_invocation_intent=settings.public_invocation_intent,
         revision_name=revision_name,
         service_url=service_url,
         failure_stage=failure_stage,
@@ -432,6 +447,9 @@ class VerificationCheckResult:
     summary: str
     status_code: int | None = None
     evidence_location: str | None = None
+    failure_layer: str | None = None
+    request_reached_application: bool | None = None
+    remediation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -460,6 +478,9 @@ def serialize_verification_run(run: HostedVerificationRun) -> dict:
                 "summary": item.summary,
                 "statusCode": item.status_code,
                 "evidenceLocation": item.evidence_location,
+                "failureLayer": item.failure_layer,
+                "requestReachedApplication": item.request_reached_application,
+                "remediation": item.remediation,
             }
             for item in run.checks
         ],
@@ -567,6 +588,7 @@ def run_hosted_verification(
     checks: list[VerificationCheckResult] = []
 
     remediation = {
+        "reachability": "Inspect Cloud Run public invocation, the published service URL, and provider-level access settings before re-running verification.",
         "liveness": "Inspect the deployed revision startup logs and confirm the container is listening on the expected port.",
         "readiness": "Review runtime configuration and secret injection, then redeploy or re-run verification.",
         "initialize": "Confirm the hosted MCP endpoint is reachable and the initialize method is still supported.",
@@ -587,6 +609,7 @@ def run_hosted_verification(
         "browser-request-unsupported": "Inspect browser unsupported-route, method, and header handling before re-running verification.",
     }
     stage = {
+        "reachability": "deployment-time",
         "liveness": "deployment-time",
         "readiness": "readiness-time",
         "initialize": "MCP-time",
@@ -612,6 +635,17 @@ def run_hosted_verification(
         result_summary = summary
         if not ok:
             result_summary = f"{stage[check_name]} failure during {check_name}. {remediation[check_name]}"
+        request_reached_application = check_name != "reachability"
+        if ok:
+            failure_layer = "none"
+        elif check_name == "reachability":
+            failure_layer = "cloud_platform"
+            request_reached_application = False
+        elif check_name in {"liveness", "readiness"} and payload.get("statusCode") in {None, 502, 503, 504}:
+            failure_layer = "cloud_platform"
+            request_reached_application = False
+        else:
+            failure_layer = "mcp_application"
         checks.append(
             VerificationCheckResult(
                 check_name=check_name,
@@ -621,9 +655,21 @@ def run_hosted_verification(
                 summary=result_summary,
                 status_code=payload.get("statusCode"),
                 evidence_location=evidence_path,
+                failure_layer=failure_layer,
+                request_reached_application=request_reached_application,
+                remediation=remediation[check_name] if not ok else None,
             )
         )
         return ok
+
+    reachability_payload = _normalize_request_result(requester("/", {"__httpMethod": "GET"}))
+    if not _append(
+        "reachability",
+        reachability_payload,
+        lambda payload: payload.get("statusCode") is not None and payload.get("statusCode") not in {401, 403},
+        "Hosted connection point responded to an unauthenticated reachability probe.",
+    ):
+        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
     health_payload = _normalize_request_result(requester("/health", {}))
     if not _append(
@@ -988,6 +1034,9 @@ def write_verification_evidence(destination: str | Path, run: HostedVerification
                 f"    summary: {check['summary']}",
                 f"    endpointUrl: {check['endpointUrl']}",
                 f"    executedAt: {check['executedAt']}",
+                f"    failureLayer: {check['failureLayer']}",
+                f"    requestReachedApplication: {check['requestReachedApplication']}",
+                f"    remediation: {check['remediation']}",
             ]
         )
     path.write_text("\n".join(lines) + "\n")

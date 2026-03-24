@@ -100,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--revision-name")
     parser.add_argument("--service-name")
     parser.add_argument("--runtime-identity")
+    parser.add_argument("--public-invocation-intent")
     parser.add_argument("--min-instances", type=int)
     parser.add_argument("--max-instances", type=int)
     parser.add_argument("--concurrency", type=int)
@@ -119,6 +120,11 @@ def main(argv: list[str] | None = None) -> int:
     revision_name = args.revision_name or deployment_record.get("revisionName")
     service_name = args.service_name or runtime_settings.get("serviceName")
     runtime_identity = args.runtime_identity or runtime_settings.get("runtimeIdentity")
+    public_invocation_intent = (
+        args.public_invocation_intent
+        or deployment_record.get("publicInvocationIntent")
+        or runtime_settings.get("publicInvocationIntent")
+    )
     min_instances = args.min_instances if args.min_instances is not None else runtime_settings.get("minInstances")
     max_instances = args.max_instances if args.max_instances is not None else runtime_settings.get("maxInstances")
     concurrency = args.concurrency if args.concurrency is not None else runtime_settings.get("concurrency")
@@ -173,14 +179,27 @@ def main(argv: list[str] | None = None) -> int:
         browser_origin=origin,
     )
     evidence_path = write_verification_evidence(Path(args.evidence_file), run)
+    first_failure = next((check for check in run.checks if check.result == "fail"), None)
     print(
         json.dumps(
             {
                 "overallResult": run.overall_result,
                 "errorCodeContract": "numeric",
                 "runtimeIdentity": revision.runtime_identity,
+                "publicInvocationIntent": public_invocation_intent,
                 "evidenceFile": str(evidence_path),
                 "checkNames": [check.check_name for check in run.checks],
+                "failureLayers": [check.failure_layer for check in run.checks if check.result == "fail"],
+                "firstFailure": (
+                    {
+                        "checkName": first_failure.check_name,
+                        "failureLayer": first_failure.failure_layer,
+                        "requestReachedApplication": first_failure.request_reached_application,
+                        "remediation": first_failure.remediation,
+                    }
+                    if first_failure
+                    else None
+                ),
             }
         )
     )

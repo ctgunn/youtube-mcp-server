@@ -16,6 +16,8 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         self.assertIn("Last-Event-ID", content)
         self.assertIn("Authorization: Bearer", content)
         self.assertIn("MCP_AUTH_TOKEN", content)
+        self.assertIn("PUBLIC_INVOCATION_INTENT", content)
+        self.assertIn("public_remote_mcp", content)
         self.assertIn("MCP_ALLOWED_ORIGINS", content)
         self.assertIn("Access-Control-Request-Method", content)
         self.assertIn("http://localhost:3000", content)
@@ -45,6 +47,7 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
             "SERVICE_ACCOUNT_EMAIL",
             "MCP_SERVER_IMPLEMENTATION",
             "MCP_ASGI_APP",
+            "PUBLIC_INVOCATION_INTENT",
             "MIN_INSTANCES",
             "MAX_INSTANCES",
             "CONCURRENCY",

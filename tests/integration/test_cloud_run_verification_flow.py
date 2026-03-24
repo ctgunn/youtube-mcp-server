@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
 from mcp_server.cloud_run_entrypoint import execute_hosted_request
-from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, write_verification_evidence
+from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, serialize_verification_run, write_verification_evidence
 from mcp_server.transport.session_store import reset_memory_session_store_registry
 
 
@@ -111,9 +111,10 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
             browser_origin="http://localhost:3000",
         )
         self.assertEqual(run.overall_result, "pass")
-        self.assertEqual(len(run.checks), 18)
+        self.assertEqual(len(run.checks), 19)
         self.assertTrue(all(check.result == "pass" for check in run.checks))
         by_name = {check.check_name: check for check in run.checks}
+        self.assertEqual(run.checks[0].check_name, "reachability")
         self.assertEqual(by_name["fetch-tool-call-missing"].result, "pass")
         self.assertEqual(by_name["fetch-tool-call-conflict"].result, "pass")
         self.assertEqual(by_name["session-invalid"].result, "pass")
@@ -122,7 +123,7 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         app = create_app(env={"MCP_ENVIRONMENT": "staging"}, validate_startup=False)
         run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
         self.assertEqual(run.overall_result, "fail")
-        self.assertEqual([check.check_name for check in run.checks], ["liveness", "readiness"])
+        self.assertEqual([check.check_name for check in run.checks], ["reachability", "liveness", "readiness"])
 
     def test_verification_evidence_is_written(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev", "MCP_ALLOWED_ORIGINS": "http://localhost:3000"})
@@ -147,6 +148,8 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         self.assertIn("checkName: browser-origin-denied", content)
         self.assertIn("checkName: session-reconnect", content)
         self.assertIn("runtimeIdentity: svc@example.iam.gserviceaccount.com", content)
+        self.assertIn("failureLayer:", content)
+        self.assertIn("requestReachedApplication:", content)
 
     def test_hosted_route_payloads_remain_consistent_with_verification_inputs(self):
         ready_app = create_app(env={"MCP_ENVIRONMENT": "dev"})
@@ -201,6 +204,36 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         app = create_app(env={"MCP_ENVIRONMENT": "dev", "MCP_AUTH_TOKEN": "verify-token"})
         run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
         self.assertEqual(run.overall_result, "fail")
+
+    def test_verification_serialization_carries_failure_layer_fields(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev", "MCP_AUTH_TOKEN": "verify-token"})
+        run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
+        payload = serialize_verification_run(run)
+        failing = [check for check in payload["checks"] if check["result"] == "fail"]
+        self.assertTrue(failing)
+        self.assertIn("failureLayer", failing[0])
+        self.assertIn("requestReachedApplication", failing[0])
+        self.assertIn("remediation", failing[0])
+
+    def test_verification_distinguishes_cloud_reachability_denial_from_mcp_denial(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev", "MCP_AUTH_TOKEN": "verify-token"})
+        delegated = self._hosted_requester(app)
+
+        def cloud_denied(path, payload):
+            if path == "/":
+                return {"statusCode": 403}
+            return delegated(path, payload)
+
+        cloud_run = run_hosted_verification(self._revision(), requester=cloud_denied)
+        self.assertEqual(cloud_run.checks[0].check_name, "reachability")
+        self.assertEqual(cloud_run.checks[0].failure_layer, "cloud_platform")
+        self.assertFalse(cloud_run.checks[0].request_reached_application)
+
+        mcp_run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
+        failing = [check for check in mcp_run.checks if check.result == "fail"][0]
+        self.assertEqual(failing.check_name, "initialize")
+        self.assertEqual(failing.failure_layer, "mcp_application")
+        self.assertTrue(failing.request_reached_application)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ class CloudRunDeploymentMetadataIntegrationTests(unittest.TestCase):
                 "IMAGE_REFERENCE": "us-docker.pkg.dev/project/app/image:sha",
                 "SERVICE_ACCOUNT_EMAIL": "svc@example.iam.gserviceaccount.com",
                 "MCP_ENVIRONMENT": "staging",
+                "PUBLIC_INVOCATION_INTENT": "public_remote_mcp",
                 "MIN_INSTANCES": "0",
                 "MAX_INSTANCES": "2",
                 "CONCURRENCY": "20",
@@ -53,6 +54,8 @@ class CloudRunDeploymentMetadataIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["outcome"], "success")
         self.assertEqual(payload["revisionName"], "youtube-mcp-server-00008")
         self.assertEqual(payload["serviceUrl"], "https://example-service.run.app")
+        self.assertEqual(payload["connectionPoint"], "https://example-service.run.app")
+        self.assertEqual(payload["publicInvocationIntent"], "public_remote_mcp")
         self.assertEqual(payload["runtimeSettings"]["runtimeIdentity"], "svc@example.iam.gserviceaccount.com")
         self.assertEqual(payload["runtimeSettings"]["serverImplementation"], "uvicorn")
         self.assertEqual(payload["runtimeSettings"]["appModule"], "mcp_server.cloud_run_entrypoint:app")

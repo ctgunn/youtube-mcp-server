@@ -43,6 +43,8 @@ For `success`, the record MUST also include:
 
 - `revisionName`
 - `serviceUrl`
+- `connectionPoint`
+- `publicInvocationIntent`
 
 For `failed` or `incomplete`, the record MUST also include:
 

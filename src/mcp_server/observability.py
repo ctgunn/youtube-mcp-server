@@ -160,6 +160,7 @@ class InMemoryObservability:
             "status": "success" if decision.get("decision") == "accepted" else "error",
             "decision": decision.get("decision"),
             "decisionCategory": decision.get("decisionCategory"),
+            "failureLayer": decision.get("failureLayer"),
             "clientType": decision.get("clientType"),
             "authPresent": bool(decision.get("authPresent")),
             "originPresent": bool(decision.get("originPresent")),

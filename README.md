@@ -104,6 +104,7 @@ Required deployment inputs:
 - `SERVICE_ACCOUNT_EMAIL`
 - `MCP_SERVER_IMPLEMENTATION` (`uvicorn`)
 - `MCP_ASGI_APP` (`mcp_server.cloud_run_entrypoint:app`)
+- `PUBLIC_INVOCATION_INTENT` (`public_remote_mcp` for trusted public remote MCP environments, `private_only` otherwise)
 - `MCP_ENVIRONMENT`
 - `MCP_AUTH_REQUIRED`
 - `MCP_ALLOWED_ORIGINS`
@@ -125,6 +126,7 @@ IMAGE_REFERENCE=us-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
 SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com \
 MCP_SERVER_IMPLEMENTATION=uvicorn \
 MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \
+PUBLIC_INVOCATION_INTENT=public_remote_mcp \
 MCP_ENVIRONMENT=staging \
 MCP_AUTH_REQUIRED=true \
 MCP_ALLOWED_ORIGINS=https://chat.openai.com \
@@ -151,8 +153,9 @@ bash scripts/deploy_cloud_run.sh
 ```
 
 The deployment workflow now returns a JSON deployment record containing the
-deployment outcome, revision name, hosted service URL, and runtime settings
-summary. Save that record and use it as the handoff into hosted verification.
+deployment outcome, revision name, hosted service URL, public invocation
+intent, published connection point, and runtime settings summary. Save that
+record and use it as the handoff into hosted verification.
 The runtime settings summary includes `serverImplementation=uvicorn` and
 `appModule=mcp_server.cloud_run_entrypoint:app`.
 
@@ -166,6 +169,7 @@ IMAGE_REFERENCE=us-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
 SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com \
 MCP_SERVER_IMPLEMENTATION=uvicorn \
 MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \
+PUBLIC_INVOCATION_INTENT=public_remote_mcp \
 MCP_ENVIRONMENT=staging \
 MCP_AUTH_REQUIRED=true \
 MCP_ALLOWED_ORIGINS=https://chat.openai.com \
@@ -190,6 +194,18 @@ PYTHONPATH=src python3 scripts/verify_cloud_run_foundation.py \
   --evidence-file artifacts/cloud-run-verification.txt
 ```
 
+Set `PUBLIC_INVOCATION_INTENT=public_remote_mcp` only for environments that
+should be intentionally reachable by trusted remote MCP consumers. Use
+`PUBLIC_INVOCATION_INTENT=private_only` for environments that should remain
+outside the public remote MCP workflow. Public invocation intent does not
+replace `Authorization: Bearer ...`; it only determines whether the hosted
+Cloud Run service is intentionally reachable.
+
+Operator diagnosis now follows two layers:
+
+- `cloud_platform`: the public `reachability` probe failed before the request reached the hosted MCP application.
+- `mcp_application`: the hosted service was reachable, but the protected `/mcp` request failed due to bearer-token or browser-origin rules.
+
 The hosted verifier now exercises the streamable MCP transport rather than the
 older bare `POST /mcp` flow. It performs `initialize`, captures the returned
 `MCP-Session-Id`, reuses that session for subsequent `POST` and `GET` MCP
@@ -197,7 +213,9 @@ requests, validates reconnect behavior with `Last-Event-ID`, and accepts both
 `application/json` and `text/event-stream` responses as required by the hosted
 transport contract. Covered hosted MCP failures now use numeric `error.code`
 values and stable `error.data.category` details rather than legacy string-style
-top-level error codes.
+top-level error codes. It now records a public `reachability` check before
+`liveness`, `readiness`, and authenticated `/mcp` verification so operators can
+separate Cloud Run public access from MCP-layer authentication.
 
 Manual streamable MCP verification examples:
 
@@ -388,6 +406,7 @@ PYTHONPATH=src python3 -m uvicorn mcp_server.cloud_run_entrypoint:app --host 0.0
 
 The verification output must record pass/fail results for:
 
+- `reachability`
 - `liveness`
 - `readiness`
 - `initialize`

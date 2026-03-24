@@ -29,6 +29,17 @@ variable "service_account_name" {
   default     = "youtube-mcp-server"
 }
 
+variable "public_invocation_intent" {
+  description = "Whether the hosted Cloud Run service is intended for trusted public remote MCP access."
+  type        = string
+  default     = "private_only"
+
+  validation {
+    condition     = contains(["public_remote_mcp", "private_only"], var.public_invocation_intent)
+    error_message = "public_invocation_intent must be public_remote_mcp or private_only."
+  }
+}
+
 variable "bootstrap_image_reference" {
   description = "Placeholder image used to create the Cloud Run service foundation before application deployment."
   type        = string

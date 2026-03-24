@@ -16,6 +16,7 @@ class CloudRunSecurityGateTests(unittest.TestCase):
                 "MCP_ENVIRONMENT": "dev",
                 "MCP_AUTH_TOKEN": "local-dev-token",
                 "MCP_ALLOWED_ORIGINS": "http://localhost:3000",
+                "PUBLIC_INVOCATION_INTENT": "public_remote_mcp",
             }
         )
         self.payload = json.dumps(
@@ -37,6 +38,17 @@ class CloudRunSecurityGateTests(unittest.TestCase):
         )
         self.assertEqual(response.status, 401)
         self.assertEqual(response.payload["error"]["code"], -32002)
+        self.assertEqual(response.payload["error"]["data"]["category"], "unauthenticated")
+
+    def test_public_invocation_intent_does_not_bypass_mcp_authentication(self):
+        response = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+            body=self.payload,
+        )
+        self.assertEqual(response.status, 401)
         self.assertEqual(response.payload["error"]["data"]["category"], "unauthenticated")
 
     def test_disallowed_origin_is_rejected(self):

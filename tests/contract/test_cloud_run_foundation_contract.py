@@ -198,6 +198,8 @@ class CloudRunFoundationContractTests(unittest.TestCase):
 
         def requester(path, payload):
             if path != "/mcp":
+                if path == "/":
+                    return {"statusCode": 404}
                 return app_payloads[path]
             if payload.get("__httpMethod") == "GET" and payload.get("__sessionId") == "missing-session":
                 return app_payloads["invalid-session"]
@@ -229,6 +231,7 @@ class CloudRunFoundationContractTests(unittest.TestCase):
         self.assertEqual(
             [check.check_name for check in run.checks],
             [
+                "reachability",
                 "liveness",
                 "readiness",
                 "initialize",
@@ -250,10 +253,26 @@ class CloudRunFoundationContractTests(unittest.TestCase):
         self.assertEqual(app_payloads["server-ping-call"]["result"]["content"][0]["structuredContent"]["status"], "ok")
 
         serialized = serialize_verification_run(run)
-        self.assertEqual(serialized["checks"][0].keys(), {"checkName", "endpointUrl", "executedAt", "result", "summary", "statusCode", "evidenceLocation"})
+        self.assertEqual(
+            serialized["checks"][0].keys(),
+            {
+                "checkName",
+                "endpointUrl",
+                "executedAt",
+                "result",
+                "summary",
+                "statusCode",
+                "evidenceLocation",
+                "failureLayer",
+                "requestReachedApplication",
+                "remediation",
+            },
+        )
 
     def test_verification_stops_after_failed_readiness(self):
         def requester(path, payload):
+            if path == "/":
+                return {"statusCode": 404}
             if path == "/health":
                 return {"status": "ok", "statusCode": 200}
             if path == "/ready":
@@ -266,7 +285,7 @@ class CloudRunFoundationContractTests(unittest.TestCase):
             self.fail("MCP verification should not execute after readiness failure")
 
         run = run_hosted_verification(self.revision, requester)
-        self.assertEqual([check.check_name for check in run.checks], ["liveness", "readiness"])
+        self.assertEqual([check.check_name for check in run.checks], ["reachability", "liveness", "readiness"])
         self.assertEqual(run.overall_result, "fail")
 
     def test_contract_document_lists_required_deployment_settings(self):

@@ -29,23 +29,26 @@ true:
 
 The hosted verification flow MUST run in this order:
 
-1. `liveness`
+1. `reachability`
+   - Target: hosted connection point
+   - Expected result: service is reachable before authenticated MCP verification begins
+2. `liveness`
    - Target: hosted `/health`
    - Expected result: healthy status response
-2. `readiness`
+3. `readiness`
    - Target: hosted `/ready`
    - Expected result: ready status response when deployment inputs are valid
-3. `initialize`
+4. `initialize`
    - Target: hosted MCP endpoint
    - Expected result: declared server capabilities returned successfully
-4. `list-tools`
+5. `list-tools`
    - Target: hosted MCP endpoint
    - Expected result: baseline tool names and descriptions returned successfully
-5. `baseline-tool-call`
+6. `baseline-tool-call`
    - Target: hosted MCP endpoint
    - Expected result: at least one baseline tool returns a successful structured response
 
-If `liveness` or `readiness` fails, MCP verification MUST NOT be reported as
+If `reachability`, `liveness`, or `readiness` fails, MCP verification MUST NOT be reported as
 passing for that revision.
 
 ## Verification Evidence Contract
