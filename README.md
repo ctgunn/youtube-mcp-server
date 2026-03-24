@@ -1,5 +1,5 @@
 # youtube-mcp-server
-An MCP-compliant server that wraps the YouTube Data API and exposes searchable tools for use in OpenAI Agent Builder workflows, deployable via Google Cloud Run.
+An MCP-compliant server that wraps the YouTube Data API and exposes searchable tools for use in OpenAI Agent Builder workflows. The current primary hosted provider adapter targets Google Cloud Run, while the shared platform contract keeps the hosted deployment model portable across providers.
 
 ## Local dependency bootstrap
 
@@ -21,7 +21,7 @@ PYTHONPATH=src python3 -m uvicorn mcp_server.cloud_run_entrypoint:app --host 0.0
 ```
 
 This path does not require cloud provisioning or local infrastructure under
-`infrastructure/`.
+`infrastructure/`, and it remains outside any provider adapter prerequisites in the shared platform contract.
 
 ## Hosted-like local verification path
 
@@ -46,6 +46,8 @@ When finished:
 ```bash
 docker compose -f infrastructure/local/compose.yaml down
 ```
+
+These local and hosted-like local workflows are execution modes of the shared platform contract. They remain separate from the primary hosted provider adapter and any future provider adapter.
 
 ## Engineering workflow
 
@@ -90,6 +92,8 @@ curl -i -X OPTIONS \
 ```
 
 ## Cloud Run foundation deployment
+
+The hosted deployment steps below describe the current primary hosted provider adapter. FND-020 preserves these steps while separating them from the provider-neutral application deployment model.
 
 Required deployment inputs:
 
