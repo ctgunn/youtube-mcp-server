@@ -12,15 +12,21 @@ class DurableSessionConfigTests(unittest.TestCase):
         settings = load_hosted_runtime_settings(
             {
                 "MCP_ENVIRONMENT": "dev",
+                "MCP_SECRET_ACCESS_MODE": "secret_manager_env",
+                "MCP_SECRET_REFERENCE_NAMES": "YOUTUBE_API_KEY,MCP_AUTH_TOKEN",
                 "MCP_SESSION_BACKEND": "redis",
                 "MCP_SESSION_STORE_URL": "redis://localhost:6379/0",
+                "MCP_SESSION_CONNECTIVITY_MODEL": "serverless_vpc_connector",
                 "MCP_SESSION_DURABILITY_REQUIRED": "true",
                 "MCP_SESSION_TTL_SECONDS": "900",
                 "MCP_SESSION_REPLAY_TTL_SECONDS": "60",
             }
         )
+        self.assertEqual(settings.secret_access_mode, "secret_manager_env")
+        self.assertEqual(settings.secret_reference_names, ("YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"))
         self.assertEqual(settings.session.backend, "redis")
         self.assertEqual(settings.session.store_url, "redis://localhost:6379/0")
+        self.assertEqual(settings.session.connectivity_model, "serverless_vpc_connector")
         self.assertTrue(settings.session.durability_required)
         self.assertEqual(settings.session.session_ttl_seconds, 900)
         self.assertEqual(settings.session.replay_ttl_seconds, 60)

@@ -92,15 +92,22 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
             scaling_settings={"minInstances": 0, "maxInstances": 1, "concurrency": 80},
             timeout_seconds=300,
             status="created",
+            secret_reference_names=("YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"),
+            secret_access_mode="secret_manager_env",
+            session_backend="redis",
+            session_store_url="memory://verify-shared",
+            session_connectivity_model="serverless_vpc_connector",
         )
 
     def test_ready_app_passes_full_hosted_verification(self):
         app = create_app(
             env={
                 "MCP_ENVIRONMENT": "dev",
+                "MCP_SECRET_REFERENCE_NAMES": "YOUTUBE_API_KEY,MCP_AUTH_TOKEN",
                 "MCP_ALLOWED_ORIGINS": "http://localhost:3000",
                 "MCP_SESSION_BACKEND": "memory",
                 "MCP_SESSION_STORE_URL": "memory://verify-shared",
+                "MCP_SESSION_CONNECTIVITY_MODEL": "serverless_vpc_connector",
                 "MCP_SESSION_DURABILITY_REQUIRED": "true",
             }
         )
@@ -111,10 +118,12 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
             browser_origin="http://localhost:3000",
         )
         self.assertEqual(run.overall_result, "pass")
-        self.assertEqual(len(run.checks), 19)
+        self.assertEqual(len(run.checks), 22)
         self.assertTrue(all(check.result == "pass" for check in run.checks))
         by_name = {check.check_name: check for check in run.checks}
-        self.assertEqual(run.checks[0].check_name, "reachability")
+        self.assertEqual(run.checks[0].check_name, "deployment-evidence")
+        self.assertEqual(by_name["secret-access"].result, "pass")
+        self.assertEqual(by_name["session-connectivity"].result, "pass")
         self.assertEqual(by_name["fetch-tool-call-missing"].result, "pass")
         self.assertEqual(by_name["fetch-tool-call-conflict"].result, "pass")
         self.assertEqual(by_name["session-invalid"].result, "pass")
@@ -123,7 +132,10 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         app = create_app(env={"MCP_ENVIRONMENT": "staging"}, validate_startup=False)
         run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
         self.assertEqual(run.overall_result, "fail")
-        self.assertEqual([check.check_name for check in run.checks], ["reachability", "liveness", "readiness"])
+        self.assertEqual(
+            [check.check_name for check in run.checks],
+            ["deployment-evidence", "reachability", "liveness", "secret-access"],
+        )
 
     def test_verification_evidence_is_written(self):
         app = create_app(env={"MCP_ENVIRONMENT": "dev", "MCP_ALLOWED_ORIGINS": "http://localhost:3000"})
@@ -148,6 +160,9 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         self.assertIn("checkName: browser-origin-denied", content)
         self.assertIn("checkName: session-reconnect", content)
         self.assertIn("runtimeIdentity: svc@example.iam.gserviceaccount.com", content)
+        self.assertIn("checkName: deployment-evidence", content)
+        self.assertIn("checkName: secret-access", content)
+        self.assertIn("checkName: session-connectivity", content)
         self.assertIn("failureLayer:", content)
         self.assertIn("requestReachedApplication:", content)
 
@@ -168,8 +183,10 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         app = create_app(
             env={
                 "MCP_ENVIRONMENT": "dev",
+                "MCP_SECRET_REFERENCE_NAMES": "YOUTUBE_API_KEY,MCP_AUTH_TOKEN",
                 "MCP_SESSION_BACKEND": "memory",
                 "MCP_SESSION_STORE_URL": "memory://verify-shared-2",
+                "MCP_SESSION_CONNECTIVITY_MODEL": "serverless_vpc_connector",
                 "MCP_SESSION_DURABILITY_REQUIRED": "true",
             }
         )
@@ -225,15 +242,28 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
             return delegated(path, payload)
 
         cloud_run = run_hosted_verification(self._revision(), requester=cloud_denied)
-        self.assertEqual(cloud_run.checks[0].check_name, "reachability")
-        self.assertEqual(cloud_run.checks[0].failure_layer, "cloud_platform")
-        self.assertFalse(cloud_run.checks[0].request_reached_application)
+        self.assertEqual(cloud_run.checks[1].check_name, "reachability")
+        self.assertEqual(cloud_run.checks[1].failure_layer, "cloud_platform")
+        self.assertFalse(cloud_run.checks[1].request_reached_application)
 
         mcp_run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
         failing = [check for check in mcp_run.checks if check.result == "fail"][0]
-        self.assertEqual(failing.check_name, "initialize")
-        self.assertEqual(failing.failure_layer, "mcp_application")
+        self.assertIn(failing.check_name, {"secret-access", "initialize"})
+        self.assertIn(failing.failure_layer, {"secret_access", "mcp_application"})
         self.assertTrue(failing.request_reached_application)
+
+    def test_verification_reports_secret_access_failure_layer(self):
+        app = create_app(
+            env={
+                "MCP_ENVIRONMENT": "staging",
+                "MCP_SECRET_REFERENCE_NAMES": "YOUTUBE_API_KEY,MCP_AUTH_TOKEN",
+            },
+            validate_startup=False,
+        )
+        run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
+        failing = [check for check in run.checks if check.result == "fail"][0]
+        self.assertEqual(failing.check_name, "secret-access")
+        self.assertEqual(failing.failure_layer, "secret_access")
 
 
 if __name__ == "__main__":

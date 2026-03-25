@@ -33,6 +33,16 @@ output "secret_reference_names" {
   value       = sort(keys(google_secret_manager_secret.runtime))
 }
 
+output "mcp_secret_access_mode" {
+  description = "How Cloud Run receives secret-backed runtime configuration."
+  value       = var.secret_access_mode
+}
+
+output "mcp_secret_reference_names" {
+  description = "Runtime secret reference names exposed to the hosted deployment workflow."
+  value       = sort(keys(google_secret_manager_secret.runtime))
+}
+
 output "mcp_auth_required" {
   description = "Hosted auth requirement."
   value       = var.mcp_auth_required
@@ -57,6 +67,11 @@ output "mcp_session_store_url" {
   description = "Redis URL consumed by the runtime."
   value       = "redis://${google_redis_instance.session_store.host}:6379/0"
   sensitive   = true
+}
+
+output "mcp_session_connectivity_model" {
+  description = "Provider-specific model used for Cloud Run to reach the durable session backend."
+  value       = var.session_connectivity_model
 }
 
 output "mcp_session_durability_required" {

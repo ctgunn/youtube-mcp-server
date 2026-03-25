@@ -59,6 +59,8 @@ class CloudRunDeploymentMetadataIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["runtimeSettings"]["runtimeIdentity"], "svc@example.iam.gserviceaccount.com")
         self.assertEqual(payload["runtimeSettings"]["serverImplementation"], "uvicorn")
         self.assertEqual(payload["runtimeSettings"]["appModule"], "mcp_server.cloud_run_entrypoint:app")
+        self.assertIn("secretAccessMode", payload["runtimeSettings"])
+        self.assertIn("sessionConnectivityModel", payload["runtimeSettings"])
 
     def test_deploy_script_marks_incomplete_when_metadata_is_missing(self):
         with tempfile.TemporaryDirectory() as tmp:

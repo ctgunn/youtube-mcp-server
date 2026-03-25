@@ -73,6 +73,10 @@ class DeploymentInputSet:
             for secret_name in ("YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"):
                 if secret_name not in self.secret_references:
                     failures.append(f"{secret_name} secret reference is required for staging and prod")
+        if self.config_values.get("MCP_SESSION_BACKEND") == "redis" and not _clean_env_value(
+            self.config_values.get("MCP_SESSION_STORE_URL")
+        ):
+            failures.append("MCP_SESSION_STORE_URL is required when MCP_SESSION_BACKEND=redis")
         return failures
 
 
@@ -93,12 +97,15 @@ def deployment_input_from_mapping(values: Mapping[str, object]) -> DeploymentInp
         "MCP_SERVER_IMPLEMENTATION": str(values.get("MCP_SERVER_IMPLEMENTATION", "uvicorn")).strip() or "uvicorn",
         "MCP_ASGI_APP": str(values.get("MCP_ASGI_APP", "mcp_server.cloud_run_entrypoint:app")).strip()
         or "mcp_server.cloud_run_entrypoint:app",
+        "MCP_SECRET_ACCESS_MODE": str(values.get("MCP_SECRET_ACCESS_MODE", "")).strip(),
+        "MCP_SECRET_REFERENCE_NAMES": str(values.get("MCP_SECRET_REFERENCE_NAMES", values.get("SECRET_REFERENCES", ""))).strip(),
         "PUBLIC_INVOCATION_INTENT": str(values.get("PUBLIC_INVOCATION_INTENT", "private_only")).strip() or "private_only",
         "MCP_AUTH_REQUIRED": str(values.get("MCP_AUTH_REQUIRED", "")).strip(),
         "MCP_ALLOWED_ORIGINS": str(values.get("MCP_ALLOWED_ORIGINS", "")).strip(),
         "MCP_ALLOW_ORIGINLESS_CLIENTS": str(values.get("MCP_ALLOW_ORIGINLESS_CLIENTS", "")).strip(),
         "MCP_SESSION_BACKEND": str(values.get("MCP_SESSION_BACKEND", "")).strip(),
         "MCP_SESSION_STORE_URL": str(values.get("MCP_SESSION_STORE_URL", "")).strip(),
+        "MCP_SESSION_CONNECTIVITY_MODEL": str(values.get("MCP_SESSION_CONNECTIVITY_MODEL", "")).strip(),
         "MCP_SESSION_DURABILITY_REQUIRED": str(values.get("MCP_SESSION_DURABILITY_REQUIRED", "")).strip(),
         "MCP_SESSION_TTL_SECONDS": str(values.get("MCP_SESSION_TTL_SECONDS", "")).strip(),
         "MCP_SESSION_REPLAY_TTL_SECONDS": str(values.get("MCP_SESSION_REPLAY_TTL_SECONDS", "")).strip(),
@@ -127,11 +134,18 @@ IAC_OUTPUT_ALIASES = {
     "SERVICE_NAME": ("SERVICE_NAME", "service_name"),
     "SERVICE_ACCOUNT_EMAIL": ("SERVICE_ACCOUNT_EMAIL", "service_account_email"),
     "PUBLIC_INVOCATION_INTENT": ("PUBLIC_INVOCATION_INTENT", "public_invocation_intent"),
+    "MCP_SECRET_ACCESS_MODE": ("MCP_SECRET_ACCESS_MODE", "mcp_secret_access_mode", "secret_access_mode"),
+    "MCP_SECRET_REFERENCE_NAMES": ("MCP_SECRET_REFERENCE_NAMES", "mcp_secret_reference_names"),
     "MCP_AUTH_REQUIRED": ("MCP_AUTH_REQUIRED", "mcp_auth_required"),
     "MCP_ALLOWED_ORIGINS": ("MCP_ALLOWED_ORIGINS", "mcp_allowed_origins"),
     "MCP_ALLOW_ORIGINLESS_CLIENTS": ("MCP_ALLOW_ORIGINLESS_CLIENTS", "mcp_allow_originless_clients"),
     "MCP_SESSION_BACKEND": ("MCP_SESSION_BACKEND", "mcp_session_backend", "session_backend"),
     "MCP_SESSION_STORE_URL": ("MCP_SESSION_STORE_URL", "mcp_session_store_url", "session_store_url"),
+    "MCP_SESSION_CONNECTIVITY_MODEL": (
+        "MCP_SESSION_CONNECTIVITY_MODEL",
+        "mcp_session_connectivity_model",
+        "session_connectivity_model",
+    ),
     "MCP_SESSION_DURABILITY_REQUIRED": (
         "MCP_SESSION_DURABILITY_REQUIRED",
         "mcp_session_durability_required",
@@ -266,6 +280,8 @@ class RuntimeSettingsSnapshot:
     public_invocation_intent: str = "private_only"
     server_implementation: str = "uvicorn"
     app_module: str = "mcp_server.cloud_run_entrypoint:app"
+    secret_access_mode: str = "env_only"
+    session_connectivity_model: str = "local_process"
 
 
 @dataclass(frozen=True)
@@ -290,6 +306,8 @@ def snapshot_runtime_settings(settings: DeploymentInputSet) -> RuntimeSettingsSn
         public_invocation_intent=settings.public_invocation_intent,
         server_implementation=settings.config_values["MCP_SERVER_IMPLEMENTATION"],
         app_module=settings.config_values["MCP_ASGI_APP"],
+        secret_access_mode=settings.config_values.get("MCP_SECRET_ACCESS_MODE") or "env_only",
+        session_connectivity_model=settings.config_values.get("MCP_SESSION_CONNECTIVITY_MODEL") or "local_process",
         min_instances=settings.min_instances,
         max_instances=settings.max_instances,
         concurrency=settings.concurrency,
@@ -318,6 +336,8 @@ def serialize_deployment_run(record: DeploymentRunRecord) -> dict:
             "publicInvocationIntent": record.runtime_settings.public_invocation_intent,
             "serverImplementation": record.runtime_settings.server_implementation,
             "appModule": record.runtime_settings.app_module,
+            "secretAccessMode": record.runtime_settings.secret_access_mode,
+            "sessionConnectivityModel": record.runtime_settings.session_connectivity_model,
             "minInstances": record.runtime_settings.min_instances,
             "maxInstances": record.runtime_settings.max_instances,
             "concurrency": record.runtime_settings.concurrency,
@@ -436,6 +456,11 @@ class HostedRevisionRecord:
     scaling_settings: Mapping[str, int]
     timeout_seconds: int
     status: str
+    secret_reference_names: tuple[str, ...] = ()
+    secret_access_mode: str = "env_only"
+    session_backend: str | None = None
+    session_store_url: str | None = None
+    session_connectivity_model: str | None = None
 
 
 @dataclass(frozen=True)
@@ -574,6 +599,22 @@ def _result_structured_content(payload: dict):
     return first.get("structuredContent")
 
 
+def _reason_code(payload: dict) -> str | None:
+    reason = payload.get("reason")
+    if isinstance(reason, dict):
+        code = reason.get("code")
+        if isinstance(code, str):
+            return code
+    error = payload.get("error")
+    if isinstance(error, dict):
+        data = error.get("data")
+        if isinstance(data, dict):
+            category = data.get("category")
+            if isinstance(category, str):
+                return category
+    return None
+
+
 def run_hosted_verification(
     revision: HostedRevisionRecord,
     requester: Requester,
@@ -586,11 +627,17 @@ def run_hosted_verification(
 
     started_at = _now_iso()
     checks: list[VerificationCheckResult] = []
+    dependency_checks_enabled = bool(revision.secret_reference_names) or revision.secret_access_mode != "env_only" or (
+        revision.session_backend == "redis"
+    ) or bool(revision.session_store_url) or bool(revision.session_connectivity_model)
 
     remediation = {
+        "deployment-evidence": "Inspect deployment metadata, runtime identity, secret reference names, and session connectivity fields before re-running verification.",
         "reachability": "Inspect Cloud Run public invocation, the published service URL, and provider-level access settings before re-running verification.",
         "liveness": "Inspect the deployed revision startup logs and confirm the container is listening on the expected port.",
+        "secret-access": "Inspect runtime identity bindings, secret references, and secret injection wiring before re-running verification.",
         "readiness": "Review runtime configuration and secret injection, then redeploy or re-run verification.",
+        "session-connectivity": "Inspect Cloud Run-to-session-backend connectivity wiring and backend availability before re-running verification.",
         "initialize": "Confirm the hosted MCP endpoint is reachable and the initialize method is still supported.",
         "list-tools": "Confirm the hosted registry remains discoverable before re-running verification.",
         "search-tool-call": "Inspect the published search schema, hosted tool dispatch, and retrieval example inputs before re-running verification.",
@@ -609,9 +656,12 @@ def run_hosted_verification(
         "browser-request-unsupported": "Inspect browser unsupported-route, method, and header handling before re-running verification.",
     }
     stage = {
+        "deployment-evidence": "deployment-time",
         "reachability": "deployment-time",
         "liveness": "deployment-time",
+        "secret-access": "readiness-time",
         "readiness": "readiness-time",
+        "session-connectivity": "readiness-time",
         "initialize": "MCP-time",
         "list-tools": "MCP-time",
         "search-tool-call": "MCP-time",
@@ -638,9 +688,16 @@ def run_hosted_verification(
         request_reached_application = check_name != "reachability"
         if ok:
             failure_layer = "none"
+        elif check_name == "deployment-evidence":
+            failure_layer = "secret_access"
+            request_reached_application = False
         elif check_name == "reachability":
             failure_layer = "cloud_platform"
             request_reached_application = False
+        elif check_name in {"secret-access", "readiness"} and (_reason_code(payload) or "").startswith("SECRET_"):
+            failure_layer = "secret_access"
+        elif check_name in {"session-connectivity", "readiness"} and (_reason_code(payload) or "").startswith("SESSION_"):
+            failure_layer = "session_connectivity"
         elif check_name in {"liveness", "readiness"} and payload.get("statusCode") in {None, 502, 503, 504}:
             failure_layer = "cloud_platform"
             request_reached_application = False
@@ -662,6 +719,28 @@ def run_hosted_verification(
         )
         return ok
 
+    if dependency_checks_enabled:
+        deployment_payload = {
+            "runtimeIdentity": revision.runtime_identity,
+            "secretReferenceNames": list(revision.secret_reference_names),
+            "secretAccessMode": revision.secret_access_mode,
+            "sessionBackend": revision.session_backend,
+            "sessionStoreUrl": revision.session_store_url,
+            "sessionConnectivityModel": revision.session_connectivity_model,
+        }
+        deployment_ok = bool(revision.runtime_identity)
+        if revision.secret_access_mode == "secret_manager_env":
+            deployment_ok = deployment_ok and bool(revision.secret_reference_names)
+        if revision.session_backend == "redis":
+            deployment_ok = deployment_ok and bool(revision.session_store_url) and bool(revision.session_connectivity_model)
+        if not _append(
+            "deployment-evidence",
+            deployment_payload,
+            lambda _payload: deployment_ok,
+            "Deployment metadata included runtime identity, secret access evidence, and session connectivity evidence.",
+        ):
+            return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+
     reachability_payload = _normalize_request_result(requester("/", {"__httpMethod": "GET"}))
     if not _append(
         "reachability",
@@ -681,6 +760,14 @@ def run_hosted_verification(
         return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
     ready_payload = _normalize_request_result(requester("/ready", {}))
+    if dependency_checks_enabled:
+        if not _append(
+            "secret-access",
+            ready_payload,
+            lambda payload: payload.get("checks", {}).get("secrets") == "pass",
+            "Hosted readiness reported healthy secret access state.",
+        ):
+            return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
     if not _append(
         "readiness",
         ready_payload,
@@ -688,6 +775,14 @@ def run_hosted_verification(
         "Hosted readiness endpoint returned ready status.",
     ):
         return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+    if dependency_checks_enabled:
+        if not _append(
+            "session-connectivity",
+            ready_payload,
+            lambda payload: payload.get("checks", {}).get("sessionDurability") == "pass",
+            "Hosted readiness reported healthy session connectivity state.",
+        ):
+            return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
     initialize_payload = _normalize_request_result(
         requester(

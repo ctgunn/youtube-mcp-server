@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.abspath("src"))
 from mcp_server.deploy import build_deploy_command, deployment_input_from_mapping
 from mcp_server.infrastructure_contract import (
     is_supported_access_failure_layer,
+    is_supported_dependency_failure_layer,
     is_supported_public_invocation_intent,
 )
 
@@ -61,6 +62,11 @@ class CloudRunConfigUnitTests(unittest.TestCase):
                 "CONCURRENCY": "20",
                 "TIMEOUT_SECONDS": "180",
                 "SECRET_REFERENCES": "YOUTUBE_API_KEY,MCP_AUTH_TOKEN",
+                "MCP_SECRET_ACCESS_MODE": "secret_manager_env",
+                "MCP_SECRET_REFERENCE_NAMES": "YOUTUBE_API_KEY,MCP_AUTH_TOKEN",
+                "MCP_SESSION_BACKEND": "redis",
+                "MCP_SESSION_STORE_URL": "redis://10.0.0.3:6379/0",
+                "MCP_SESSION_CONNECTIVITY_MODEL": "serverless_vpc_connector",
             }
         )
         command = build_deploy_command(settings)
@@ -73,6 +79,9 @@ class CloudRunConfigUnitTests(unittest.TestCase):
         self.assertIn("--set-secrets YOUTUBE_API_KEY=YOUTUBE_API_KEY:latest,MCP_AUTH_TOKEN=MCP_AUTH_TOKEN:latest", rendered)
         self.assertIn("MCP_SERVER_IMPLEMENTATION=uvicorn", rendered)
         self.assertIn("MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app", rendered)
+        self.assertIn("MCP_SECRET_ACCESS_MODE=secret_manager_env", rendered)
+        self.assertIn("MCP_SECRET_REFERENCE_NAMES=YOUTUBE_API_KEY,MCP_AUTH_TOKEN", rendered)
+        self.assertIn("MCP_SESSION_CONNECTIVITY_MODEL=serverless_vpc_connector", rendered)
 
     def test_invalid_scaling_inputs_raise(self):
         settings = deployment_input_from_mapping(
@@ -101,6 +110,11 @@ class CloudRunConfigUnitTests(unittest.TestCase):
         self.assertTrue(is_supported_access_failure_layer("cloud_platform"))
         self.assertTrue(is_supported_access_failure_layer("mcp-application"))
         self.assertFalse(is_supported_access_failure_layer("network_edge"))
+
+    def test_dependency_failure_layer_helper_accepts_supported_values(self):
+        self.assertTrue(is_supported_dependency_failure_layer("secret_access"))
+        self.assertTrue(is_supported_dependency_failure_layer("session-connectivity"))
+        self.assertFalse(is_supported_dependency_failure_layer("runtime"))
 
     def test_public_invocation_intent_defaults_private_only(self):
         settings = deployment_input_from_mapping(
@@ -136,6 +150,24 @@ class CloudRunConfigUnitTests(unittest.TestCase):
             }
         )
         self.assertIn("public_invocation_intent must be one of public_remote_mcp, private_only", settings.validate())
+
+    def test_redis_backend_requires_session_store_url(self):
+        settings = deployment_input_from_mapping(
+            {
+                "MCP_ENVIRONMENT": "dev",
+                "SERVICE_NAME": "youtube-mcp-server",
+                "IMAGE_REFERENCE": "image",
+                "SERVICE_ACCOUNT_EMAIL": "svc@example.iam.gserviceaccount.com",
+                "REGION": "us-central1",
+                "PROJECT_ID": "project-id",
+                "MIN_INSTANCES": "0",
+                "MAX_INSTANCES": "1",
+                "CONCURRENCY": "10",
+                "TIMEOUT_SECONDS": "120",
+                "MCP_SESSION_BACKEND": "redis",
+            }
+        )
+        self.assertIn("MCP_SESSION_STORE_URL is required when MCP_SESSION_BACKEND=redis", settings.validate())
 
 
 if __name__ == "__main__":

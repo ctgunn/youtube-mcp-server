@@ -5,6 +5,7 @@ service_name          = "youtube-mcp-server"
 service_account_name  = "youtube-mcp-server"
 public_invocation_intent = "public_remote_mcp"
 bootstrap_image_reference = "us-docker.pkg.dev/cloudrun/container/hello"
+secret_access_mode = "secret_manager_env"
 
 min_instances = 0
 max_instances = 2
@@ -16,6 +17,9 @@ mcp_allowed_origins          = "https://chat.openai.com"
 mcp_allow_originless_clients = true
 
 session_backend              = "redis"
+session_connectivity_model   = "serverless_vpc_connector"
+cloud_run_vpc_connector      = "projects/my-gcp-project/locations/us-central1/connectors/youtube-mcp-server"
+redis_authorized_network     = "projects/my-gcp-project/global/networks/default"
 session_durability_required  = true
 session_ttl_seconds          = 1800
 session_replay_ttl_seconds   = 300

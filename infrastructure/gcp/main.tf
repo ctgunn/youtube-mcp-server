@@ -1,11 +1,14 @@
 locals {
   runtime_env = {
     MCP_ENVIRONMENT              = var.environment
+    MCP_SECRET_ACCESS_MODE       = var.secret_access_mode
+    MCP_SECRET_REFERENCE_NAMES   = join(",", var.secret_names)
     PUBLIC_INVOCATION_INTENT     = var.public_invocation_intent
     MCP_AUTH_REQUIRED            = tostring(var.mcp_auth_required)
     MCP_ALLOWED_ORIGINS          = var.mcp_allowed_origins
     MCP_ALLOW_ORIGINLESS_CLIENTS = tostring(var.mcp_allow_originless_clients)
     MCP_SESSION_BACKEND          = var.session_backend
+    MCP_SESSION_CONNECTIVITY_MODEL  = var.session_connectivity_model
     MCP_SESSION_DURABILITY_REQUIRED = tostring(var.session_durability_required)
     MCP_SESSION_TTL_SECONDS         = tostring(var.session_ttl_seconds)
     MCP_SESSION_REPLAY_TTL_SECONDS  = tostring(var.session_replay_ttl_seconds)
@@ -26,6 +29,14 @@ resource "google_secret_manager_secret" "runtime" {
   }
 }
 
+resource "google_secret_manager_secret_iam_member" "runtime_accessor" {
+  for_each = google_secret_manager_secret.runtime
+
+  secret_id = each.value.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime.email}"
+}
+
 resource "google_cloud_run_v2_service" "service" {
   name     = var.service_name
   location = var.region
@@ -35,6 +46,14 @@ resource "google_cloud_run_v2_service" "service" {
     service_account = google_service_account.runtime.email
     timeout         = "${var.timeout_seconds}s"
     max_instance_request_concurrency = var.concurrency
+
+    dynamic "vpc_access" {
+      for_each = var.cloud_run_vpc_connector == "" ? [] : [var.cloud_run_vpc_connector]
+      content {
+        connector = vpc_access.value
+        egress    = "ALL_TRAFFIC"
+      }
+    }
 
     scaling {
       min_instance_count = var.min_instances
@@ -49,6 +68,19 @@ resource "google_cloud_run_v2_service" "service" {
         content {
           name  = env.key
           value = env.value
+        }
+      }
+
+      dynamic "env" {
+        for_each = google_secret_manager_secret.runtime
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value.secret_id
+              version = "latest"
+            }
+          }
         }
       }
     }

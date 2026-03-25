@@ -67,6 +67,9 @@ code changes and every test is passing.
 - `MCP_ALLOW_ORIGINLESS_CLIENTS` controls whether non-browser callers without `Origin` can proceed to authentication checks.
 - `MCP_SESSION_BACKEND` selects the hosted session backend (`memory` for local-only or shared-memory tests, `redis` for durable hosted deployments).
 - `MCP_SESSION_STORE_URL` points at the shared durable session backend when hosted session durability is required.
+- `MCP_SECRET_ACCESS_MODE` documents how the hosted runtime receives secret-backed configuration.
+- `MCP_SECRET_REFERENCE_NAMES` records the secret references expected to be available to the hosted runtime.
+- `MCP_SESSION_CONNECTIVITY_MODEL` documents the provider-specific connectivity path used to reach the durable session backend.
 - `MCP_SESSION_DURABILITY_REQUIRED` forces `/ready` to fail unless a healthy shared session backend is available.
 - `MCP_SESSION_TTL_SECONDS` controls how long an inactive hosted session remains reusable.
 - `MCP_SESSION_REPLAY_TTL_SECONDS` controls how long reconnect replay history is retained for `Last-Event-ID` resume flows.
@@ -104,6 +107,8 @@ Required deployment inputs:
 - `SERVICE_ACCOUNT_EMAIL`
 - `MCP_SERVER_IMPLEMENTATION` (`uvicorn`)
 - `MCP_ASGI_APP` (`mcp_server.cloud_run_entrypoint:app`)
+- `MCP_SECRET_ACCESS_MODE` (`secret_manager_env` for Cloud Run hosted secret injection)
+- `MCP_SECRET_REFERENCE_NAMES` (comma-separated runtime secret references, normally matching `SECRET_REFERENCES`)
 - `PUBLIC_INVOCATION_INTENT` (`public_remote_mcp` for trusted public remote MCP environments, `private_only` otherwise)
 - `MCP_ENVIRONMENT`
 - `MCP_AUTH_REQUIRED`
@@ -126,6 +131,8 @@ IMAGE_REFERENCE=us-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
 SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com \
 MCP_SERVER_IMPLEMENTATION=uvicorn \
 MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \
+MCP_SECRET_ACCESS_MODE=secret_manager_env \
+MCP_SECRET_REFERENCE_NAMES=YOUTUBE_API_KEY,MCP_AUTH_TOKEN \
 PUBLIC_INVOCATION_INTENT=public_remote_mcp \
 MCP_ENVIRONMENT=staging \
 MCP_AUTH_REQUIRED=true \
@@ -133,6 +140,7 @@ MCP_ALLOWED_ORIGINS=https://chat.openai.com \
 MCP_ALLOW_ORIGINLESS_CLIENTS=true \
 MCP_SESSION_BACKEND=redis \
 MCP_SESSION_STORE_URL=redis://REDIS_HOST:6379/0 \
+MCP_SESSION_CONNECTIVITY_MODEL=serverless_vpc_connector \
 MCP_SESSION_DURABILITY_REQUIRED=true \
 MIN_INSTANCES=0 \
 MAX_INSTANCES=2 \
@@ -169,6 +177,8 @@ IMAGE_REFERENCE=us-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
 SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com \
 MCP_SERVER_IMPLEMENTATION=uvicorn \
 MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \
+MCP_SECRET_ACCESS_MODE=secret_manager_env \
+MCP_SECRET_REFERENCE_NAMES=YOUTUBE_API_KEY,MCP_AUTH_TOKEN \
 PUBLIC_INVOCATION_INTENT=public_remote_mcp \
 MCP_ENVIRONMENT=staging \
 MCP_AUTH_REQUIRED=true \
@@ -176,6 +186,7 @@ MCP_ALLOWED_ORIGINS=https://chat.openai.com \
 MCP_ALLOW_ORIGINLESS_CLIENTS=true \
 MCP_SESSION_BACKEND=redis \
 MCP_SESSION_STORE_URL=redis://REDIS_HOST:6379/0 \
+MCP_SESSION_CONNECTIVITY_MODEL=serverless_vpc_connector \
 MCP_SESSION_DURABILITY_REQUIRED=true \
 MIN_INSTANCES=0 \
 MAX_INSTANCES=2 \
@@ -216,6 +227,17 @@ values and stable `error.data.category` details rather than legacy string-style
 top-level error codes. It now records a public `reachability` check before
 `liveness`, `readiness`, and authenticated `/mcp` verification so operators can
 separate Cloud Run public access from MCP-layer authentication.
+It also records `deployment-evidence`, `secret-access`, and
+`session-connectivity` checks so operators can distinguish missing runtime
+secret access from missing durable session connectivity before session
+continuation is attempted.
+
+When hosted verification reports `SECRET_ACCESS_UNAVAILABLE` or
+`SECRET_REFERENCE_MISSING`, inspect the Cloud Run runtime service account,
+`MCP_SECRET_ACCESS_MODE`, and `MCP_SECRET_REFERENCE_NAMES` first. When hosted
+verification reports a session-connectivity failure, inspect
+`MCP_SESSION_CONNECTIVITY_MODEL`, the VPC connector path, and the Redis backend
+reference first.
 
 Manual streamable MCP verification examples:
 

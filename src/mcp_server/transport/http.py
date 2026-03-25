@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import TextIO
 
-from mcp_server.config import HostedRuntimeSettings, StartupValidationResult
+from mcp_server.config import HostedRuntimeSettings, StartupValidationResult, secret_access_readiness
 from mcp_server.health import RuntimeLifecycleState, health_payload, initialize_runtime_lifecycle, readiness_payload
 from mcp_server.observability import InMemoryObservability, build_request_context
 from mcp_server.protocol.envelope import error_response_for_category
@@ -152,6 +152,7 @@ class MCPHTTPTransport:
         startup_validation=None,
         runtime_lifecycle: RuntimeLifecycleState | None = None,
         runtime_settings: HostedRuntimeSettings | None = None,
+        runtime_env: Mapping[str, str] | None = None,
         runtime_stdout: TextIO | None = None,
         runtime_stderr: TextIO | None = None,
     ):
@@ -171,8 +172,12 @@ class MCPHTTPTransport:
         )
         self.runtime_lifecycle = runtime_lifecycle or initialize_runtime_lifecycle(self.startup_validation)
         self.runtime_settings = runtime_settings
+        self.runtime_env = dict(runtime_env or {})
         if runtime_settings is not None:
+            secret_access = secret_access_readiness(self.runtime_env, self.startup_validation)
             durability = self.stream_manager.durability_status(required=runtime_settings.session.durability_required)
+            if not secret_access["available"]:
+                self.runtime_lifecycle.mark_degraded(secret_access["reason"])
             if not durability["available"] and runtime_settings.session.durability_required:
                 self.runtime_lifecycle.mark_degraded(durability["reason"])
 
@@ -183,12 +188,19 @@ class MCPHTTPTransport:
         if path == "/health":
             response = health_payload(self.runtime_lifecycle)
         elif path == "/ready":
+            secret_access = None
             session_durability = None
             if self.runtime_settings is not None:
+                secret_access = secret_access_readiness(self.runtime_env, self.startup_validation)
                 session_durability = self.stream_manager.durability_status(
                     required=self.runtime_settings.session.durability_required
                 )
-            response = readiness_payload(self.startup_validation, self.runtime_lifecycle, session_durability=session_durability)
+            response = readiness_payload(
+                self.startup_validation,
+                self.runtime_lifecycle,
+                secret_access=secret_access,
+                session_durability=session_durability,
+            )
         elif path != "/mcp":
             response = error_response_for_category(
                 "path_not_found",

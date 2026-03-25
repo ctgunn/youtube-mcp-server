@@ -63,6 +63,8 @@ class HostedRuntimeSettings:
     reload_enabled: bool
     rollback_command: str
     environment: str
+    secret_access_mode: str
+    secret_reference_names: tuple[str, ...]
     security: HostedSecuritySettings
     session: "HostedSessionSettings"
 
@@ -74,6 +76,7 @@ class HostedSessionSettings:
     durability_required: bool
     session_ttl_seconds: int
     replay_ttl_seconds: int
+    connectivity_model: str = "local_process"
 
 
 def _now_iso() -> str:
@@ -95,6 +98,13 @@ def _bool_value(env: Mapping[str, str], key: str, default: bool) -> bool:
     return raw.lower() in {"1", "true", "yes", "on"}
 
 
+def _csv_values(env: Mapping[str, str], key: str) -> tuple[str, ...]:
+    raw = _value(env, key)
+    if raw is None:
+        return ()
+    return tuple(item for item in (part.strip() for part in raw.split(",")) if item)
+
+
 def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSettings:
     port_text = _value(env, "PORT") or "8080"
     log_level = (_value(env, "MCP_SERVER_LOG_LEVEL") or "info").lower()
@@ -102,8 +112,11 @@ def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSetting
     environment = _value(env, "MCP_ENVIRONMENT") or "dev"
     auth_token = _value(env, "MCP_AUTH_TOKEN")
     auth_required = _bool_value(env, "MCP_AUTH_REQUIRED", default=(environment in {"staging", "prod"} or auth_token is not None))
+    secret_reference_names = _csv_values(env, "MCP_SECRET_REFERENCE_NAMES")
+    secret_access_mode = (_value(env, "MCP_SECRET_ACCESS_MODE") or ("secret_manager_env" if secret_reference_names else "env_only")).lower()
     session_store_url = _value(env, "MCP_SESSION_STORE_URL")
     session_backend = (_value(env, "MCP_SESSION_BACKEND") or ("redis" if session_store_url and session_store_url.startswith("redis") else "memory")).lower()
+    session_connectivity_model = (_value(env, "MCP_SESSION_CONNECTIVITY_MODEL") or ("serverless_vpc_connector" if session_backend == "redis" else "local_process")).lower()
     session_durability_required = _bool_value(env, "MCP_SESSION_DURABILITY_REQUIRED", default=False)
     session_ttl_seconds = int(_value(env, "MCP_SESSION_TTL_SECONDS") or "1800")
     replay_ttl_seconds = int(_value(env, "MCP_SESSION_REPLAY_TTL_SECONDS") or "300")
@@ -116,6 +129,8 @@ def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSetting
         reload_enabled=reload_enabled,
         rollback_command="python3 -m mcp_server.cloud_run_entrypoint",
         environment=environment,
+        secret_access_mode=secret_access_mode,
+        secret_reference_names=secret_reference_names,
         security=HostedSecuritySettings(
             auth_required=auth_required,
             auth_token=auth_token,
@@ -125,6 +140,7 @@ def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSetting
         session=HostedSessionSettings(
             backend=session_backend,
             store_url=session_store_url,
+            connectivity_model=session_connectivity_model,
             durability_required=session_durability_required,
             session_ttl_seconds=session_ttl_seconds,
             replay_ttl_seconds=replay_ttl_seconds,
@@ -189,4 +205,56 @@ def config_validation_error_details(result: StartupValidationResult) -> dict:
     return {
         "profile": result.profile,
         "failures": sanitized_failures(result),
+    }
+
+
+def secret_access_readiness(env: Mapping[str, str], validation: StartupValidationResult) -> dict[str, object]:
+    secret_failures = tuple(item for item in validation.failures if item.is_secret)
+    reference_names = _csv_values(env, "MCP_SECRET_REFERENCE_NAMES")
+    explicit_access_mode = _value(env, "MCP_SECRET_ACCESS_MODE")
+    access_mode = (explicit_access_mode or ("secret_manager_env" if reference_names else "env_only")).lower()
+    if not secret_failures:
+        return {
+            "available": True,
+            "mode": access_mode,
+            "references": list(reference_names),
+            "reason": None,
+        }
+
+    # Preserve the legacy readiness contract unless hosted secret wiring has been
+    # declared explicitly for this runtime.
+    if access_mode == "env_only" and not reference_names and explicit_access_mode is None:
+        return {
+            "available": False,
+            "mode": access_mode,
+            "references": [],
+            "reason": {
+                "code": "CONFIG_VALIDATION_ERROR",
+                "message": "Required configuration is invalid or incomplete.",
+            },
+        }
+
+    missing_keys = sorted(item.key for item in secret_failures)
+    missing_references = sorted(key for key in missing_keys if key not in reference_names)
+    if missing_references or not reference_names:
+        return {
+            "available": False,
+            "mode": access_mode,
+            "references": list(reference_names),
+            "reason": {
+                "code": "SECRET_REFERENCE_MISSING",
+                "message": "Required secret references are missing from the hosted runtime configuration.",
+                "details": {"missingReferences": missing_references or missing_keys},
+            },
+        }
+
+    return {
+        "available": False,
+        "mode": access_mode,
+        "references": list(reference_names),
+        "reason": {
+            "code": "SECRET_ACCESS_UNAVAILABLE",
+            "message": "Required secret-backed configuration is not accessible to the hosted runtime.",
+            "details": {"missingSecrets": missing_keys},
+        },
     }

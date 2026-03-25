@@ -168,6 +168,11 @@ def main(argv: list[str] | None = None) -> int:
         },
         timeout_seconds=timeout_seconds,
         status="created",
+        secret_reference_names=tuple(runtime_settings.get("secretReferenceNames", [])),
+        secret_access_mode=runtime_settings.get("secretAccessMode", "env_only"),
+        session_backend=runtime_settings.get("configSummary", {}).get("MCP_SESSION_BACKEND"),
+        session_store_url=runtime_settings.get("configSummary", {}).get("MCP_SESSION_STORE_URL"),
+        session_connectivity_model=runtime_settings.get("sessionConnectivityModel"),
     )
     _http_request._session_id = None  # type: ignore[attr-defined]
     _http_request._auth_token = auth_token  # type: ignore[attr-defined]

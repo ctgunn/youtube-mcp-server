@@ -30,6 +30,11 @@ ACCESS_FAILURE_LAYERS = (
     "mcp_application",
 )
 
+DEPENDENCY_FAILURE_LAYERS = (
+    "secret_access",
+    "session_connectivity",
+)
+
 
 def normalize_capability_name(value: str) -> str:
     """Return the canonical snake_case name used for shared capabilities."""
@@ -54,3 +59,9 @@ def is_supported_access_failure_layer(value: str) -> bool:
     """Check whether a failure layer is part of the hosted access model."""
 
     return normalize_capability_name(value) in ACCESS_FAILURE_LAYERS
+
+
+def is_supported_dependency_failure_layer(value: str) -> bool:
+    """Check whether a failure layer is part of hosted dependency diagnostics."""
+
+    return normalize_capability_name(value) in DEPENDENCY_FAILURE_LAYERS
