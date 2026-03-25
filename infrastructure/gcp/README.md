@@ -21,6 +21,7 @@ Copy [`terraform.tfvars.example`](./terraform.tfvars.example) to a local, untrac
 - `environment`
 - `service_name`
 - `service_account_name`
+- `public_invocation_intent`
 - `min_instances`
 - `max_instances`
 - `concurrency`
@@ -53,6 +54,7 @@ The apply step exports values that map directly into the deployment workflow:
 - `environment`
 - `service_name`
 - `service_account_email`
+- `public_invocation_intent`
 - `secret_reference_names`
 - `mcp_auth_required`
 - `mcp_allowed_origins`
@@ -78,3 +80,9 @@ bash scripts/deploy_cloud_run.sh
 ```
 
 `IMAGE_REFERENCE` remains an application deployment input and is not produced by Terraform.
+
+## Public invocation intent
+
+- Set `public_invocation_intent=public_remote_mcp` when the environment is intended for trusted public remote MCP consumers.
+- Set `public_invocation_intent=private_only` when the environment should remain outside the public remote MCP workflow.
+- Public invocation intent does not replace MCP bearer-token authentication; it only controls whether the hosted Cloud Run service is intentionally reachable.

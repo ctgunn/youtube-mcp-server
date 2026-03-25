@@ -17,6 +17,7 @@ class CloudRunDeploymentAssetsIntegrationTests(unittest.TestCase):
                 "IMAGE_REFERENCE": "us-docker.pkg.dev/project/app/image:sha",
                 "SERVICE_ACCOUNT_EMAIL": "svc@example.iam.gserviceaccount.com",
                 "MCP_ENVIRONMENT": "staging",
+                "PUBLIC_INVOCATION_INTENT": "public_remote_mcp",
                 "MIN_INSTANCES": "0",
                 "MAX_INSTANCES": "2",
                 "CONCURRENCY": "20",
@@ -47,6 +48,8 @@ class CloudRunDeploymentAssetsIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["outcome"], "success")
         self.assertEqual(payload["revisionName"], "youtube-mcp-server-00008")
         self.assertEqual(payload["serviceUrl"], "https://example-service.run.app")
+        self.assertEqual(payload["publicInvocationIntent"], "public_remote_mcp")
+        self.assertEqual(payload["connectionPoint"], "https://example-service.run.app")
 
     def test_deploy_script_reports_failed_outcome_when_gcloud_fails(self):
         with tempfile.TemporaryDirectory() as tmp:

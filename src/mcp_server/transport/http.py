@@ -11,6 +11,7 @@ from mcp_server.health import RuntimeLifecycleState, health_payload, initialize_
 from mcp_server.observability import InMemoryObservability, build_request_context
 from mcp_server.protocol.envelope import error_response_for_category
 from mcp_server.protocol.methods import route_mcp_request
+from mcp_server.security import is_mcp_application_security_category
 from mcp_server.transport.streaming import StreamManager
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 
@@ -136,6 +137,8 @@ def hosted_status_code(classification: HostedRequestClassification, response: di
 
 
 def hosted_security_status_code(decision_category: str) -> int:
+    if not is_mcp_application_security_category(decision_category):
+        return 403
     return SECURITY_STATUS_CODES.get(decision_category, 403)
 
 

@@ -30,8 +30,10 @@ class SecurityRequestObservabilityIntegrationTests(unittest.TestCase):
         events = [json.loads(line) for line in stderr.getvalue().splitlines()]
         security_event = [event for event in events if event.get("event") == "security.decision"][-1]
         self.assertEqual(security_event["decisionCategory"], "unauthenticated")
+        self.assertEqual(security_event["failureLayer"], "mcp_application")
         self.assertEqual(security_event["path"], "/mcp")
         self.assertIn("requestId", security_event)
+        self.assertNotIn("obs-token", stderr.getvalue())
 
 
 if __name__ == "__main__":

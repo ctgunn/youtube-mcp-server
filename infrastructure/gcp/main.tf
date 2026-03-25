@@ -1,6 +1,7 @@
 locals {
   runtime_env = {
     MCP_ENVIRONMENT              = var.environment
+    PUBLIC_INVOCATION_INTENT     = var.public_invocation_intent
     MCP_AUTH_REQUIRED            = tostring(var.mcp_auth_required)
     MCP_ALLOWED_ORIGINS          = var.mcp_allowed_origins
     MCP_ALLOW_ORIGINLESS_CLIENTS = tostring(var.mcp_allow_originless_clients)
@@ -57,4 +58,13 @@ resource "google_cloud_run_v2_service" "service" {
     percent = 100
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
   }
+}
+
+resource "google_cloud_run_service_iam_member" "public_invoker" {
+  count = var.public_invocation_intent == "public_remote_mcp" ? 1 : 0
+
+  location = google_cloud_run_v2_service.service.location
+  service  = google_cloud_run_v2_service.service.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }

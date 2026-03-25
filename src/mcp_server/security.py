@@ -22,6 +22,13 @@ DEFAULT_BROWSER_EXPOSED_RESPONSE_HEADERS = (
     "X-Stream-Id",
 )
 
+MCP_APPLICATION_SECURITY_CATEGORIES = (
+    "unauthenticated",
+    "invalid_credential",
+    "origin_denied",
+    "malformed_security_input",
+)
+
 
 @dataclass(frozen=True)
 class HostedSecuritySettings:
@@ -366,3 +373,7 @@ def evaluate_security_request(
         origin_reason=origin.reason_code,
         credential_state=credential.token_state,
     )
+
+
+def is_mcp_application_security_category(value: str) -> bool:
+    return str(value or "").strip() in MCP_APPLICATION_SECURITY_CATEGORIES

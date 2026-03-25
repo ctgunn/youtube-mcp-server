@@ -218,6 +218,12 @@ Thumbs.db
 # Codex runtime/local state
 **/.codex/auth.json
 **/.codex/history.jsonl
+
+# Terraform working state
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
 **/.codex/sessions/
 **/.codex/state_*.sqlite*
 **/.codex/tmp/

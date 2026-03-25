@@ -23,6 +23,11 @@ output "service_account_email" {
   value       = google_service_account.runtime.email
 }
 
+output "public_invocation_intent" {
+  description = "Whether the service is intended for trusted public remote MCP access."
+  value       = var.public_invocation_intent
+}
+
 output "secret_reference_names" {
   description = "Secret references passed to scripts/deploy_cloud_run.sh."
   value       = sort(keys(google_secret_manager_secret.runtime))

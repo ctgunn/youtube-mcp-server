@@ -18,6 +18,7 @@ class CloudRunDeployExecutionUnitTests(unittest.TestCase):
                 "IMAGE_REFERENCE": "us-docker.pkg.dev/project/app/image:sha",
                 "SERVICE_ACCOUNT_EMAIL": "svc@example.iam.gserviceaccount.com",
                 "MCP_ENVIRONMENT": "staging",
+                "PUBLIC_INVOCATION_INTENT": "public_remote_mcp",
                 "MIN_INSTANCES": "0",
                 "MAX_INSTANCES": "2",
                 "CONCURRENCY": "20",
@@ -44,6 +45,8 @@ class CloudRunDeployExecutionUnitTests(unittest.TestCase):
         self.assertEqual(payload["outcome"], "success")
         self.assertEqual(payload["revisionName"], "youtube-mcp-server-00008")
         self.assertEqual(payload["serviceUrl"], "https://example-service.run.app")
+        self.assertEqual(payload["connectionPoint"], "https://example-service.run.app")
+        self.assertEqual(payload["publicInvocationIntent"], "public_remote_mcp")
         self.assertEqual(payload["runtimeSettings"]["environmentProfile"], "staging")
 
     def test_execute_deploy_command_fails_before_runner_on_invalid_inputs(self):
@@ -79,6 +82,33 @@ class CloudRunDeployExecutionUnitTests(unittest.TestCase):
         record = execute_deploy_command(settings, runner=runner)
         self.assertEqual(record.outcome, "incomplete")
         self.assertEqual(record.failure_stage, "metadata_capture")
+
+    def test_execute_deploy_command_defaults_public_invocation_to_private_only(self):
+        settings = deployment_input_from_mapping(
+            {
+                "PROJECT_ID": "project-id",
+                "REGION": "us-central1",
+                "SERVICE_NAME": "youtube-mcp-server",
+                "IMAGE_REFERENCE": "image",
+                "SERVICE_ACCOUNT_EMAIL": "svc@example.iam.gserviceaccount.com",
+                "MCP_ENVIRONMENT": "dev",
+                "MIN_INSTANCES": "0",
+                "MAX_INSTANCES": "1",
+                "CONCURRENCY": "20",
+                "TIMEOUT_SECONDS": "180",
+            }
+        )
+
+        def runner(command, **_kwargs):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout='{"status":{"latestReadyRevisionName":"youtube-mcp-server-00009","url":"https://private-service.run.app"}}',
+                stderr="",
+            )
+
+        payload = serialize_deployment_run(execute_deploy_command(settings, runner=runner))
+        self.assertEqual(payload["publicInvocationIntent"], "private_only")
 
 
 if __name__ == "__main__":

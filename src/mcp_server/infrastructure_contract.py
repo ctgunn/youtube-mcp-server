@@ -20,6 +20,16 @@ EXECUTION_MODES = (
     "hosted",
 )
 
+PUBLIC_INVOCATION_INTENTS = (
+    "public_remote_mcp",
+    "private_only",
+)
+
+ACCESS_FAILURE_LAYERS = (
+    "cloud_platform",
+    "mcp_application",
+)
+
 
 def normalize_capability_name(value: str) -> str:
     """Return the canonical snake_case name used for shared capabilities."""
@@ -32,3 +42,15 @@ def is_supported_execution_mode(value: str) -> bool:
     """Check whether a mode name is part of the shared execution model."""
 
     return normalize_capability_name(value) in EXECUTION_MODES
+
+
+def is_supported_public_invocation_intent(value: str) -> bool:
+    """Check whether a public invocation intent is part of the hosted model."""
+
+    return normalize_capability_name(value) in PUBLIC_INVOCATION_INTENTS
+
+
+def is_supported_access_failure_layer(value: str) -> bool:
+    """Check whether a failure layer is part of the hosted access model."""
+
+    return normalize_capability_name(value) in ACCESS_FAILURE_LAYERS
