@@ -34,14 +34,8 @@ class DeepResearchToolsContractTests(unittest.TestCase):
         self.assertEqual(tools["search"]["inputSchema"]["required"], ["query"])
         self.assertFalse(tools["search"]["inputSchema"]["additionalProperties"])
         self.assertFalse(tools["fetch"]["inputSchema"]["additionalProperties"])
-        self.assertEqual(
-            tools["fetch"]["inputSchema"]["oneOf"],
-            [
-                {"required": ["resourceId"]},
-                {"required": ["uri"]},
-                {"required": ["resourceId", "uri"]},
-            ],
-        )
+        self.assertEqual(tools["fetch"]["inputSchema"]["required"], ["id"])
+        self.assertEqual(set(tools["fetch"]["inputSchema"]["properties"].keys()), {"id"})
 
     def test_search_result_contract_uses_mcp_aligned_content(self):
         response = self.app.handle(
@@ -50,17 +44,15 @@ class DeepResearchToolsContractTests(unittest.TestCase):
                 "jsonrpc": "2.0",
                 "id": "req-search",
                 "method": "tools/call",
-                "params": {"name": "search", "arguments": {"query": "remote MCP research", "pageSize": 2}},
+                "params": {"name": "search", "arguments": {"query": "remote MCP research"}},
             },
         )
         content = response["result"]["content"][0]
         self.assertEqual(content["type"], "text")
         structured = content["structuredContent"]
         self.assertIn("results", structured)
-        self.assertEqual(structured["totalReturned"], len(structured["results"]))
         if structured["results"]:
-            self.assertIn("resourceId", structured["results"][0])
-            self.assertIn("uri", structured["results"][0])
+            self.assertEqual(set(structured["results"][0].keys()), {"id", "title", "url"})
 
     def test_fetch_result_contract_uses_mcp_aligned_content(self):
         by_id = self.app.handle(
@@ -69,14 +61,14 @@ class DeepResearchToolsContractTests(unittest.TestCase):
                 "jsonrpc": "2.0",
                 "id": "req-fetch-id",
                 "method": "tools/call",
-                "params": {"name": "fetch", "arguments": {"resourceId": "res_remote_mcp_001"}},
+                "params": {"name": "fetch", "arguments": {"id": "doc-remote-mcp-001"}},
             },
         )
-        by_uri = self.app.handle(
+        missing_legacy = self.app.handle(
             "/mcp",
             {
                 "jsonrpc": "2.0",
-                "id": "req-fetch-uri",
+                "id": "req-fetch-legacy-uri",
                 "method": "tools/call",
                 "params": {"name": "fetch", "arguments": {"uri": "https://example.com/remote-mcp-research"}},
             },
@@ -84,10 +76,10 @@ class DeepResearchToolsContractTests(unittest.TestCase):
         content = by_id["result"]["content"][0]
         structured = content["structuredContent"]
         parsed = json.loads(content["text"])
-        self.assertEqual(structured["resourceId"], parsed["resourceId"])
-        self.assertIn("uri", structured)
-        self.assertIn("content", structured)
-        self.assertEqual(by_uri["result"]["content"][0]["structuredContent"]["resourceId"], "res_remote_mcp_001")
+        self.assertEqual(structured["id"], parsed["id"])
+        self.assertIn("url", structured)
+        self.assertIn("text", structured)
+        self.assertEqual(missing_legacy["error"]["code"], -32602)
 
     def test_invalid_search_and_missing_fetch_use_stable_error_codes(self):
         invalid_search = self.app.handle(
@@ -108,26 +100,26 @@ class DeepResearchToolsContractTests(unittest.TestCase):
                 "jsonrpc": "2.0",
                 "id": "req-fetch-missing",
                 "method": "tools/call",
-                "params": {"name": "fetch", "arguments": {"resourceId": "missing-resource"}},
+                "params": {"name": "fetch", "arguments": {"id": "missing-resource"}},
             },
         )
         self.assertEqual(missing_fetch["error"]["code"], -32001)
         self.assertEqual(missing_fetch["error"]["data"]["category"], "unavailable_source")
 
-        conflicting_fetch = self.app.handle(
+        legacy_fetch = self.app.handle(
             "/mcp",
             {
                 "jsonrpc": "2.0",
-                "id": "req-fetch-conflict",
+                "id": "req-fetch-legacy",
                 "method": "tools/call",
                 "params": {
                     "name": "fetch",
-                    "arguments": {"resourceId": "res_remote_mcp_001", "uri": "https://example.com/not-the-same"},
+                    "arguments": {"resourceId": "res_remote_mcp_001"},
                 },
             },
         )
-        self.assertEqual(conflicting_fetch["error"]["code"], -32602)
-        self.assertEqual(conflicting_fetch["error"]["data"]["category"], "invalid_argument")
+        self.assertEqual(legacy_fetch["error"]["code"], -32602)
+        self.assertEqual(legacy_fetch["error"]["data"]["category"], "invalid_argument")
 
     def test_hosted_contract_exposes_search_and_fetch_on_protected_mcp_route(self):
         session_id = self._initialize_hosted_session()
@@ -146,7 +138,7 @@ class DeepResearchToolsContractTests(unittest.TestCase):
         tools = {tool["name"]: tool for tool in response.payload["result"]["tools"]}
         self.assertIn("search", tools)
         self.assertIn("fetch", tools)
-        self.assertIn("oneOf", tools["fetch"]["inputSchema"])
+        self.assertEqual(tools["fetch"]["inputSchema"]["required"], ["id"])
 
         search_response = execute_hosted_request(
             self.app,
@@ -157,11 +149,11 @@ class DeepResearchToolsContractTests(unittest.TestCase):
                 "Accept": "application/json, text/event-stream",
                 "MCP-Session-Id": session_id,
             },
-            body=b'{"jsonrpc":"2.0","id":"req-search-hosted","method":"tools/call","params":{"name":"search","arguments":{"query":"remote MCP research","pageSize":1}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-search-hosted","method":"tools/call","params":{"name":"search","arguments":{"query":"remote MCP research"}}}',
         )
         self.assertEqual(search_response.status, 200)
         normalized = _normalize_request_result(search_response)
-        self.assertEqual(normalized["result"]["content"][0]["structuredContent"]["totalReturned"], 1)
+        self.assertEqual(normalized["result"]["content"][0]["structuredContent"]["results"][0]["id"], "doc-remote-mcp-001")
 
         fetch_response = execute_hosted_request(
             self.app,
@@ -172,11 +164,11 @@ class DeepResearchToolsContractTests(unittest.TestCase):
                 "Accept": "application/json, text/event-stream",
                 "MCP-Session-Id": session_id,
             },
-            body=b'{"jsonrpc":"2.0","id":"req-fetch-hosted","method":"tools/call","params":{"name":"fetch","arguments":{"uri":"https://example.com/remote-mcp-research"}}}',
+            body=b'{"jsonrpc":"2.0","id":"req-fetch-hosted","method":"tools/call","params":{"name":"fetch","arguments":{"id":"doc-remote-mcp-001"}}}',
         )
         self.assertEqual(fetch_response.status, 200)
         hosted_fetch = _normalize_request_result(fetch_response)
-        self.assertEqual(hosted_fetch["result"]["content"][0]["structuredContent"]["resourceId"], "res_remote_mcp_001")
+        self.assertEqual(hosted_fetch["result"]["content"][0]["structuredContent"]["id"], "doc-remote-mcp-001")
 
 
 if __name__ == "__main__":

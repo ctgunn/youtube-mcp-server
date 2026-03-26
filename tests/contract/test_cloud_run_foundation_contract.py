@@ -48,18 +48,11 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                         },
                         {
                             "name": "fetch",
-                            "description": "Retrieve a selected source in consumable content form.",
+                            "description": "Fetch the full contents of a previously identified document.",
                             "inputSchema": {
                                 "type": "object",
-                                "properties": {
-                                    "resourceId": {"type": "string", "minLength": 1},
-                                    "uri": {"type": "string", "minLength": 1},
-                                },
-                                "oneOf": [
-                                    {"required": ["resourceId"]},
-                                    {"required": ["uri"]},
-                                    {"required": ["resourceId", "uri"]},
-                                ],
+                                "required": ["id"],
+                                "properties": {"id": {"type": "string", "minLength": 1}},
                                 "additionalProperties": False,
                             },
                         }
@@ -67,24 +60,22 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                 },
                 "statusCode": 200,
             },
-            "search-tool-call": {
+            "search-tool-call-openai": {
                 "jsonrpc": "2.0",
                 "id": "verify-search-tool-call",
                 "result": {
                     "content": [
                         {
                             "type": "text",
-                            "text": "{\"results\":[{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"title\":\"Remote MCP Research Workflows\",\"position\":1}],\"totalReturned\":1}",
+                            "text": "{\"results\":[{\"id\":\"doc-remote-mcp-001\",\"title\":\"Remote MCP Research Workflows\",\"url\":\"https://example.com/remote-mcp-research\"}]}",
                             "structuredContent": {
                                 "results": [
                                     {
-                                        "resourceId": "res_remote_mcp_001",
-                                        "uri": "https://example.com/remote-mcp-research",
+                                        "id": "doc-remote-mcp-001",
                                         "title": "Remote MCP Research Workflows",
-                                        "position": 1,
+                                        "url": "https://example.com/remote-mcp-research",
                                     }
-                                ],
-                                "totalReturned": 1,
+                                ]
                             },
                         }
                     ],
@@ -92,18 +83,20 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                 },
                 "statusCode": 200,
             },
-            "fetch-tool-call-resource-id": {
+            "fetch-tool-call-openai": {
                 "jsonrpc": "2.0",
-                "id": "verify-fetch-by-id",
+                "id": "verify-fetch-openai",
                 "result": {
                     "content": [
                         {
                             "type": "text",
-                            "text": "{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"retrievalStatus\":\"complete\"}",
+                            "text": "{\"id\":\"doc-remote-mcp-001\",\"title\":\"Remote MCP Research Workflows\",\"text\":\"Remote MCP research workflows depend on discoverable tools and stable document retrieval.\",\"url\":\"https://example.com/remote-mcp-research\",\"metadata\":{\"sourceName\":\"Example Research\"}}",
                             "structuredContent": {
-                                "resourceId": "res_remote_mcp_001",
-                                "uri": "https://example.com/remote-mcp-research",
-                                "retrievalStatus": "complete",
+                                "id": "doc-remote-mcp-001",
+                                "title": "Remote MCP Research Workflows",
+                                "text": "Remote MCP research workflows depend on discoverable tools and stable document retrieval.",
+                                "url": "https://example.com/remote-mcp-research",
+                                "metadata": {"sourceName": "Example Research"},
                             },
                         }
                     ],
@@ -111,54 +104,31 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                 },
                 "statusCode": 200,
             },
-            "fetch-tool-call-uri": {
+            "search-tool-call-empty": {
                 "jsonrpc": "2.0",
-                "id": "verify-fetch-by-uri",
+                "id": "verify-search-empty",
                 "result": {
                     "content": [
                         {
                             "type": "text",
-                            "text": "{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"retrievalStatus\":\"complete\"}",
-                            "structuredContent": {
-                                "resourceId": "res_remote_mcp_001",
-                                "uri": "https://example.com/remote-mcp-research",
-                                "retrievalStatus": "complete",
-                            },
+                            "text": "{\"results\":[]}",
+                            "structuredContent": {"results": []},
                         }
                     ],
                     "isError": False,
                 },
                 "statusCode": 200,
             },
-            "fetch-tool-call-both": {
+            "fetch-tool-call-legacy-shape": {
                 "jsonrpc": "2.0",
-                "id": "verify-fetch-by-both",
-                "result": {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "{\"resourceId\":\"res_remote_mcp_001\",\"uri\":\"https://example.com/remote-mcp-research\",\"retrievalStatus\":\"complete\"}",
-                            "structuredContent": {
-                                "resourceId": "res_remote_mcp_001",
-                                "uri": "https://example.com/remote-mcp-research",
-                                "retrievalStatus": "complete",
-                            },
-                        }
-                    ],
-                    "isError": False,
-                },
+                "id": "verify-fetch-legacy-shape",
+                "error": {"code": -32602, "message": "arguments contain unsupported field: resourceId", "data": {"category": "invalid_argument"}},
                 "statusCode": 200,
             },
             "fetch-tool-call-missing": {
                 "jsonrpc": "2.0",
                 "id": "verify-fetch-missing",
-                "error": {"code": -32602, "message": "resourceId or uri is required", "data": {"category": "invalid_argument"}},
-                "statusCode": 200,
-            },
-            "fetch-tool-call-conflict": {
-                "jsonrpc": "2.0",
-                "id": "verify-fetch-conflict",
-                "error": {"code": -32602, "message": "resourceId and uri must identify the same source", "data": {"category": "invalid_argument"}},
+                "error": {"code": -32001, "message": "Requested source is not available.", "data": {"category": "unavailable_source"}},
                 "statusCode": 200,
             },
             "server-ping-call": {
@@ -210,21 +180,17 @@ class CloudRunFoundationContractTests(unittest.TestCase):
             if payload["method"] == "tools/call" and payload["params"]["name"] == "server_ping":
                 return app_payloads["server-ping-call"]
             if payload["method"] == "tools/call" and payload["params"]["name"] == "search":
-                return app_payloads["search-tool-call"]
+                arguments = payload["params"]["arguments"]
+                if arguments == {"query": "no-match-sentinel"}:
+                    return app_payloads["search-tool-call-empty"]
+                return app_payloads["search-tool-call-openai"]
             if payload["method"] == "tools/call" and payload["params"]["name"] == "fetch":
                 arguments = payload["params"]["arguments"]
-                if not arguments:
+                if arguments == {"id": "missing-resource"}:
                     return app_payloads["fetch-tool-call-missing"]
-                if arguments == {"resourceId": "res_remote_mcp_001"}:
-                    return app_payloads["fetch-tool-call-resource-id"]
-                if arguments == {"uri": "https://example.com/remote-mcp-research"}:
-                    return app_payloads["fetch-tool-call-uri"]
-                if arguments == {
-                    "resourceId": "res_remote_mcp_001",
-                    "uri": "https://example.com/remote-mcp-research",
-                }:
-                    return app_payloads["fetch-tool-call-both"]
-                return app_payloads["fetch-tool-call-conflict"]
+                if arguments == {"id": "doc-remote-mcp-001"}:
+                    return app_payloads["fetch-tool-call-openai"]
+                return app_payloads["fetch-tool-call-legacy-shape"]
             return app_payloads[payload["method"]]
 
         run = run_hosted_verification(self.revision, requester, evidence_path="artifacts/verify.txt")
@@ -236,12 +202,11 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                 "readiness",
                 "initialize",
                 "list-tools",
-                "search-tool-call",
-                "fetch-tool-call-resource-id",
-                "fetch-tool-call-uri",
-                "fetch-tool-call-both",
+                "search-tool-call-openai",
+                "fetch-tool-call-openai",
+                "search-tool-call-empty",
+                "fetch-tool-call-legacy-shape",
                 "fetch-tool-call-missing",
-                "fetch-tool-call-conflict",
                 "session-post-continuation",
                 "session-get-continuation",
                 "session-reconnect",

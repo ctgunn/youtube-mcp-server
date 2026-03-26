@@ -29,8 +29,8 @@ BASELINE_TOOL_DESCRIPTIONS = {
     "server_ping": "Return service status and timestamp",
     "server_info": "Return server version, environment, and build metadata",
     "server_list_tools": "Return currently registered tool names and descriptions",
-    "search": "Discover relevant sources for deep research workflows.",
-    "fetch": "Retrieve a selected source in consumable content form.",
+    "search": "Search the retrieval corpus for relevant documents.",
+    "fetch": "Fetch the full contents of a previously identified document.",
 }
 
 DEFAULT_SERVER_METADATA = {

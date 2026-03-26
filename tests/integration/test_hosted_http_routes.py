@@ -157,7 +157,7 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         self.assertEqual(list_response.status, 200)
         list_payload = list_response.payload["result"]["tools"]
         fetch_tool = [tool for tool in list_payload if tool["name"] == "fetch"][0]
-        self.assertIn("oneOf", fetch_tool["inputSchema"])
+        self.assertEqual(fetch_tool["inputSchema"]["required"], ["id"])
 
         search_response = execute_hosted_request(
             app,
@@ -173,13 +173,13 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
                     "jsonrpc": "2.0",
                     "id": "req-hosted-search",
                     "method": "tools/call",
-                    "params": {"name": "search", "arguments": {"query": "remote MCP research", "pageSize": 1}},
+                    "params": {"name": "search", "arguments": {"query": "remote MCP research"}},
                 }
             ).encode("utf-8"),
         )
         search_body = search_response.body.decode("utf-8")
         self.assertEqual(search_response.status, 200)
-        self.assertIn('"resourceId": "res_remote_mcp_001"', search_body)
+        self.assertIn('"id": "doc-remote-mcp-001"', search_body)
 
         fetch_response = execute_hosted_request(
             app,
@@ -195,15 +195,15 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
                     "jsonrpc": "2.0",
                     "id": "req-hosted-fetch",
                     "method": "tools/call",
-                    "params": {"name": "fetch", "arguments": {"resourceId": "res_remote_mcp_001"}},
+                    "params": {"name": "fetch", "arguments": {"id": "doc-remote-mcp-001"}},
                 }
             ).encode("utf-8"),
         )
         fetch_body = fetch_response.body.decode("utf-8")
         self.assertEqual(fetch_response.status, 200)
-        self.assertIn('"retrievalStatus": "complete"', fetch_body)
+        self.assertIn('"text": "Remote MCP research workflows depend on discoverable tools, stable result identifiers, and structured content retrieval for downstream reasoning."', fetch_body)
 
-        fetch_by_uri_response = execute_hosted_request(
+        fetch_legacy_response = execute_hosted_request(
             app,
             method="POST",
             path="/mcp",
@@ -215,14 +215,14 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
             body=json.dumps(
                 {
                     "jsonrpc": "2.0",
-                    "id": "req-hosted-fetch-uri",
+                    "id": "req-hosted-fetch-legacy",
                     "method": "tools/call",
-                    "params": {"name": "fetch", "arguments": {"uri": "https://example.com/remote-mcp-research"}},
+                    "params": {"name": "fetch", "arguments": {"resourceId": "res_remote_mcp_001"}},
                 }
             ).encode("utf-8"),
         )
-        self.assertEqual(fetch_by_uri_response.status, 200)
-        self.assertIn('"resourceId": "res_remote_mcp_001"', fetch_by_uri_response.body.decode("utf-8"))
+        self.assertEqual(fetch_legacy_response.status, 200)
+        self.assertIn('"code": -32602', fetch_legacy_response.body.decode("utf-8"))
 
     def test_migrated_runtime_transport_preserves_mcp_route_execution(self):
         transport = self._runtime_transport()

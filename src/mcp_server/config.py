@@ -150,7 +150,6 @@ def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSetting
 
 def validate_runtime_config(env: Mapping[str, str]) -> StartupValidationResult:
     failures: list[ValidationFailure] = []
-    profile = _value(env, "MCP_ENVIRONMENT") or "unknown"
     profile_raw = _value(env, "MCP_ENVIRONMENT")
 
     if not profile_raw:

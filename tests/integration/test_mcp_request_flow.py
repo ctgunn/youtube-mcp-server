@@ -87,13 +87,12 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "jsonrpc": "2.0",
                 "id": "req-search-1",
                 "method": "tools/call",
-                "params": {"name": "search", "arguments": {"query": "remote MCP research", "pageSize": 2}},
+                "params": {"name": "search", "arguments": {"query": "remote MCP research"}},
             },
         )
         success_content = success["result"]["content"][0]["structuredContent"]
-        self.assertGreaterEqual(success_content["totalReturned"], 1)
-        self.assertEqual(success_content["results"][0]["position"], 1)
-        self.assertIn("resourceId", success_content["results"][0])
+        self.assertGreaterEqual(len(success_content["results"]), 1)
+        self.assertEqual(set(success_content["results"][0].keys()), {"id", "title", "url"})
 
         empty = app.handle(
             "/mcp",
@@ -101,12 +100,11 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "jsonrpc": "2.0",
                 "id": "req-search-2",
                 "method": "tools/call",
-                "params": {"name": "search", "arguments": {"query": "no-match-sentinel", "pageSize": 2}},
+                "params": {"name": "search", "arguments": {"query": "no-match-sentinel"}},
             },
         )
         empty_content = empty["result"]["content"][0]["structuredContent"]
         self.assertEqual(empty_content["results"], [])
-        self.assertEqual(empty_content["totalReturned"], 0)
 
         invalid = app.handle(
             "/mcp",
@@ -133,7 +131,7 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "jsonrpc": "2.0",
                 "id": "req-search-3",
                 "method": "tools/call",
-                "params": {"name": "search", "arguments": {"query": "remote MCP research", "pageSize": 1}},
+                "params": {"name": "search", "arguments": {"query": "remote MCP research"}},
             },
         )
         result = search["result"]["content"][0]["structuredContent"]["results"][0]
@@ -144,24 +142,13 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "jsonrpc": "2.0",
                 "id": "req-fetch-1",
                 "method": "tools/call",
-                "params": {"name": "fetch", "arguments": {"resourceId": result["resourceId"], "uri": result["uri"]}},
+                "params": {"name": "fetch", "arguments": {"id": result["id"]}},
             },
         )
         fetch_content = fetch["result"]["content"][0]["structuredContent"]
-        self.assertEqual(fetch_content["resourceId"], result["resourceId"])
-        self.assertEqual(fetch_content["uri"], result["uri"])
-        self.assertIn("content", fetch_content)
-
-        fetch_by_uri = app.handle(
-            "/mcp",
-            {
-                "jsonrpc": "2.0",
-                "id": "req-fetch-uri",
-                "method": "tools/call",
-                "params": {"name": "fetch", "arguments": {"uri": result["uri"]}},
-            },
-        )
-        self.assertEqual(fetch_by_uri["result"]["content"][0]["structuredContent"]["resourceId"], result["resourceId"])
+        self.assertEqual(fetch_content["id"], result["id"])
+        self.assertEqual(fetch_content["url"], result["url"])
+        self.assertIn("text", fetch_content)
 
         missing = app.handle(
             "/mcp",
@@ -169,13 +156,13 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "jsonrpc": "2.0",
                 "id": "req-fetch-2",
                 "method": "tools/call",
-                "params": {"name": "fetch", "arguments": {"resourceId": "missing-resource"}},
+                "params": {"name": "fetch", "arguments": {"id": "missing-resource"}},
             },
         )
         self.assertEqual(missing["error"]["code"], -32001)
         self.assertEqual(missing["error"]["data"]["category"], "unavailable_source")
 
-        conflict = app.handle(
+        legacy_shape = app.handle(
             "/mcp",
             {
                 "jsonrpc": "2.0",
@@ -183,12 +170,12 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
                 "method": "tools/call",
                 "params": {
                     "name": "fetch",
-                    "arguments": {"resourceId": result["resourceId"], "uri": "https://example.com/not-the-same"},
+                    "arguments": {"resourceId": "res_remote_mcp_001"},
                 },
             },
         )
-        self.assertEqual(conflict["error"]["code"], -32602)
-        self.assertEqual(conflict["error"]["data"]["category"], "invalid_argument")
+        self.assertEqual(legacy_shape["error"]["code"], -32602)
+        self.assertEqual(legacy_shape["error"]["data"]["category"], "invalid_argument")
 
     def test_server_info_configured_and_fallback(self):
         configured = MCPHTTPTransport(

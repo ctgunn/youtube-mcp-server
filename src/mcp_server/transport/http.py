@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from time import perf_counter
-from typing import TextIO
+from typing import Mapping, TextIO
 
 from mcp_server.config import HostedRuntimeSettings, StartupValidationResult, secret_access_readiness
 from mcp_server.health import RuntimeLifecycleState, health_payload, initialize_runtime_lifecycle, readiness_payload
