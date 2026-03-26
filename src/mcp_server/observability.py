@@ -75,6 +75,23 @@ def runtime_event(event_name: str, status: str, details: dict[str, Any] | None =
     return payload
 
 
+def _should_redact_key(key: str) -> bool:
+    normalized = str(key).strip().lower().replace("-", "_")
+    return normalized in {"authorization", "mcp_auth_token", "youtube_api_key"} or normalized.endswith("_token") or normalized.endswith("_api_key")
+
+
+def _sanitize_event_payload(value: Any, *, key: str | None = None) -> Any:
+    if key is not None and _should_redact_key(key):
+        return "[REDACTED]"
+    if isinstance(value, dict):
+        return {item_key: _sanitize_event_payload(item_value, key=str(item_key)) for item_key, item_value in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_event_payload(item) for item in value]
+    if isinstance(value, str) and value.startswith("Bearer "):
+        return "Bearer [REDACTED]"
+    return value
+
+
 def _percentile(values: list[float], percentile: float) -> float:
     if not values:
         return 0.0
@@ -194,7 +211,7 @@ class InMemoryObservability:
         stream = self._runtime_stderr if event["status"] == "error" else self._runtime_stdout
         if stream is None:
             return
-        stream.write(json.dumps(event, sort_keys=True) + "\n")
+        stream.write(json.dumps(_sanitize_event_payload(event), sort_keys=True) + "\n")
         if hasattr(stream, "flush"):
             stream.flush()
 

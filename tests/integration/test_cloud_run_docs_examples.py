@@ -16,6 +16,8 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         self.assertIn("Last-Event-ID", content)
         self.assertIn("Authorization: Bearer", content)
         self.assertIn("MCP_AUTH_TOKEN", content)
+        self.assertIn("MCP_SECRET_ACCESS_MODE", content)
+        self.assertIn("MCP_SECRET_REFERENCE_NAMES", content)
         self.assertIn("PUBLIC_INVOCATION_INTENT", content)
         self.assertIn("public_remote_mcp", content)
         self.assertIn("MCP_ALLOWED_ORIGINS", content)
@@ -36,6 +38,7 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         self.assertIn("Hosted-like local verification path", content)
         self.assertIn("docker compose -f infrastructure/local/compose.yaml up -d", content)
         self.assertIn("INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json", content)
+        self.assertIn("MCP_SESSION_CONNECTIVITY_MODEL", content)
 
     def test_env_example_contains_hosted_deploy_inputs(self):
         content = Path(".env.example").read_text()
@@ -47,6 +50,8 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
             "SERVICE_ACCOUNT_EMAIL",
             "MCP_SERVER_IMPLEMENTATION",
             "MCP_ASGI_APP",
+            "MCP_SECRET_ACCESS_MODE",
+            "MCP_SECRET_REFERENCE_NAMES",
             "PUBLIC_INVOCATION_INTENT",
             "MIN_INSTANCES",
             "MAX_INSTANCES",
@@ -55,6 +60,7 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
             "MCP_AUTH_TOKEN",
             "MCP_ALLOWED_ORIGINS",
             "MCP_ALLOW_ORIGINLESS_CLIENTS",
+            "MCP_SESSION_CONNECTIVITY_MODEL",
             "INFRA_OUTPUTS_FILE",
         ):
             self.assertIn(f"{key}=", content)

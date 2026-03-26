@@ -12,7 +12,7 @@ from time import perf_counter
 from typing import Any, Mapping
 
 from mcp_server.app import create_app
-from mcp_server.config import load_hosted_runtime_settings
+from mcp_server.config import load_hosted_runtime_settings, secret_access_readiness
 from mcp_server.health import RuntimeLifecycleState
 from mcp_server.observability import RequestContext, generate_request_id
 from mcp_server.protocol.envelope import error_response_for_category
@@ -528,8 +528,9 @@ def build_asgi_app(
         )
 
     def _start_runtime() -> None:
+        secret_status = secret_access_readiness(transport.runtime_env, transport.startup_validation)
         durability = transport.stream_manager.durability_status(required=transport.runtime_settings.session.durability_required)
-        if transport.startup_validation.is_valid and durability["available"]:
+        if transport.startup_validation.is_valid and secret_status["available"] and durability["available"]:
             transport.runtime_lifecycle.mark_ready()
             transport.observability.emit_runtime_event(
                 "runtime.startup",
@@ -537,10 +538,15 @@ def build_asgi_app(
                 {"runtime": transport.runtime_settings.server_implementation},
             )
         else:
-            reason = durability["reason"] if not durability["available"] else {
-                "code": "CONFIG_VALIDATION_ERROR",
-                "message": "Required configuration is invalid or incomplete.",
-            }
+            if not secret_status["available"]:
+                reason = secret_status["reason"]
+            elif not durability["available"]:
+                reason = durability["reason"]
+            else:
+                reason = {
+                    "code": "CONFIG_VALIDATION_ERROR",
+                    "message": "Required configuration is invalid or incomplete.",
+                }
             transport.runtime_lifecycle.mark_degraded(reason)
             transport.observability.emit_runtime_event("runtime.startup", "error")
 

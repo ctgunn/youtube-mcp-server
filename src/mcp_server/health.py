@@ -65,11 +65,13 @@ def health_payload(lifecycle: RuntimeLifecycleState | None = None) -> dict:
 def readiness_payload(
     validation: StartupValidationResult,
     lifecycle: RuntimeLifecycleState | None = None,
+    secret_access: dict | None = None,
     session_durability: dict | None = None,
 ) -> dict:
     lifecycle_state = lifecycle.state if lifecycle is not None else ("ready" if validation.is_valid else "degraded")
+    secret_ok = True if secret_access is None else bool(secret_access.get("available", validation.is_valid))
     session_ok = True if session_durability is None else bool(session_durability.get("available", True))
-    if validation.is_valid and lifecycle_state == "ready" and session_ok:
+    if validation.is_valid and lifecycle_state == "ready" and secret_ok and session_ok:
         return {
             "status": "ready",
             "checks": {
@@ -83,6 +85,11 @@ def readiness_payload(
         "code": "CONFIG_VALIDATION_ERROR",
         "message": "Required configuration is invalid or incomplete.",
     }
+    if secret_access and not secret_ok:
+        reason = secret_access.get("reason") or {
+            "code": "SECRET_ACCESS_UNAVAILABLE",
+            "message": "Required secret-backed configuration is not accessible.",
+        }
     if session_durability and not session_ok:
         reason = session_durability.get("reason") or {
             "code": "SESSION_DURABILITY_UNAVAILABLE",
@@ -92,7 +99,7 @@ def readiness_payload(
         "status": "not_ready",
         "checks": {
             "configuration": "pass" if validation.is_valid else "fail",
-            "secrets": "pass" if validation.is_valid else "fail",
+            "secrets": "pass" if secret_ok else "fail",
             "runtime": "pass" if lifecycle_state == "ready" else "fail",
             "sessionDurability": "pass" if session_ok else "fail",
         },

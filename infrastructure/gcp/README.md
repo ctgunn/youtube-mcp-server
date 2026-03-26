@@ -8,6 +8,8 @@ This directory provisions the hosted MCP platform foundation for FND-019 and ser
 - Runtime service account used by the hosted service
 - Secret Manager integration points for `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`
 - Redis-compatible shared session backend for hosted session durability
+- Runtime secret-access bindings for the Cloud Run service account
+- Provider-specific session connectivity model for Cloud Run to reach the session backend
 - Outputs that feed the existing `scripts/deploy_cloud_run.sh` workflow
 
 This is the provider-specific implementation of the current hosted runtime, identity, secrets, observability handoff, and durable-session capabilities. FND-020 treats this directory as the primary provider adapter rather than as the full platform model.
@@ -22,6 +24,7 @@ Copy [`terraform.tfvars.example`](./terraform.tfvars.example) to a local, untrac
 - `service_name`
 - `service_account_name`
 - `public_invocation_intent`
+- `secret_access_mode`
 - `min_instances`
 - `max_instances`
 - `concurrency`
@@ -30,6 +33,9 @@ Copy [`terraform.tfvars.example`](./terraform.tfvars.example) to a local, untrac
 - `mcp_allowed_origins`
 - `mcp_allow_originless_clients`
 - `session_backend`
+- `session_connectivity_model`
+- `cloud_run_vpc_connector`
+- `redis_authorized_network`
 - `session_durability_required`
 - `session_ttl_seconds`
 - `session_replay_ttl_seconds`
@@ -56,11 +62,14 @@ The apply step exports values that map directly into the deployment workflow:
 - `service_account_email`
 - `public_invocation_intent`
 - `secret_reference_names`
+- `mcp_secret_access_mode`
+- `mcp_secret_reference_names`
 - `mcp_auth_required`
 - `mcp_allowed_origins`
 - `mcp_allow_originless_clients`
 - `mcp_session_backend`
 - `mcp_session_store_url`
+- `mcp_session_connectivity_model`
 - `mcp_session_durability_required`
 - `mcp_session_ttl_seconds`
 - `mcp_session_replay_ttl_seconds`
@@ -80,6 +89,16 @@ bash scripts/deploy_cloud_run.sh
 ```
 
 `IMAGE_REFERENCE` remains an application deployment input and is not produced by Terraform.
+
+## Hosted dependency wiring model
+
+- The Cloud Run runtime service account is the runtime identity that reads required secret-backed configuration.
+- `secret_access_mode=secret_manager_env` declares that the hosted runtime receives `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN` from Secret Manager-backed environment injection rather than plain-text environment values.
+- `cloud_run_vpc_connector` defines the Serverless VPC Access path used by Cloud Run to reach the durable session backend.
+- `redis_authorized_network` identifies the network that is permitted to reach the Redis session backend.
+- `session_connectivity_model=serverless_vpc_connector` is the expected provider-specific connectivity model for durable hosted session support.
+
+If hosted verification reports a secret-access failure, review the runtime service account bindings and secret reference names first. If it reports a session-connectivity failure, review the Cloud Run VPC connector and Redis authorized network path first.
 
 ## Public invocation intent
 

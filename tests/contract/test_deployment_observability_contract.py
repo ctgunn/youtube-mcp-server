@@ -71,6 +71,8 @@ class DeploymentObservabilityContractTests(unittest.TestCase):
                 "publicInvocationIntent",
                 "serverImplementation",
                 "appModule",
+                "secretAccessMode",
+                "sessionConnectivityModel",
                 "minInstances",
                 "maxInstances",
                 "concurrency",

@@ -35,6 +35,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - In-memory runtime state for the app; Redis-compatible shared ephemeral state for hosted session durability; file-based infrastructure definitions, contracts, and operator documentation (020-cloud-agnostic-iac)
 - Python 3.11 for service, deployment, and verification tooling; Terraform-compatible IaC definitions for the GCP provider adapter + FastAPI, Pydantic v2, Uvicorn, Python standard library HTTP tooling, Terraform-compatible assets under `infrastructure/gcp`, existing deployment helpers in `src/mcp_server/deploy.py` (021-cloud-run-reachability)
 - In-memory runtime state for the app; Redis-compatible shared ephemeral state for hosted session durability; file-based infrastructure definitions, contracts, and operator verification evidence (021-cloud-run-reachability)
+- Python 3.11 for service, deployment, and verification tooling; Terraform-compatible IaC definitions for the GCP provider adapter + FastAPI, Pydantic v2, Uvicorn, Redis client, Python standard library HTTP/config/logging tooling, Terraform-compatible assets under `infrastructure/gcp`, existing deployment helpers in `src/mcp_server/deploy.py` (022-hosted-dependency-wiring)
+- In-memory runtime state for request handling; Redis-compatible shared ephemeral state for hosted session durability; secret-backed runtime configuration; file-based infrastructure definitions, contracts, and operator evidence artifacts (022-hosted-dependency-wiring)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -55,9 +57,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 022-hosted-dependency-wiring: Added Python 3.11 for service, deployment, and verification tooling; Terraform-compatible IaC definitions for the GCP provider adapter + FastAPI, Pydantic v2, Uvicorn, Redis client, Python standard library HTTP/config/logging tooling, Terraform-compatible assets under `infrastructure/gcp`, existing deployment helpers in `src/mcp_server/deploy.py`
 - 021-cloud-run-reachability: Added Python 3.11 for service, deployment, and verification tooling; Terraform-compatible IaC definitions for the GCP provider adapter + FastAPI, Pydantic v2, Uvicorn, Python standard library HTTP tooling, Terraform-compatible assets under `infrastructure/gcp`, existing deployment helpers in `src/mcp_server/deploy.py`
 - 020-cloud-agnostic-iac: Added Python 3.11 for service and verification tooling; Terraform-compatible IaC definitions for hosted infrastructure modules + FastAPI, Pydantic v2, Uvicorn, Redis client, Terraform-compatible IaC assets under `infrastructure/`, Docker Compose for hosted-like local dependency startup
-- 019-iac-foundation: Added Python 3.11 for service and verification tooling; Terraform-compatible IaC definitions for infrastructure provisioning + FastAPI, Pydantic v2, Uvicorn, Redis client, Google Cloud Run deployment surface, Secret Manager integration points, Redis-compatible shared session backend, Docker Compose for hosted-like local dependency startup
 
 
 <!-- MANUAL ADDITIONS START -->

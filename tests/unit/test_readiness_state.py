@@ -4,7 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.config import validate_runtime_config
+from mcp_server.config import secret_access_readiness, validate_runtime_config
 from mcp_server.health import initialize_runtime_lifecycle, readiness_payload
 
 
@@ -33,6 +33,24 @@ class ReadinessStateTests(unittest.TestCase):
         self.assertEqual(payload["status"], "not_ready")
         self.assertEqual(payload["checks"]["sessionDurability"], "fail")
         self.assertEqual(payload["reason"]["code"], "SESSION_DURABILITY_UNAVAILABLE")
+
+    def test_not_ready_payload_when_secret_access_is_unavailable(self):
+        result = validate_runtime_config({"MCP_ENVIRONMENT": "staging"})
+        lifecycle = initialize_runtime_lifecycle(result)
+        payload = readiness_payload(
+            result,
+            lifecycle,
+            secret_access=secret_access_readiness(
+                {
+                    "MCP_ENVIRONMENT": "staging",
+                    "MCP_SECRET_REFERENCE_NAMES": "YOUTUBE_API_KEY,MCP_AUTH_TOKEN",
+                },
+                result,
+            ),
+        )
+        self.assertEqual(payload["status"], "not_ready")
+        self.assertEqual(payload["checks"]["secrets"], "fail")
+        self.assertEqual(payload["reason"]["code"], "SECRET_ACCESS_UNAVAILABLE")
 
     def test_lifecycle_transitions_from_ready_to_stopping(self):
         result = validate_runtime_config({"MCP_ENVIRONMENT": "dev"})

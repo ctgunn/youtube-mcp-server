@@ -46,6 +46,12 @@ variable "bootstrap_image_reference" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
+variable "secret_access_mode" {
+  description = "How Cloud Run receives required secret-backed runtime values."
+  type        = string
+  default     = "secret_manager_env"
+}
+
 variable "min_instances" {
   description = "Minimum instance count for the hosted runtime."
   type        = number
@@ -117,10 +123,28 @@ variable "session_replay_ttl_seconds" {
   default     = 300
 }
 
+variable "session_connectivity_model" {
+  description = "Provider-specific connectivity model used by Cloud Run to reach the durable session backend."
+  type        = string
+  default     = "serverless_vpc_connector"
+}
+
+variable "cloud_run_vpc_connector" {
+  description = "Optional Serverless VPC Access connector used by Cloud Run for durable session connectivity."
+  type        = string
+  default     = ""
+}
+
 variable "secret_names" {
   description = "Secret names created as integration points for runtime deployment."
   type        = list(string)
   default     = ["YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"]
+}
+
+variable "redis_authorized_network" {
+  description = "Optional VPC network self link or name authorized to reach the Redis session backend."
+  type        = string
+  default     = ""
 }
 
 variable "redis_memory_size_gb" {

@@ -50,6 +50,7 @@ def create_app(
         startup_validation=validation,
         runtime_lifecycle=lifecycle,
         runtime_settings=runtime_settings,
+        runtime_env=runtime_env,
         runtime_stdout=runtime_stdout,
         runtime_stderr=runtime_stderr,
     )
