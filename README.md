@@ -241,6 +241,20 @@ reference first.
 
 Manual streamable MCP verification examples:
 
+Rejected initialize requests must not return `MCP-Session-Id` and must not create
+usable hosted continuation state:
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
+  -d '{"jsonrpc":"2.0","id":"req-init-invalid","method":"initialize","params":{}}' \
+  https://YOUR_SERVICE_URL/mcp
+```
+
+Expected result: invalid initialize error with no `MCP-Session-Id` header.
+
 ```bash
 curl -i \
   -H 'Content-Type: application/json' \
@@ -455,6 +469,9 @@ The verification output must record pass/fail results for:
 - `reachability`
 - `liveness`
 - `readiness`
+- `initialize-invalid-no-session`
+- `initialize-success-session-created`
+- `initialize-retry-success`
 - `initialize`
 - `list-tools`
 - `search-tool-call-openai`

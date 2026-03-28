@@ -41,6 +41,30 @@ class StreamableHTTPTransportIntegrationTests(unittest.TestCase):
         session_id = self._initialize_session()
         self.assertTrue(session_id)
 
+    def test_successful_retry_after_failed_initialize_creates_first_usable_session(self):
+        failed = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers()},
+            body=b'{"jsonrpc":"2.0","id":"req-init-bad","method":"initialize","params":{}}',
+        )
+        self.assertEqual(failed.status, 400)
+        self.assertNotIn("MCP-Session-Id", failed.headers)
+
+        session_id = self._initialize_session()
+        self.assertTrue(session_id)
+
+        continued = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers(session_id=session_id)},
+            body=b'{"jsonrpc":"2.0","id":"req-list-after-retry","method":"tools/list","params":{}}',
+        )
+        self.assertEqual(continued.status, 200)
+        self.assertIsInstance(continued.payload["result"]["tools"], list)
+
     def test_invalid_session_and_invalid_accept_are_rejected(self):
         invalid_session = execute_hosted_request(
             self.app,

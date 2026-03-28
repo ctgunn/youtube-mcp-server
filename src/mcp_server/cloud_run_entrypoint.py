@@ -16,6 +16,7 @@ from mcp_server.config import load_hosted_runtime_settings, secret_access_readin
 from mcp_server.health import RuntimeLifecycleState
 from mcp_server.observability import RequestContext, generate_request_id
 from mcp_server.protocol.envelope import error_response_for_category
+from mcp_server.protocol.methods import initialize_succeeded
 from mcp_server.security import (
     browser_preflight_headers,
     browser_response_headers,
@@ -421,9 +422,36 @@ def execute_hosted_request(
 
     if request_method == "initialize":
         response = transport.handle(path, payload)
+        if not initialize_succeeded(response):
+            transport.observability.emit_session_decision(
+                {
+                    "requestId": request_id,
+                    "path": path,
+                    "sessionOutcome": "initialize_rejected",
+                    "reasonCode": response.get("error", {}).get("data", {}).get("category", "INITIALIZE_REJECTED"),
+                }
+            )
+            return _json_result(
+                hosted_status_code(classification, response),
+                response,
+                extra_headers=_combine_headers(
+                    allowed_browser_headers,
+                    {
+                        MCP_PROTOCOL_VERSION_HEADER: protocol_version,
+                    },
+                ),
+            )
         session = transport.stream_manager.create_session(
             protocol_version=protocol_version,
             client_metadata=payload.get("params", {}).get("clientInfo") if isinstance(payload.get("params"), dict) else None,
+        )
+        transport.observability.emit_session_decision(
+            {
+                "requestId": request_id,
+                "path": path,
+                "sessionId": session.session_id,
+                "sessionOutcome": "initialize_succeeded",
+            }
         )
         return _json_result(
             200,

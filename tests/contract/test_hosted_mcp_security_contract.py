@@ -40,6 +40,22 @@ class HostedMCPSecurityContractTests(unittest.TestCase):
         self.assertEqual(response.payload["error"]["data"]["category"], "unauthenticated")
         self.assertNotIn("MCP-Session-Id", response.headers)
 
+    def test_initialize_with_invalid_credential_does_not_issue_session_header(self):
+        response = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "Authorization": "Bearer wrong-token",
+            },
+            body=self.initialize_body,
+        )
+        self.assertEqual(response.status, 403)
+        self.assertEqual(response.payload["error"]["data"]["category"], "invalid_credential")
+        self.assertNotIn("MCP-Session-Id", response.headers)
+
     def test_disallowed_browser_origin_is_forbidden(self):
         response = execute_hosted_request(
             self.app,

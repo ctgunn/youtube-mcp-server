@@ -599,6 +599,19 @@ def _result_structured_content(payload: dict):
     return first.get("structuredContent")
 
 
+def _initialize_has_session_header(payload: dict) -> bool:
+    headers = payload.get("_headers", {})
+    return isinstance(headers, dict) and bool(headers.get("MCP-Session-Id"))
+
+
+def _initialize_success_check(payload: dict) -> bool:
+    return isinstance(payload.get("result"), dict) and "capabilities" in payload.get("result", {})
+
+
+def _initialize_failure_without_session_check(payload: dict) -> bool:
+    return isinstance(payload.get("error"), dict) and not _initialize_has_session_header(payload)
+
+
 def _reason_code(payload: dict) -> str | None:
     reason = payload.get("reason")
     if isinstance(reason, dict):
@@ -638,6 +651,9 @@ def run_hosted_verification(
         "secret-access": "Inspect runtime identity bindings, secret references, and secret injection wiring before re-running verification.",
         "readiness": "Review runtime configuration and secret injection, then redeploy or re-run verification.",
         "session-connectivity": "Inspect Cloud Run-to-session-backend connectivity wiring and backend availability before re-running verification.",
+        "initialize-invalid-no-session": "Confirm rejected initialize requests return no MCP-Session-Id and do not create usable session state before re-running verification.",
+        "initialize-success-session-created": "Confirm successful initialize responses still issue MCP-Session-Id and declare capabilities before re-running verification.",
+        "initialize-retry-success": "Confirm a successful initialize after a rejected initialize creates the first usable hosted session before re-running verification.",
         "initialize": "Confirm the hosted MCP endpoint is reachable and the initialize method is still supported.",
         "list-tools": "Confirm the hosted registry remains discoverable before re-running verification.",
         "search-tool-call-openai": "Inspect the published OpenAI-compatible search schema, hosted tool dispatch, and retrieval example inputs before re-running verification.",
@@ -661,6 +677,9 @@ def run_hosted_verification(
         "secret-access": "readiness-time",
         "readiness": "readiness-time",
         "session-connectivity": "readiness-time",
+        "initialize-invalid-no-session": "MCP-time",
+        "initialize-success-session-created": "MCP-time",
+        "initialize-retry-success": "MCP-time",
         "initialize": "MCP-time",
         "list-tools": "MCP-time",
         "search-tool-call-openai": "MCP-time",
@@ -782,6 +801,25 @@ def run_hosted_verification(
         ):
             return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
+    invalid_initialize_payload = _normalize_request_result(
+        requester(
+        "/mcp",
+        {
+            "jsonrpc": "2.0",
+            "id": "verify-init-invalid",
+            "method": "initialize",
+            "params": {},
+        },
+        )
+    )
+    if not _append(
+        "initialize-invalid-no-session",
+        invalid_initialize_payload,
+        lambda payload: payload.get("statusCode") == 400 and _initialize_failure_without_session_check(payload),
+        "Rejected initialize returned no session header and no successful initialize result.",
+    ):
+        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+
     initialize_payload = _normalize_request_result(
         requester(
         "/mcp",
@@ -794,9 +832,23 @@ def run_hosted_verification(
         )
     )
     if not _append(
+        "initialize-success-session-created",
+        initialize_payload,
+        lambda payload: payload.get("statusCode") == 200 and _initialize_success_check(payload) and _initialize_has_session_header(payload),
+        "Successful initialize returned declared capabilities and issued MCP-Session-Id.",
+    ):
+        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+    if not _append(
+        "initialize-retry-success",
+        initialize_payload,
+        lambda payload: payload.get("statusCode") == 200 and _initialize_success_check(payload) and _initialize_has_session_header(payload),
+        "A successful initialize after a rejected initialize created the first usable hosted session.",
+    ):
+        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+    if not _append(
         "initialize",
         initialize_payload,
-        lambda payload: isinstance(payload.get("result"), dict) and "capabilities" in payload.get("result", {}),
+        _initialize_success_check,
         "Hosted MCP initialize returned declared capabilities.",
     ):
         return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))

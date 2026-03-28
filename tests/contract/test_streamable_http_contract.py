@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath("src"))
 from mcp_server.app import create_app
 from mcp_server.cloud_run_entrypoint import build_asgi_app, execute_hosted_request
 from mcp_server.transport.session_store import reset_memory_session_store_registry
-from tests.contract.conftest import stream_headers
+from tests.contract.conftest import build_initialize_payload, stream_headers
 from tests.unit.conftest import parse_sse_payload
 
 
@@ -43,6 +43,18 @@ class StreamableHTTPContractTests(unittest.TestCase):
         self.assertEqual(result.payload["jsonrpc"], "2.0")
         self.assertIn("MCP-Session-Id", result.headers)
         self.assertEqual(result.headers["MCP-Protocol-Version"], "2025-11-25")
+
+    def test_invalid_initialize_does_not_issue_session_header(self):
+        result = execute_hosted_request(
+            self.app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", **stream_headers()},
+            body=json.dumps(build_initialize_payload("req-contract-init-invalid", params_override={})).encode("utf-8"),
+        )
+        self.assertEqual(result.status, 400)
+        self.assertEqual(result.payload["error"]["data"]["category"], "invalid_argument")
+        self.assertNotIn("MCP-Session-Id", result.headers)
 
     def test_tools_call_can_return_sse(self):
         init = self._initialize()

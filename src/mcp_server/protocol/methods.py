@@ -88,6 +88,13 @@ def _handle_initialize(request_id, params):
     )
 
 
+def initialize_succeeded(response: dict) -> bool:
+    if not isinstance(response, dict) or "error" in response:
+        return False
+    result = response.get("result")
+    return isinstance(result, dict) and "capabilities" in result
+
+
 def _handle_list(request_id, _params, dispatcher):
     return success_response({"tools": dispatcher.list_tools()}, request_id=request_id)
 
