@@ -20,7 +20,7 @@ SRC_DIR = ROOT_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, write_verification_evidence
+from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, write_verification_evidence  # noqa: E402
 
 
 def _http_request(base_url: str, path: str, payload: object) -> dict:

@@ -640,12 +640,11 @@ def run_hosted_verification(
         "session-connectivity": "Inspect Cloud Run-to-session-backend connectivity wiring and backend availability before re-running verification.",
         "initialize": "Confirm the hosted MCP endpoint is reachable and the initialize method is still supported.",
         "list-tools": "Confirm the hosted registry remains discoverable before re-running verification.",
-        "search-tool-call": "Inspect the published search schema, hosted tool dispatch, and retrieval example inputs before re-running verification.",
-        "fetch-tool-call-resource-id": "Inspect fetch-by-resourceId discovery metadata and hosted retrieval handling before re-running verification.",
-        "fetch-tool-call-uri": "Inspect fetch-by-uri discovery metadata and hosted retrieval handling before re-running verification.",
-        "fetch-tool-call-both": "Inspect matching identifier validation and hosted retrieval handling before re-running verification.",
-        "fetch-tool-call-missing": "Inspect missing-identifier validation and hosted error mapping before re-running verification.",
-        "fetch-tool-call-conflict": "Inspect conflicting-identifier validation and hosted error mapping before re-running verification.",
+        "search-tool-call-openai": "Inspect the published OpenAI-compatible search schema, hosted tool dispatch, and retrieval example inputs before re-running verification.",
+        "fetch-tool-call-openai": "Inspect OpenAI-compatible fetch discovery metadata and hosted retrieval handling before re-running verification.",
+        "search-tool-call-empty": "Inspect empty-result handling for the OpenAI-compatible search contract before re-running verification.",
+        "fetch-tool-call-legacy-shape": "Inspect legacy-shape validation and compatibility-boundary handling before re-running verification.",
+        "fetch-tool-call-missing": "Inspect missing-document validation and hosted error mapping before re-running verification.",
         "session-post-continuation": "Inspect hosted POST continuation state, shared session storage, and session validation before re-running verification.",
         "session-get-continuation": "Inspect hosted GET continuation state and stream-session validation before re-running verification.",
         "session-reconnect": "Inspect hosted replay retention and reconnect cursor handling before re-running verification.",
@@ -664,12 +663,11 @@ def run_hosted_verification(
         "session-connectivity": "readiness-time",
         "initialize": "MCP-time",
         "list-tools": "MCP-time",
-        "search-tool-call": "MCP-time",
-        "fetch-tool-call-resource-id": "MCP-time",
-        "fetch-tool-call-uri": "MCP-time",
-        "fetch-tool-call-both": "MCP-time",
+        "search-tool-call-openai": "MCP-time",
+        "fetch-tool-call-openai": "MCP-time",
+        "search-tool-call-empty": "MCP-time",
+        "fetch-tool-call-legacy-shape": "MCP-time",
         "fetch-tool-call-missing": "MCP-time",
-        "fetch-tool-call-conflict": "MCP-time",
         "session-post-continuation": "MCP-time",
         "session-get-continuation": "MCP-time",
         "session-reconnect": "MCP-time",
@@ -821,83 +819,83 @@ def run_hosted_verification(
                 "jsonrpc": "2.0",
                 "id": "verify-search-tool-call",
                 "method": "tools/call",
-                "params": {"name": "search", "arguments": {"query": "remote MCP research", "pageSize": 1}},
+                "params": {"name": "search", "arguments": {"query": "remote MCP research"}},
             },
         )
     )
     if not _append(
-        "search-tool-call",
+        "search-tool-call-openai",
         search_payload,
         lambda payload: isinstance(_result_structured_content(payload), dict)
-        and len(_result_structured_content(payload).get("results", [])) >= 1,
-        "Hosted MCP search call succeeded using discovery-driven request input.",
+        and len(_result_structured_content(payload).get("results", [])) >= 1
+        and isinstance(_result_structured_content(payload).get("results", [])[0], dict)
+        and {"id", "title", "url"}.issubset(_result_structured_content(payload).get("results", [])[0].keys()),
+        "Hosted MCP search call succeeded using the OpenAI-compatible request input.",
     ):
         return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
     search_structured = _result_structured_content(search_payload) or {}
     search_results = search_structured.get("results", []) if isinstance(search_structured, dict) else []
     first_result = search_results[0] if search_results else {}
-    resource_id = first_result.get("resourceId", "res_remote_mcp_001")
-    uri = first_result.get("uri", "https://example.com/remote-mcp-research")
+    document_id = first_result.get("id", "doc-remote-mcp-001")
 
-    fetch_by_id_payload = _normalize_request_result(
+    fetch_payload = _normalize_request_result(
         requester(
             "/mcp",
             {
                 "jsonrpc": "2.0",
-                "id": "verify-fetch-by-id",
+                "id": "verify-fetch-openai",
                 "method": "tools/call",
-                "params": {"name": "fetch", "arguments": {"resourceId": resource_id}},
+                "params": {"name": "fetch", "arguments": {"id": document_id}},
             },
         )
     )
     if not _append(
-        "fetch-tool-call-resource-id",
-        fetch_by_id_payload,
+        "fetch-tool-call-openai",
+        fetch_payload,
         lambda payload: isinstance(_result_structured_content(payload), dict)
-        and _result_structured_content(payload).get("resourceId") == resource_id,
-        "Hosted MCP fetch call succeeded using the discovery-derived resourceId pattern.",
+        and _result_structured_content(payload).get("id") == document_id,
+        "Hosted MCP fetch call succeeded using the discovery-derived OpenAI-compatible id pattern.",
     ):
         return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
-    fetch_by_uri_payload = _normalize_request_result(
+    empty_search_payload = _normalize_request_result(
         requester(
             "/mcp",
             {
                 "jsonrpc": "2.0",
-                "id": "verify-fetch-by-uri",
+                "id": "verify-search-empty",
                 "method": "tools/call",
-                "params": {"name": "fetch", "arguments": {"uri": uri}},
+                "params": {"name": "search", "arguments": {"query": "no-match-sentinel"}},
             },
         )
     )
     if not _append(
-        "fetch-tool-call-uri",
-        fetch_by_uri_payload,
+        "search-tool-call-empty",
+        empty_search_payload,
         lambda payload: isinstance(_result_structured_content(payload), dict)
-        and _result_structured_content(payload).get("uri") == uri,
-        "Hosted MCP fetch call succeeded using the discovery-derived uri pattern.",
+        and _result_structured_content(payload).get("results") == [],
+        "Hosted MCP search call returned the documented empty-results success shape.",
     ):
         return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
-    fetch_by_both_payload = _normalize_request_result(
+    legacy_fetch_payload = _normalize_request_result(
         requester(
             "/mcp",
             {
                 "jsonrpc": "2.0",
-                "id": "verify-fetch-by-both",
+                "id": "verify-fetch-legacy-shape",
                 "method": "tools/call",
-                "params": {"name": "fetch", "arguments": {"resourceId": resource_id, "uri": uri}},
+                "params": {"name": "fetch", "arguments": {"resourceId": "res_remote_mcp_001"}},
             },
         )
     )
     if not _append(
-        "fetch-tool-call-both",
-        fetch_by_both_payload,
-        lambda payload: isinstance(_result_structured_content(payload), dict)
-        and _result_structured_content(payload).get("resourceId") == resource_id
-        and _result_structured_content(payload).get("uri") == uri,
-        "Hosted MCP fetch call succeeded using matching discovery-derived resourceId and uri values.",
+        "fetch-tool-call-legacy-shape",
+        legacy_fetch_payload,
+        lambda payload: payload.get("error", {}).get("code") == -32602
+        and payload.get("error", {}).get("data", {}).get("category") == "invalid_argument",
+        "Hosted MCP fetch call using a legacy request shape returned the documented invalid-input failure.",
     ):
         return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
 
@@ -908,38 +906,16 @@ def run_hosted_verification(
                 "jsonrpc": "2.0",
                 "id": "verify-fetch-missing",
                 "method": "tools/call",
-                "params": {"name": "fetch", "arguments": {}},
+                "params": {"name": "fetch", "arguments": {"id": "missing-resource"}},
             },
         )
     )
     _append(
         "fetch-tool-call-missing",
         missing_fetch_payload,
-        lambda payload: payload.get("error", {}).get("code") == -32602
-        and payload.get("error", {}).get("data", {}).get("category") == "invalid_argument",
-        "Hosted MCP fetch call without identifiers returned the documented invalid-input failure.",
-    )
-
-    conflicting_fetch_payload = _normalize_request_result(
-        requester(
-            "/mcp",
-            {
-                "jsonrpc": "2.0",
-                "id": "verify-fetch-conflict",
-                "method": "tools/call",
-                "params": {
-                    "name": "fetch",
-                    "arguments": {"resourceId": resource_id, "uri": "https://example.com/not-the-same"},
-                },
-            },
-        )
-    )
-    _append(
-        "fetch-tool-call-conflict",
-        conflicting_fetch_payload,
-        lambda payload: payload.get("error", {}).get("code") == -32602
-        and payload.get("error", {}).get("data", {}).get("category") == "invalid_argument",
-        "Hosted MCP fetch call with conflicting identifiers returned the documented invalid-input failure.",
+        lambda payload: payload.get("error", {}).get("code") == -32001
+        and payload.get("error", {}).get("data", {}).get("category") == "unavailable_source",
+        "Hosted MCP fetch call for an unavailable document returned the documented unavailable-source failure.",
     )
 
     post_continuation_payload = _normalize_request_result(

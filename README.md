@@ -330,8 +330,16 @@ tools used in earlier foundation slices:
   "id": "req-list",
   "result": {
     "tools": [
-      {"name":"search","description":"Discover relevant sources for deep research workflows."},
-      {"name":"fetch","description":"Retrieve a selected source in consumable content form."}
+      {
+        "name":"search",
+        "description":"Search the retrieval corpus for relevant documents.",
+        "inputSchema":{"type":"object","required":["query"],"properties":{"query":{"type":"string","minLength":1}},"additionalProperties":false}
+      },
+      {
+        "name":"fetch",
+        "description":"Fetch the full contents of a previously identified document.",
+        "inputSchema":{"type":"object","required":["id"],"properties":{"id":{"type":"string","minLength":1}},"additionalProperties":false}
+      }
     ]
   }
 }
@@ -340,10 +348,9 @@ tools used in earlier foundation slices:
 For retrieval-contract completeness work, hosted discovery is expected to be
 strong enough that clients can build:
 
-- a valid `search` request from the published `query`, `pageSize`, and `cursor` schema
-- a valid `fetch` request by `resourceId`
-- a valid `fetch` request by `uri`
-- a valid `fetch` request by matching `resourceId` plus `uri`
+- a valid `search` request from the published `query` schema
+- a valid `fetch` request from the published `id` schema
+- an explicit invalid legacy-shape request that proves the compatibility boundary
 
 Hosted session durability verification expects the hosted tool catalog to
 remain discoverable and then validates session continuation through the same
@@ -357,7 +364,7 @@ curl -i \
   -H 'Accept: application/json, text/event-stream' \
   -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
   -H 'MCP-Session-Id: SESSION_ID' \
-  -d '{"jsonrpc":"2.0","id":"req-search","method":"tools/call","params":{"name":"search","arguments":{"query":"remote MCP research","pageSize":1}}}' \
+  -d '{"jsonrpc":"2.0","id":"req-search","method":"tools/call","params":{"name":"search","arguments":{"query":"remote MCP research"}}}' \
   https://YOUR_SERVICE_URL/mcp
 ```
 
@@ -369,9 +376,26 @@ curl -i \
   -H 'Accept: application/json, text/event-stream' \
   -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
   -H 'MCP-Session-Id: SESSION_ID' \
-  -d '{"jsonrpc":"2.0","id":"req-fetch-uri","method":"tools/call","params":{"name":"fetch","arguments":{"uri":"https://example.com/remote-mcp-research"}}}' \
+  -d '{"jsonrpc":"2.0","id":"req-fetch","method":"tools/call","params":{"name":"fetch","arguments":{"id":"doc-remote-mcp-001"}}}' \
   https://YOUR_SERVICE_URL/mcp
 ```
+
+Representative successful retrieval payload:
+
+```json
+{
+  "id":"doc-remote-mcp-001",
+  "url":"https://example.com/remote-mcp-research",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"id\":\"doc-remote-mcp-001\",\"title\":\"Remote MCP Research Workflows\",\"text\":\"Remote MCP research workflows depend on discoverable tools and stable document retrieval.\",\"url\":\"https://example.com/remote-mcp-research\",\"metadata\":{\"sourceName\":\"Example Research\"}}"
+    }
+  ]
+}
+```
+
+Representative unsupported legacy-shape example:
 
 ```bash
 curl -i \
@@ -379,7 +403,7 @@ curl -i \
   -H 'Accept: application/json, text/event-stream' \
   -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
   -H 'MCP-Session-Id: SESSION_ID' \
-  -d '{"jsonrpc":"2.0","id":"req-fetch-both","method":"tools/call","params":{"name":"fetch","arguments":{"resourceId":"res_remote_mcp_001","uri":"https://example.com/remote-mcp-research"}}}' \
+  -d '{"jsonrpc":"2.0","id":"req-fetch-legacy","method":"tools/call","params":{"name":"fetch","arguments":{"resourceId":"res_remote_mcp_001"}}}' \
   https://YOUR_SERVICE_URL/mcp
 ```
 
@@ -433,12 +457,11 @@ The verification output must record pass/fail results for:
 - `readiness`
 - `initialize`
 - `list-tools`
-- `search-tool-call`
-- `fetch-tool-call-resource-id`
-- `fetch-tool-call-uri`
-- `fetch-tool-call-both`
+- `search-tool-call-openai`
+- `fetch-tool-call-openai`
+- `search-tool-call-empty`
+- `fetch-tool-call-legacy-shape`
 - `fetch-tool-call-missing`
-- `fetch-tool-call-conflict`
 - `session-post-continuation`
 - `session-get-continuation`
 - `session-reconnect`
