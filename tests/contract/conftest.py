@@ -17,6 +17,18 @@ def build_tool_call_payload(request_id, tool_name, arguments=None):
     )
 
 
+def build_initialize_payload(request_id, client_name="client", client_version="1.0.0", *, params_override=None):
+    params = {
+        "clientInfo": {
+            "name": client_name,
+            "version": client_version,
+        }
+    }
+    if params_override is not None:
+        params = params_override
+    return build_mcp_payload(request_id, "initialize", params)
+
+
 def stream_headers(session_id=None, *, include_json=True, protocol_version=None, origin=None):
     accept = "application/json, text/event-stream" if include_json else "text/event-stream"
     headers = {"Accept": accept}

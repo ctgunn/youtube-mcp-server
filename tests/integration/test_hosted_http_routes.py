@@ -263,6 +263,43 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         self.assertEqual(response.payload["error"]["code"], -32001)
         self.assertEqual(response.payload["error"]["data"]["category"], "session_not_found")
 
+    def test_invalid_initialize_does_not_create_session_or_return_header(self):
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"})
+        response = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+            },
+            body=json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": "req-invalid-init-routes",
+                    "method": "initialize",
+                    "params": {},
+                }
+            ).encode("utf-8"),
+        )
+        self.assertEqual(response.status, 400)
+        self.assertEqual(response.payload["error"]["data"]["category"], "invalid_argument")
+        self.assertNotIn("MCP-Session-Id", response.headers)
+
+        continuation = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": response.headers.get("MCP-Session-Id", "missing-session"),
+            },
+            body=b'{"jsonrpc":"2.0","id":"req-invalid-init-list","method":"tools/list","params":{}}',
+        )
+        self.assertEqual(continuation.status, 404)
+        self.assertEqual(continuation.payload["error"]["data"]["category"], "session_not_found")
+
     def test_browser_preflight_is_supported_for_mcp(self):
         app = create_app(
             env={

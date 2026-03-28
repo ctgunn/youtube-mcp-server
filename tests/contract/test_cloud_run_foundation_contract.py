@@ -25,11 +25,19 @@ class CloudRunFoundationContractTests(unittest.TestCase):
         app_payloads = {
             "/health": {"status": "ok", "statusCode": 200},
             "/ready": {"status": "ready", "checks": {"configuration": "pass"}, "statusCode": 200},
+            "initialize-invalid-no-session": {
+                "jsonrpc": "2.0",
+                "id": "verify-init-invalid",
+                "error": {"code": -32602, "message": "clientInfo with name is required", "data": {"category": "invalid_argument"}},
+                "statusCode": 400,
+                "_headers": {},
+            },
             "initialize": {
                 "jsonrpc": "2.0",
                 "id": "verify-init",
                 "result": {"capabilities": {"tools": {"listChanged": False}}},
                 "statusCode": 200,
+                "_headers": {"MCP-Session-Id": "session-1"},
             },
             "tools/list": {
                 "jsonrpc": "2.0",
@@ -179,6 +187,10 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                 return app_payloads["get-continuation"]
             if payload["method"] == "tools/call" and payload["params"]["name"] == "server_ping":
                 return app_payloads["server-ping-call"]
+            if payload["method"] == "initialize":
+                if payload.get("id") == "verify-init-invalid":
+                    return app_payloads["initialize-invalid-no-session"]
+                return app_payloads["initialize"]
             if payload["method"] == "tools/call" and payload["params"]["name"] == "search":
                 arguments = payload["params"]["arguments"]
                 if arguments == {"query": "no-match-sentinel"}:
@@ -200,6 +212,9 @@ class CloudRunFoundationContractTests(unittest.TestCase):
                 "reachability",
                 "liveness",
                 "readiness",
+                "initialize-invalid-no-session",
+                "initialize-success-session-created",
+                "initialize-retry-success",
                 "initialize",
                 "list-tools",
                 "search-tool-call-openai",

@@ -1,11 +1,11 @@
-import json
 import os
 import sys
 import unittest
+import json
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.protocol.methods import route_mcp_request
+from mcp_server.protocol.methods import initialize_succeeded, route_mcp_request
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 
 
@@ -55,6 +55,30 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertIn("server_ping", names)
         self.assertIn("server_info", names)
         self.assertIn("server_list_tools", names)
+
+    def test_initialize_success_detection_accepts_initialize_result(self):
+        response = route_mcp_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "req-init-success",
+                "method": "initialize",
+                "params": {"clientInfo": {"name": "client", "version": "1.0.0"}},
+            },
+            self.dispatcher,
+        )
+        self.assertTrue(initialize_succeeded(response))
+
+    def test_initialize_success_detection_rejects_initialize_error(self):
+        response = route_mcp_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "req-init-fail",
+                "method": "initialize",
+                "params": {},
+            },
+            self.dispatcher,
+        )
+        self.assertFalse(initialize_succeeded(response))
 
 
 if __name__ == "__main__":

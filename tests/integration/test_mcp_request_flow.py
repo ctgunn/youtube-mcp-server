@@ -56,6 +56,39 @@ class MCPRequestFlowIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["status"], "ok")
         self.assertIn("timestamp", payload)
 
+    def test_rejected_initialize_and_successful_continuation_emit_distinct_session_decisions(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        app = create_app(env={"MCP_ENVIRONMENT": "dev"}, runtime_stdout=stdout, runtime_stderr=stderr)
+
+        failed = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+            body=b'{"jsonrpc":"2.0","id":"req-init-bad-obsv","method":"initialize","params":{}}',
+        )
+        self.assertEqual(failed.status, 400)
+
+        session_id = self._initialize_hosted_session(app)
+        continued = execute_hosted_request(
+            app,
+            method="POST",
+            path="/mcp",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                "MCP-Session-Id": session_id,
+            },
+            body=b'{"jsonrpc":"2.0","id":"req-tools-after-init","method":"tools/list","params":{}}',
+        )
+        self.assertEqual(continued.status, 200)
+
+        session_events = [event for event in app.observability.logs if event.get("event") == "session.decision"]
+        outcomes = [event.get("sessionOutcome") for event in session_events]
+        self.assertIn("initialize_rejected", outcomes)
+        self.assertIn("continued", outcomes)
+
     def test_server_ping_repeated_invocations_are_stable(self):
         os.environ["MCP_ENVIRONMENT"] = "dev"
         app = create_app()

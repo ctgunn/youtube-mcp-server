@@ -192,15 +192,16 @@ class InMemoryObservability:
         self._emit_runtime_event(event)
 
     def emit_session_decision(self, decision: dict[str, Any]) -> None:
+        session_outcome = decision.get("sessionOutcome")
         event = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "severity": "INFO" if decision.get("sessionOutcome") == "continued" else "ERROR",
+            "severity": "INFO" if session_outcome in {"continued", "initialize_succeeded"} else "ERROR",
             "event": "session.decision",
             "requestId": decision.get("requestId"),
             "path": decision.get("path"),
-            "status": "success" if decision.get("sessionOutcome") == "continued" else "error",
+            "status": "success" if session_outcome in {"continued", "initialize_succeeded"} else "error",
             "sessionId": decision.get("sessionId"),
-            "sessionOutcome": decision.get("sessionOutcome"),
+            "sessionOutcome": session_outcome,
         }
         if decision.get("reasonCode"):
             event["reasonCode"] = decision.get("reasonCode")
