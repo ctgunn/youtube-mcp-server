@@ -2,6 +2,23 @@
 
 This directory provisions the hosted MCP platform foundation for FND-019 and serves as the primary provider adapter for the shared platform contract defined in FND-020.
 
+## What this directory is for
+
+This directory is the GCP-specific part of the platform.
+
+The application code in `src/` is the MCP server itself. The Terraform in this
+directory creates the cloud resources that let that server run in Google Cloud.
+
+In plain terms:
+
+- the app code explains how the MCP server behaves
+- this directory explains where that MCP server lives in GCP and what it needs
+  around it
+
+If you are trying to understand "how the server works," start with the root
+README. If you are trying to understand "what GCP resources are required so the
+server can run correctly," this is the right README.
+
 ## What this provisions
 
 - Cloud Run service foundation for `youtube-mcp-server`
@@ -13,6 +30,21 @@ This directory provisions the hosted MCP platform foundation for FND-019 and ser
 - Outputs that feed the existing `scripts/deploy_cloud_run.sh` workflow
 
 This is the provider-specific implementation of the current hosted runtime, identity, secrets, observability handoff, and durable-session capabilities. FND-020 treats this directory as the primary provider adapter rather than as the full platform model.
+
+## Mental model
+
+You can think of the hosted deployment as three layers:
+
+1. Application layer
+   The MCP server process that handles `/health`, `/ready`, and `/mcp`.
+2. Platform layer
+   Cloud Run, the runtime identity, secret injection, and network path to
+   shared dependencies.
+3. Shared dependency layer
+   The durable session backend and secret-backed configuration needed by the
+   hosted runtime.
+
+This directory is mostly responsible for layers 2 and 3.
 
 ## Required inputs
 
@@ -40,6 +72,12 @@ Copy [`terraform.tfvars.example`](./terraform.tfvars.example) to a local, untrac
 - `session_ttl_seconds`
 - `session_replay_ttl_seconds`
 
+These inputs are doing three jobs:
+
+- identifying where the platform should be created
+- defining how public and secure the hosted service should be
+- defining how the hosted runtime reaches secrets and durable session state
+
 ## Provisioning workflow
 
 1. Initialize Terraform:
@@ -50,6 +88,10 @@ Copy [`terraform.tfvars.example`](./terraform.tfvars.example) to a local, untrac
    `terraform -chdir=infrastructure/gcp apply -var-file=staging.tfvars`
 4. Export deploy-time outputs:
    `terraform -chdir=infrastructure/gcp output -json > artifacts/gcp-foundation-outputs.json`
+
+This workflow creates the infrastructure foundation first. It does not replace
+the application deployment step. After Terraform runs, you still deploy the
+current application image with `scripts/deploy_cloud_run.sh`.
 
 ## Expected outputs
 
@@ -90,6 +132,11 @@ bash scripts/deploy_cloud_run.sh
 
 `IMAGE_REFERENCE` remains an application deployment input and is not produced by Terraform.
 
+The handoff is intentional:
+
+- Terraform creates the GCP foundation and emits the values the app needs
+- the deploy script consumes those values and rolls out the MCP server image
+
 ## Hosted dependency wiring model
 
 - The Cloud Run runtime service account is the runtime identity that reads required secret-backed configuration.
@@ -100,8 +147,23 @@ bash scripts/deploy_cloud_run.sh
 
 If hosted verification reports a secret-access failure, review the runtime service account bindings and secret reference names first. If it reports a session-connectivity failure, review the Cloud Run VPC connector and Redis authorized network path first.
 
+This wiring matters because the server can look correct in code but still fail
+at runtime if:
+
+- Cloud Run cannot read the secrets it expects
+- Cloud Run cannot reach the Redis-backed session store
+- the session durability mode says shared state is required but the platform is
+  not actually providing it
+
 ## Public invocation intent
 
 - Set `public_invocation_intent=public_remote_mcp` when the environment is intended for trusted public remote MCP consumers.
 - Set `public_invocation_intent=private_only` when the environment should remain outside the public remote MCP workflow.
 - Public invocation intent does not replace MCP bearer-token authentication; it only controls whether the hosted Cloud Run service is intentionally reachable.
+
+This is a common point of confusion, so it is worth stating directly:
+
+- public invocation answers "can a remote MCP client reach the Cloud Run URL at all?"
+- MCP bearer auth answers "once the request reaches `/mcp`, is the caller allowed to use it?"
+
+Those are separate layers and both need to be configured correctly.

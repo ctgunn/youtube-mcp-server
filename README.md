@@ -1,6 +1,187 @@
 # youtube-mcp-server
 An MCP-compliant server that wraps the YouTube Data API and exposes searchable tools for use in OpenAI Agent Builder workflows. The current primary hosted provider adapter targets Google Cloud Run, while the shared platform contract keeps the hosted deployment model portable across providers.
 
+## What this is
+
+At a high level, this repository contains a remote MCP server. Other
+applications do not import this code directly. Instead, they connect to the
+hosted HTTP endpoint, send MCP messages to `/mcp`, discover the available
+tools, and call those tools over the network.
+
+Today the server includes:
+
+- baseline server tools such as `server_ping`, `server_info`, and `server_list_tools`
+- foundational retrieval tools such as `search` and `fetch`
+- hosted session management for streamable MCP over HTTP
+- health, readiness, security, and observability behavior for Cloud Run-style hosting
+
+If you are new to the repository, the sections below explain the server in the
+same layered way a human would usually learn it: from very high level down to
+the request-by-request details.
+
+## How to read this README
+
+You can think about this project at five levels:
+
+- 100 ft: what the server is for
+- 30 ft: how another application uses it
+- 10 ft: which modules are responsible for which jobs
+- ground level: what happens during a real request
+- underground: where sessions, streams, validation, and tool execution actually live
+
+The rest of this README keeps the detailed deployment and verification material
+that already existed, but this section is intended to make the big picture much
+easier to follow first.
+
+## 100 Ft View
+
+This server is a network-accessible toolbox.
+
+An MCP-capable client such as OpenAI or another remote MCP consumer talks to
+your server over HTTP. The client asks:
+
+- who are you?
+- what tools do you have?
+- please run this tool for me
+
+Your server answers those questions using the MCP protocol.
+
+In practical terms, the server has four main responsibilities:
+
+1. Start with the correct runtime configuration.
+2. Accept HTTP requests on `/health`, `/ready`, and `/mcp`.
+3. Maintain MCP session state so a client can continue talking to the same logical session.
+4. Route tool requests to Python handlers and return MCP-shaped results.
+
+## 30 Ft View
+
+Another application uses this server through a hosted MCP flow:
+
+1. The client sends `initialize` to `POST /mcp`.
+2. If the request is allowed and valid, the server returns MCP capabilities and
+   an `MCP-Session-Id` header.
+3. The client reuses that session ID on later requests such as `tools/list` and
+   `tools/call`.
+4. The server validates the request, finds the correct tool, runs it, and
+   returns a result in MCP format.
+5. If the client needs replay or stream continuation, it can reconnect with the
+   same session using `GET /mcp` and `Last-Event-ID`.
+
+The most important thing to remember is that clients interact with this server
+through HTTP plus JSON-RPC/MCP messages. They are not calling Python functions
+directly.
+
+## 10 Ft View
+
+These modules are the main moving parts:
+
+- [src/mcp_server/cloud_run_entrypoint.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py)
+  This is the hosted front door. It receives raw HTTP requests and turns them
+  into hosted MCP behavior.
+- [src/mcp_server/app.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/app.py)
+  This creates the transport object and loads runtime configuration.
+- [src/mcp_server/config.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/config.py)
+  This reads environment variables and defines runtime settings such as auth,
+  session backend, TTLs, and readiness expectations.
+- [src/mcp_server/transport/http.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/http.py)
+  This classifies requests, owns hosted route behavior, and routes `/mcp`
+  payloads into the MCP protocol layer.
+- [src/mcp_server/security.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/security.py)
+  This decides whether a request is allowed based on bearer auth, origin
+  handling, and browser preflight rules.
+- [src/mcp_server/transport/streaming.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py)
+  This manages sessions, streams, replay windows, and SSE payload encoding.
+- [src/mcp_server/protocol/methods.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py)
+  This implements the MCP methods supported by the server, such as
+  `initialize`, `tools/list`, and `tools/call`.
+- [src/mcp_server/tools/dispatcher.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py)
+  This is the registry and dispatcher for tools.
+- [src/mcp_server/tools/retrieval.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py)
+  This is one current tool module that implements `search` and `fetch`.
+- [src/mcp_server/transport/session_store.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/session_store.py)
+  This defines where hosted session state is stored: in memory or in Redis.
+
+## Ground Level: One Request Lifecycle
+
+Here is the normal happy-path lifecycle for a hosted client:
+
+1. Cloud Run receives an HTTPS request.
+2. The ASGI entrypoint in `cloud_run_entrypoint.py` passes the request to
+   `execute_hosted_request(...)`.
+3. The request is classified by path, method, content type, and body shape.
+4. `/health` and `/ready` are answered directly by the hosted transport.
+5. `/mcp` requests go through security checks first.
+6. If the MCP method is `initialize`, the protocol layer validates it and the
+   server creates a new session only if initialize succeeds.
+7. The server returns an `MCP-Session-Id`, which the client must reuse on later
+   requests.
+8. Follow-up `tools/list` and `tools/call` requests are routed through the
+   dispatcher.
+9. The dispatcher validates tool arguments against the published schema and
+   calls the correct Python handler.
+10. The result is wrapped into an MCP response and returned as JSON or
+    streamable HTTP/SSE depending on the flow.
+
+## Underground: What lives under the surface
+
+The server has a few pieces of hidden plumbing that matter a lot:
+
+### Sessions
+
+- A successful `initialize` creates a hosted MCP session.
+- The session ID is returned in the `MCP-Session-Id` response header.
+- Follow-up requests must include that header.
+- If a session is missing or expired, the request fails and the client is
+  expected to initialize again.
+
+### Session storage
+
+Session state can live in one of two places:
+
+- memory: useful for local development and simple single-process workflows
+- Redis: useful for durable/shared hosted session continuity
+
+The session backend is selected by `MCP_SESSION_BACKEND` and
+`MCP_SESSION_STORE_URL`.
+
+### Streaming and replay
+
+This server supports streamable HTTP MCP behavior:
+
+- a client can ask for `text/event-stream`
+- the server can return SSE instead of a plain JSON body
+- the client can reconnect with `Last-Event-ID`
+- the server can replay missed events as long as they are still within the
+  replay window
+
+The replay window is controlled by `MCP_SESSION_REPLAY_TTL_SECONDS`.
+
+### Tool discovery and execution
+
+Each tool has:
+
+- a name
+- a description
+- an `inputSchema`
+- a Python handler
+
+That means a client can discover tools dynamically through `tools/list`, then
+construct a valid `tools/call` request without knowing Python details.
+
+## Short Example
+
+In plain language, a client does something like this:
+
+1. Send `initialize`.
+2. Receive capabilities and `MCP-Session-Id`.
+3. Send `tools/list`.
+4. Read the published tool schemas.
+5. Send `tools/call` for a tool such as `search` or `fetch`.
+6. Receive the tool result in MCP format.
+
+That is the core of how this server works. The sections below cover the exact
+runtime configuration, deployment, verification, and hosted contract details.
+
 ## Local dependency bootstrap
 
 Install the hosted runtime dependencies from the repository root:
