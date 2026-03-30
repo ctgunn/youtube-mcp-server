@@ -108,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--auth-token")
     parser.add_argument("--origin")
     parser.add_argument("--evidence-file", default="artifacts/cloud-run-verification.txt")
+    parser.add_argument("--summary-file")
     args = parser.parse_args(argv)
 
     deployment_record = {}
@@ -185,29 +186,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     evidence_path = write_verification_evidence(Path(args.evidence_file), run)
     first_failure = next((check for check in run.checks if check.result == "fail"), None)
-    print(
-        json.dumps(
+    summary = {
+        "overallResult": run.overall_result,
+        "errorCodeContract": "numeric",
+        "runtimeIdentity": revision.runtime_identity,
+        "publicInvocationIntent": public_invocation_intent,
+        "evidenceFile": str(evidence_path),
+        "checkNames": [check.check_name for check in run.checks],
+        "failureLayers": [check.failure_layer for check in run.checks if check.result == "fail"],
+        "firstFailure": (
             {
-                "overallResult": run.overall_result,
-                "errorCodeContract": "numeric",
-                "runtimeIdentity": revision.runtime_identity,
-                "publicInvocationIntent": public_invocation_intent,
-                "evidenceFile": str(evidence_path),
-                "checkNames": [check.check_name for check in run.checks],
-                "failureLayers": [check.failure_layer for check in run.checks if check.result == "fail"],
-                "firstFailure": (
-                    {
-                        "checkName": first_failure.check_name,
-                        "failureLayer": first_failure.failure_layer,
-                        "requestReachedApplication": first_failure.request_reached_application,
-                        "remediation": first_failure.remediation,
-                    }
-                    if first_failure
-                    else None
-                ),
+                "checkName": first_failure.check_name,
+                "failureLayer": first_failure.failure_layer,
+                "requestReachedApplication": first_failure.request_reached_application,
+                "remediation": first_failure.remediation,
             }
-        )
-    )
+            if first_failure
+            else None
+        ),
+    }
+    if args.summary_file:
+        summary_path = Path(args.summary_file)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(json.dumps(summary))
+    print(json.dumps(summary))
     return 0 if run.overall_result == "pass" else 1
 
 

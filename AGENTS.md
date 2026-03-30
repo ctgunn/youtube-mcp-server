@@ -43,6 +43,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - In-memory runtime state for local execution plus shared ephemeral hosted session state when durable session configuration is enabled; no new persistent storage for this slice (024-initialize-session-correctness)
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Redis-compatible session store support, Python standard-library JSON/HTTP/config/logging tooling, existing MCP transport/protocol/tooling modules under `src/mcp_server/` (024-initialize-session-correctness)
 - In-memory runtime state for local execution plus shared ephemeral session state through the existing hosted session store abstraction; no new persistent storage introduced for this slice (024-initialize-session-correctness)
+- Python 3.11 for service, deployment, and verification tooling; checked-in CI workflow definition for push-triggered orchestration + FastAPI, Pydantic v2, Uvicorn, Terraform-compatible IaC under `infrastructure/gcp`, existing deployment helpers in `src/mcp_server/deploy.py`, `scripts/deploy_cloud_run.sh`, `scripts/verify_cloud_run_foundation.py`, container image build/publish tooling, repository-hosted workflow automation (025-hosted-deploy-orchestration)
+- In-memory runtime state for request handling; Redis-compatible shared ephemeral state for hosted sessions; file-based Terraform definitions, workflow definitions, deployment records, verification evidence, and specification artifacts (025-hosted-deploy-orchestration)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -63,9 +65,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 025-hosted-deploy-orchestration: Added Python 3.11 for service, deployment, and verification tooling; checked-in CI workflow definition for push-triggered orchestration + FastAPI, Pydantic v2, Uvicorn, Terraform-compatible IaC under `infrastructure/gcp`, existing deployment helpers in `src/mcp_server/deploy.py`, `scripts/deploy_cloud_run.sh`, `scripts/verify_cloud_run_foundation.py`, container image build/publish tooling, repository-hosted workflow automation
 - 024-initialize-session-correctness: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Redis-compatible session store support, Python standard-library JSON/HTTP/config/logging tooling, existing MCP transport/protocol/tooling modules under `src/mcp_server/`
 - 024-initialize-session-correctness: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Redis-compatible session store support, Python standard-library JSON and HTTP tooling, existing MCP transport and protocol modules under `src/mcp_server/`
-- 023-openai-retrieval-compatibility: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Redis client, Python standard-library JSON/HTTP/config/logging tooling, existing MCP transport/protocol/tooling modules under `src/mcp_server/`
 
 
 <!-- MANUAL ADDITIONS START -->

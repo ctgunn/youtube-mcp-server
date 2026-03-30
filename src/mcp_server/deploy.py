@@ -298,6 +298,84 @@ class DeploymentRunRecord:
     public_invocation_intent: str = "private_only"
 
 
+WORKFLOW_STAGE_ORDER = (
+    "quality_gate",
+    "image_publish",
+    "infrastructure_reconcile",
+    "terraform_output_export",
+    "deploy",
+    "hosted_verification",
+)
+
+
+@dataclass(frozen=True)
+class HostedDeploymentWorkflowStage:
+    stage_name: str
+    result: str
+    summary: str
+    artifact_path: str | None = None
+
+
+@dataclass(frozen=True)
+class BootstrapPrerequisite:
+    name: str
+    owner: str
+    required_for_stage: str
+    description: str
+
+
+BOOTSTRAP_PREREQUISITES = (
+    BootstrapPrerequisite(
+        name="GCP_PROJECT_ID",
+        owner="automation",
+        required_for_stage="infrastructure_reconcile",
+        description="Hosted project identifier used for Terraform and deploy commands.",
+    ),
+    BootstrapPrerequisite(
+        name="GCP_REGION",
+        owner="automation",
+        required_for_stage="infrastructure_reconcile",
+        description="Hosted region used for Terraform and deploy commands.",
+    ),
+    BootstrapPrerequisite(
+        name="GCP_WORKLOAD_IDENTITY_PROVIDER",
+        owner="automation",
+        required_for_stage="quality_gate",
+        description="Repository automation identity used to authenticate to GCP without static credentials.",
+    ),
+    BootstrapPrerequisite(
+        name="GCP_SERVICE_ACCOUNT",
+        owner="automation",
+        required_for_stage="quality_gate",
+        description="Runtime automation identity used for Terraform and deployment actions.",
+    ),
+    BootstrapPrerequisite(
+        name="GCP_ARTIFACT_REGISTRY_REPOSITORY",
+        owner="automation",
+        required_for_stage="image_publish",
+        description="Artifact destination used to publish the current application image.",
+    ),
+    BootstrapPrerequisite(
+        name="GCP_TERRAFORM_VAR_FILE",
+        owner="automation",
+        required_for_stage="infrastructure_reconcile",
+        description="Terraform variable file that defines the target hosted environment inputs.",
+    ),
+    BootstrapPrerequisite(
+        name="YOUTUBE_API_KEY",
+        owner="operator",
+        required_for_stage="deploy",
+        description="Required hosted secret value that must be populated outside repository automation.",
+    ),
+    BootstrapPrerequisite(
+        name="MCP_AUTH_TOKEN",
+        owner="operator",
+        required_for_stage="hosted_verification",
+        description="Required hosted bearer-token secret that must be populated outside repository automation.",
+    ),
+)
+
+
 def snapshot_runtime_settings(settings: DeploymentInputSet) -> RuntimeSettingsSnapshot:
     return RuntimeSettingsSnapshot(
         service_name=settings.service_name,
@@ -346,6 +424,71 @@ def serialize_deployment_run(record: DeploymentRunRecord) -> dict:
             "configSummary": dict(record.runtime_settings.config_summary),
         },
     }
+
+
+def serialize_workflow_stage(record: HostedDeploymentWorkflowStage) -> dict[str, object]:
+    return {
+        "stageName": record.stage_name,
+        "result": record.result,
+        "summary": record.summary,
+        "artifactPath": record.artifact_path,
+    }
+
+
+def workflow_overall_result(stages: tuple[HostedDeploymentWorkflowStage, ...] | list[HostedDeploymentWorkflowStage]) -> str:
+    if any(stage.result == "fail" for stage in stages):
+        return "fail"
+    if any(stage.result == "incomplete" for stage in stages):
+        return "incomplete"
+    if stages and all(stage.result == "pass" for stage in stages):
+        return "pass"
+    return "incomplete"
+
+
+def serialize_workflow_run(
+    branch_name: str,
+    revision_ref: str,
+    stages: tuple[HostedDeploymentWorkflowStage, ...] | list[HostedDeploymentWorkflowStage],
+) -> dict[str, object]:
+    ordered_stage_names = [stage.stage_name for stage in stages]
+    first_failed = next((stage.stage_name for stage in stages if stage.result != "pass"), None)
+    return {
+        "branchName": branch_name,
+        "revisionRef": revision_ref,
+        "stageOrder": list(WORKFLOW_STAGE_ORDER),
+        "stageNames": ordered_stage_names,
+        "overallResult": workflow_overall_result(stages),
+        "firstFailedStage": first_failed,
+        "artifacts": {
+            stage.stage_name: stage.artifact_path
+            for stage in stages
+            if stage.artifact_path
+        },
+        "stages": [serialize_workflow_stage(stage) for stage in stages],
+    }
+
+
+def load_json_artifact(path: str | Path) -> dict:
+    payload = json.loads(Path(path).read_text())
+    if not isinstance(payload, dict):
+        raise ValueError("Workflow artifact must contain a JSON object.")
+    return payload
+
+
+def collect_missing_bootstrap_prerequisites(values: Mapping[str, object]) -> tuple[BootstrapPrerequisite, ...]:
+    missing: list[BootstrapPrerequisite] = []
+    for prerequisite in BOOTSTRAP_PREREQUISITES:
+        value = values.get(prerequisite.name)
+        if value is None:
+            missing.append(prerequisite)
+            continue
+        if isinstance(value, bool):
+            if not value:
+                missing.append(prerequisite)
+            continue
+        if not str(value).strip():
+            missing.append(prerequisite)
+    return tuple(missing)
 
 
 def _build_deployment_record(
