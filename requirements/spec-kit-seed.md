@@ -421,6 +421,41 @@ Acceptance criteria:
 Dependencies:
 - `FND-009`, `FND-010`, `FND-015`
 
+### FND-025: Automated Hosted Deployment Orchestration
+Description:
+Turn the current image-only hosted deployment behavior into a checked-in automated pipeline that reconciles infrastructure, deploys the current application revision, and verifies the hosted MCP endpoint on push to the intended branch.
+
+Primary stories:
+- As an operator, I can push to the deployment branch and trust that the hosted platform is reconciled instead of only updating the container image.
+- As a maintainer, I can review deployment automation in version control and evolve it alongside the application and infrastructure definitions.
+
+Acceptance criteria:
+- A checked-in deployment pipeline definition orchestrates tests, image build/push, Terraform apply, application deploy, and hosted verification.
+- The deployment pipeline consumes Terraform outputs and uses the existing deploy script rather than bypassing repository deployment logic with an image-only Cloud Run update.
+- Deployment fails if hosted verification fails after rollout.
+- Automation clearly distinguishes secret resource wiring from operator-managed secret value population.
+- Pipeline documentation explains the one-time bootstrap prerequisites required before push-triggered deployment becomes fully automated.
+
+Dependencies:
+- `FND-019`, `FND-021`, `FND-022`, `FND-024`
+
+### FND-026: Local Runtime Ergonomics and Environment Entry Point
+Description:
+Provide a one-command local startup workflow with dedicated local environment defaults so developers can run and verify the MCP server without manually reconstructing runtime settings every session.
+
+Primary stories:
+- As a developer, I can start the MCP server locally with a single command.
+- As a maintainer, I can keep local runtime settings separate from hosted deployment inputs while preserving a predictable local developer experience.
+
+Acceptance criteria:
+- The repository exposes a single-command local startup path for the minimal local runtime.
+- A dedicated local environment file documents the variables used for local execution.
+- Hosted-like local verification remains available through a simple companion command when Redis-backed local session continuity is needed.
+- Local run documentation distinguishes deployment-time Cloud Run variables from local runtime variables.
+
+Dependencies:
+- `FND-015`, `FND-020`
+
 ### YT-101: YouTube Client Integration Layer
 Description:
 Build typed wrapper for YouTube Data API v3 with auth, retry, quota, and error mapping.
@@ -433,7 +468,7 @@ Acceptance criteria:
 - Quota and upstream errors map to standard server errors.
 
 Dependencies:
-- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`, `FND-019`, `FND-020`, `FND-021`, `FND-022`, `FND-023`, `FND-024`
+- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`, `FND-019`, `FND-020`, `FND-021`, `FND-022`, `FND-023`, `FND-024`, `FND-025`, `FND-026`
 
 ### YT-102: Video Tools
 Description:
@@ -558,12 +593,14 @@ Dependencies:
 22. `FND-022`
 23. `FND-023`
 24. `FND-024`
-25. `YT-101`
-26. `YT-102` + `YT-103` (parallel)
-27. `YT-104`
-28. `YT-105`
-29. `OPS-201`
-30. `OPS-202`
+25. `FND-025`
+26. `FND-026`
+27. `YT-101`
+28. `YT-102` + `YT-103` (parallel)
+29. `YT-104`
+30. `YT-105`
+31. `OPS-201`
+32. `OPS-202`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
