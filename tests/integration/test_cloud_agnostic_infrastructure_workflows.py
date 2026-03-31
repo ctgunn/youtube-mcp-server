@@ -21,6 +21,7 @@ class CloudAgnosticInfrastructureWorkflowTests(unittest.TestCase):
             "Minimal local runtime path",
             "Hosted-like local verification path",
             "provider adapter",
+            "bash scripts/dev_local.sh",
         ):
             self.assertIn(expected, content)
 
@@ -32,6 +33,7 @@ class CloudAgnosticInfrastructureWorkflowTests(unittest.TestCase):
             "Hosted-like local verification",
             "provider-free",
             "docker compose -f infrastructure/local/compose.yaml up -d",
+            "LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh",
         ):
             self.assertIn(expected, content)
 

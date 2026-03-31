@@ -56,7 +56,9 @@ class IaCFoundationContractTests(unittest.TestCase):
 
         self.assertIn("redis:7-alpine", compose)
         self.assertIn("docker compose -f infrastructure/local/compose.yaml up -d", readme)
+        self.assertIn("LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh", readme)
         self.assertIn("MCP_SESSION_BACKEND=redis", readme)
+        self.assertIn("LOCAL_SESSION_MODE=hosted", env_example)
         self.assertIn("MCP_SESSION_STORE_URL=redis://127.0.0.1:6379/0", env_example)
 
 

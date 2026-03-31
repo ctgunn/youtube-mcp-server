@@ -33,10 +33,11 @@ you the missing shared session store without making you provision GCP first.
 
 ## Minimal local runtime
 
-The minimal local runtime does not require this directory. It can continue to run with:
+The minimal local runtime does not require this directory. It uses the same
+repository-owned entry point documented in the root README:
 
-- `MCP_ENVIRONMENT=dev`
-- `MCP_SESSION_BACKEND=memory`
+- `bash scripts/dev_local.sh`
+- baseline values loaded from `.env.local`
 
 This remains the provider-free local path and must stay outside any provider adapter prerequisites.
 
@@ -50,14 +51,12 @@ Choose this path when:
 
 Use this path when you need Redis-backed session continuity locally.
 
-1. Copy [`./.env.example`](./.env.example) to a local shell environment file if needed.
+1. Review [`./.env.example`](./.env.example) for the override values used only by hosted-like local verification.
 2. Start the shared-state dependency:
    `docker compose -f infrastructure/local/compose.yaml up -d`
-3. Export the hosted-like local runtime values:
-   - `MCP_ENVIRONMENT=dev`
-   - `MCP_SESSION_BACKEND=redis`
-   - `MCP_SESSION_STORE_URL=redis://127.0.0.1:6379/0`
-   - `MCP_SESSION_DURABILITY_REQUIRED=true`
+3. Reuse the same entry point in hosted-like mode:
+   `LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh`
+   This hosted-like profile applies `MCP_SESSION_BACKEND=redis` and the local Redis store reference from `./.env.example`.
 4. Start the app locally and run the verification flow against the local endpoint.
 5. Stop the dependency when finished:
    `docker compose -f infrastructure/local/compose.yaml down`
@@ -72,6 +71,8 @@ Choose this path when:
 - you want local behavior that is closer to the hosted deployment model
 
 If Redis is not running, hosted-like local verification should fail clearly and the minimal local runtime remains available.
+If `.env.local` is missing, `bash scripts/dev_local.sh` fails immediately and tells you to restore the local runtime defaults file before retrying.
+If hosted-like local verification is selected without the Redis dependency running, start `docker compose -f infrastructure/local/compose.yaml up -d` first and then rerun `LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh`.
 
 ## What does not change here
 
