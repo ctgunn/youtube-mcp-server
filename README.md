@@ -193,16 +193,24 @@ python3 -m pip install -e .
 ## Minimal local runtime path
 
 Use the minimal local runtime path when you only need local development and do
-not need Redis-backed session durability:
+not need Redis-backed session durability. `bash scripts/dev_local.sh` is the
+canonical local startup entry point, and it loads the local runtime defaults
+from `.env.local` automatically.
 
 ```bash
-MCP_ENVIRONMENT=dev \
-MCP_SESSION_BACKEND=memory \
-PYTHONPATH=src python3 -m uvicorn mcp_server.cloud_run_entrypoint:app --host 0.0.0.0 --port 8080
+bash scripts/dev_local.sh
 ```
 
 This path does not require cloud provisioning or local infrastructure under
 `infrastructure/`, and it remains outside any provider adapter prerequisites in the shared platform contract.
+
+Local runtime verification:
+
+- `.env.local` is the dedicated local runtime defaults file for this path.
+- The script fails immediately if `.env.local` is missing and tells you to restore the local runtime defaults file.
+- Successful startup means the app is running with the baseline local profile and no hosted deployment-only inputs.
+
+Hosted deployment-only inputs remain in hosted deployment documentation and `.env.example`; they are not required for the minimal local runtime path.
 
 ## Hosted-like local verification path
 
@@ -215,11 +223,7 @@ docker compose -f infrastructure/local/compose.yaml up -d
 ```
 
 ```bash
-MCP_ENVIRONMENT=dev \
-MCP_SESSION_BACKEND=redis \
-MCP_SESSION_STORE_URL=redis://127.0.0.1:6379/0 \
-MCP_SESSION_DURABILITY_REQUIRED=true \
-PYTHONPATH=src python3 -m uvicorn mcp_server.cloud_run_entrypoint:app --host 0.0.0.0 --port 8080
+LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh
 ```
 
 When finished:
@@ -229,6 +233,13 @@ docker compose -f infrastructure/local/compose.yaml down
 ```
 
 These local and hosted-like local workflows are execution modes of the shared platform contract. They remain separate from the primary hosted provider adapter and any future provider adapter.
+
+Hosted-like local verification keeps the same startup entry point but changes the local session profile:
+
+- baseline local values still come from `.env.local`
+- hosted-like local overrides are documented in `infrastructure/local/.env.example`
+- the Redis bootstrap path must be running before `LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh`
+- if the durable-session dependency is unavailable, start `docker compose -f infrastructure/local/compose.yaml up -d` and retry
 
 ## Engineering workflow
 

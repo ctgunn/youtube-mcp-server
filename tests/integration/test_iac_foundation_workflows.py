@@ -72,6 +72,8 @@ class IaCFoundationWorkflowsIntegrationTests(unittest.TestCase):
         content = Path("README.md").read_text()
         self.assertIn("Minimal local runtime path", content)
         self.assertIn("Hosted-like local verification path", content)
+        self.assertIn("bash scripts/dev_local.sh", content)
+        self.assertIn("Hosted deployment-only inputs", content)
         self.assertIn("docker compose -f infrastructure/local/compose.yaml up -d", content)
         self.assertIn("INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json", content)
 
