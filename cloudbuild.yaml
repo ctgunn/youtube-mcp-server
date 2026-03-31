@@ -1,0 +1,152 @@
+steps:
+  - id: validate-bootstrap-prerequisites
+    name: python:3.11
+    entrypoint: bash
+    secretEnv:
+      - YOUTUBE_API_KEY
+      - MCP_AUTH_TOKEN
+    env:
+      - GCP_PROJECT_ID=${PROJECT_ID}
+      - GCP_REGION=${_GCP_REGION}
+      - GCP_SERVICE_NAME=${_GCP_SERVICE_NAME}
+      - GCP_ARTIFACT_REGISTRY_REPOSITORY=${_GCP_ARTIFACT_REGISTRY_REPOSITORY}
+      - GCP_TERRAFORM_VAR_FILE=${_GCP_TERRAFORM_VAR_FILE}
+      - GCP_WORKLOAD_IDENTITY_PROVIDER=cloud-build-managed
+      - GCP_SERVICE_ACCOUNT=${_GCP_SERVICE_ACCOUNT_EMAIL}
+    args:
+      - -lc
+      - |
+        set -euo pipefail
+        mkdir -p artifacts
+        missing=()
+        for key in GCP_PROJECT_ID GCP_REGION GCP_SERVICE_NAME GCP_ARTIFACT_REGISTRY_REPOSITORY GCP_TERRAFORM_VAR_FILE GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT YOUTUBE_API_KEY MCP_AUTH_TOKEN; do
+          if [ -z "${!key:-}" ]; then
+            missing+=("${key}")
+          fi
+        done
+        if [ "${#missing[@]}" -ne 0 ]; then
+          printf 'Missing bootstrap prerequisites: %s\n' "${missing[*]}" >&2
+          exit 1
+        fi
+
+  - id: install-and-test
+    name: python:3.11
+    entrypoint: bash
+    args:
+      - -lc
+      - |
+        set -euo pipefail
+        python -m pip install --upgrade pip
+        python -m pip install -e . ruff
+        pytest
+        ruff check .
+
+  - id: configure-docker-auth
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -lc
+      - |
+        set -euo pipefail
+        gcloud auth configure-docker us-docker.pkg.dev --quiet
+
+  - id: build-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - us-docker.pkg.dev/${PROJECT_ID}/${_GCP_ARTIFACT_REGISTRY_REPOSITORY}/${_IMAGE_NAME}:${SHORT_SHA}
+      - .
+
+  - id: push-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - us-docker.pkg.dev/${PROJECT_ID}/${_GCP_ARTIFACT_REGISTRY_REPOSITORY}/${_IMAGE_NAME}:${SHORT_SHA}
+
+  - id: record-image-reference
+    name: python:3.11
+    entrypoint: bash
+    args:
+      - -lc
+      - |
+        set -euo pipefail
+        mkdir -p artifacts
+        printf '%s\n' "us-docker.pkg.dev/${PROJECT_ID}/${_GCP_ARTIFACT_REGISTRY_REPOSITORY}/${_IMAGE_NAME}:${SHORT_SHA}" > artifacts/image-reference.txt
+
+  - id: terraform-init
+    name: hashicorp/terraform:1.9.8
+    entrypoint: sh
+    args:
+      - -lc
+      - terraform -chdir=infrastructure/gcp init
+
+  - id: terraform-apply
+    name: hashicorp/terraform:1.9.8
+    entrypoint: sh
+    args:
+      - -lc
+      - terraform -chdir=infrastructure/gcp apply -auto-approve -var-file="${_GCP_TERRAFORM_VAR_FILE}"
+
+  - id: export-terraform-outputs
+    name: hashicorp/terraform:1.9.8
+    entrypoint: sh
+    args:
+      - -lc
+      - |
+        mkdir -p artifacts
+        terraform -chdir=infrastructure/gcp output -json > artifacts/gcp-foundation-outputs.json
+
+  - id: deploy-hosted-revision
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    secretEnv:
+      - MCP_AUTH_TOKEN
+    env:
+      - IMAGE_REFERENCE=us-docker.pkg.dev/${PROJECT_ID}/${_GCP_ARTIFACT_REGISTRY_REPOSITORY}/${_IMAGE_NAME}:${SHORT_SHA}
+      - INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json
+      - DEPLOYMENT_RECORD_FILE=artifacts/cloud-run-deployment.json
+      - GCLOUD_BIN=gcloud
+      - SERVICE_ACCOUNT_EMAIL=${_GCP_SERVICE_ACCOUNT_EMAIL}
+    args:
+      - -lc
+      - |
+        set -euo pipefail
+        python3 -m pip install -e .
+        bash scripts/deploy_cloud_run.sh
+
+  - id: verify-hosted-deployment
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    secretEnv:
+      - MCP_AUTH_TOKEN
+    env:
+      - PYTHONPATH=src
+    args:
+      - -lc
+      - |
+        set -euo pipefail
+        python3 -m pip install -e .
+        python3 scripts/verify_cloud_run_foundation.py \
+          --deployment-record artifacts/cloud-run-deployment.json \
+          --auth-token "${MCP_AUTH_TOKEN}" \
+          --evidence-file artifacts/cloud-run-verification.txt \
+          --summary-file artifacts/cloud-run-verification.json
+
+substitutions:
+  _GCP_REGION: us-central1
+  _GCP_SERVICE_NAME: youtube-mcp-server
+  _GCP_ARTIFACT_REGISTRY_REPOSITORY: apps
+  _GCP_TERRAFORM_VAR_FILE: staging.tfvars
+  _GCP_SERVICE_ACCOUNT_EMAIL: youtube-mcp-server@${PROJECT_ID}.iam.gserviceaccount.com
+  _IMAGE_NAME: youtube-mcp-server
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/${PROJECT_ID}/secrets/YOUTUBE_API_KEY/versions/latest
+      env: YOUTUBE_API_KEY
+    - versionName: projects/${PROJECT_ID}/secrets/MCP_AUTH_TOKEN/versions/latest
+      env: MCP_AUTH_TOKEN
+
+options:
+  logging: CLOUD_LOGGING_ONLY

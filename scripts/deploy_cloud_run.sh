@@ -67,6 +67,7 @@ from mcp_server.deploy import (
 import json
 import os
 import sys
+from pathlib import Path
 
 values = dict(os.environ)
 infra_outputs_file = values.get("INFRA_OUTPUTS_FILE", "").strip()
@@ -80,6 +81,12 @@ record = execute_deploy_command(
     settings,
     gcloud_bin=os.environ.get("GCLOUD_BIN", "gcloud"),
 )
-print(json.dumps(serialize_deployment_run(record)))
+payload = json.dumps(serialize_deployment_run(record))
+output_path = values.get("DEPLOYMENT_RECORD_FILE", "").strip()
+if output_path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(payload)
+print(payload)
 raise SystemExit(0 if record.outcome == "success" else 1)
 PY

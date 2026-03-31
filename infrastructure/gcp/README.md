@@ -137,6 +137,37 @@ The handoff is intentional:
 - Terraform creates the GCP foundation and emits the values the app needs
 - the deploy script consumes those values and rolls out the MCP server image
 
+## Push-triggered deployment bootstrap
+
+FND-025 adds two checked-in automation entrypoints that share the same
+Terraform-to-deploy-to-verify chain:
+
+- `cloudbuild.yaml` for the primary Cloud Build trigger on `main`
+- `.github/workflows/hosted-deploy.yml` for a manual GitHub Actions fallback
+
+The Cloud Build trigger should be treated as the primary production path when
+you already deploy from GCP. The GitHub Actions fallback exists so maintainers
+and open source users can still run the same repository-managed deployment flow
+without discarding that work.
+
+Both paths still depend on one-time bootstrap work:
+
+- repository automation needs GCP authentication through workload identity
+- repository variables must identify the project, region, service name, image
+  repository, and Terraform variable file
+- Terraform provisioning remains automation-managed through the versioned
+  `infrastructure/gcp/` path
+- Secret values remain operator-managed and must already exist for
+  `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`
+
+That boundary is intentional. The workflow may wire references to secrets and
+runtime identities, but it must not create or rotate the secret values
+themselves.
+
+If the push-triggered workflow fails before deploy, inspect bootstrap
+prerequisites first. If it fails after deploy, inspect the generated deployment
+record and hosted verification artifacts before re-running the workflow.
+
 ## Hosted dependency wiring model
 
 - The Cloud Run runtime service account is the runtime identity that reads required secret-backed configuration.

@@ -82,6 +82,15 @@ class DeploymentObservabilityContractTests(unittest.TestCase):
             },
         )
 
+    def test_automated_workflow_docs_describe_deploy_and_verify_artifacts(self):
+        content = Path("README.md").read_text()
+        for expected in (
+            "artifacts/cloud-run-deployment.json",
+            "artifacts/cloud-run-verification.json",
+            "artifacts/cloud-run-verification.txt",
+        ):
+            self.assertIn(expected, content)
+
 
 if __name__ == "__main__":
     unittest.main()

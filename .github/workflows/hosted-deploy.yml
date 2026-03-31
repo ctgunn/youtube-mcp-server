@@ -1,0 +1,138 @@
+name: hosted-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: Git ref to deploy with the fallback workflow
+        required: false
+        default: main
+      target_environment:
+        description: Hosted environment label for the fallback workflow
+        required: false
+        default: staging
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PYTHON_VERSION: "3.11"
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  GCP_SERVICE_NAME: ${{ vars.GCP_SERVICE_NAME }}
+  GCP_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
+  GCP_TERRAFORM_VAR_FILE: ${{ vars.GCP_TERRAFORM_VAR_FILE }}
+  IMAGE_NAME: youtube-mcp-server
+  ARTIFACT_DIR: artifacts
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . ruff
+
+      - name: Validate bootstrap prerequisites
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          MCP_AUTH_TOKEN: ${{ secrets.MCP_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${ARTIFACT_DIR}"
+          missing=()
+          for key in GCP_PROJECT_ID GCP_REGION GCP_SERVICE_NAME GCP_ARTIFACT_REGISTRY_REPOSITORY GCP_TERRAFORM_VAR_FILE GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT YOUTUBE_API_KEY MCP_AUTH_TOKEN; do
+            if [ -z "${!key:-}" ]; then
+              missing+=("${key}")
+            fi
+          done
+          if [ "${#missing[@]}" -ne 0 ]; then
+            printf 'Missing bootstrap prerequisites: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Run repository quality gates
+        run: |
+          pytest
+          ruff check .
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker us-docker.pkg.dev --quiet
+
+      - name: Build and publish image
+        env:
+          IMAGE_REFERENCE: us-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          mkdir -p "${ARTIFACT_DIR}"
+          docker build -t "${IMAGE_REFERENCE}" .
+          docker push "${IMAGE_REFERENCE}"
+          printf '%s\n' "${IMAGE_REFERENCE}" > "${ARTIFACT_DIR}/image-reference.txt"
+
+      - name: Terraform init
+        run: terraform -chdir=infrastructure/gcp init
+
+      - name: Terraform apply
+        run: terraform -chdir=infrastructure/gcp apply -auto-approve -var-file="${GCP_TERRAFORM_VAR_FILE}"
+
+      - name: Export Terraform outputs
+        run: |
+          mkdir -p "${ARTIFACT_DIR}"
+          terraform -chdir=infrastructure/gcp output -json > "${ARTIFACT_DIR}/gcp-foundation-outputs.json"
+
+      - name: Deploy hosted revision
+        env:
+          IMAGE_REFERENCE: us-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          DEPLOYMENT_RECORD_FILE: artifacts/cloud-run-deployment.json
+          GCLOUD_BIN: gcloud
+          SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          MCP_AUTH_TOKEN: ${{ secrets.MCP_AUTH_TOKEN }}
+        run: |
+          INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json bash scripts/deploy_cloud_run.sh
+
+      - name: Verify hosted deployment
+        env:
+          PYTHONPATH: src
+          MCP_AUTH_TOKEN: ${{ secrets.MCP_AUTH_TOKEN }}
+        run: |
+          python3 scripts/verify_cloud_run_foundation.py \
+            --deployment-record artifacts/cloud-run-deployment.json \
+            --auth-token "${MCP_AUTH_TOKEN}" \
+            --evidence-file artifacts/cloud-run-verification.txt \
+            --summary-file artifacts/cloud-run-verification.json
+
+      - name: Upload deployment artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hosted-deploy-fallback-${{ github.sha }}
+          path: |
+            artifacts/image-reference.txt
+            artifacts/gcp-foundation-outputs.json
+            artifacts/cloud-run-deployment.json
+            artifacts/cloud-run-verification.json
+            artifacts/cloud-run-verification.txt

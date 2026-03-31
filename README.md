@@ -420,6 +420,80 @@ verification reports a session-connectivity failure, inspect
 `MCP_SESSION_CONNECTIVITY_MODEL`, the VPC connector path, and the Redis backend
 reference first.
 
+## Automated hosted deployment
+
+Push-triggered hosted deployment is primarily defined in `cloudbuild.yaml`.
+Cloud Build is the primary auto-deploy path for pushes to `main` when your GCP
+trigger is configured to use that file.
+
+The GitHub Actions workflow at `.github/workflows/hosted-deploy.yml` is a
+manual fallback for operators and open source users who prefer GitHub-hosted
+automation. The GitHub Actions workflow is a manual fallback, and it is
+intentionally `workflow_dispatch` only so it does not race with the Cloud Build
+trigger on `main`.
+
+Both automation paths keep the same repository-managed rollout path intact:
+
+1. validate bootstrap prerequisites
+2. run `pytest` and `ruff check .`
+3. build and publish the current image
+4. run `terraform -chdir=infrastructure/gcp apply`
+5. export Terraform outputs to `artifacts/gcp-foundation-outputs.json`
+6. deploy through `scripts/deploy_cloud_run.sh`
+7. verify through `scripts/verify_cloud_run_foundation.py`
+8. upload the deployment and verification artifacts
+
+The workflow does not replace the repository deployment logic with a direct
+image-only Cloud Run update. Terraform outputs remain the handoff between
+infrastructure reconciliation and application rollout.
+
+### Push-triggered deployment bootstrap prerequisites
+
+Before trusting a push to `main` as a hosted deployment trigger, confirm these
+one-time bootstrap prerequisites:
+
+- repository automation can authenticate to GCP through
+  `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`
+- repository variables provide `GCP_PROJECT_ID`, `GCP_REGION`,
+  `GCP_SERVICE_NAME`, `GCP_ARTIFACT_REGISTRY_REPOSITORY`, and
+  `GCP_TERRAFORM_VAR_FILE`
+- the target environment already contains operator-managed secret values for
+  `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`
+- the Artifact Registry repository and Terraform variable file already exist
+  for the target environment
+
+If any bootstrap prerequisite is missing, the workflow fails before it reports
+a hosted deployment result.
+
+For the primary path, configure your existing Cloud Build trigger for `main` to
+read `cloudbuild.yaml`. Use the GitHub Actions workflow only when you want a
+manual fallback run or a community-managed alternative outside your primary GCP
+trigger.
+
+### Secret boundary for automated deployment
+
+Repository automation is allowed to wire secret references, authenticate to the
+cloud environment, export infrastructure outputs, deploy the hosted revision,
+and run hosted verification.
+
+Repository automation is not allowed to create, print, rotate, or commit secret
+values. `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN` remain operator-managed secret
+values even when the workflow is fully automated.
+
+### Hosted deployment artifacts
+
+The workflow publishes these artifacts for each push-driven hosted rollout:
+
+- `artifacts/image-reference.txt`
+- `artifacts/gcp-foundation-outputs.json`
+- `artifacts/cloud-run-deployment.json`
+- `artifacts/cloud-run-verification.json`
+- `artifacts/cloud-run-verification.txt`
+
+Treat `artifacts/cloud-run-deployment.json` as the handoff from deploy to
+verification and `artifacts/cloud-run-verification.json` as the final release
+gate summary.
+
 Manual streamable MCP verification examples:
 
 Rejected initialize requests must not return `MCP-Session-Id` and must not create
