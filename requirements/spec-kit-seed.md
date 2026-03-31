@@ -456,6 +456,39 @@ Acceptance criteria:
 Dependencies:
 - `FND-015`, `FND-020`
 
+### FND-027: Terraform-Managed Hosted Networking for Durable Sessions
+Description:
+Extend the hosted infrastructure foundation so the network resources required for durable hosted session connectivity are provisioned through Terraform instead of being treated as external/manual prerequisites.
+
+Primary stories:
+- As an operator, I can provision the hosted MCP platform without manually creating the VPC, subnets, or Cloud Run connectivity resources required for Redis-backed session durability.
+- As a maintainer, I can review hosted networking changes in version control alongside the application and deployment automation changes that depend on them.
+
+Acceptance criteria:
+- Terraform provisions the provider-specific network resources required by the hosted durable-session model, including the relevant VPC and subnet resources.
+- Terraform provisions the Cloud Run connectivity path required to reach the durable session backend, such as a Serverless VPC Access connector when applicable.
+- Hosted deployment outputs expose the network/connectivity values needed by the deployment and verification workflow.
+- Hosted verification and operator documentation no longer rely on pre-existing manually created networking prerequisites for the supported GCP path.
+
+Dependencies:
+- `FND-022`, `FND-025`
+
+### FND-028: Automated Terraform Network Bootstrap in Hosted Deployment Pipeline
+Description:
+Ensure the checked-in hosted deployment pipeline reconciles the newly Terraform-managed network layer as part of the automated push-triggered rollout path.
+
+Primary stories:
+- As an operator, I can push to the deployment branch and trust that required hosted networking is reconciled before the application rollout.
+- As a maintainer, I can rely on the same automated pipeline to provision application, secret, session, and network prerequisites together.
+
+Acceptance criteria:
+- The checked-in deployment pipeline runs Terraform against the hosted networking resources before application deployment.
+- Pipeline documentation identifies the remaining one-time bootstrap inputs, if any, that must exist before the automated networking reconcile can succeed.
+- Hosted deployment failure output makes it clear when rollout failed in the network/bootstrap layer versus the application deployment layer.
+
+Dependencies:
+- `FND-025`, `FND-027`
+
 ### YT-101: YouTube Client Integration Layer
 Description:
 Build typed wrapper for YouTube Data API v3 with auth, retry, quota, and error mapping.
@@ -468,7 +501,7 @@ Acceptance criteria:
 - Quota and upstream errors map to standard server errors.
 
 Dependencies:
-- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`, `FND-019`, `FND-020`, `FND-021`, `FND-022`, `FND-023`, `FND-024`, `FND-025`, `FND-026`
+- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`, `FND-019`, `FND-020`, `FND-021`, `FND-022`, `FND-023`, `FND-024`, `FND-025`, `FND-026`, `FND-027`, `FND-028`
 
 ### YT-102: Video Tools
 Description:
@@ -595,12 +628,14 @@ Dependencies:
 24. `FND-024`
 25. `FND-025`
 26. `FND-026`
-27. `YT-101`
-28. `YT-102` + `YT-103` (parallel)
-29. `YT-104`
-30. `YT-105`
-31. `OPS-201`
-32. `OPS-202`
+27. `FND-027`
+28. `FND-028`
+29. `YT-101`
+30. `YT-102` + `YT-103` (parallel)
+31. `YT-104`
+32. `YT-105`
+33. `OPS-201`
+34. `OPS-202`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:

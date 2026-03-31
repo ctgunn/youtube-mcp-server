@@ -46,6 +46,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Infrastructure required for the hosted platform is reproducible through versioned Infrastructure as Code rather than manual setup alone.
 - Infrastructure layout is organized so shared platform capabilities can be reproduced across supported cloud providers with provider-specific adapters where necessary.
 - Provider-specific hosted infrastructure wiring includes the IAM and network plumbing required for runtime secret access and durable session connectivity.
+- Provider-specific hosted infrastructure includes Terraform-managed network resources required for durable hosted connectivity, including the relevant VPC, subnets, and Cloud Run/VPC connector path where the selected provider requires them.
 - Local execution remains a supported first-class mode for development, verification, and debugging without requiring cloud infrastructure provisioning.
 - Deployment automation is checked into version control and is capable of reconciling infrastructure, rolling out the application image, and verifying hosted MCP behavior.
 - Config, logging, error handling, containerization, and CI checks in place.
@@ -120,6 +121,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - required env vars + secret references.
   - explicit public reachability configuration appropriate for remote MCP consumers.
   - required IAM and network wiring for Secret Manager and durable session connectivity.
+  - Terraform-managed VPC/subnet/connector resources required for the hosted session-connectivity model.
 - Deployment automation MUST be able to execute the full hosted rollout path without relying on an image-only Cloud Run update.
 - Verify:
   - `/health` and `/ready` pass.
@@ -147,6 +149,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Error codes follow the protocol conventions expected by supported MCP consumers.
 - Hosted infrastructure dependencies are reproducible from versioned IaC for the supported deployment path.
 - Hosted deployment includes the provider-specific IAM and network wiring needed for secrets and durable session state.
+- Hosted deployment does not depend on manually created VPC, subnet, or VPC connector resources outside the supported IaC path.
 - Local runtime and verification workflows remain supported after infrastructure automation is introduced.
 - Push-triggered hosted deployment is driven by checked-in automation rather than console-only configuration drift.
 - Structured logs appear in Cloud Logging for each request.
@@ -220,6 +223,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Make the hosted service publicly reachable for trusted remote MCP consumers by explicit Cloud Run configuration, not by assumption.
 - Document how Cloud Run public reachability interacts with MCP-layer authentication so operators do not confuse network reachability with application authorization.
 - Provider-specific infrastructure must include the IAM and network plumbing required for runtime secret access and durable hosted session storage.
+- Provider-specific infrastructure must also provision the network resources required to support that wiring, including VPC, subnets, and VPC connector resources when applicable.
 - Prefer a single checked-in automation workflow that performs infrastructure reconcile, application deploy, and hosted verification over a build-only or image-only update path.
 - Prefer reproducible infrastructure provisioning for Cloud Run, secrets, and durable hosted dependencies over manual console-only setup.
 
@@ -274,6 +278,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Cloud Run deployment is publicly reachable to trusted remote MCP consumers using an explicit documented configuration.
 - Secrets are managed through Secret Manager.
 - Automated deployment reconciles infrastructure, rolls out the application revision, and runs hosted verification as part of the supported path.
+- Automated deployment provisions the required hosted network resources through IaC rather than relying on pre-existing manual VPC/subnet/connector configuration.
 - Logs and core metrics are visible in Google Cloud.
 - README includes setup, config, run, and deploy instructions.
 - Composite tools are clearly documented where behavior is not provided by a single native YouTube endpoint (playlist search and transcript text search).
@@ -293,12 +298,13 @@ This phase establishes a working MCP server before any YouTube tools are added.
 12. Correct initialize/session lifecycle behavior so failed handshakes do not create hosted sessions.
 13. Check in a full push-triggered deployment pipeline that reconciles infrastructure, deploys the application, and verifies the hosted MCP endpoint.
 14. Provide a one-command local startup workflow with dedicated local runtime environment defaults.
-15. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
-16. Define YouTube tool schemas and response contracts.
-17. Implement video/channel/playlist tools.
-18. Implement transcript retrieval/search flows.
-19. Add auth, secrets, and quota/error handling hardening.
-20. Add monitoring, alerts, and release documentation.
+15. Provision Terraform-managed hosted networking, including VPC, subnets, and Cloud Run connectivity resources required for durable hosted sessions.
+16. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
+17. Define YouTube tool schemas and response contracts.
+18. Implement video/channel/playlist tools.
+19. Implement transcript retrieval/search flows.
+20. Add auth, secrets, and quota/error handling hardening.
+21. Add monitoring, alerts, and release documentation.
 
 ## 16. Open Decisions
 - Final transcript fallback approach when official captions are unavailable.
