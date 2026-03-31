@@ -24,6 +24,9 @@ class HostedDependencyVerificationContractTests(unittest.TestCase):
             session_backend="redis",
             session_store_url="redis://10.0.0.3:6379/0",
             session_connectivity_model="serverless_vpc_connector",
+            session_network_reference="projects/project-id/global/networks/youtube-mcp-server-staging-network",
+            session_subnet_reference="projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet",
+            session_connector_reference="projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector",
         )
 
     def test_contract_defines_dependency_verification_order(self):

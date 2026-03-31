@@ -20,6 +20,10 @@ class IaCFoundationWorkflowsIntegrationTests(unittest.TestCase):
             "mcp_allow_originless_clients": {"value": True},
             "mcp_session_backend": {"value": "redis"},
             "mcp_session_store_url": {"value": "redis://10.0.0.3:6379/0"},
+            "mcp_session_connectivity_model": {"value": "serverless_vpc_connector"},
+            "mcp_session_network_reference": {"value": "projects/project-id/global/networks/youtube-mcp-server-staging-network"},
+            "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet"},
+            "mcp_session_connector_reference": {"value": "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector"},
             "mcp_session_durability_required": {"value": True},
             "mcp_session_ttl_seconds": {"value": 1800},
             "mcp_session_replay_ttl_seconds": {"value": 300},
@@ -59,6 +63,18 @@ class IaCFoundationWorkflowsIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["runtimeSettings"]["serviceName"], "youtube-mcp-server")
         self.assertEqual(payload["runtimeSettings"]["configSummary"]["MCP_SESSION_BACKEND"], "redis")
         self.assertEqual(payload["runtimeSettings"]["secretReferenceNames"], ["YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"])
+        self.assertEqual(
+            payload["runtimeSettings"]["sessionNetworkReference"],
+            "projects/project-id/global/networks/youtube-mcp-server-staging-network",
+        )
+        self.assertEqual(
+            payload["runtimeSettings"]["sessionSubnetReference"],
+            "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet",
+        )
+        self.assertEqual(
+            payload["runtimeSettings"]["sessionConnectorReference"],
+            "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector",
+        )
 
     def test_gcp_readme_describes_plan_apply_and_handoff(self):
         content = Path("infrastructure/gcp/README.md").read_text()
@@ -67,6 +83,9 @@ class IaCFoundationWorkflowsIntegrationTests(unittest.TestCase):
         self.assertIn("terraform -chdir=infrastructure/gcp apply -var-file=staging.tfvars", content)
         self.assertIn("terraform -chdir=infrastructure/gcp output -json > artifacts/gcp-foundation-outputs.json", content)
         self.assertIn("INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json", content)
+        self.assertIn("Terraform-managed hosted network layer", content)
+        self.assertIn("managed VPC network", content)
+        self.assertIn("Serverless VPC Access connector", content)
 
     def test_readme_distinguishes_minimal_local_from_hosted_like_local(self):
         content = Path("README.md").read_text()

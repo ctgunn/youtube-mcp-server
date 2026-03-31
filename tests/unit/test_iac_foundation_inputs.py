@@ -24,6 +24,10 @@ class IaCFoundationInputsUnitTests(unittest.TestCase):
             "mcp_allow_originless_clients": {"value": True},
             "mcp_session_backend": {"value": "redis"},
             "mcp_session_store_url": {"value": "redis://10.0.0.3:6379/0"},
+            "mcp_session_connectivity_model": {"value": "serverless_vpc_connector"},
+            "mcp_session_network_reference": {"value": "projects/project-id/global/networks/youtube-mcp-server-staging-network"},
+            "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet"},
+            "mcp_session_connector_reference": {"value": "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector"},
             "mcp_session_durability_required": {"value": True},
             "mcp_session_ttl_seconds": {"value": 1800},
             "mcp_session_replay_ttl_seconds": {"value": 300},
@@ -55,6 +59,19 @@ class IaCFoundationInputsUnitTests(unittest.TestCase):
         self.assertEqual(settings.config_values["MCP_ALLOWED_ORIGINS"], "https://chat.openai.com")
         self.assertEqual(settings.config_values["MCP_SESSION_BACKEND"], "redis")
         self.assertEqual(settings.config_values["MCP_SESSION_STORE_URL"], "redis://10.0.0.3:6379/0")
+        self.assertEqual(settings.config_values["MCP_SESSION_CONNECTIVITY_MODEL"], "serverless_vpc_connector")
+        self.assertEqual(
+            settings.session_network_reference,
+            "projects/project-id/global/networks/youtube-mcp-server-staging-network",
+        )
+        self.assertEqual(
+            settings.session_subnet_reference,
+            "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet",
+        )
+        self.assertEqual(
+            settings.session_connector_reference,
+            "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector",
+        )
         self.assertEqual(settings.timeout_seconds, 180)
         self.assertEqual(settings.validate(), [])
 

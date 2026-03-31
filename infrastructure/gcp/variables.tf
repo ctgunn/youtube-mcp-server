@@ -129,8 +129,8 @@ variable "session_connectivity_model" {
   default     = "serverless_vpc_connector"
 }
 
-variable "cloud_run_vpc_connector" {
-  description = "Optional Serverless VPC Access connector used by Cloud Run for durable session connectivity."
+variable "managed_network_name" {
+  description = "Optional override for the Terraform-managed VPC network name used by the hosted durable-session path."
   type        = string
   default     = ""
 }
@@ -141,10 +141,40 @@ variable "secret_names" {
   default     = ["YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"]
 }
 
-variable "redis_authorized_network" {
-  description = "Optional VPC network self link or name authorized to reach the Redis session backend."
+variable "managed_subnet_name" {
+  description = "Optional override for the Terraform-managed subnet name used by the hosted durable-session path."
   type        = string
   default     = ""
+}
+
+variable "managed_subnet_cidr" {
+  description = "CIDR range reserved for the Terraform-managed durable-session subnet."
+  type        = string
+  default     = "10.8.0.0/28"
+}
+
+variable "managed_vpc_connector_name" {
+  description = "Optional override for the Terraform-managed Serverless VPC Access connector name."
+  type        = string
+  default     = ""
+}
+
+variable "managed_vpc_connector_cidr" {
+  description = "CIDR range reserved for the Terraform-managed Serverless VPC Access connector."
+  type        = string
+  default     = "10.8.1.0/28"
+}
+
+variable "managed_vpc_connector_min_throughput" {
+  description = "Minimum throughput for the Terraform-managed Serverless VPC Access connector."
+  type        = number
+  default     = 200
+}
+
+variable "managed_vpc_connector_max_throughput" {
+  description = "Maximum throughput for the Terraform-managed Serverless VPC Access connector."
+  type        = number
+  default     = 300
 }
 
 variable "redis_memory_size_gb" {

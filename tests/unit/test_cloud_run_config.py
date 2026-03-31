@@ -67,6 +67,9 @@ class CloudRunConfigUnitTests(unittest.TestCase):
                 "MCP_SESSION_BACKEND": "redis",
                 "MCP_SESSION_STORE_URL": "redis://10.0.0.3:6379/0",
                 "MCP_SESSION_CONNECTIVITY_MODEL": "serverless_vpc_connector",
+                "MCP_SESSION_NETWORK_REFERENCE": "projects/project-id/global/networks/youtube-mcp-server-staging-network",
+                "MCP_SESSION_SUBNET_REFERENCE": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet",
+                "MCP_SESSION_CONNECTOR_REFERENCE": "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector",
             }
         )
         command = build_deploy_command(settings)

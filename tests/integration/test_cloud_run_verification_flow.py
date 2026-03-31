@@ -97,6 +97,9 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
             session_backend="redis",
             session_store_url="memory://verify-shared",
             session_connectivity_model="serverless_vpc_connector",
+            session_network_reference="projects/project-id/global/networks/youtube-mcp-server-staging-network",
+            session_subnet_reference="projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet",
+            session_connector_reference="projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector",
         )
 
     def test_ready_app_passes_full_hosted_verification(self):
@@ -171,6 +174,8 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         self.assertIn("checkName: deployment-evidence", content)
         self.assertIn("checkName: secret-access", content)
         self.assertIn("checkName: session-connectivity", content)
+        self.assertIn("sessionNetworkReference: projects/project-id/global/networks/youtube-mcp-server-staging-network", content)
+        self.assertIn("sessionConnectorReference: projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector", content)
         self.assertIn("failureLayer:", content)
         self.assertIn("requestReachedApplication:", content)
 
