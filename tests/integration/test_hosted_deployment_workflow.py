@@ -53,6 +53,22 @@ class HostedDeploymentWorkflowIntegrationTests(unittest.TestCase):
         self.assertIn("deploy", payload["artifacts"])
         self.assertIn("hosted_verification", payload["artifacts"])
 
+    def test_workflow_summary_serialization_captures_first_failed_boundary(self):
+        payload = serialize_workflow_run(
+            "main",
+            "abc123",
+            [
+                HostedDeploymentWorkflowStage("quality_gate", "pass", "ok"),
+                HostedDeploymentWorkflowStage(
+                    "infrastructure_reconcile",
+                    "fail",
+                    "Managed network bootstrap failed while reconciling infrastructure.",
+                ),
+            ],
+        )
+        self.assertEqual(payload["firstFailedStage"], "infrastructure_reconcile")
+        self.assertEqual(payload["firstFailedBoundary"], "network_reconcile_failure")
+
 
 if __name__ == "__main__":
     unittest.main()

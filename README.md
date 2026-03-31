@@ -460,6 +460,11 @@ Both automation paths keep the same repository-managed rollout path intact:
 7. verify through `scripts/verify_cloud_run_foundation.py`
 8. upload the deployment and verification artifacts
 
+For environments that require durable hosted session connectivity, managed
+network bootstrap is part of step 4. In other words, network reconciliation
+happens before deploy and remains inside the same reviewed automation path.
+Stated directly: network reconciliation happens before deploy for the supported hosted path.
+
 The workflow does not replace the repository deployment logic with a direct
 image-only Cloud Run update. Terraform outputs remain the handoff between
 infrastructure reconciliation and application rollout.
@@ -468,6 +473,9 @@ infrastructure reconciliation and application rollout.
 
 Before trusting a push to `main` as a hosted deployment trigger, confirm these
 one-time bootstrap prerequisites:
+
+These one-time bootstrap inputs remain outside the recurring automated
+deployment run.
 
 - repository automation can authenticate to GCP through
   `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`
@@ -481,6 +489,15 @@ one-time bootstrap prerequisites:
 
 If any bootstrap prerequisite is missing, the workflow fails before it reports
 a hosted deployment result.
+
+The failure boundary is intentional and should remain operator-visible:
+
+- `bootstrap_input_failure` means one-time bootstrap inputs were missing before
+  hosted reconciliation could start.
+- `network_reconcile_failure` means managed network bootstrap failed during
+  infrastructure reconciliation.
+- later deploy or hosted verification failures happen only after those earlier
+  gates succeed.
 
 For the primary path, configure your existing Cloud Build trigger for `main` to
 read `cloudbuild.yaml`. Use the GitHub Actions workflow only when you want a

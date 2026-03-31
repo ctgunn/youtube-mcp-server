@@ -345,6 +345,7 @@ class HostedDeploymentWorkflowStage:
     result: str
     summary: str
     artifact_path: str | None = None
+    failure_boundary: str | None = None
 
 
 @dataclass(frozen=True)
@@ -464,11 +465,15 @@ def serialize_deployment_run(record: DeploymentRunRecord) -> dict:
 
 
 def serialize_workflow_stage(record: HostedDeploymentWorkflowStage) -> dict[str, object]:
+    failure_boundary = record.failure_boundary
+    if failure_boundary is None and record.result != "pass":
+        failure_boundary = classify_bootstrap_failure(record.stage_name, record.summary)
     return {
         "stageName": record.stage_name,
         "result": record.result,
         "summary": record.summary,
         "artifactPath": record.artifact_path,
+        "failureBoundary": failure_boundary,
     }
 
 
@@ -482,13 +487,37 @@ def workflow_overall_result(stages: tuple[HostedDeploymentWorkflowStage, ...] | 
     return "incomplete"
 
 
+def classify_bootstrap_failure(stage_name: str, summary: str = "") -> str | None:
+    normalized_stage = (stage_name or "").strip()
+    normalized_summary = (summary or "").strip().lower()
+    if not normalized_stage:
+        return None
+    if normalized_stage == "quality_gate":
+        return "bootstrap_input_failure"
+    if normalized_stage in {"infrastructure_reconcile", "terraform_output_export"}:
+        if "bootstrap" in normalized_summary or "network" in normalized_summary or normalized_stage == "infrastructure_reconcile":
+            return "network_reconcile_failure"
+        return "network_reconcile_failure"
+    if normalized_stage == "deploy":
+        return "deployment_failure"
+    if normalized_stage == "hosted_verification":
+        return "hosted_verification_failure"
+    return None
+
+
 def serialize_workflow_run(
     branch_name: str,
     revision_ref: str,
     stages: tuple[HostedDeploymentWorkflowStage, ...] | list[HostedDeploymentWorkflowStage],
 ) -> dict[str, object]:
     ordered_stage_names = [stage.stage_name for stage in stages]
-    first_failed = next((stage.stage_name for stage in stages if stage.result != "pass"), None)
+    first_failed_stage = next((stage for stage in stages if stage.result != "pass"), None)
+    first_failed = first_failed_stage.stage_name if first_failed_stage else None
+    first_failed_boundary = (
+        classify_bootstrap_failure(first_failed_stage.stage_name, first_failed_stage.summary)
+        if first_failed_stage
+        else None
+    )
     return {
         "branchName": branch_name,
         "revisionRef": revision_ref,
@@ -496,6 +525,7 @@ def serialize_workflow_run(
         "stageNames": ordered_stage_names,
         "overallResult": workflow_overall_result(stages),
         "firstFailedStage": first_failed,
+        "firstFailedBoundary": first_failed_boundary,
         "artifacts": {
             stage.stage_name: stage.artifact_path
             for stage in stages

@@ -81,6 +81,7 @@ steps:
       - -lc
       - terraform -chdir=infrastructure/gcp init
 
+  # Reconcile managed network bootstrap and infrastructure before deploy.
   - id: terraform-apply
     name: hashicorp/terraform:1.9.8
     entrypoint: sh
@@ -97,6 +98,7 @@ steps:
         mkdir -p artifacts
         terraform -chdir=infrastructure/gcp output -json > artifacts/gcp-foundation-outputs.json
 
+  # Deploy hosted revision only after managed network bootstrap evidence is exported.
   - id: deploy-hosted-revision
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
