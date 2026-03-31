@@ -23,6 +23,8 @@ class HostedDeploymentBootstrapDocsIntegrationTests(unittest.TestCase):
             "Secret values remain operator-managed",
             "Cloud Build trigger",
             "GitHub Actions fallback",
+            "Terraform-managed hosted network layer",
+            "managed VPC network",
         ):
             self.assertIn(expected, content)
 

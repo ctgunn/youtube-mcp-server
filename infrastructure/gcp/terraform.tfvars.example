@@ -18,8 +18,11 @@ mcp_allow_originless_clients = true
 
 session_backend              = "redis"
 session_connectivity_model   = "serverless_vpc_connector"
-cloud_run_vpc_connector      = "projects/my-gcp-project/locations/us-central1/connectors/youtube-mcp-server"
-redis_authorized_network     = "projects/my-gcp-project/global/networks/default"
+managed_network_name         = "youtube-mcp-server-staging-network"
+managed_subnet_name          = "youtube-mcp-server-staging-subnet"
+managed_subnet_cidr          = "10.8.0.0/28"
+managed_vpc_connector_name   = "youtube-mcp-server-staging-connector"
+managed_vpc_connector_cidr   = "10.8.1.0/28"
 session_durability_required  = true
 session_ttl_seconds          = 1800
 session_replay_ttl_seconds   = 300

@@ -21,6 +21,9 @@ class HostedDeploymentHandoffIntegrationTests(unittest.TestCase):
                 "service_account_email": {"value": "svc@example.iam.gserviceaccount.com"},
                 "secret_reference_names": {"value": ["YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"]},
                 "public_invocation_intent": {"value": "public_remote_mcp"},
+                "mcp_session_network_reference": {"value": "projects/project-id/global/networks/youtube-mcp-server-staging-network"},
+                "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet"},
+                "mcp_session_connector_reference": {"value": "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector"},
                 "min_instances": {"value": 0},
                 "max_instances": {"value": 2},
                 "concurrency": {"value": 20},
@@ -31,6 +34,10 @@ class HostedDeploymentHandoffIntegrationTests(unittest.TestCase):
         self.assertEqual(settings.project_id, "project-id")
         self.assertEqual(settings.service_name, "youtube-mcp-server")
         self.assertEqual(settings.secret_references, ("YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"))
+        self.assertEqual(
+            settings.session_connector_reference,
+            "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector",
+        )
 
     def test_deployment_record_written_by_deploy_helper_can_be_reloaded_as_workflow_artifact(self):
         settings = deployment_input_from_iac_outputs(
@@ -42,6 +49,9 @@ class HostedDeploymentHandoffIntegrationTests(unittest.TestCase):
                 "service_account_email": {"value": "svc@example.iam.gserviceaccount.com"},
                 "secret_reference_names": {"value": ["YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"]},
                 "public_invocation_intent": {"value": "public_remote_mcp"},
+                "mcp_session_network_reference": {"value": "projects/project-id/global/networks/youtube-mcp-server-staging-network"},
+                "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet"},
+                "mcp_session_connector_reference": {"value": "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector"},
                 "min_instances": {"value": 0},
                 "max_instances": {"value": 2},
                 "concurrency": {"value": 20},
@@ -66,6 +76,10 @@ class HostedDeploymentHandoffIntegrationTests(unittest.TestCase):
             path.write_text(json.dumps(serialize_deployment_run(record)))
             payload = load_json_artifact(path)
         self.assertEqual(payload["revisionName"], "youtube-mcp-server-00008")
+        self.assertEqual(
+            payload["runtimeSettings"]["sessionNetworkReference"],
+            "projects/project-id/global/networks/youtube-mcp-server-staging-network",
+        )
 
 
 if __name__ == "__main__":

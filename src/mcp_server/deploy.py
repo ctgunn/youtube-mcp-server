@@ -40,6 +40,9 @@ class DeploymentInputSet:
     max_instances: int
     concurrency: int
     timeout_seconds: int
+    session_network_reference: str = ""
+    session_subnet_reference: str = ""
+    session_connector_reference: str = ""
 
     def validate(self) -> list[str]:
         failures: list[str] = []
@@ -77,6 +80,13 @@ class DeploymentInputSet:
             self.config_values.get("MCP_SESSION_STORE_URL")
         ):
             failures.append("MCP_SESSION_STORE_URL is required when MCP_SESSION_BACKEND=redis")
+        if self.config_values.get("MCP_SESSION_BACKEND") == "redis":
+            if not _clean_env_value(self.session_network_reference):
+                failures.append("session_network_reference is required when MCP_SESSION_BACKEND=redis")
+            if not _clean_env_value(self.session_subnet_reference):
+                failures.append("session_subnet_reference is required when MCP_SESSION_BACKEND=redis")
+            if not _clean_env_value(self.session_connector_reference):
+                failures.append("session_connector_reference is required when MCP_SESSION_BACKEND=redis")
         return failures
 
 
@@ -119,6 +129,9 @@ def deployment_input_from_mapping(values: Mapping[str, object]) -> DeploymentInp
         project_id=str(values.get("PROJECT_ID", "")).strip(),
         public_invocation_intent=str(values.get("PUBLIC_INVOCATION_INTENT", "private_only")).strip() or "private_only",
         secret_references=secret_refs,
+        session_network_reference=str(values.get("MCP_SESSION_NETWORK_REFERENCE", "")).strip(),
+        session_subnet_reference=str(values.get("MCP_SESSION_SUBNET_REFERENCE", "")).strip(),
+        session_connector_reference=str(values.get("MCP_SESSION_CONNECTOR_REFERENCE", "")).strip(),
         config_values=config_values,
         min_instances=int(values.get("MIN_INSTANCES", 0)),
         max_instances=int(values.get("MAX_INSTANCES", 1)),
@@ -145,6 +158,21 @@ IAC_OUTPUT_ALIASES = {
         "MCP_SESSION_CONNECTIVITY_MODEL",
         "mcp_session_connectivity_model",
         "session_connectivity_model",
+    ),
+    "MCP_SESSION_NETWORK_REFERENCE": (
+        "MCP_SESSION_NETWORK_REFERENCE",
+        "mcp_session_network_reference",
+        "session_network_reference",
+    ),
+    "MCP_SESSION_SUBNET_REFERENCE": (
+        "MCP_SESSION_SUBNET_REFERENCE",
+        "mcp_session_subnet_reference",
+        "session_subnet_reference",
+    ),
+    "MCP_SESSION_CONNECTOR_REFERENCE": (
+        "MCP_SESSION_CONNECTOR_REFERENCE",
+        "mcp_session_connector_reference",
+        "session_connector_reference",
     ),
     "MCP_SESSION_DURABILITY_REQUIRED": (
         "MCP_SESSION_DURABILITY_REQUIRED",
@@ -282,6 +310,9 @@ class RuntimeSettingsSnapshot:
     app_module: str = "mcp_server.cloud_run_entrypoint:app"
     secret_access_mode: str = "env_only"
     session_connectivity_model: str = "local_process"
+    session_network_reference: str = ""
+    session_subnet_reference: str = ""
+    session_connector_reference: str = ""
 
 
 @dataclass(frozen=True)
@@ -386,6 +417,9 @@ def snapshot_runtime_settings(settings: DeploymentInputSet) -> RuntimeSettingsSn
         app_module=settings.config_values["MCP_ASGI_APP"],
         secret_access_mode=settings.config_values.get("MCP_SECRET_ACCESS_MODE") or "env_only",
         session_connectivity_model=settings.config_values.get("MCP_SESSION_CONNECTIVITY_MODEL") or "local_process",
+        session_network_reference=settings.session_network_reference,
+        session_subnet_reference=settings.session_subnet_reference,
+        session_connector_reference=settings.session_connector_reference,
         min_instances=settings.min_instances,
         max_instances=settings.max_instances,
         concurrency=settings.concurrency,
@@ -416,6 +450,9 @@ def serialize_deployment_run(record: DeploymentRunRecord) -> dict:
             "appModule": record.runtime_settings.app_module,
             "secretAccessMode": record.runtime_settings.secret_access_mode,
             "sessionConnectivityModel": record.runtime_settings.session_connectivity_model,
+            "sessionNetworkReference": record.runtime_settings.session_network_reference,
+            "sessionSubnetReference": record.runtime_settings.session_subnet_reference,
+            "sessionConnectorReference": record.runtime_settings.session_connector_reference,
             "minInstances": record.runtime_settings.min_instances,
             "maxInstances": record.runtime_settings.max_instances,
             "concurrency": record.runtime_settings.concurrency,
@@ -604,6 +641,9 @@ class HostedRevisionRecord:
     session_backend: str | None = None
     session_store_url: str | None = None
     session_connectivity_model: str | None = None
+    session_network_reference: str | None = None
+    session_subnet_reference: str | None = None
+    session_connector_reference: str | None = None
 
 
 @dataclass(frozen=True)
@@ -628,6 +668,9 @@ class HostedVerificationRun:
     completed_at: str | None
     overall_result: str
     checks: tuple[VerificationCheckResult, ...]
+    session_network_reference: str | None = None
+    session_subnet_reference: str | None = None
+    session_connector_reference: str | None = None
 
 
 def serialize_verification_run(run: HostedVerificationRun) -> dict:
@@ -637,6 +680,9 @@ def serialize_verification_run(run: HostedVerificationRun) -> dict:
         "startedAt": run.started_at,
         "completedAt": run.completed_at,
         "overallResult": run.overall_result,
+        "sessionNetworkReference": run.session_network_reference,
+        "sessionSubnetReference": run.session_subnet_reference,
+        "sessionConnectorReference": run.session_connector_reference,
         "checks": [
             {
                 "checkName": item.check_name,
@@ -840,6 +886,19 @@ def run_hosted_verification(
         "browser-request-unsupported": "browser-time",
     }
 
+    def _finalize(result: str) -> HostedVerificationRun:
+        return HostedVerificationRun(
+            revision.revision_name,
+            revision.runtime_identity,
+            started_at,
+            _now_iso(),
+            result,
+            tuple(checks),
+            revision.session_network_reference,
+            revision.session_subnet_reference,
+            revision.session_connector_reference,
+        )
+
     def _append(check_name: str, payload: dict, expected: Callable[[dict], bool], summary: str) -> bool:
         ok = expected(payload)
         result_summary = summary
@@ -887,19 +946,29 @@ def run_hosted_verification(
             "sessionBackend": revision.session_backend,
             "sessionStoreUrl": revision.session_store_url,
             "sessionConnectivityModel": revision.session_connectivity_model,
+            "sessionNetworkReference": revision.session_network_reference,
+            "sessionSubnetReference": revision.session_subnet_reference,
+            "sessionConnectorReference": revision.session_connector_reference,
         }
         deployment_ok = bool(revision.runtime_identity)
         if revision.secret_access_mode == "secret_manager_env":
             deployment_ok = deployment_ok and bool(revision.secret_reference_names)
         if revision.session_backend == "redis":
-            deployment_ok = deployment_ok and bool(revision.session_store_url) and bool(revision.session_connectivity_model)
+            deployment_ok = (
+                deployment_ok
+                and bool(revision.session_store_url)
+                and bool(revision.session_connectivity_model)
+                and bool(revision.session_network_reference)
+                and bool(revision.session_subnet_reference)
+                and bool(revision.session_connector_reference)
+            )
         if not _append(
             "deployment-evidence",
             deployment_payload,
             lambda _payload: deployment_ok,
             "Deployment metadata included runtime identity, secret access evidence, and session connectivity evidence.",
         ):
-            return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+            return _finalize("fail")
 
     reachability_payload = _normalize_request_result(requester("/", {"__httpMethod": "GET"}))
     if not _append(
@@ -908,7 +977,7 @@ def run_hosted_verification(
         lambda payload: payload.get("statusCode") is not None and payload.get("statusCode") not in {401, 403},
         "Hosted connection point responded to an unauthenticated reachability probe.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     health_payload = _normalize_request_result(requester("/health", {}))
     if not _append(
@@ -917,7 +986,7 @@ def run_hosted_verification(
         lambda payload: payload.get("status") == "ok",
         "Hosted liveness endpoint returned healthy status.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     ready_payload = _normalize_request_result(requester("/ready", {}))
     if dependency_checks_enabled:
@@ -927,14 +996,14 @@ def run_hosted_verification(
             lambda payload: payload.get("checks", {}).get("secrets") == "pass",
             "Hosted readiness reported healthy secret access state.",
         ):
-            return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+            return _finalize("fail")
     if not _append(
         "readiness",
         ready_payload,
         lambda payload: payload.get("status") == "ready",
         "Hosted readiness endpoint returned ready status.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
     if dependency_checks_enabled:
         if not _append(
             "session-connectivity",
@@ -942,7 +1011,7 @@ def run_hosted_verification(
             lambda payload: payload.get("checks", {}).get("sessionDurability") == "pass",
             "Hosted readiness reported healthy session connectivity state.",
         ):
-            return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+            return _finalize("fail")
 
     invalid_initialize_payload = _normalize_request_result(
         requester(
@@ -961,7 +1030,7 @@ def run_hosted_verification(
         lambda payload: payload.get("statusCode") == 400 and _initialize_failure_without_session_check(payload),
         "Rejected initialize returned no session header and no successful initialize result.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     initialize_payload = _normalize_request_result(
         requester(
@@ -980,21 +1049,21 @@ def run_hosted_verification(
         lambda payload: payload.get("statusCode") == 200 and _initialize_success_check(payload) and _initialize_has_session_header(payload),
         "Successful initialize returned declared capabilities and issued MCP-Session-Id.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
     if not _append(
         "initialize-retry-success",
         initialize_payload,
         lambda payload: payload.get("statusCode") == 200 and _initialize_success_check(payload) and _initialize_has_session_header(payload),
         "A successful initialize after a rejected initialize created the first usable hosted session.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
     if not _append(
         "initialize",
         initialize_payload,
         _initialize_success_check,
         "Hosted MCP initialize returned declared capabilities.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     list_payload = _normalize_request_result(
         requester("/mcp", {"jsonrpc": "2.0", "id": "verify-list", "method": "tools/list", "params": {}})
@@ -1005,7 +1074,7 @@ def run_hosted_verification(
         lambda payload: {"search", "fetch"}.issubset({tool.get("name") for tool in _result_tools(payload)}),
         "Hosted MCP tool discovery returned the deep research tool set.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     search_payload = _normalize_request_result(
         requester(
@@ -1027,7 +1096,7 @@ def run_hosted_verification(
         and {"id", "title", "url"}.issubset(_result_structured_content(payload).get("results", [])[0].keys()),
         "Hosted MCP search call succeeded using the OpenAI-compatible request input.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     search_structured = _result_structured_content(search_payload) or {}
     search_results = search_structured.get("results", []) if isinstance(search_structured, dict) else []
@@ -1052,7 +1121,7 @@ def run_hosted_verification(
         and _result_structured_content(payload).get("id") == document_id,
         "Hosted MCP fetch call succeeded using the discovery-derived OpenAI-compatible id pattern.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     empty_search_payload = _normalize_request_result(
         requester(
@@ -1072,7 +1141,7 @@ def run_hosted_verification(
         and _result_structured_content(payload).get("results") == [],
         "Hosted MCP search call returned the documented empty-results success shape.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     legacy_fetch_payload = _normalize_request_result(
         requester(
@@ -1092,7 +1161,7 @@ def run_hosted_verification(
         and payload.get("error", {}).get("data", {}).get("category") == "invalid_argument",
         "Hosted MCP fetch call using a legacy request shape returned the documented invalid-input failure.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     missing_fetch_payload = _normalize_request_result(
         requester(
@@ -1130,7 +1199,7 @@ def run_hosted_verification(
         lambda payload: isinstance(payload.get("result"), dict) and isinstance(payload.get("result", {}).get("tools"), list),
         "Hosted MCP POST continuation succeeded with the initialized session.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     get_continuation_payload = _normalize_request_result(
         requester(
@@ -1146,7 +1215,7 @@ def run_hosted_verification(
         lambda payload: isinstance(payload.get("_sseEvents"), list) and len(payload.get("_sseEvents", [])) >= 1,
         "Hosted MCP GET continuation succeeded for the active session.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     replay_seed_payload = _normalize_request_result(
         requester(
@@ -1177,7 +1246,7 @@ def run_hosted_verification(
         and any('"result"' in event.get("data", "") for event in payload.get("_sseEvents", [])),
         "Hosted MCP reconnect replayed retained events for the active session.",
     ):
-        return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), "fail", tuple(checks))
+        return _finalize("fail")
 
     invalid_payload = _normalize_request_result(
         requester(
@@ -1277,7 +1346,7 @@ def run_hosted_verification(
             "Unsupported browser request pattern returned the documented denial.",
         )
     overall = "pass" if all(item.result == "pass" for item in checks) else "fail"
-    return HostedVerificationRun(revision.revision_name, revision.runtime_identity, started_at, _now_iso(), overall, tuple(checks))
+    return _finalize(overall)
 
 
 def write_verification_evidence(destination: str | Path, run: HostedVerificationRun) -> Path:
@@ -1290,6 +1359,9 @@ def write_verification_evidence(destination: str | Path, run: HostedVerification
         f"startedAt: {payload['startedAt']}",
         f"completedAt: {payload['completedAt']}",
         f"overallResult: {payload['overallResult']}",
+        f"sessionNetworkReference: {payload['sessionNetworkReference']}",
+        f"sessionSubnetReference: {payload['sessionSubnetReference']}",
+        f"sessionConnectorReference: {payload['sessionConnectorReference']}",
         "checks:",
     ]
     for check in payload["checks"]:

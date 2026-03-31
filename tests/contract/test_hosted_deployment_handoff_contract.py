@@ -25,11 +25,22 @@ class HostedDeploymentHandoffContractTests(unittest.TestCase):
                 "environment": {"value": "staging"},
                 "service_name": {"value": "youtube-mcp-server"},
                 "service_account_email": {"value": "svc@example.iam.gserviceaccount.com"},
+                "mcp_session_network_reference": {"value": "projects/project-id/global/networks/youtube-mcp-server-staging-network"},
+                "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet"},
+                "mcp_session_connector_reference": {"value": "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector"},
             }
         )
         self.assertEqual(payload["PROJECT_ID"], "project-id")
         self.assertEqual(payload["REGION"], "us-central1")
         self.assertEqual(payload["MCP_ENVIRONMENT"], "staging")
+        self.assertEqual(
+            payload["MCP_SESSION_NETWORK_REFERENCE"],
+            "projects/project-id/global/networks/youtube-mcp-server-staging-network",
+        )
+        self.assertEqual(
+            payload["MCP_SESSION_CONNECTOR_REFERENCE"],
+            "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector",
+        )
 
     def test_load_json_artifact_reads_deployment_record_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:

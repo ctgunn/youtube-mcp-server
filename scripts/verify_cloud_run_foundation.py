@@ -174,6 +174,9 @@ def main(argv: list[str] | None = None) -> int:
         session_backend=runtime_settings.get("configSummary", {}).get("MCP_SESSION_BACKEND"),
         session_store_url=runtime_settings.get("configSummary", {}).get("MCP_SESSION_STORE_URL"),
         session_connectivity_model=runtime_settings.get("sessionConnectivityModel"),
+        session_network_reference=runtime_settings.get("sessionNetworkReference"),
+        session_subnet_reference=runtime_settings.get("sessionSubnetReference"),
+        session_connector_reference=runtime_settings.get("sessionConnectorReference"),
     )
     _http_request._session_id = None  # type: ignore[attr-defined]
     _http_request._auth_token = auth_token  # type: ignore[attr-defined]

@@ -47,6 +47,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - In-memory runtime state for request handling; Redis-compatible shared ephemeral state for hosted sessions; file-based Terraform definitions, workflow definitions, deployment records, verification evidence, and specification artifacts (025-hosted-deploy-orchestration)
 - Python 3.11 for service and verification tooling; Bash for the local startup wrapper + FastAPI, Pydantic v2, Uvicorn, existing runtime/config modules under `src/mcp_server/`, `scripts/dev_local.sh`, `.env.local`, Docker Compose assets under `infrastructure/local/` (026-local-runtime-entrypoint)
 - In-memory runtime state only for local execution; file-based local environment defaults, documentation, and specification artifacts (026-local-runtime-entrypoint)
+- Python 3.11 for service, deployment, and verification tooling; Terraform-compatible IaC definitions for the GCP provider adapter + FastAPI, Pydantic v2, Uvicorn, Redis client, Terraform-compatible assets under `infrastructure/gcp`, existing deployment helpers in `src/mcp_server/deploy.py`, `scripts/deploy_cloud_run.sh`, and hosted verification tooling (027-terraform-hosted-networking)
+- In-memory runtime state for the app; Redis-compatible shared ephemeral state for hosted sessions; file-based Terraform definitions, deployment records, verification evidence, and specification artifacts (027-terraform-hosted-networking)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -67,9 +69,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 027-terraform-hosted-networking: Added Python 3.11 for service, deployment, and verification tooling; Terraform-compatible IaC definitions for the GCP provider adapter + FastAPI, Pydantic v2, Uvicorn, Redis client, Terraform-compatible assets under `infrastructure/gcp`, existing deployment helpers in `src/mcp_server/deploy.py`, `scripts/deploy_cloud_run.sh`, and hosted verification tooling
 - 026-local-runtime-entrypoint: Added Python 3.11 for service and verification tooling; Bash for the local startup wrapper + FastAPI, Pydantic v2, Uvicorn, existing runtime/config modules under `src/mcp_server/`, `scripts/dev_local.sh`, `.env.local`, Docker Compose assets under `infrastructure/local/`
 - 025-hosted-deploy-orchestration: Added Python 3.11 for service, deployment, and verification tooling; checked-in CI workflow definition for push-triggered orchestration + FastAPI, Pydantic v2, Uvicorn, Terraform-compatible IaC under `infrastructure/gcp`, existing deployment helpers in `src/mcp_server/deploy.py`, `scripts/deploy_cloud_run.sh`, `scripts/verify_cloud_run_foundation.py`, container image build/publish tooling, repository-hosted workflow automation
-- 024-initialize-session-correctness: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Redis-compatible session store support, Python standard-library JSON/HTTP/config/logging tooling, existing MCP transport/protocol/tooling modules under `src/mcp_server/`
 
 
 <!-- MANUAL ADDITIONS START -->

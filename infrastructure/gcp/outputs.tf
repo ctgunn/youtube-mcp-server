@@ -74,6 +74,21 @@ output "mcp_session_connectivity_model" {
   value       = var.session_connectivity_model
 }
 
+output "mcp_session_network_reference" {
+  description = "Terraform-managed network reference used by the hosted durable-session path."
+  value       = google_compute_network.hosted.id
+}
+
+output "mcp_session_subnet_reference" {
+  description = "Terraform-managed subnet reference used by the hosted durable-session path."
+  value       = google_compute_subnetwork.hosted.id
+}
+
+output "mcp_session_connector_reference" {
+  description = "Terraform-managed Cloud Run connectivity resource reference for the durable-session path."
+  value       = google_vpc_access_connector.cloud_run.id
+}
+
 output "mcp_session_durability_required" {
   description = "Readiness requirement for session durability."
   value       = var.session_durability_required

@@ -26,6 +26,7 @@ server can run correctly," this is the right README.
 - Secret Manager integration points for `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`
 - Redis-compatible shared session backend for hosted session durability
 - Runtime secret-access bindings for the Cloud Run service account
+- Terraform-managed hosted network layer for durable sessions
 - Provider-specific session connectivity model for Cloud Run to reach the session backend
 - Outputs that feed the existing `scripts/deploy_cloud_run.sh` workflow
 
@@ -66,8 +67,11 @@ Copy [`terraform.tfvars.example`](./terraform.tfvars.example) to a local, untrac
 - `mcp_allow_originless_clients`
 - `session_backend`
 - `session_connectivity_model`
-- `cloud_run_vpc_connector`
-- `redis_authorized_network`
+- `managed_network_name`
+- `managed_subnet_name`
+- `managed_subnet_cidr`
+- `managed_vpc_connector_name`
+- `managed_vpc_connector_cidr`
 - `session_durability_required`
 - `session_ttl_seconds`
 - `session_replay_ttl_seconds`
@@ -93,6 +97,21 @@ This workflow creates the infrastructure foundation first. It does not replace
 the application deployment step. After Terraform runs, you still deploy the
 current application image with `scripts/deploy_cloud_run.sh`.
 
+## Terraform-managed hosted network layer
+
+For durable hosted sessions, the supported GCP path now provisions the managed
+network resources directly from Terraform. That managed hosted network layer
+includes:
+
+- a managed VPC network for the hosted durable-session path
+- a managed subnet for that hosted path
+- a Serverless VPC Access connector used by Cloud Run to reach the durable
+  session backend
+- the authorized network relationship used by the Redis session backend
+
+Operators no longer need to pre-create the supported VPC network, subnet, or
+Serverless VPC Access connector manually for this path.
+
 ## Expected outputs
 
 The apply step exports values that map directly into the deployment workflow:
@@ -112,6 +131,9 @@ The apply step exports values that map directly into the deployment workflow:
 - `mcp_session_backend`
 - `mcp_session_store_url`
 - `mcp_session_connectivity_model`
+- `mcp_session_network_reference`
+- `mcp_session_subnet_reference`
+- `mcp_session_connector_reference`
 - `mcp_session_durability_required`
 - `mcp_session_ttl_seconds`
 - `mcp_session_replay_ttl_seconds`
@@ -136,6 +158,7 @@ The handoff is intentional:
 
 - Terraform creates the GCP foundation and emits the values the app needs
 - the deploy script consumes those values and rolls out the MCP server image
+- deployment evidence preserves the managed hosted-network references needed for review and verification
 
 ## Push-triggered deployment bootstrap
 
@@ -172,11 +195,12 @@ record and hosted verification artifacts before re-running the workflow.
 
 - The Cloud Run runtime service account is the runtime identity that reads required secret-backed configuration.
 - `secret_access_mode=secret_manager_env` declares that the hosted runtime receives `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN` from Secret Manager-backed environment injection rather than plain-text environment values.
-- `cloud_run_vpc_connector` defines the Serverless VPC Access path used by Cloud Run to reach the durable session backend.
-- `redis_authorized_network` identifies the network that is permitted to reach the Redis session backend.
+- the Terraform-managed hosted network layer creates the managed VPC network, subnet, and Serverless VPC Access connector used by the durable-session path.
+- the exported session connector reference identifies the Cloud Run attachment path used to reach the durable session backend.
+- the exported session network reference identifies the managed network that is permitted to reach the Redis session backend.
 - `session_connectivity_model=serverless_vpc_connector` is the expected provider-specific connectivity model for durable hosted session support.
 
-If hosted verification reports a secret-access failure, review the runtime service account bindings and secret reference names first. If it reports a session-connectivity failure, review the Cloud Run VPC connector and Redis authorized network path first.
+If hosted verification reports a secret-access failure, review the runtime service account bindings and secret reference names first. If it reports a session-connectivity failure, review the exported session connector reference, session network reference, and Redis backend path first.
 
 This wiring matters because the server can look correct in code but still fail
 at runtime if:

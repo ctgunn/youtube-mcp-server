@@ -262,6 +262,7 @@ code changes and every test is passing.
 - `MCP_SECRET_ACCESS_MODE` documents how the hosted runtime receives secret-backed configuration.
 - `MCP_SECRET_REFERENCE_NAMES` records the secret references expected to be available to the hosted runtime.
 - `MCP_SESSION_CONNECTIVITY_MODEL` documents the provider-specific connectivity path used to reach the durable session backend.
+- The Terraform-managed hosted network layer now provisions the VPC network, subnet, and session connector reference used by the supported GCP durable-session path.
 - `MCP_SESSION_DURABILITY_REQUIRED` forces `/ready` to fail unless a healthy shared session backend is available.
 - `MCP_SESSION_TTL_SECONDS` controls how long an inactive hosted session remains reusable.
 - `MCP_SESSION_REPLAY_TTL_SECONDS` controls how long reconnect replay history is retained for `Last-Event-ID` resume flows.
@@ -312,6 +313,11 @@ Required deployment inputs:
 - `TIMEOUT_SECONDS`
 - `SECRET_REFERENCES` (`YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN` are required for `staging` and `prod`)
 - `INFRA_OUTPUTS_FILE` (optional Terraform `output -json` handoff file for pre-provisioned infrastructure)
+
+When you use the supported GCP Terraform path, deployment evidence also carries
+the managed hosted-network references exported by infrastructure reconciliation.
+That includes the session connector reference and the managed network
+references needed for deployment review and hosted verification.
 
 Execute the deployment workflow with explicit revision settings:
 
@@ -428,8 +434,8 @@ When hosted verification reports `SECRET_ACCESS_UNAVAILABLE` or
 `SECRET_REFERENCE_MISSING`, inspect the Cloud Run runtime service account,
 `MCP_SECRET_ACCESS_MODE`, and `MCP_SECRET_REFERENCE_NAMES` first. When hosted
 verification reports a session-connectivity failure, inspect
-`MCP_SESSION_CONNECTIVITY_MODEL`, the VPC connector path, and the Redis backend
-reference first.
+`MCP_SESSION_CONNECTIVITY_MODEL`, the exported session connector reference, the
+managed session network reference, and the Redis backend reference first.
 
 ## Automated hosted deployment
 
