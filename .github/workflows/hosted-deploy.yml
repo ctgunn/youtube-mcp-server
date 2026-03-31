@@ -96,7 +96,7 @@ jobs:
       - name: Terraform init
         run: terraform -chdir=infrastructure/gcp init
 
-      - name: Terraform apply
+      - name: Reconcile managed network bootstrap and infrastructure
         run: terraform -chdir=infrastructure/gcp apply -auto-approve -var-file="${GCP_TERRAFORM_VAR_FILE}"
 
       - name: Export Terraform outputs

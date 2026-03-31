@@ -187,9 +187,23 @@ That boundary is intentional. The workflow may wire references to secrets and
 runtime identities, but it must not create or rotate the secret values
 themselves.
 
+The managed hosted network layer remains automation-managed for the supported
+hosted path. The remaining one-time bootstrap inputs are non-network prerequisites
+such as workflow access, Terraform environment inputs, and operator-managed secret
+values.
+
 If the push-triggered workflow fails before deploy, inspect bootstrap
 prerequisites first. If it fails after deploy, inspect the generated deployment
 record and hosted verification artifacts before re-running the workflow.
+
+For operators, the first failure boundary should stay readable:
+
+- `bootstrap_input_failure` means one-time inputs were not ready before
+  infrastructure reconciliation started.
+- `network_reconcile_failure` means the managed hosted network layer could not
+  be reconciled during the recurring automated path.
+- this repository does not support recurring manual network provisioning for the
+  supported durable-session deployment path.
 
 ## Hosted dependency wiring model
 

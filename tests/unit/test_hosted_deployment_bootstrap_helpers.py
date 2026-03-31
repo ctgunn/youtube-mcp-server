@@ -4,7 +4,11 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.deploy import BOOTSTRAP_PREREQUISITES, collect_missing_bootstrap_prerequisites
+from mcp_server.deploy import (
+    BOOTSTRAP_PREREQUISITES,
+    classify_bootstrap_failure,
+    collect_missing_bootstrap_prerequisites,
+)
 
 
 class HostedDeploymentBootstrapHelpersUnitTests(unittest.TestCase):
@@ -28,6 +32,19 @@ class HostedDeploymentBootstrapHelpersUnitTests(unittest.TestCase):
             }
         )
         self.assertEqual([item.name for item in missing], ["MCP_AUTH_TOKEN"])
+
+    def test_classify_bootstrap_failure_distinguishes_quality_gate_and_reconcile(self):
+        self.assertEqual(
+            classify_bootstrap_failure("quality_gate", "Missing bootstrap prerequisites: GCP_PROJECT_ID"),
+            "bootstrap_input_failure",
+        )
+        self.assertEqual(
+            classify_bootstrap_failure(
+                "infrastructure_reconcile",
+                "Managed network bootstrap failed while reconciling infrastructure.",
+            ),
+            "network_reconcile_failure",
+        )
 
 
 if __name__ == "__main__":
