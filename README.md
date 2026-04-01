@@ -21,7 +21,20 @@ the request-by-request details.
 
 ## How to read this README
 
-You can think about this project at five levels:
+This README is intentionally layered.
+
+If you are trying to get the server running for the first time, start with the
+setup sections immediately below:
+
+- `Setup from scratch: local` gets the server running on your machine as fast
+  as possible.
+- `Setup from scratch: hosted on GCP` walks through the first full hosted
+  deployment path end to end.
+
+After that, come back to the architecture sections when you want to understand
+how the server actually works.
+
+You can think about the architecture at five levels:
 
 - 100 ft: what the server is for
 - 30 ft: how another application uses it
@@ -32,6 +45,322 @@ You can think about this project at five levels:
 The rest of this README keeps the detailed deployment and verification material
 that already existed, but this section is intended to make the big picture much
 easier to follow first.
+
+## Setup From Scratch: Local
+
+Use this path when you want to run the MCP server on your own machine for
+development or manual testing before pushing code.
+
+### What you need
+
+- `python3` 3.11 or newer
+- `pip`
+- `make`
+- `docker` and `docker compose` if you want the hosted-like Redis-backed path
+
+### 1. Open the repository
+
+```bash
+cd /Users/ctgunn/Projects/youtube-mcp-server
+```
+
+### 2. Create and activate a virtual environment
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install the project
+
+```bash
+python3 -m pip install --upgrade pip
+python3 -m pip install -e .
+```
+
+### 4. Review the local environment file
+
+The local runtime path reads defaults from `.env.local`.
+
+For the first run, the important ideas are:
+
+- local development uses `MCP_ENVIRONMENT=dev`
+- the default local path uses `MCP_SESSION_BACKEND=memory`
+- the default local path does not require hosted cloud infrastructure
+
+### 5. Start the server locally
+
+The simplest local startup command is:
+
+```bash
+make dev
+```
+
+That command uses `scripts/dev_local.sh`, loads `.env.local`, and starts the
+ASGI app locally.
+
+### 6. Verify that the local server is healthy
+
+In a second terminal:
+
+```bash
+curl -i http://127.0.0.1:8080/health
+curl -i http://127.0.0.1:8080/ready
+```
+
+You want both endpoints to return `200`.
+
+### 7. Verify the MCP handshake locally
+
+Initialize:
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":"req-init","method":"initialize","params":{"clientInfo":{"name":"local-test","version":"1.0.0"}}}' \
+  http://127.0.0.1:8080/mcp
+```
+
+Copy the returned `MCP-Session-Id` header, then use it to list tools:
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'MCP-Session-Id: YOUR_SESSION_ID' \
+  -d '{"jsonrpc":"2.0","id":"req-list","method":"tools/list","params":{}}' \
+  http://127.0.0.1:8080/mcp
+```
+
+Then call a baseline tool:
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'MCP-Session-Id: YOUR_SESSION_ID' \
+  -d '{"jsonrpc":"2.0","id":"req-call","method":"tools/call","params":{"name":"server_ping","arguments":{}}}' \
+  http://127.0.0.1:8080/mcp
+```
+
+### 8. Run the hosted-like local path when you need Redis-backed sessions
+
+This path is useful when you want local behavior that is closer to hosted
+session durability.
+
+Start the local Redis dependency:
+
+```bash
+docker compose -f infrastructure/local/compose.yaml up -d
+```
+
+Start the app in hosted-like mode:
+
+```bash
+make dev-hosted
+```
+
+When you are done:
+
+```bash
+make dev-down
+```
+
+This hosted-like local path keeps the same app entrypoint while switching the
+session backend to Redis-backed settings under local control.
+
+## Setup From Scratch: Hosted On GCP
+
+Use this path when you want a real hosted MCP endpoint that other applications
+can reach over the network.
+
+### What you need
+
+- `gcloud`
+- `terraform`
+- `docker`
+- `python3`
+- a GCP project you can administer
+
+### 1. Authenticate to Google Cloud
+
+```bash
+gcloud auth login
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT_ID
+```
+
+### 2. Enable the required Google Cloud APIs
+
+```bash
+gcloud services enable \
+  run.googleapis.com \
+  cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com \
+  secretmanager.googleapis.com \
+  redis.googleapis.com \
+  vpcaccess.googleapis.com \
+  compute.googleapis.com \
+  iam.googleapis.com
+```
+
+### 3. Create the Artifact Registry repository if you do not already have one
+
+```bash
+gcloud artifacts repositories create apps \
+  --repository-format=docker \
+  --location=us-central1
+```
+
+### 4. Create the runtime secrets in Secret Manager
+
+The hosted runtime expects operator-managed secret values for:
+
+- `YOUTUBE_API_KEY`
+- `MCP_AUTH_TOKEN`
+
+Create them if this is your first setup:
+
+```bash
+printf 'YOUR_REAL_YOUTUBE_API_KEY' | gcloud secrets create YOUTUBE_API_KEY --data-file=-
+printf 'YOUR_REAL_MCP_AUTH_TOKEN' | gcloud secrets create MCP_AUTH_TOKEN --data-file=-
+```
+
+If they already exist, add new versions instead:
+
+```bash
+printf 'YOUR_REAL_YOUTUBE_API_KEY' | gcloud secrets versions add YOUTUBE_API_KEY --data-file=-
+printf 'YOUR_REAL_MCP_AUTH_TOKEN' | gcloud secrets versions add MCP_AUTH_TOKEN --data-file=-
+```
+
+### 5. Review the deployment operator inputs
+
+The repository root `.env` is the operator-oriented deployment input file for
+the supported Cloud Run path. Review and set the values you actually intend to
+deploy, especially:
+
+- `PROJECT_ID`
+- `REGION`
+- `SERVICE_NAME`
+- `SERVICE_ACCOUNT_EMAIL`
+- `MCP_ENVIRONMENT`
+- `PUBLIC_INVOCATION_INTENT`
+- `MCP_ALLOWED_ORIGINS`
+
+For a real remote MCP deployment, `MCP_ENVIRONMENT=staging` and
+`PUBLIC_INVOCATION_INTENT=public_remote_mcp` are the usual starting point.
+
+### 6. Create the Terraform variable file for your environment
+
+```bash
+cp infrastructure/gcp/terraform.tfvars.example infrastructure/gcp/staging.tfvars
+```
+
+Then edit `infrastructure/gcp/staging.tfvars` with the real values for your
+environment, including:
+
+- project and region
+- service name and environment
+- public invocation intent
+- allowed origins
+- managed VPC, subnet, and VPC connector names/CIDRs for durable sessions
+
+### 7. Provision the hosted infrastructure
+
+Initialize Terraform:
+
+```bash
+terraform -chdir=infrastructure/gcp init
+```
+
+Review the plan:
+
+```bash
+terraform -chdir=infrastructure/gcp plan -var-file=staging.tfvars
+```
+
+Apply the infrastructure:
+
+```bash
+terraform -chdir=infrastructure/gcp apply -var-file=staging.tfvars
+```
+
+This hosted infrastructure step is what creates and wires the platform around
+the app, including the Cloud Run foundation, durable-session Redis path, and
+the managed network resources needed for the supported GCP session-connectivity
+model.
+
+### 8. Export the Terraform outputs for the deploy handoff
+
+```bash
+mkdir -p artifacts
+terraform -chdir=infrastructure/gcp output -json > artifacts/gcp-foundation-outputs.json
+```
+
+### 9. Build and push the container image
+
+Authenticate Docker to Artifact Registry:
+
+```bash
+gcloud auth configure-docker us-docker.pkg.dev --quiet
+```
+
+Build the image:
+
+```bash
+docker build -t us-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001 .
+```
+
+Push it:
+
+```bash
+docker push us-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001
+```
+
+### 10. Deploy the application through the repository deploy script
+
+```bash
+INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json \
+IMAGE_REFERENCE=us-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001 \
+DEPLOYMENT_RECORD_FILE=artifacts/cloud-run-deployment.json \
+bash scripts/deploy_cloud_run.sh
+```
+
+This is the supported application rollout path. It uses the Terraform outputs
+as the handoff from infrastructure reconciliation into Cloud Run deployment.
+
+### 11. Verify the hosted deployment
+
+```bash
+PYTHONPATH=src python3 scripts/verify_cloud_run_foundation.py \
+  --deployment-record artifacts/cloud-run-deployment.json \
+  --auth-token "YOUR_REAL_MCP_AUTH_TOKEN" \
+  --evidence-file artifacts/cloud-run-verification.txt \
+  --summary-file artifacts/cloud-run-verification.json
+```
+
+Do not treat the deployment as complete until hosted verification passes.
+
+### 12. Enable push-triggered deployment after the manual path works once
+
+The repository now defines the primary automated rollout in `cloudbuild.yaml`.
+Once the manual path above works:
+
+- create or update your Cloud Build trigger for `main`
+- point it at `cloudbuild.yaml`
+- set the required substitutions for project, region, service name, Artifact
+  Registry repository, Terraform var file, and service account
+- ensure the Cloud Build service account can manage the infrastructure and read
+  the required secret references
+
+After that, a push to `main` should run:
+
+1. tests and lint
+2. image build and publish
+3. Terraform apply
+4. deploy through `scripts/deploy_cloud_run.sh`
+5. hosted verification through `scripts/verify_cloud_run_foundation.py`
 
 ## 100 Ft View
 
@@ -184,6 +513,9 @@ runtime configuration, deployment, verification, and hosted contract details.
 
 ## Local dependency bootstrap
 
+The setup sections above are the recommended first-time path. This section and
+the ones that follow are the deeper runtime and operator reference details.
+
 Install the hosted runtime dependencies from the repository root:
 
 ```bash
@@ -288,6 +620,10 @@ curl -i -X OPTIONS \
 ```
 
 ## Cloud Run foundation deployment
+
+If you are deploying for the first time, follow `Setup From Scratch: Hosted On
+GCP` earlier in this README first. This section is the lower-level hosted
+deployment reference.
 
 The hosted deployment steps below describe the current primary hosted provider adapter. FND-020 preserves these steps while separating them from the provider-neutral application deployment model.
 
