@@ -1,6 +1,6 @@
 # Implementation Plan: Config + Secrets + Startup Validation (FND-004)
 
-**Branch**: `004-config-secrets-startup-validation` | **Date**: 2026-03-03 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/004-config-secrets-startup-validation/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/004-config-secrets-startup-validation/spec.md)
+**Branch**: `004-config-secrets-startup-validation` | **Date**: 2026-03-03 | **Spec**: [~/Projects/youtube-mcp-server/specs/004-config-secrets-startup-validation/spec.md](~/Projects/youtube-mcp-server/specs/004-config-secrets-startup-validation/spec.md)
 **Input**: Feature specification from `/specs/004-config-secrets-startup-validation/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

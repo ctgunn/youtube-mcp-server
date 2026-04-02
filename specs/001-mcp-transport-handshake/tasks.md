@@ -123,9 +123,9 @@ description: "Task list for FND-001 MCP transport and handshake implementation"
 
 **Purpose**: Final quality and documentation pass spanning all user stories.
 
-- [X] T032 [P] Add test execution commands and FND-001 usage notes to /Users/ctgunn/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/quickstart.md
-- [X] T033 Validate contract doc and implementation parity in /Users/ctgunn/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/contracts/mcp-transport-contract.md
-- [X] T034 Run full FND-001 suites and capture results in /Users/ctgunn/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/checklists/requirements.md
+- [X] T032 [P] Add test execution commands and FND-001 usage notes to ~/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/quickstart.md
+- [X] T033 Validate contract doc and implementation parity in ~/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/contracts/mcp-transport-contract.md
+- [X] T034 Run full FND-001 suites and capture results in ~/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/checklists/requirements.md
 
 ---
 

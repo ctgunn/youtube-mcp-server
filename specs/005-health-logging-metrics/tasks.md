@@ -13,7 +13,7 @@
 
 - [X] T001 Create FND-005 test module placeholders in `tests/contract/test_operational_observability_contract.py`, `tests/integration/test_request_observability.py`, and `tests/unit/test_metrics_state.py`
 - [X] T002 [P] Create observability module placeholder in `src/mcp_server/observability.py`
-- [X] T003 [P] Add FND-005 execution notes section in `/Users/ctgunn/Projects/youtube-mcp-server/specs/005-health-logging-metrics/quickstart.md`
+- [X] T003 [P] Add FND-005 execution notes section in `~/Projects/youtube-mcp-server/specs/005-health-logging-metrics/quickstart.md`
 
 ---
 
@@ -110,8 +110,8 @@
 **Purpose**: Final regression safety, documentation, and cross-story hardening.
 
 - [X] T033 [P] Add regression tests for mixed endpoint traffic (`/healthz`, `/readyz`, `/mcp`, invalid path) in `tests/integration/test_request_observability.py`
-- [X] T034 Update operator-facing observability contract notes and examples in `/Users/ctgunn/Projects/youtube-mcp-server/specs/005-health-logging-metrics/contracts/operational-observability-contract.md`
-- [X] T035 Run and record full regression test evidence in `/Users/ctgunn/Projects/youtube-mcp-server/specs/005-health-logging-metrics/quickstart.md`
+- [X] T034 Update operator-facing observability contract notes and examples in `~/Projects/youtube-mcp-server/specs/005-health-logging-metrics/contracts/operational-observability-contract.md`
+- [X] T035 Run and record full regression test evidence in `~/Projects/youtube-mcp-server/specs/005-health-logging-metrics/quickstart.md`
 
 ---
 

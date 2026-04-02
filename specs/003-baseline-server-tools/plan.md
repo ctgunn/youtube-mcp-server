@@ -1,6 +1,6 @@
 # Implementation Plan: Baseline Server Tools (FND-003)
 
-**Branch**: `003-baseline-server-tools` | **Date**: 2026-03-02 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/003-baseline-server-tools/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/003-baseline-server-tools/spec.md)
+**Branch**: `003-baseline-server-tools` | **Date**: 2026-03-02 | **Spec**: [~/Projects/youtube-mcp-server/specs/003-baseline-server-tools/spec.md](~/Projects/youtube-mcp-server/specs/003-baseline-server-tools/spec.md)
 **Input**: Feature specification from `/specs/003-baseline-server-tools/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

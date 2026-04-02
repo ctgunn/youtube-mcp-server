@@ -1,7 +1,7 @@
 # Tasks: FND-009 MCP Streamable HTTP Transport
 
-**Input**: Design documents from `/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/`
-**Prerequisites**: `/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/plan.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/research.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/data-model.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/contracts/mcp-streamable-http-contract.md`
+**Input**: Design documents from `~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/`
+**Prerequisites**: `~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/plan.md`, `~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md`, `~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/research.md`, `~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/data-model.md`, `~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/contracts/mcp-streamable-http-contract.md`
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes Red-Green-Refactor coverage tasks.
 
@@ -11,9 +11,9 @@
 
 **Purpose**: Create the dedicated test surfaces and task scaffolding for FND-009 work.
 
-- [X] T001 Create streamable transport unit test module in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py
-- [X] T002 [P] Create streamable transport integration test module in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py
-- [X] T003 [P] Create streamable transport contract test module in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
+- [X] T001 Create streamable transport unit test module in ~/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py
+- [X] T002 [P] Create streamable transport integration test module in ~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py
+- [X] T003 [P] Create streamable transport contract test module in ~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
 
 ---
 
@@ -23,10 +23,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T004 Implement shared `HostedMCPSession`, `StreamChannel`, and `StreamEvent` state helpers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py
-- [X] T005 [P] Implement shared SSE event encoding and replay cursor helpers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/conftest.py
-- [X] T006 [P] Add reusable hosted stream assertion fixtures in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/conftest.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/conftest.py
-- [X] T007 Implement shared streamable request parsing and header normalization hooks in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/http.py
+- [X] T004 Implement shared `HostedMCPSession`, `StreamChannel`, and `StreamEvent` state helpers in ~/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py
+- [X] T005 [P] Implement shared SSE event encoding and replay cursor helpers in ~/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py and ~/Projects/youtube-mcp-server/tests/unit/conftest.py
+- [X] T006 [P] Add reusable hosted stream assertion fixtures in ~/Projects/youtube-mcp-server/tests/integration/conftest.py and ~/Projects/youtube-mcp-server/tests/contract/conftest.py
+- [X] T007 Implement shared streamable request parsing and header normalization hooks in ~/Projects/youtube-mcp-server/src/mcp_server/transport/http.py
 
 **Checkpoint**: Foundation ready - user story implementation can now begin.
 
@@ -42,16 +42,16 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T008 [P] [US1] Add red contract tests for `GET` and `POST` negotiation, session header issuance, and invalid-session failures in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
-- [X] T009 [P] [US1] Add red integration tests for hosted session establishment and invalid transport requests in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py
-- [X] T010 [P] [US1] Add red unit tests for session registry transitions and transport header validation in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py
+- [X] T008 [P] [US1] Add red contract tests for `GET` and `POST` negotiation, session header issuance, and invalid-session failures in ~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
+- [X] T009 [P] [US1] Add red integration tests for hosted session establishment and invalid transport requests in ~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py
+- [X] T010 [P] [US1] Add red unit tests for session registry transitions and transport header validation in ~/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py
 
 ### Implementation for User Story 1
 
-- [X] T011 [US1] Implement session lifecycle and protocol-version validation in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py
-- [X] T012 [US1] Update hosted MCP request classification for streamable `GET` and `POST` semantics in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/http.py
-- [X] T013 [US1] Implement session-aware hosted `GET` and `POST` handling plus `MCP-Session-Id` response headers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py
-- [X] T014 [US1] Refactor session-establishment flow and re-run US1 suites in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py, /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py, and /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
+- [X] T011 [US1] Implement session lifecycle and protocol-version validation in ~/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py
+- [X] T012 [US1] Update hosted MCP request classification for streamable `GET` and `POST` semantics in ~/Projects/youtube-mcp-server/src/mcp_server/transport/http.py
+- [X] T013 [US1] Implement session-aware hosted `GET` and `POST` handling plus `MCP-Session-Id` response headers in ~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py
+- [X] T014 [US1] Refactor session-establishment flow and re-run US1 suites in ~/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py, ~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py, and ~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
 
 **Checkpoint**: User Story 1 is independently functional when a client can establish or be denied a hosted MCP session solely through the documented streamable transport rules.
 
@@ -65,16 +65,16 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [X] T015 [P] [US2] Add red contract tests for SSE response rules, event ordering, and replay boundaries in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
-- [X] T016 [P] [US2] Add red integration tests for streamed `POST` responses, `GET` event streams, and reconnect with `Last-Event-ID` in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py
-- [X] T017 [P] [US2] Add red unit tests for stream event buffering, replay cursors, and multi-stream isolation in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py
+- [X] T015 [P] [US2] Add red contract tests for SSE response rules, event ordering, and replay boundaries in ~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
+- [X] T016 [P] [US2] Add red integration tests for streamed `POST` responses, `GET` event streams, and reconnect with `Last-Event-ID` in ~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py
+- [X] T017 [P] [US2] Add red unit tests for stream event buffering, replay cursors, and multi-stream isolation in ~/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py
 
 ### Implementation for User Story 2
 
-- [X] T018 [US2] Implement stream channel state, event queueing, and replay cursors in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py
-- [X] T019 [US2] Implement SSE response generation and stream termination behavior in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py
-- [X] T020 [US2] Wire streamed MCP responses and server-driven event dispatch through /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/http.py and /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py
-- [X] T021 [US2] Refactor stream delivery helpers and re-run US2 suites in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py, /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py, and /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
+- [X] T018 [US2] Implement stream channel state, event queueing, and replay cursors in ~/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py
+- [X] T019 [US2] Implement SSE response generation and stream termination behavior in ~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py
+- [X] T020 [US2] Wire streamed MCP responses and server-driven event dispatch through ~/Projects/youtube-mcp-server/src/mcp_server/transport/http.py and ~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py
+- [X] T021 [US2] Refactor stream delivery helpers and re-run US2 suites in ~/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py, ~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py, and ~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
 
 **Checkpoint**: User Story 2 is independently functional when streamed responses and server-driven events flow over SSE with deterministic ordering and per-session isolation.
 
@@ -88,14 +88,14 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [X] T022 [P] [US3] Add red integration tests for local and hosted streamable verification flows in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py
-- [X] T023 [P] [US3] Add red contract tests for documented verification expectations in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
+- [X] T022 [P] [US3] Add red integration tests for local and hosted streamable verification flows in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py and ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py
+- [X] T023 [P] [US3] Add red contract tests for documented verification expectations in ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py and ~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
 
 ### Implementation for User Story 3
 
-- [X] T024 [US3] Update streamable hosted verification commands and assertions in /Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py and /Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh
-- [X] T025 [US3] Document local and hosted streamable transport validation in /Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/quickstart.md and /Users/ctgunn/Projects/youtube-mcp-server/README.md
-- [X] T026 [US3] Refactor verification guidance and re-run US3 suites in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py, /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py, /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py, and /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
+- [X] T024 [US3] Update streamable hosted verification commands and assertions in ~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py and ~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh
+- [X] T025 [US3] Document local and hosted streamable transport validation in ~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/quickstart.md and ~/Projects/youtube-mcp-server/README.md
+- [X] T026 [US3] Refactor verification guidance and re-run US3 suites in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py, ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py, ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py, and ~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py
 
 **Checkpoint**: User Story 3 is independently functional when operators and integrators can verify streamable transport parity locally and on Cloud Run without reverse-engineering the implementation.
 
@@ -105,9 +105,9 @@
 
 **Purpose**: Finalize cross-story regression, observability checks, and artifact updates.
 
-- [X] T027 [P] Update hosted transport observability coverage for session and stream metadata in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_request_observability.py and /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/observability.py
-- [X] T028 Run full regression coverage across /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/, /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/, and /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/
-- [X] T029 [P] Record final streamable transport verification evidence in /Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/quickstart.md and /Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/checklists/requirements.md
+- [X] T027 [P] Update hosted transport observability coverage for session and stream metadata in ~/Projects/youtube-mcp-server/tests/integration/test_request_observability.py and ~/Projects/youtube-mcp-server/src/mcp_server/observability.py
+- [X] T028 Run full regression coverage across ~/Projects/youtube-mcp-server/tests/unit/, ~/Projects/youtube-mcp-server/tests/integration/, and ~/Projects/youtube-mcp-server/tests/contract/
+- [X] T029 [P] Record final streamable transport verification evidence in ~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/quickstart.md and ~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/checklists/requirements.md
 
 ---
 
@@ -160,24 +160,24 @@
 ## Parallel Example: User Story 1
 
 ```bash
-Task: "Add red contract tests for GET and POST negotiation, session header issuance, and invalid-session failures in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py"
-Task: "Add red integration tests for hosted session establishment and invalid transport requests in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py"
-Task: "Add red unit tests for session registry transitions and transport header validation in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py"
+Task: "Add red contract tests for GET and POST negotiation, session header issuance, and invalid-session failures in ~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py"
+Task: "Add red integration tests for hosted session establishment and invalid transport requests in ~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py"
+Task: "Add red unit tests for session registry transitions and transport header validation in ~/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py"
 ```
 
 ## Parallel Example: User Story 2
 
 ```bash
-Task: "Add red contract tests for SSE response rules, event ordering, and replay boundaries in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py"
-Task: "Add red integration tests for streamed POST responses, GET event streams, and reconnect with Last-Event-ID in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py"
-Task: "Add red unit tests for stream event buffering, replay cursors, and multi-stream isolation in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py"
+Task: "Add red contract tests for SSE response rules, event ordering, and replay boundaries in ~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py"
+Task: "Add red integration tests for streamed POST responses, GET event streams, and reconnect with Last-Event-ID in ~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py"
+Task: "Add red unit tests for stream event buffering, replay cursors, and multi-stream isolation in ~/Projects/youtube-mcp-server/tests/unit/test_streamable_http_transport.py"
 ```
 
 ## Parallel Example: User Story 3
 
 ```bash
-Task: "Add red integration tests for local and hosted streamable verification flows in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py"
-Task: "Add red contract tests for documented verification expectations in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py"
+Task: "Add red integration tests for local and hosted streamable verification flows in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py and ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py"
+Task: "Add red contract tests for documented verification expectations in ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py and ~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py"
 ```
 
 ---

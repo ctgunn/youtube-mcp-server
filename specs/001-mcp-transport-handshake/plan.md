@@ -1,6 +1,6 @@
 # Implementation Plan: MCP Transport + Handshake (FND-001)
 
-**Branch**: `001-mcp-transport-handshake` | **Date**: 2026-03-01 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/spec.md)
+**Branch**: `001-mcp-transport-handshake` | **Date**: 2026-03-01 | **Spec**: [~/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/spec.md](~/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/spec.md)
 **Input**: Feature specification from `/specs/001-mcp-transport-handshake/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

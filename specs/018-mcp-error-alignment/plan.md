@@ -1,6 +1,6 @@
 # Implementation Plan: JSON-RPC / MCP Error Code Alignment
 
-**Branch**: `018-mcp-error-alignment` | **Date**: 2026-03-21 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/spec.md)
+**Branch**: `018-mcp-error-alignment` | **Date**: 2026-03-21 | **Spec**: [~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/spec.md](~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/spec.md)
 **Input**: Feature specification from `/specs/018-mcp-error-alignment/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

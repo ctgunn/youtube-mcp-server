@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-24
-**Feature**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/spec.md)
+**Feature**: [spec.md](~/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/spec.md)
 
 ## Content Quality
 

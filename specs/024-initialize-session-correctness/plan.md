@@ -1,6 +1,6 @@
 # Implementation Plan: Initialize Session Correctness
 
-**Branch**: `024-initialize-session-correctness` | **Date**: 2026-03-27 | **Spec**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/spec.md)
+**Branch**: `024-initialize-session-correctness` | **Date**: 2026-03-27 | **Spec**: [spec.md](~/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/spec.md)
 **Input**: Feature specification from `/specs/024-initialize-session-correctness/spec.md`
 
 ## Summary

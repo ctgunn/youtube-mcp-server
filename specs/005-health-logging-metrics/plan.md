@@ -1,6 +1,6 @@
 # Implementation Plan: FND-005 Health, Logging, Error Model, Metrics
 
-**Branch**: `005-health-logging-metrics` | **Date**: 2026-03-05 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/005-health-logging-metrics/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/005-health-logging-metrics/spec.md)
+**Branch**: `005-health-logging-metrics` | **Date**: 2026-03-05 | **Spec**: [~/Projects/youtube-mcp-server/specs/005-health-logging-metrics/spec.md](~/Projects/youtube-mcp-server/specs/005-health-logging-metrics/spec.md)
 **Input**: Feature specification from `/specs/005-health-logging-metrics/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

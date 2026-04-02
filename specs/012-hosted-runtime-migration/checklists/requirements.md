@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning  
 **Created**: 2026-03-16  
-**Feature**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/012-hosted-runtime-migration/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/012-hosted-runtime-migration/spec.md)
+**Feature**: [~/Projects/youtube-mcp-server/specs/012-hosted-runtime-migration/spec.md](~/Projects/youtube-mcp-server/specs/012-hosted-runtime-migration/spec.md)
 
 ## Content Quality
 

@@ -1,6 +1,6 @@
 # Implementation Plan: FND-010 MCP Protocol Contract Alignment
 
-**Branch**: `010-mcp-protocol-alignment` | **Date**: 2026-03-15 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md)
+**Branch**: `010-mcp-protocol-alignment` | **Date**: 2026-03-15 | **Spec**: [~/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md](~/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md)
 **Input**: Feature specification from `/specs/010-mcp-protocol-alignment/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

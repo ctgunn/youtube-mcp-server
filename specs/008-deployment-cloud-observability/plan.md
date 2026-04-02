@@ -1,6 +1,6 @@
 # Implementation Plan: FND-008 Deployment Execution + Cloud Run Observability
 
-**Branch**: `008-deployment-cloud-observability` | **Date**: 2026-03-15 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/spec.md)
+**Branch**: `008-deployment-cloud-observability` | **Date**: 2026-03-15 | **Spec**: [~/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/spec.md](~/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/spec.md)
 **Input**: Feature specification from `/specs/008-deployment-cloud-observability/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

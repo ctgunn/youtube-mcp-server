@@ -10,14 +10,14 @@
 ## Decision 1: Keep Cloud Run public reachability separate from MCP bearer-token authentication
 
 - **Decision**: Treat Cloud Run public invocation as the network-level reachability control for the hosted service, while preserving bearer-token checks on protected `/mcp` routes as the application-layer access control.
-- **Rationale**: The repository already defines `/health` and `/ready` as unauthenticated hosted routes and `/mcp` as bearer-protected in [hosted-mcp-security.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md). That separation lets operators distinguish “the service can be reached” from “the caller is authorized to use MCP.”
+- **Rationale**: The repository already defines `/health` and `/ready` as unauthenticated hosted routes and `/mcp` as bearer-protected in [hosted-mcp-security.md](~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md). That separation lets operators distinguish “the service can be reached” from “the caller is authorized to use MCP.”
 - **Alternatives considered**:
   - Use MCP bearer tokens as the only hosted access control. Rejected because a request denied before reaching the application cannot meaningfully participate in the MCP auth contract.
   - Treat Cloud Run IAM as the primary remote-consumer auth layer. Rejected because the existing hosted security contract centers remote MCP access on bearer-token authentication managed by the application.
 
 ## Decision 2: Reuse the existing hosted verifier as the canonical evidence path
 
-- **Decision**: Extend the existing deployment-to-verification handoff built around [deploy_cloud_run.sh](/Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh), [verify_cloud_run_foundation.py](/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py), and [deploy.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py) instead of introducing a second verification tool.
+- **Decision**: Extend the existing deployment-to-verification handoff built around [deploy_cloud_run.sh](~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh), [verify_cloud_run_foundation.py](~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py), and [deploy.py](~/Projects/youtube-mcp-server/src/mcp_server/deploy.py) instead of introducing a second verification tool.
 - **Rationale**: The repository already treats the deployment record and hosted verification evidence as the rollout proof surface. Reusing that path keeps operator behavior deterministic and avoids duplicating verification logic.
 - **Alternatives considered**:
   - Add a separate verification CLI just for public reachability. Rejected because it would duplicate the current deployment handoff model.

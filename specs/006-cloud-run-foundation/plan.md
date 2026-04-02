@@ -1,6 +1,6 @@
 # Implementation Plan: FND-006 Cloud Run Foundation Deployment
 
-**Branch**: `006-cloud-run-foundation` | **Date**: 2026-03-13 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/006-cloud-run-foundation/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/006-cloud-run-foundation/spec.md)
+**Branch**: `006-cloud-run-foundation` | **Date**: 2026-03-13 | **Spec**: [~/Projects/youtube-mcp-server/specs/006-cloud-run-foundation/spec.md](~/Projects/youtube-mcp-server/specs/006-cloud-run-foundation/spec.md)
 **Input**: Feature specification from `/specs/006-cloud-run-foundation/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

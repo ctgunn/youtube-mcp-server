@@ -4,7 +4,7 @@
 
 Use this step to understand the shared platform contract before looking at any provider-specific implementation.
 
-1. Read [shared-platform-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/contracts/shared-platform-contract.md).
+1. Read [shared-platform-contract.md](~/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/contracts/shared-platform-contract.md).
 2. Confirm the required shared capabilities cover hosted runtime, ingress, identity, secrets, observability, and durable session support.
 3. Confirm the shared contract preserves one application deployment model and does not turn provider modules into a prerequisite for local work.
 
@@ -24,7 +24,7 @@ Expected outcome: the current GCP path is understood as a primary provider adapt
 
 Use this step to prove the layout is portable beyond the primary provider.
 
-1. Read [aws-provider-adapter-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/contracts/aws-provider-adapter-contract.md) as the AWS provider adapter.
+1. Read [aws-provider-adapter-contract.md](~/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/contracts/aws-provider-adapter-contract.md) as the AWS provider adapter.
 2. Compare the AWS capability mapping expectations against the shared platform contract.
 3. Record any partial or unsupported capabilities before treating the secondary path as production-ready.
 
@@ -34,7 +34,7 @@ Expected outcome: maintainers can reason about a second provider without redefin
 
 Use this step to ensure local-first workflows remain intact across the documented execution modes.
 
-1. Read [execution-mode-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/contracts/execution-mode-contract.md).
+1. Read [execution-mode-contract.md](~/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/contracts/execution-mode-contract.md).
 2. Compare its mode definitions with `README.md` and `infrastructure/local/README.md`.
 3. Confirm the minimal local runtime remains independent of cloud-provider modules and that hosted-like local verification stays a separate path.
 

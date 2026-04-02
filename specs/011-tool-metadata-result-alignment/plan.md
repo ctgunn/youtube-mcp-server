@@ -1,6 +1,6 @@
 # Implementation Plan: FND-011 Tool Metadata + Invocation Result Alignment
 
-**Branch**: `011-tool-metadata-result-alignment` | **Date**: 2026-03-16 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/spec.md)
+**Branch**: `011-tool-metadata-result-alignment` | **Date**: 2026-03-16 | **Spec**: [~/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/spec.md](~/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/spec.md)
 **Input**: Feature specification from `/specs/011-tool-metadata-result-alignment/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

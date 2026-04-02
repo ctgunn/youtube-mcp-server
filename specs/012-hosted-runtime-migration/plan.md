@@ -1,6 +1,6 @@
 # Implementation Plan: FND-012 Hosted Runtime Migration for Streaming MCP
 
-**Branch**: `012-hosted-runtime-migration` | **Date**: 2026-03-16 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/012-hosted-runtime-migration/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/012-hosted-runtime-migration/spec.md)
+**Branch**: `012-hosted-runtime-migration` | **Date**: 2026-03-16 | **Spec**: [~/Projects/youtube-mcp-server/specs/012-hosted-runtime-migration/spec.md](~/Projects/youtube-mcp-server/specs/012-hosted-runtime-migration/spec.md)
 **Input**: Feature specification from `/specs/012-hosted-runtime-migration/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

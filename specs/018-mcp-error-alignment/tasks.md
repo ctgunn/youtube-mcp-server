@@ -1,7 +1,7 @@
 # Tasks: JSON-RPC / MCP Error Code Alignment
 
-**Input**: Design documents from `/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/`
-**Prerequisites**: [plan.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/plan.md), [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/spec.md), [research.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/research.md), [data-model.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/data-model.md), [contracts/mcp-error-code-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/contracts/mcp-error-code-contract.md), [quickstart.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/quickstart.md)
+**Input**: Design documents from `~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/`
+**Prerequisites**: [plan.md](~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/plan.md), [spec.md](~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/spec.md), [research.md](~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/research.md), [data-model.md](~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/data-model.md), [contracts/mcp-error-code-contract.md](~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/contracts/mcp-error-code-contract.md), [quickstart.md](~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/quickstart.md)
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes explicit Red-Green-Refactor coverage tasks.
 
@@ -15,17 +15,17 @@
 
 ## Path Conventions
 
-- Runtime code lives under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/`
-- Contract, integration, and unit tests live under `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/`
-- Feature docs live under `/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/`
+- Runtime code lives under `~/Projects/youtube-mcp-server/src/mcp_server/`
+- Contract, integration, and unit tests live under `~/Projects/youtube-mcp-server/tests/contract/`, `~/Projects/youtube-mcp-server/tests/integration/`, and `~/Projects/youtube-mcp-server/tests/unit/`
+- Feature docs live under `~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/`
 
 ## Phase 1: Setup (Shared Infrastructure)
 
 **Purpose**: Align the FND-018 execution surface and documentation targets before runtime changes begin.
 
-- [X] T001 Review and align FND-018 implementation inputs in `/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/spec.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/plan.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/research.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/data-model.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/contracts/mcp-error-code-contract.md`, and `/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/quickstart.md`
-- [X] T002 [P] Align manual verification targets and expected numeric-code evidence in `/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/quickstart.md`
-- [X] T003 [P] Align feature-level contract references and migration notes in `/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/contracts/mcp-error-code-contract.md`
+- [X] T001 Review and align FND-018 implementation inputs in `~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/spec.md`, `~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/plan.md`, `~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/research.md`, `~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/data-model.md`, `~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/contracts/mcp-error-code-contract.md`, and `~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/quickstart.md`
+- [X] T002 [P] Align manual verification targets and expected numeric-code evidence in `~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/quickstart.md`
+- [X] T003 [P] Align feature-level contract references and migration notes in `~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/contracts/mcp-error-code-contract.md`
 
 ---
 
@@ -35,12 +35,12 @@
 
 **⚠️ CRITICAL**: No user story work should start until this phase is complete
 
-- [X] T004 [P] Add failing unit coverage for numeric `error.code`, sanitized messages, and stable category detail in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_envelope_contract.py`
-- [X] T005 [P] Add failing unit coverage for numeric malformed-request and unsupported-method routing in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_method_routing.py`
-- [X] T006 [P] Add failing contract coverage for the published numeric MCP error mapping in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`
-- [X] T007 Implement shared numeric error-code definitions and payload helpers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/envelope.py`
-- [X] T008 Implement shared failure-category and precedence helpers for local and hosted flows in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
-- [X] T009 Refactor numeric error helper usage across `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/envelope.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`, then rerun `pytest /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_envelope_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_method_routing.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`
+- [X] T004 [P] Add failing unit coverage for numeric `error.code`, sanitized messages, and stable category detail in `~/Projects/youtube-mcp-server/tests/unit/test_envelope_contract.py`
+- [X] T005 [P] Add failing unit coverage for numeric malformed-request and unsupported-method routing in `~/Projects/youtube-mcp-server/tests/unit/test_method_routing.py`
+- [X] T006 [P] Add failing contract coverage for the published numeric MCP error mapping in `~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`
+- [X] T007 Implement shared numeric error-code definitions and payload helpers in `~/Projects/youtube-mcp-server/src/mcp_server/protocol/envelope.py`
+- [X] T008 Implement shared failure-category and precedence helpers for local and hosted flows in `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
+- [X] T009 Refactor numeric error helper usage across `~/Projects/youtube-mcp-server/src/mcp_server/protocol/envelope.py` and `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`, then rerun `pytest ~/Projects/youtube-mcp-server/tests/unit/test_envelope_contract.py ~/Projects/youtube-mcp-server/tests/unit/test_method_routing.py ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`
 
 **Checkpoint**: Shared numeric error primitives are ready; user stories can proceed in priority order.
 
@@ -56,17 +56,17 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T010 [P] [US1] Add failing unit tests for numeric invalid-argument and unknown-tool mapping in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_invoke_error_mapping.py`
-- [X] T011 [P] [US1] Add failing unit tests for numeric retrieval-tool failure mapping in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py`
-- [X] T012 [P] [US1] Add failing contract tests for numeric malformed-request, unsupported-method, and invalid-argument MCP bodies in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`
-- [X] T013 [P] [US1] Add failing integration tests for local MCP failure journeys in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
+- [X] T010 [P] [US1] Add failing unit tests for numeric invalid-argument and unknown-tool mapping in `~/Projects/youtube-mcp-server/tests/unit/test_invoke_error_mapping.py`
+- [X] T011 [P] [US1] Add failing unit tests for numeric retrieval-tool failure mapping in `~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py`
+- [X] T012 [P] [US1] Add failing contract tests for numeric malformed-request, unsupported-method, and invalid-argument MCP bodies in `~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`
+- [X] T013 [P] [US1] Add failing integration tests for local MCP failure journeys in `~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
 
 ### Implementation for User Story 1
 
-- [X] T014 [US1] Implement numeric malformed-request, unsupported-method, and invalid-argument mapping in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
-- [X] T015 [US1] Implement numeric unknown-tool and unexpected tool-failure mapping in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
-- [X] T016 [US1] Align retrieval-tool error passthrough with the numeric error-code contract in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`
-- [X] T017 [US1] Refactor local error-category construction and rerun `pytest /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_invoke_error_mapping.py /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
+- [X] T014 [US1] Implement numeric malformed-request, unsupported-method, and invalid-argument mapping in `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
+- [X] T015 [US1] Implement numeric unknown-tool and unexpected tool-failure mapping in `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
+- [X] T016 [US1] Align retrieval-tool error passthrough with the numeric error-code contract in `~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`
+- [X] T017 [US1] Refactor local error-category construction and rerun `pytest ~/Projects/youtube-mcp-server/tests/unit/test_invoke_error_mapping.py ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
 
 **Checkpoint**: User Story 1 is complete when local MCP failures no longer expose retired string-style top-level codes.
 
@@ -80,17 +80,17 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [X] T018 [P] [US2] Add failing contract coverage for numeric hosted security and denial payloads in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py`
-- [X] T019 [P] [US2] Add failing contract coverage for numeric hosted operational error payloads in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py`
-- [X] T020 [P] [US2] Add failing integration coverage for numeric hosted HTTP failure flows in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
-- [X] T021 [P] [US2] Add failing integration coverage for local-versus-hosted numeric parity across auth, session, and tool failures in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py`
+- [X] T018 [P] [US2] Add failing contract coverage for numeric hosted security and denial payloads in `~/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py`
+- [X] T019 [P] [US2] Add failing contract coverage for numeric hosted operational error payloads in `~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py`
+- [X] T020 [P] [US2] Add failing integration coverage for numeric hosted HTTP failure flows in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
+- [X] T021 [P] [US2] Add failing integration coverage for local-versus-hosted numeric parity across auth, session, and tool failures in `~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py`
 
 ### Implementation for User Story 2
 
-- [X] T022 [US2] Implement numeric hosted denial and invalid-request mapping in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
-- [X] T023 [US2] Align hosted security decision categories with the numeric error-code contract in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/security.py`
-- [X] T024 [US2] Align hosted resource-missing and replay/session failure mapping in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
-- [X] T025 [US2] Refactor shared hosted-versus-local error mapping usage and rerun `pytest /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py`
+- [X] T022 [US2] Implement numeric hosted denial and invalid-request mapping in `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
+- [X] T023 [US2] Align hosted security decision categories with the numeric error-code contract in `~/Projects/youtube-mcp-server/src/mcp_server/security.py`
+- [X] T024 [US2] Align hosted resource-missing and replay/session failure mapping in `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
+- [X] T025 [US2] Refactor shared hosted-versus-local error mapping usage and rerun `pytest ~/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py ~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py ~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py ~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py`
 
 **Checkpoint**: User Stories 1 and 2 are complete when hosted `/mcp` failures preserve their HTTP semantics but match local numeric MCP error behavior.
 
@@ -104,17 +104,17 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [X] T026 [P] [US3] Add failing contract coverage for numeric retrieval-tool failure examples in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
-- [X] T027 [P] [US3] Add failing integration coverage for numeric deploy-verification and docs examples in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`
-- [X] T028 [P] [US3] Add failing integration coverage for numeric hosted verification evidence in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
+- [X] T026 [P] [US3] Add failing contract coverage for numeric retrieval-tool failure examples in `~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
+- [X] T027 [P] [US3] Add failing integration coverage for numeric deploy-verification and docs examples in `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`
+- [X] T028 [P] [US3] Add failing integration coverage for numeric hosted verification evidence in `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
 
 ### Implementation for User Story 3
 
-- [X] T029 [US3] Update downstream retrieval failure contract examples to numeric codes in `/Users/ctgunn/Projects/youtube-mcp-server/specs/017-retrieval-tool-contract/contracts/retrieval-tool-contract.md`
-- [X] T030 [US3] Update hosted verification checks and named failure assertions in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py`
-- [X] T031 [US3] Update deploy-time verification serialization and expected error assertions in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
-- [X] T032 [US3] Update repository-level operator guidance for numeric MCP error verification in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
-- [X] T033 [US3] Refactor final contract wording and rerun `pytest /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
+- [X] T029 [US3] Update downstream retrieval failure contract examples to numeric codes in `~/Projects/youtube-mcp-server/specs/017-retrieval-tool-contract/contracts/retrieval-tool-contract.md`
+- [X] T030 [US3] Update hosted verification checks and named failure assertions in `~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py`
+- [X] T031 [US3] Update deploy-time verification serialization and expected error assertions in `~/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
+- [X] T032 [US3] Update repository-level operator guidance for numeric MCP error verification in `~/Projects/youtube-mcp-server/README.md`
+- [X] T033 [US3] Refactor final contract wording and rerun `pytest ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
 
 **Checkpoint**: User Story 3 is complete when the published mapping, docs, and verification evidence all describe and assert the same numeric contract.
 
@@ -124,9 +124,9 @@
 
 **Purpose**: Finish cross-story regression coverage and final release-readiness validation.
 
-- [X] T034 [P] Add cross-story hosted parity regression coverage for numeric error categories in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_mcp_security_flows.py`
-- [X] T035 [P] Update final FND-018 quick validation steps and regression commands in `/Users/ctgunn/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/quickstart.md`
-- [X] T036 Run the full FND-018 regression suite from `/Users/ctgunn/Projects/youtube-mcp-server` with `pytest /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_envelope_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_method_routing.py /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_invoke_error_mapping.py /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_mcp_security_flows.py`
+- [X] T034 [P] Add cross-story hosted parity regression coverage for numeric error categories in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_mcp_security_flows.py`
+- [X] T035 [P] Update final FND-018 quick validation steps and regression commands in `~/Projects/youtube-mcp-server/specs/018-mcp-error-alignment/quickstart.md`
+- [X] T036 Run the full FND-018 regression suite from `~/Projects/youtube-mcp-server` with `pytest ~/Projects/youtube-mcp-server/tests/unit/test_envelope_contract.py ~/Projects/youtube-mcp-server/tests/unit/test_method_routing.py ~/Projects/youtube-mcp-server/tests/unit/test_invoke_error_mapping.py ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py ~/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py ~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py ~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py ~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py ~/Projects/youtube-mcp-server/tests/integration/test_hosted_mcp_security_flows.py`
 
 ---
 
@@ -173,29 +173,29 @@
 
 ```bash
 # Launch all US1 Red tests together:
-Task: "T010 Add failing unit tests for numeric invalid-argument and unknown-tool mapping in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_invoke_error_mapping.py"
-Task: "T011 Add failing unit tests for numeric retrieval-tool failure mapping in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py"
-Task: "T012 Add failing contract tests for numeric malformed-request, unsupported-method, and invalid-argument MCP bodies in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py"
-Task: "T013 Add failing integration tests for local MCP failure journeys in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py"
+Task: "T010 Add failing unit tests for numeric invalid-argument and unknown-tool mapping in ~/Projects/youtube-mcp-server/tests/unit/test_invoke_error_mapping.py"
+Task: "T011 Add failing unit tests for numeric retrieval-tool failure mapping in ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py"
+Task: "T012 Add failing contract tests for numeric malformed-request, unsupported-method, and invalid-argument MCP bodies in ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py"
+Task: "T013 Add failing integration tests for local MCP failure journeys in ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py"
 ```
 
 ## Parallel Example: User Story 2
 
 ```bash
 # Launch all US2 Red tests together:
-Task: "T018 Add failing contract coverage for numeric hosted security and denial payloads in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py"
-Task: "T019 Add failing contract coverage for numeric hosted operational error payloads in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py"
-Task: "T020 Add failing integration coverage for numeric hosted HTTP failure flows in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py"
-Task: "T021 Add failing integration coverage for local-versus-hosted numeric parity across auth, session, and tool failures in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py"
+Task: "T018 Add failing contract coverage for numeric hosted security and denial payloads in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py"
+Task: "T019 Add failing contract coverage for numeric hosted operational error payloads in ~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py"
+Task: "T020 Add failing integration coverage for numeric hosted HTTP failure flows in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py"
+Task: "T021 Add failing integration coverage for local-versus-hosted numeric parity across auth, session, and tool failures in ~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py"
 ```
 
 ## Parallel Example: User Story 3
 
 ```bash
 # Launch all US3 Red tests together:
-Task: "T026 Add failing contract coverage for numeric retrieval-tool failure examples in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py"
-Task: "T027 Add failing integration coverage for numeric deploy-verification and docs examples in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py"
-Task: "T028 Add failing integration coverage for numeric hosted verification evidence in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py"
+Task: "T026 Add failing contract coverage for numeric retrieval-tool failure examples in ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py"
+Task: "T027 Add failing integration coverage for numeric deploy-verification and docs examples in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py"
+Task: "T028 Add failing integration coverage for numeric hosted verification evidence in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py"
 ```
 
 ---

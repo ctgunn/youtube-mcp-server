@@ -14,10 +14,10 @@ Define the externally visible hosted MCP contract changes required so continuati
 
 ## Relationship to Prior Contracts
 
-- This contract narrows the initialize/session lifecycle described in [hosted-session-durability-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/015-hosted-session-durability/contracts/hosted-session-durability-contract.md) by adding the rule that durable continuation state begins only after successful initialize completion.
-- This contract preserves the MCP-native initialize request and response semantics established in [mcp-protocol-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/contracts/mcp-protocol-contract.md).
-- This contract depends on the hosted security boundary in [hosted-mcp-security.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
-- This contract preserves the streamable transport and continuation headers defined by [specs/009-mcp-streamable-http-transport/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md).
+- This contract narrows the initialize/session lifecycle described in [hosted-session-durability-contract.md](~/Projects/youtube-mcp-server/specs/015-hosted-session-durability/contracts/hosted-session-durability-contract.md) by adding the rule that durable continuation state begins only after successful initialize completion.
+- This contract preserves the MCP-native initialize request and response semantics established in [mcp-protocol-contract.md](~/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/contracts/mcp-protocol-contract.md).
+- This contract depends on the hosted security boundary in [hosted-mcp-security.md](~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
+- This contract preserves the streamable transport and continuation headers defined by [specs/009-mcp-streamable-http-transport/spec.md](~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md).
 
 ## Initialize Success Contract
 

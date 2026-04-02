@@ -1,7 +1,7 @@
 # Tasks: FND-008 Deployment Execution + Cloud Run Observability
 
-**Input**: Design documents from `/Users/ctgunn/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/`
-**Prerequisites**: `/Users/ctgunn/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/plan.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/spec.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/research.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/data-model.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/contracts/deployment-observability-contract.md`
+**Input**: Design documents from `~/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/`
+**Prerequisites**: `~/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/plan.md`, `~/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/spec.md`, `~/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/research.md`, `~/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/data-model.md`, `~/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/contracts/deployment-observability-contract.md`
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes Red-Green-Refactor coverage tasks.
 
@@ -11,9 +11,9 @@
 
 **Purpose**: Create the dedicated test surfaces and task scaffolding for FND-008 work.
 
-- [X] T001 Create deployment execution unit test module in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_cloud_run_deploy_execution.py
-- [X] T002 [P] Create deployment metadata integration test module in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_metadata.py
-- [X] T003 [P] Create deployment observability contract test module in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deployment_observability_contract.py
+- [X] T001 Create deployment execution unit test module in ~/Projects/youtube-mcp-server/tests/unit/test_cloud_run_deploy_execution.py
+- [X] T002 [P] Create deployment metadata integration test module in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_metadata.py
+- [X] T003 [P] Create deployment observability contract test module in ~/Projects/youtube-mcp-server/tests/contract/test_deployment_observability_contract.py
 
 ---
 
@@ -23,9 +23,9 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T004 Implement shared `DeploymentRunRecord` and `RuntimeSettingsSnapshot` helpers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py
-- [X] T005 [P] Implement shared hosted runtime log emission helper alongside in-memory recording in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/observability.py
-- [X] T006 [P] Add shared shell-to-Python deployment result handoff utilities in /Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh and /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py
+- [X] T004 Implement shared `DeploymentRunRecord` and `RuntimeSettingsSnapshot` helpers in ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py
+- [X] T005 [P] Implement shared hosted runtime log emission helper alongside in-memory recording in ~/Projects/youtube-mcp-server/src/mcp_server/observability.py
+- [X] T006 [P] Add shared shell-to-Python deployment result handoff utilities in ~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh and ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py
 
 **Checkpoint**: Foundation ready - user story implementation can now begin.
 
@@ -41,14 +41,14 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T007 [P] [US1] Add red unit tests for deploy execution success and failure handling in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_cloud_run_deploy_execution.py
-- [X] T008 [P] [US1] Add red integration tests for executable deploy workflow behavior in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_assets.py
+- [X] T007 [P] [US1] Add red unit tests for deploy execution success and failure handling in ~/Projects/youtube-mcp-server/tests/unit/test_cloud_run_deploy_execution.py
+- [X] T008 [P] [US1] Add red integration tests for executable deploy workflow behavior in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_assets.py
 
 ### Implementation for User Story 1
 
-- [X] T009 [US1] Implement deploy command execution helpers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py
-- [X] T010 [US1] Update the operator deployment workflow to execute the hosted deploy command in /Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh
-- [X] T011 [US1] Refactor deployment execution flow and re-run US1 suites in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_cloud_run_deploy_execution.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_assets.py
+- [X] T009 [US1] Implement deploy command execution helpers in ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py
+- [X] T010 [US1] Update the operator deployment workflow to execute the hosted deploy command in ~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh
+- [X] T011 [US1] Refactor deployment execution flow and re-run US1 suites in ~/Projects/youtube-mcp-server/tests/unit/test_cloud_run_deploy_execution.py and ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_assets.py
 
 **Checkpoint**: User Story 1 is independently functional when one command executes a hosted deploy and reports failure without manual fallback steps.
 
@@ -62,15 +62,15 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [X] T012 [P] [US2] Add red contract tests for deployment outcome record requirements in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deployment_observability_contract.py
-- [X] T013 [P] [US2] Add red integration tests for revision metadata capture and incomplete outcomes in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_metadata.py
+- [X] T012 [P] [US2] Add red contract tests for deployment outcome record requirements in ~/Projects/youtube-mcp-server/tests/contract/test_deployment_observability_contract.py
+- [X] T013 [P] [US2] Add red integration tests for revision metadata capture and incomplete outcomes in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_metadata.py
 
 ### Implementation for User Story 2
 
-- [X] T014 [US2] Implement deployment outcome record serialization and metadata extraction in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py
-- [X] T015 [US2] Update deployment workflow output to emit revision and runtime metadata records in /Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh
-- [X] T016 [US2] Document deployment record consumption for verification in /Users/ctgunn/Projects/youtube-mcp-server/README.md and /Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py
-- [X] T017 [US2] Refactor deployment metadata shaping and re-run US2 suites in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deployment_observability_contract.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_metadata.py
+- [X] T014 [US2] Implement deployment outcome record serialization and metadata extraction in ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py
+- [X] T015 [US2] Update deployment workflow output to emit revision and runtime metadata records in ~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh
+- [X] T016 [US2] Document deployment record consumption for verification in ~/Projects/youtube-mcp-server/README.md and ~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py
+- [X] T017 [US2] Refactor deployment metadata shaping and re-run US2 suites in ~/Projects/youtube-mcp-server/tests/contract/test_deployment_observability_contract.py and ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_metadata.py
 
 **Checkpoint**: User Story 2 is independently functional when operators can inspect one retained deployment record and verify what revision and runtime settings were deployed.
 
@@ -84,14 +84,14 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [X] T018 [P] [US3] Add red contract tests for hosted structured log event requirements in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py
-- [X] T019 [P] [US3] Add red integration tests for probe, MCP, and failure log emission in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_request_observability.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
+- [X] T018 [P] [US3] Add red contract tests for hosted structured log event requirements in ~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py
+- [X] T019 [P] [US3] Add red integration tests for probe, MCP, and failure log emission in ~/Projects/youtube-mcp-server/tests/integration/test_request_observability.py and ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
 
 ### Implementation for User Story 3
 
-- [X] T020 [US3] Implement structured stdout/stderr hosted log emission in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/observability.py
-- [X] T021 [US3] Wire hosted request log emission through runtime request handling in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py and /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/app.py
-- [X] T022 [US3] Refactor hosted log emission to preserve in-memory parity and re-run US3 suites in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_request_observability.py
+- [X] T020 [US3] Implement structured stdout/stderr hosted log emission in ~/Projects/youtube-mcp-server/src/mcp_server/observability.py
+- [X] T021 [US3] Wire hosted request log emission through runtime request handling in ~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py and ~/Projects/youtube-mcp-server/src/mcp_server/app.py
+- [X] T022 [US3] Refactor hosted log emission to preserve in-memory parity and re-run US3 suites in ~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py and ~/Projects/youtube-mcp-server/tests/integration/test_request_observability.py
 
 **Checkpoint**: User Story 3 is independently functional when hosted runtime traffic emits structured request logs visible to operators without breaking existing response behavior.
 
@@ -101,9 +101,9 @@
 
 **Purpose**: Finalize cross-story documentation, validation, and regression coverage.
 
-- [X] T023 [P] Update operator examples for deployment records and hosted log inspection in /Users/ctgunn/Projects/youtube-mcp-server/README.md and /Users/ctgunn/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/quickstart.md
-- [X] T024 Run full regression coverage across /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/, /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/, and /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/
-- [X] T025 [P] Validate deployed verification handoff examples against /Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh and /Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py
+- [X] T023 [P] Update operator examples for deployment records and hosted log inspection in ~/Projects/youtube-mcp-server/README.md and ~/Projects/youtube-mcp-server/specs/008-deployment-cloud-observability/quickstart.md
+- [X] T024 Run full regression coverage across ~/Projects/youtube-mcp-server/tests/unit/, ~/Projects/youtube-mcp-server/tests/integration/, and ~/Projects/youtube-mcp-server/tests/contract/
+- [X] T025 [P] Validate deployed verification handoff examples against ~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh and ~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py
 
 ---
 
@@ -156,22 +156,22 @@
 ## Parallel Example: User Story 1
 
 ```bash
-Task: "Add red unit tests for deploy execution success and failure handling in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_cloud_run_deploy_execution.py"
-Task: "Add red integration tests for executable deploy workflow behavior in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_assets.py"
+Task: "Add red unit tests for deploy execution success and failure handling in ~/Projects/youtube-mcp-server/tests/unit/test_cloud_run_deploy_execution.py"
+Task: "Add red integration tests for executable deploy workflow behavior in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_assets.py"
 ```
 
 ## Parallel Example: User Story 2
 
 ```bash
-Task: "Add red contract tests for deployment outcome record requirements in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deployment_observability_contract.py"
-Task: "Add red integration tests for revision metadata capture and incomplete outcomes in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_metadata.py"
+Task: "Add red contract tests for deployment outcome record requirements in ~/Projects/youtube-mcp-server/tests/contract/test_deployment_observability_contract.py"
+Task: "Add red integration tests for revision metadata capture and incomplete outcomes in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_metadata.py"
 ```
 
 ## Parallel Example: User Story 3
 
 ```bash
-Task: "Add red contract tests for hosted structured log event requirements in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py"
-Task: "Add red integration tests for probe, MCP, and failure log emission in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_request_observability.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py"
+Task: "Add red contract tests for hosted structured log event requirements in ~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py"
+Task: "Add red integration tests for probe, MCP, and failure log emission in ~/Projects/youtube-mcp-server/tests/integration/test_request_observability.py and ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py"
 ```
 
 ---

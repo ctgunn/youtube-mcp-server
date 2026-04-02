@@ -1,6 +1,6 @@
 # Implementation Plan: Retrieval Tool Contract Completeness
 
-**Branch**: `017-retrieval-tool-contract` | **Date**: 2026-03-19 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/017-retrieval-tool-contract/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/017-retrieval-tool-contract/spec.md)
+**Branch**: `017-retrieval-tool-contract` | **Date**: 2026-03-19 | **Spec**: [~/Projects/youtube-mcp-server/specs/017-retrieval-tool-contract/spec.md](~/Projects/youtube-mcp-server/specs/017-retrieval-tool-contract/spec.md)
 **Input**: Feature specification from `/specs/017-retrieval-tool-contract/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

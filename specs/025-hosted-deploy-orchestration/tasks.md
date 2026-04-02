@@ -1,7 +1,7 @@
 # Tasks: Automated Hosted Deployment Orchestration
 
 **Input**: Design documents from `/specs/025-hosted-deploy-orchestration/`
-**Prerequisites**: [plan.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/plan.md), [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/spec.md), [research.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/research.md), [data-model.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/data-model.md), [quickstart.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/quickstart.md), [hosted-deployment-pipeline-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/contracts/hosted-deployment-pipeline-contract.md), [deployment-bootstrap-boundary-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/contracts/deployment-bootstrap-boundary-contract.md)
+**Prerequisites**: [plan.md](~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/plan.md), [spec.md](~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/spec.md), [research.md](~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/research.md), [data-model.md](~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/data-model.md), [quickstart.md](~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/quickstart.md), [hosted-deployment-pipeline-contract.md](~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/contracts/hosted-deployment-pipeline-contract.md), [deployment-bootstrap-boundary-contract.md](~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/contracts/deployment-bootstrap-boundary-contract.md)
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes Red-Green-Refactor coverage tasks. Completion requires a passing full repository test-suite run after the final code changes.
 
@@ -11,9 +11,9 @@
 
 **Purpose**: Create the shared workflow and test file surfaces used by the feature.
 
-- [X] T001 Create the hosted deployment workflow scaffold in /Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml
-- [X] T002 [P] Create the workflow test scaffolds in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_pipeline_helpers.py, /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_pipeline_contract.py, and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py
-- [X] T003 [P] Reserve the hosted deployment automation documentation section in /Users/ctgunn/Projects/youtube-mcp-server/README.md
+- [X] T001 Create the hosted deployment workflow scaffold in ~/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml
+- [X] T002 [P] Create the workflow test scaffolds in ~/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_pipeline_helpers.py, ~/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_pipeline_contract.py, and ~/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py
+- [X] T003 [P] Reserve the hosted deployment automation documentation section in ~/Projects/youtube-mcp-server/README.md
 
 ---
 
@@ -23,11 +23,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [X] T004 Add failing unit coverage for workflow-run, stage-result, and artifact helper behavior in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_pipeline_helpers.py
-- [X] T005 Add failing contract coverage for required workflow stages, artifacts, and failure gates in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_pipeline_contract.py
-- [X] T006 Implement shared workflow-run, stage-result, and artifact helper functions in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py
-- [X] T007 Update /Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh to emit workflow-friendly deployment artifacts and preserve stage-specific failures
-- [X] T008 Update /Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py to consume workflow artifacts and emit workflow-friendly verification output
+- [X] T004 Add failing unit coverage for workflow-run, stage-result, and artifact helper behavior in ~/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_pipeline_helpers.py
+- [X] T005 Add failing contract coverage for required workflow stages, artifacts, and failure gates in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_pipeline_contract.py
+- [X] T006 Implement shared workflow-run, stage-result, and artifact helper functions in ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py
+- [X] T007 Update ~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh to emit workflow-friendly deployment artifacts and preserve stage-specific failures
+- [X] T008 Update ~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py to consume workflow artifacts and emit workflow-friendly verification output
 
 **Checkpoint**: Foundation ready. User story implementation can now begin.
 
@@ -43,16 +43,16 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T009 [P] [US1] Add failing contract coverage for push-triggered ordered deployment stages in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_pipeline_contract.py
-- [X] T010 [P] [US1] Add failing integration coverage for the full push-to-verification workflow in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py
-- [X] T011 [P] [US1] Add failing unit coverage for workflow stage orchestration and verification gating in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_pipeline_helpers.py
+- [X] T009 [P] [US1] Add failing contract coverage for push-triggered ordered deployment stages in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_pipeline_contract.py
+- [X] T010 [P] [US1] Add failing integration coverage for the full push-to-verification workflow in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py
+- [X] T011 [P] [US1] Add failing unit coverage for workflow stage orchestration and verification gating in ~/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_pipeline_helpers.py
 
 ### Implementation for User Story 1
 
-- [X] T012 [US1] Implement the push trigger and top-level workflow stages in /Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml
-- [X] T013 [US1] Implement image publication, Terraform apply, and deploy-script handoff in /Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml
-- [X] T014 [US1] Implement hosted verification gating and workflow artifact upload in /Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml
-- [X] T015 [US1] Refactor workflow stage names, shared expressions, and artifact wiring in /Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml and /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py while keeping User Story 1 tests green
+- [X] T012 [US1] Implement the push trigger and top-level workflow stages in ~/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml
+- [X] T013 [US1] Implement image publication, Terraform apply, and deploy-script handoff in ~/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml
+- [X] T014 [US1] Implement hosted verification gating and workflow artifact upload in ~/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml
+- [X] T015 [US1] Refactor workflow stage names, shared expressions, and artifact wiring in ~/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml and ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py while keeping User Story 1 tests green
 
 **Checkpoint**: User Story 1 should now be fully functional and independently testable.
 
@@ -66,16 +66,16 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [X] T016 [P] [US2] Add failing contract coverage for Terraform-output handoff and non-bypass deployment rules in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_handoff_contract.py
-- [X] T017 [P] [US2] Add failing integration coverage for infrastructure-output-to-deploy-script flow in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_handoff.py
-- [X] T018 [P] [US2] Add failing unit coverage for Terraform-output validation and deployment-input normalization in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_pipeline_helpers.py
+- [X] T016 [P] [US2] Add failing contract coverage for Terraform-output handoff and non-bypass deployment rules in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_handoff_contract.py
+- [X] T017 [P] [US2] Add failing integration coverage for infrastructure-output-to-deploy-script flow in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_handoff.py
+- [X] T018 [P] [US2] Add failing unit coverage for Terraform-output validation and deployment-input normalization in ~/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_pipeline_helpers.py
 
 ### Implementation for User Story 2
 
-- [X] T019 [US2] Implement Terraform-output validation and deployment-input normalization in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py
-- [X] T020 [US2] Update /Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml to export Terraform outputs and invoke /Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh instead of any direct image-only deploy path
-- [X] T021 [US2] Document the reviewed infrastructure-to-deploy-to-verify chain in /Users/ctgunn/Projects/youtube-mcp-server/README.md
-- [X] T022 [US2] Refactor deployment handoff messaging, artifact names, and workflow comments in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py, /Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh, and /Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml while keeping User Story 2 tests green
+- [X] T019 [US2] Implement Terraform-output validation and deployment-input normalization in ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py
+- [X] T020 [US2] Update ~/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml to export Terraform outputs and invoke ~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh instead of any direct image-only deploy path
+- [X] T021 [US2] Document the reviewed infrastructure-to-deploy-to-verify chain in ~/Projects/youtube-mcp-server/README.md
+- [X] T022 [US2] Refactor deployment handoff messaging, artifact names, and workflow comments in ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py, ~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh, and ~/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml while keeping User Story 2 tests green
 
 **Checkpoint**: User Stories 1 and 2 should both work, and the deployment path should remain fully reviewable from repository files and workflow artifacts.
 
@@ -89,16 +89,16 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [X] T023 [P] [US3] Add failing contract coverage for bootstrap prerequisites and secret-boundary guarantees in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_bootstrap_contract.py
-- [X] T024 [P] [US3] Add failing integration coverage for bootstrap failure scenarios and secret-boundary reporting in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_bootstrap_docs.py
-- [X] T025 [P] [US3] Add failing unit coverage for bootstrap prerequisite classification and secret-boundary error mapping in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_bootstrap_helpers.py
+- [X] T023 [P] [US3] Add failing contract coverage for bootstrap prerequisites and secret-boundary guarantees in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_bootstrap_contract.py
+- [X] T024 [P] [US3] Add failing integration coverage for bootstrap failure scenarios and secret-boundary reporting in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_bootstrap_docs.py
+- [X] T025 [P] [US3] Add failing unit coverage for bootstrap prerequisite classification and secret-boundary error mapping in ~/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_bootstrap_helpers.py
 
 ### Implementation for User Story 3
 
-- [X] T026 [US3] Implement bootstrap prerequisite checks and secret-boundary failure handling in /Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml
-- [X] T027 [US3] Document bootstrap prerequisites and operator-managed secret responsibilities in /Users/ctgunn/Projects/youtube-mcp-server/README.md
-- [X] T028 [US3] Document hosted bootstrap, secret wiring, and operator-managed secret-value boundaries in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md
-- [X] T029 [US3] Refactor bootstrap guidance and failure wording across /Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml, /Users/ctgunn/Projects/youtube-mcp-server/README.md, and /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md while keeping User Story 3 tests green
+- [X] T026 [US3] Implement bootstrap prerequisite checks and secret-boundary failure handling in ~/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml
+- [X] T027 [US3] Document bootstrap prerequisites and operator-managed secret responsibilities in ~/Projects/youtube-mcp-server/README.md
+- [X] T028 [US3] Document hosted bootstrap, secret wiring, and operator-managed secret-value boundaries in ~/Projects/youtube-mcp-server/infrastructure/gcp/README.md
+- [X] T029 [US3] Refactor bootstrap guidance and failure wording across ~/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml, ~/Projects/youtube-mcp-server/README.md, and ~/Projects/youtube-mcp-server/infrastructure/gcp/README.md while keeping User Story 3 tests green
 
 **Checkpoint**: All user stories should now be independently functional and reviewable.
 
@@ -108,10 +108,10 @@
 
 **Purpose**: Finalize docs, regression coverage, and full-suite validation across the whole feature.
 
-- [X] T030 [P] Align operator examples and validation steps in /Users/ctgunn/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/quickstart.md with the implemented workflow
-- [X] T031 [P] Add regression coverage for workflow artifacts and deployment observability in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_assets.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deployment_observability_contract.py
-- [X] T032 Validate the documented bootstrap and hosted deployment flow in /Users/ctgunn/Projects/youtube-mcp-server/README.md and /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md against the implemented workflow
-- [X] T033 Run `pytest` and `ruff check .` from /Users/ctgunn/Projects/youtube-mcp-server and resolve any remaining failures before marking the feature complete
+- [X] T030 [P] Align operator examples and validation steps in ~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/quickstart.md with the implemented workflow
+- [X] T031 [P] Add regression coverage for workflow artifacts and deployment observability in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_assets.py and ~/Projects/youtube-mcp-server/tests/contract/test_deployment_observability_contract.py
+- [X] T032 Validate the documented bootstrap and hosted deployment flow in ~/Projects/youtube-mcp-server/README.md and ~/Projects/youtube-mcp-server/infrastructure/gcp/README.md against the implemented workflow
+- [X] T033 Run `pytest` and `ruff check .` from ~/Projects/youtube-mcp-server and resolve any remaining failures before marking the feature complete
 
 ---
 

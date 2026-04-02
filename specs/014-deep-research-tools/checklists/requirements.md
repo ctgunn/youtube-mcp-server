@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-17
-**Feature**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/spec.md)
+**Feature**: [spec.md](~/Projects/youtube-mcp-server/specs/014-deep-research-tools/spec.md)
 
 ## Content Quality
 

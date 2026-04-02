@@ -1,6 +1,6 @@
 # Implementation Plan: Deep Research Tool Foundation
 
-**Branch**: `014-deep-research-tools` | **Date**: 2026-03-17 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/spec.md)
+**Branch**: `014-deep-research-tools` | **Date**: 2026-03-17 | **Spec**: [~/Projects/youtube-mcp-server/specs/014-deep-research-tools/spec.md](~/Projects/youtube-mcp-server/specs/014-deep-research-tools/spec.md)
 **Input**: Feature specification from `/specs/014-deep-research-tools/spec.md`
 
 ## Summary

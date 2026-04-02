@@ -1,7 +1,7 @@
 # Tasks: Deep Research Tool Foundation
 
-**Input**: Design documents from `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/`
-**Prerequisites**: [plan.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/plan.md), [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/spec.md), [research.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/research.md), [data-model.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/data-model.md), [contracts/deep-research-tools-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md), [quickstart.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/quickstart.md)
+**Input**: Design documents from `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/`
+**Prerequisites**: [plan.md](~/Projects/youtube-mcp-server/specs/014-deep-research-tools/plan.md), [spec.md](~/Projects/youtube-mcp-server/specs/014-deep-research-tools/spec.md), [research.md](~/Projects/youtube-mcp-server/specs/014-deep-research-tools/research.md), [data-model.md](~/Projects/youtube-mcp-server/specs/014-deep-research-tools/data-model.md), [contracts/deep-research-tools-contract.md](~/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md), [quickstart.md](~/Projects/youtube-mcp-server/specs/014-deep-research-tools/quickstart.md)
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes explicit Red-Green-Refactor coverage tasks.
 
@@ -15,17 +15,17 @@
 
 ## Path Conventions
 
-- Runtime code lives under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/`
-- Contract, integration, and unit tests live under `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/`
-- Feature docs live under `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/`
+- Runtime code lives under `~/Projects/youtube-mcp-server/src/mcp_server/`
+- Contract, integration, and unit tests live under `~/Projects/youtube-mcp-server/tests/contract/`, `~/Projects/youtube-mcp-server/tests/integration/`, and `~/Projects/youtube-mcp-server/tests/unit/`
+- Feature docs live under `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/`
 
 ## Phase 1: Setup (Shared Infrastructure)
 
 **Purpose**: Prepare the FND-014 work area and isolate the new retrieval-tool coverage before runtime changes begin
 
-- [X] T001 Review and align FND-014 design inputs in `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/spec.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/plan.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/research.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/data-model.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md`, and `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/quickstart.md`
-- [X] T002 [P] Create the dedicated deep-research contract test module in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
-- [X] T003 [P] Create the dedicated retrieval-tool unit test module in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py`
+- [X] T001 Review and align FND-014 design inputs in `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/spec.md`, `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/plan.md`, `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/research.md`, `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/data-model.md`, `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md`, and `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/quickstart.md`
+- [X] T002 [P] Create the dedicated deep-research contract test module in `~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
+- [X] T003 [P] Create the dedicated retrieval-tool unit test module in `~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py`
 
 ---
 
@@ -35,12 +35,12 @@
 
 **⚠️ CRITICAL**: No user story work should start until this phase is complete
 
-- [X] T004 [P] Add failing unit tests for shared retrieval request validation, stateless reference normalization, and failure categories in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py`
-- [X] T005 [P] Add failing contract tests for deep-research tool discovery metadata and shared MCP error categories in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
-- [X] T006 Implement shared retrieval request/result models, reference parsing, and retrieval exceptions in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`
-- [X] T007 Extend MCP tool-call error mapping for retrieval-specific failures in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
-- [X] T008 Extend dispatcher bootstrap support for non-baseline retrieval tools in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`
-- [X] T009 Refactor shared retrieval helper usage across `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`, then rerun `pytest /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
+- [X] T004 [P] Add failing unit tests for shared retrieval request validation, stateless reference normalization, and failure categories in `~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py`
+- [X] T005 [P] Add failing contract tests for deep-research tool discovery metadata and shared MCP error categories in `~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
+- [X] T006 Implement shared retrieval request/result models, reference parsing, and retrieval exceptions in `~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`
+- [X] T007 Extend MCP tool-call error mapping for retrieval-specific failures in `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
+- [X] T008 Extend dispatcher bootstrap support for non-baseline retrieval tools in `~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`
+- [X] T009 Refactor shared retrieval helper usage across `~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`, `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`, and `~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`, then rerun `pytest ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
 
 **Checkpoint**: Shared retrieval contract and error primitives are ready; user stories can now proceed in order
 
@@ -56,16 +56,16 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T010 [P] [US1] Add failing contract tests for `search` discovery metadata and success-result shape in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
-- [X] T011 [P] [US1] Add failing integration tests for successful and no-result `search` flows in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
-- [X] T012 [P] [US1] Add failing unit tests for `search` schema validation, result ordering, and pagination fields in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py`
+- [X] T010 [P] [US1] Add failing contract tests for `search` discovery metadata and success-result shape in `~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
+- [X] T011 [P] [US1] Add failing integration tests for successful and no-result `search` flows in `~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
+- [X] T012 [P] [US1] Add failing unit tests for `search` schema validation, result ordering, and pagination fields in `~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py`
 
 ### Implementation for User Story 1
 
-- [X] T013 [US1] Implement `search` request validation and search-result builders in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`
-- [X] T014 [US1] Register the `search` tool and expose its schema through `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`
-- [X] T015 [US1] Ensure `search` results serialize into MCP-aligned structured content in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
-- [X] T016 [US1] Refactor `search` helper flow across `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`, then rerun `pytest /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
+- [X] T013 [US1] Implement `search` request validation and search-result builders in `~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`
+- [X] T014 [US1] Register the `search` tool and expose its schema through `~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`
+- [X] T015 [US1] Ensure `search` results serialize into MCP-aligned structured content in `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
+- [X] T016 [US1] Refactor `search` helper flow across `~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`, `~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`, and `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`, then rerun `pytest ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
 
 **Checkpoint**: User Story 1 is complete when `search` is discoverable and independently callable with valid, invalid, and no-result coverage
 
@@ -79,16 +79,16 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [X] T017 [P] [US2] Extend contract tests for `fetch` request validation, success-result shape, and retrieval-safe errors in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
-- [X] T018 [P] [US2] Extend integration tests for `search` to `fetch` handoff and unavailable-source fetch flows in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
-- [X] T019 [P] [US2] Extend unit tests for `fetch` identifier parsing, resource-to-URI matching, and failure mapping in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py`
+- [X] T017 [P] [US2] Extend contract tests for `fetch` request validation, success-result shape, and retrieval-safe errors in `~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
+- [X] T018 [P] [US2] Extend integration tests for `search` to `fetch` handoff and unavailable-source fetch flows in `~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
+- [X] T019 [P] [US2] Extend unit tests for `fetch` identifier parsing, resource-to-URI matching, and failure mapping in `~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py`
 
 ### Implementation for User Story 2
 
-- [X] T020 [US2] Implement `fetch` request parsing, source retrieval payload shaping, and unavailable-source handling in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`
-- [X] T021 [US2] Register the `fetch` tool and expose its schema through `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`
-- [X] T022 [US2] Map retrieval failures from `fetch` into MCP-safe error responses in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
-- [X] T023 [US2] Refactor shared retrieval-reference handling across `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`, then rerun `pytest /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
+- [X] T020 [US2] Implement `fetch` request parsing, source retrieval payload shaping, and unavailable-source handling in `~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`
+- [X] T021 [US2] Register the `fetch` tool and expose its schema through `~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`
+- [X] T022 [US2] Map retrieval failures from `fetch` into MCP-safe error responses in `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
+- [X] T023 [US2] Refactor shared retrieval-reference handling across `~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py`, `~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py`, and `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`, then rerun `pytest ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
 
 **Checkpoint**: User Stories 1 and 2 are complete when a consumer can discover results with `search` and retrieve one selected source with `fetch` without relying on additional setup
 
@@ -102,16 +102,16 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [X] T024 [P] [US3] Add failing documentation example tests for hosted `search` and `fetch` usage in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`
-- [X] T025 [P] [US3] Add failing hosted verification coverage for `search` and `fetch` smoke checks in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
-- [X] T026 [P] [US3] Extend hosted contract assertions for deep-research tool discovery and invocation in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
+- [X] T024 [P] [US3] Add failing documentation example tests for hosted `search` and `fetch` usage in `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`
+- [X] T025 [P] [US3] Add failing hosted verification coverage for `search` and `fetch` smoke checks in `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
+- [X] T026 [P] [US3] Extend hosted contract assertions for deep-research tool discovery and invocation in `~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
 
 ### Implementation for User Story 3
 
-- [X] T027 [US3] Update hosted `search` and `fetch` usage examples in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
-- [X] T028 [US3] Align operator quickstart steps and expected evidence for deep-research verification in `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/quickstart.md`
-- [X] T029 [US3] Extend Cloud Run verification smoke coverage for `search` and `fetch` in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py`
-- [X] T030 [US3] Refactor duplicated hosted verification language across `/Users/ctgunn/Projects/youtube-mcp-server/README.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/quickstart.md`, and `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md`, then rerun `pytest /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
+- [X] T027 [US3] Update hosted `search` and `fetch` usage examples in `~/Projects/youtube-mcp-server/README.md`
+- [X] T028 [US3] Align operator quickstart steps and expected evidence for deep-research verification in `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/quickstart.md`
+- [X] T029 [US3] Extend Cloud Run verification smoke coverage for `search` and `fetch` in `~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py`
+- [X] T030 [US3] Refactor duplicated hosted verification language across `~/Projects/youtube-mcp-server/README.md`, `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/quickstart.md`, and `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md`, then rerun `pytest ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py`
 
 **Checkpoint**: All three user stories are complete when hosted docs and verification tooling prove the new tools work end to end on the protected MCP surface
 
@@ -121,9 +121,9 @@
 
 **Purpose**: Finish regression coverage and contract/document cleanup that spans multiple stories
 
-- [X] T031 [P] Add cross-story hosted regression coverage for deep-research tool routing and protected MCP behavior in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
-- [X] T032 [P] Update final contract examples, edge-case notes, and hosted evidence expectations in `/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md`
-- [X] T033 Run the full FND-014 regression suite from `/Users/ctgunn/Projects/youtube-mcp-server` with `pytest /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_tool_registry.py /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_invoke_error_mapping.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
+- [X] T031 [P] Add cross-story hosted regression coverage for deep-research tool routing and protected MCP behavior in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
+- [X] T032 [P] Update final contract examples, edge-case notes, and hosted evidence expectations in `~/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md`
+- [X] T033 Run the full FND-014 regression suite from `~/Projects/youtube-mcp-server` with `pytest ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py ~/Projects/youtube-mcp-server/tests/unit/test_tool_registry.py ~/Projects/youtube-mcp-server/tests/unit/test_invoke_error_mapping.py ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py ~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
 
 ---
 
@@ -170,27 +170,27 @@
 
 ```bash
 # Launch all US1 Red tests together:
-Task: "T010 Add failing contract tests for search discovery metadata and success-result shape in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py"
-Task: "T011 Add failing integration tests for successful and no-result search flows in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py"
-Task: "T012 Add failing unit tests for search schema validation, result ordering, and pagination fields in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py"
+Task: "T010 Add failing contract tests for search discovery metadata and success-result shape in ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py"
+Task: "T011 Add failing integration tests for successful and no-result search flows in ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py"
+Task: "T012 Add failing unit tests for search schema validation, result ordering, and pagination fields in ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py"
 ```
 
 ## Parallel Example: User Story 2
 
 ```bash
 # Launch all US2 Red tests together:
-Task: "T017 Extend contract tests for fetch request validation, success-result shape, and retrieval-safe errors in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py"
-Task: "T018 Extend integration tests for search to fetch handoff and unavailable-source fetch flows in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py"
-Task: "T019 Extend unit tests for fetch identifier parsing, resource-to-URI matching, and failure mapping in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py"
+Task: "T017 Extend contract tests for fetch request validation, success-result shape, and retrieval-safe errors in ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py"
+Task: "T018 Extend integration tests for search to fetch handoff and unavailable-source fetch flows in ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py"
+Task: "T019 Extend unit tests for fetch identifier parsing, resource-to-URI matching, and failure mapping in ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py"
 ```
 
 ## Parallel Example: User Story 3
 
 ```bash
 # Launch all US3 Red tests together:
-Task: "T024 Add failing documentation example tests for hosted search and fetch usage in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py"
-Task: "T025 Add failing hosted verification coverage for search and fetch smoke checks in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py"
-Task: "T026 Extend hosted contract assertions for deep-research tool discovery and invocation in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py"
+Task: "T024 Add failing documentation example tests for hosted search and fetch usage in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py"
+Task: "T025 Add failing hosted verification coverage for search and fetch smoke checks in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py"
+Task: "T026 Extend hosted contract assertions for deep-research tool discovery and invocation in ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py"
 ```
 
 ---

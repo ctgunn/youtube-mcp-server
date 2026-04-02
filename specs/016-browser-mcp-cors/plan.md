@@ -1,6 +1,6 @@
 # Implementation Plan: Browser-Originated MCP Access + CORS Support
 
-**Branch**: `016-browser-mcp-cors` | **Date**: 2026-03-18 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/016-browser-mcp-cors/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/016-browser-mcp-cors/spec.md)
+**Branch**: `016-browser-mcp-cors` | **Date**: 2026-03-18 | **Spec**: [~/Projects/youtube-mcp-server/specs/016-browser-mcp-cors/spec.md](~/Projects/youtube-mcp-server/specs/016-browser-mcp-cors/spec.md)
 **Input**: Feature specification from `/specs/016-browser-mcp-cors/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

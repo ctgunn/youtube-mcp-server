@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-30
-**Feature**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/spec.md)
+**Feature**: [~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/spec.md](~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/spec.md)
 
 ## Content Quality
 

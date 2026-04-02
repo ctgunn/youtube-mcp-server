@@ -14,9 +14,9 @@ Define the externally visible MCP contract updates required so the foundational 
 
 ## Relationship to Prior Contracts
 
-- This contract extends the baseline retrieval behavior introduced in [deep-research-tools-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md).
-- This contract supersedes the repo-specific retrieval request/result shape documented in [retrieval-tool-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/017-retrieval-tool-contract/contracts/retrieval-tool-contract.md) wherever OpenAI compatibility requires a different public contract.
-- This contract preserves the MCP-native tool discovery and result transport model established by [tool-metadata-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/contracts/tool-metadata-contract.md) and the hosted security model defined in [hosted-mcp-security.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
+- This contract extends the baseline retrieval behavior introduced in [deep-research-tools-contract.md](~/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md).
+- This contract supersedes the repo-specific retrieval request/result shape documented in [retrieval-tool-contract.md](~/Projects/youtube-mcp-server/specs/017-retrieval-tool-contract/contracts/retrieval-tool-contract.md) wherever OpenAI compatibility requires a different public contract.
+- This contract preserves the MCP-native tool discovery and result transport model established by [tool-metadata-contract.md](~/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/contracts/tool-metadata-contract.md) and the hosted security model defined in [hosted-mcp-security.md](~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
 
 ## External Guidance Source
 

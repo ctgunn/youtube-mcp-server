@@ -11,7 +11,7 @@
 ## Decision 2: Keep application deployment separate from infrastructure provisioning
 
 - **Decision**: Preserve `scripts/deploy_cloud_run.sh` as the application deployment path and make the new infrastructure layer produce the inputs that deployment path needs.
-- **Rationale**: The repository already contains a validated deployment script, deployment metadata model, and verification workflow in [scripts/deploy_cloud_run.sh](/Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh) and [src/mcp_server/deploy.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py). FND-019 needs reproducible infrastructure, not a wholesale replacement of the existing application rollout contract.
+- **Rationale**: The repository already contains a validated deployment script, deployment metadata model, and verification workflow in [scripts/deploy_cloud_run.sh](~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh) and [src/mcp_server/deploy.py](~/Projects/youtube-mcp-server/src/mcp_server/deploy.py). FND-019 needs reproducible infrastructure, not a wholesale replacement of the existing application rollout contract.
 - **Alternatives considered**:
   - Move both provisioning and deployment into one IaC apply step. Rejected because it would blur the contract between platform provisioning and application rollout and make the existing deployment evidence harder to preserve.
   - Replace the Python deployment workflow entirely. Rejected because the current deploy and verification scripts already match earlier foundation slices and should remain stable consumers of infra outputs.
@@ -19,7 +19,7 @@
 ## Decision 3: Provision the durable hosted session dependency as a Redis-compatible managed backend
 
 - **Decision**: Treat the durable session backend as a required hosted dependency in the GCP infrastructure plan and model its operator-facing output as a secret-backed connection endpoint.
-- **Rationale**: Hosted session durability is already implemented in the runtime through a Redis-backed store, and configuration explicitly distinguishes `memory` from `redis` backends in [src/mcp_server/config.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/config.py) and [src/mcp_server/transport/session_store.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/session_store.py). FND-019 therefore has to provision a Redis-compatible shared-state path rather than assuming it exists.
+- **Rationale**: Hosted session durability is already implemented in the runtime through a Redis-backed store, and configuration explicitly distinguishes `memory` from `redis` backends in [src/mcp_server/config.py](~/Projects/youtube-mcp-server/src/mcp_server/config.py) and [src/mcp_server/transport/session_store.py](~/Projects/youtube-mcp-server/src/mcp_server/transport/session_store.py). FND-019 therefore has to provision a Redis-compatible shared-state path rather than assuming it exists.
 - **Alternatives considered**:
   - Use the shared in-memory `memory://` testing mode for hosted infrastructure. Rejected because it is useful for tests but does not satisfy durable multi-instance hosted behavior.
   - Leave the session backend as an external manual prerequisite. Rejected because the spec requires durable hosted dependencies to be reproducible from versioned infrastructure.

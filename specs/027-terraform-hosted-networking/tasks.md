@@ -11,9 +11,9 @@
 
 **Purpose**: Prepare shared fixtures and examples used across the implementation
 
-- [X] T001 Create shared managed-network Terraform output fixtures in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py
-- [X] T002 [P] Create shared managed-network deployment fixtures in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py
-- [X] T003 [P] Create shared managed-network verification fixtures in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py
+- [X] T001 Create shared managed-network Terraform output fixtures in ~/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py
+- [X] T002 [P] Create shared managed-network deployment fixtures in ~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py
+- [X] T003 [P] Create shared managed-network verification fixtures in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py
 
 ---
 
@@ -23,12 +23,12 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T004 Add failing foundational contract coverage for managed networking inputs and outputs in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py
-- [X] T005 [P] Add failing foundational handoff coverage for managed networking evidence in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_handoff_contract.py
-- [X] T006 [P] Add failing foundational documentation coverage for managed networking examples in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py
-- [X] T007 Implement the shared managed-networking input model in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/variables.tf and /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/terraform.tfvars.example
-- [X] T008 Implement the shared managed-networking output contract in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/outputs.tf
-- [X] T009 Extend deployment mapping and deployment-record models for managed networking evidence in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py
+- [X] T004 Add failing foundational contract coverage for managed networking inputs and outputs in ~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py
+- [X] T005 [P] Add failing foundational handoff coverage for managed networking evidence in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_handoff_contract.py
+- [X] T006 [P] Add failing foundational documentation coverage for managed networking examples in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py
+- [X] T007 Implement the shared managed-networking input model in ~/Projects/youtube-mcp-server/infrastructure/gcp/variables.tf and ~/Projects/youtube-mcp-server/infrastructure/gcp/terraform.tfvars.example
+- [X] T008 Implement the shared managed-networking output contract in ~/Projects/youtube-mcp-server/infrastructure/gcp/outputs.tf
+- [X] T009 Extend deployment mapping and deployment-record models for managed networking evidence in ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py
 
 **Checkpoint**: Foundation ready. User story implementation can now begin.
 
@@ -44,15 +44,15 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T010 [P] [US1] Add contract coverage for Terraform-managed VPC, subnet, and Cloud Run connectivity resources in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py
-- [X] T011 [P] [US1] Add integration coverage for clean-environment durable-session network provisioning in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py
+- [X] T010 [P] [US1] Add contract coverage for Terraform-managed VPC, subnet, and Cloud Run connectivity resources in ~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py
+- [X] T011 [P] [US1] Add integration coverage for clean-environment durable-session network provisioning in ~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py
 
 ### Implementation for User Story 1
 
-- [X] T012 [US1] Implement Terraform-managed VPC and subnet resources in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/network.tf
-- [X] T013 [US1] Implement the managed Cloud Run connectivity resource in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/network.tf
-- [X] T014 [US1] Wire Cloud Run and Redis to the managed networking resources in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/main.tf and /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/session.tf
-- [X] T015 [US1] Refactor Terraform validations and managed-network example inputs in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/variables.tf and /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/terraform.tfvars.example
+- [X] T012 [US1] Implement Terraform-managed VPC and subnet resources in ~/Projects/youtube-mcp-server/infrastructure/gcp/network.tf
+- [X] T013 [US1] Implement the managed Cloud Run connectivity resource in ~/Projects/youtube-mcp-server/infrastructure/gcp/network.tf
+- [X] T014 [US1] Wire Cloud Run and Redis to the managed networking resources in ~/Projects/youtube-mcp-server/infrastructure/gcp/main.tf and ~/Projects/youtube-mcp-server/infrastructure/gcp/session.tf
+- [X] T015 [US1] Refactor Terraform validations and managed-network example inputs in ~/Projects/youtube-mcp-server/infrastructure/gcp/variables.tf and ~/Projects/youtube-mcp-server/infrastructure/gcp/terraform.tfvars.example
 
 **Checkpoint**: User Story 1 should now provision the hosted network layer independently and serve as the MVP for this feature.
 
@@ -66,16 +66,16 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [X] T016 [P] [US2] Add unit coverage for managed-networking Terraform output mapping in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py
-- [X] T017 [P] [US2] Add contract coverage for managed-network output handoff into deployment evidence in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_handoff_contract.py
-- [X] T018 [P] [US2] Add integration coverage for managed-network deployment evidence in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_handoff.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py
+- [X] T016 [P] [US2] Add unit coverage for managed-networking Terraform output mapping in ~/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py
+- [X] T017 [P] [US2] Add contract coverage for managed-network output handoff into deployment evidence in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_handoff_contract.py
+- [X] T018 [P] [US2] Add integration coverage for managed-network deployment evidence in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_handoff.py and ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py
 
 ### Implementation for User Story 2
 
-- [X] T019 [US2] Export managed-network references for deploy and verify handoff in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/outputs.tf
-- [X] T020 [US2] Extend deployment input normalization and deployment-record serialization for managed-network evidence in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py
-- [X] T021 [US2] Update deploy and hosted-verification handoff examples in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md and /Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh
-- [X] T022 [US2] Refactor managed-network output naming and evidence wording in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py and /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md
+- [X] T019 [US2] Export managed-network references for deploy and verify handoff in ~/Projects/youtube-mcp-server/infrastructure/gcp/outputs.tf
+- [X] T020 [US2] Extend deployment input normalization and deployment-record serialization for managed-network evidence in ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py
+- [X] T021 [US2] Update deploy and hosted-verification handoff examples in ~/Projects/youtube-mcp-server/infrastructure/gcp/README.md and ~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh
+- [X] T022 [US2] Refactor managed-network output naming and evidence wording in ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py and ~/Projects/youtube-mcp-server/infrastructure/gcp/README.md
 
 **Checkpoint**: User Story 2 should now expose a reviewable managed-network handoff from Terraform reconciliation through deployment evidence and hosted verification.
 
@@ -89,14 +89,14 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [X] T023 [P] [US3] Add contract coverage for manual-network-prerequisite removal in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_runtime_session_connectivity_contract.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py
-- [X] T024 [P] [US3] Add integration coverage for GCP runbook boundary guidance in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_bootstrap_docs.py
+- [X] T023 [P] [US3] Add contract coverage for manual-network-prerequisite removal in ~/Projects/youtube-mcp-server/tests/contract/test_runtime_session_connectivity_contract.py and ~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py
+- [X] T024 [P] [US3] Add integration coverage for GCP runbook boundary guidance in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py and ~/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_bootstrap_docs.py
 
 ### Implementation for User Story 3
 
-- [X] T025 [US3] Update the supported GCP runbook to remove manual VPC, subnet, and connectivity prerequisites in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md
-- [X] T026 [US3] Update top-level local-versus-hosted networking guidance in /Users/ctgunn/Projects/youtube-mcp-server/README.md and /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/README.md
-- [X] T027 [US3] Refactor remediation and ownership-boundary language across infrastructure examples in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/terraform.tfvars.example and /Users/ctgunn/Projects/youtube-mcp-server/README.md
+- [X] T025 [US3] Update the supported GCP runbook to remove manual VPC, subnet, and connectivity prerequisites in ~/Projects/youtube-mcp-server/infrastructure/gcp/README.md
+- [X] T026 [US3] Update top-level local-versus-hosted networking guidance in ~/Projects/youtube-mcp-server/README.md and ~/Projects/youtube-mcp-server/infrastructure/local/README.md
+- [X] T027 [US3] Refactor remediation and ownership-boundary language across infrastructure examples in ~/Projects/youtube-mcp-server/infrastructure/gcp/terraform.tfvars.example and ~/Projects/youtube-mcp-server/README.md
 
 **Checkpoint**: All user stories should now be independently functional and reviewable.
 
@@ -106,9 +106,9 @@
 
 **Purpose**: Final validation and cross-story cleanup
 
-- [X] T028 [P] Validate the documented operator flows against /Users/ctgunn/Projects/youtube-mcp-server/specs/027-terraform-hosted-networking/quickstart.md
-- [X] T029 Run targeted lint and managed-network regression checks from /Users/ctgunn/Projects/youtube-mcp-server against /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py, /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py, /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_handoff_contract.py, /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py, and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py
-- [X] T030 Run the full repository test suite from /Users/ctgunn/Projects/youtube-mcp-server using `pytest` and resolve failures in impacted files before completion
+- [X] T028 [P] Validate the documented operator flows against ~/Projects/youtube-mcp-server/specs/027-terraform-hosted-networking/quickstart.md
+- [X] T029 Run targeted lint and managed-network regression checks from ~/Projects/youtube-mcp-server against ~/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py, ~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py, ~/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_handoff_contract.py, ~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py, and ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py
+- [X] T030 Run the full repository test suite from ~/Projects/youtube-mcp-server using `pytest` and resolve failures in impacted files before completion
 
 ---
 
@@ -156,33 +156,33 @@
 ## Parallel Example: User Story 1
 
 ```bash
-Task: "Add contract coverage for Terraform-managed VPC, subnet, and Cloud Run connectivity resources in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py"
-Task: "Add integration coverage for clean-environment durable-session network provisioning in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py"
+Task: "Add contract coverage for Terraform-managed VPC, subnet, and Cloud Run connectivity resources in ~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py"
+Task: "Add integration coverage for clean-environment durable-session network provisioning in ~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py"
 ```
 
 ```bash
-Task: "Implement Terraform-managed VPC and subnet resources in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/network.tf"
-Task: "Implement the managed Cloud Run connectivity resource in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/network.tf"
+Task: "Implement Terraform-managed VPC and subnet resources in ~/Projects/youtube-mcp-server/infrastructure/gcp/network.tf"
+Task: "Implement the managed Cloud Run connectivity resource in ~/Projects/youtube-mcp-server/infrastructure/gcp/network.tf"
 ```
 
 ## Parallel Example: User Story 2
 
 ```bash
-Task: "Add unit coverage for managed-networking Terraform output mapping in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py"
-Task: "Add contract coverage for managed-network output handoff into deployment evidence in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_handoff_contract.py"
-Task: "Add integration coverage for managed-network deployment evidence in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_handoff.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py"
+Task: "Add unit coverage for managed-networking Terraform output mapping in ~/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py"
+Task: "Add contract coverage for managed-network output handoff into deployment evidence in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_handoff_contract.py"
+Task: "Add integration coverage for managed-network deployment evidence in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_handoff.py and ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py"
 ```
 
 ## Parallel Example: User Story 3
 
 ```bash
-Task: "Add contract coverage for manual-network-prerequisite removal in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_runtime_session_connectivity_contract.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py"
-Task: "Add integration coverage for GCP runbook boundary guidance in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_bootstrap_docs.py"
+Task: "Add contract coverage for manual-network-prerequisite removal in ~/Projects/youtube-mcp-server/tests/contract/test_runtime_session_connectivity_contract.py and ~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py"
+Task: "Add integration coverage for GCP runbook boundary guidance in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py and ~/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_bootstrap_docs.py"
 ```
 
 ```bash
-Task: "Update the supported GCP runbook to remove manual VPC, subnet, and connectivity prerequisites in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md"
-Task: "Update top-level local-versus-hosted networking guidance in /Users/ctgunn/Projects/youtube-mcp-server/README.md and /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/README.md"
+Task: "Update the supported GCP runbook to remove manual VPC, subnet, and connectivity prerequisites in ~/Projects/youtube-mcp-server/infrastructure/gcp/README.md"
+Task: "Update top-level local-versus-hosted networking guidance in ~/Projects/youtube-mcp-server/README.md and ~/Projects/youtube-mcp-server/infrastructure/local/README.md"
 ```
 
 ---

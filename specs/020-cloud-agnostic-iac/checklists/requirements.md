@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-22
-**Feature**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/spec.md)
+**Feature**: [spec.md](~/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/spec.md)
 
 ## Content Quality
 
@@ -31,5 +31,5 @@
 
 ## Notes
 
-- Validation completed against [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/spec.md) with no open clarification items.
+- Validation completed against [spec.md](~/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/spec.md) with no open clarification items.
 - The spec is ready for `/speckit.plan`.

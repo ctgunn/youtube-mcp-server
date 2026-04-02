@@ -44,7 +44,7 @@ The public-access workflow must define or document:
 - Cloud Run public invocation determines whether the hosted service can be reached at all.
 - MCP bearer-token authentication determines whether a reachable caller may use protected `/mcp` routes.
 - `/health` and `/ready` remain outside the MCP bearer-token contract.
-- Protected `/mcp` behavior continues to follow the hosted security contract in [hosted-mcp-security.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
+- Protected `/mcp` behavior continues to follow the hosted security contract in [hosted-mcp-security.md](~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
 
 ## Failure Contract
 

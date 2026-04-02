@@ -1,6 +1,6 @@
 # Implementation Plan: FND-009 MCP Streamable HTTP Transport
 
-**Branch**: `009-mcp-streamable-http-transport` | **Date**: 2026-03-15 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md)
+**Branch**: `009-mcp-streamable-http-transport` | **Date**: 2026-03-15 | **Spec**: [~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md](~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md)
 **Input**: Feature specification from `/specs/009-mcp-streamable-http-transport/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

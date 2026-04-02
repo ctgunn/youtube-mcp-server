@@ -1,6 +1,6 @@
 # Implementation Plan: FND-007 Hosted Probe Semantics + HTTP Hardening
 
-**Branch**: `007-hosted-http-hardening` | **Date**: 2026-03-15 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/spec.md)
+**Branch**: `007-hosted-http-hardening` | **Date**: 2026-03-15 | **Spec**: [~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/spec.md](~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/spec.md)
 **Input**: Feature specification from `/specs/007-hosted-http-hardening/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

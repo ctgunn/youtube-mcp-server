@@ -13,8 +13,8 @@ Define the externally visible MCP contract for the foundational `search` and `fe
 
 ## Relationship to Prior Contracts
 
-- This contract extends [/Users/ctgunn/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/contracts/tool-metadata-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/contracts/tool-metadata-contract.md) by adding the first non-baseline MCP tools and their result shapes.
-- This contract depends on the hosted access rules defined in [/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
+- This contract extends [~/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/contracts/tool-metadata-contract.md](~/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/contracts/tool-metadata-contract.md) by adding the first non-baseline MCP tools and their result shapes.
+- This contract depends on the hosted access rules defined in [~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md](~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
 
 ## Tool Discovery
 

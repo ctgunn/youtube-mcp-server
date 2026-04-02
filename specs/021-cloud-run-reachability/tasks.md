@@ -1,7 +1,7 @@
 # Tasks: Cloud Run Public Reachability for Remote MCP
 
 **Input**: Design documents from `/specs/021-cloud-run-reachability/`
-**Prerequisites**: [plan.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/plan.md), [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/spec.md), [research.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/research.md), [data-model.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/data-model.md), [quickstart.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/quickstart.md), [cloud-run-public-access-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/contracts/cloud-run-public-access-contract.md), [hosted-reachability-verification-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/contracts/hosted-reachability-verification-contract.md)
+**Prerequisites**: [plan.md](~/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/plan.md), [spec.md](~/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/spec.md), [research.md](~/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/research.md), [data-model.md](~/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/data-model.md), [quickstart.md](~/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/quickstart.md), [cloud-run-public-access-contract.md](~/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/contracts/cloud-run-public-access-contract.md), [hosted-reachability-verification-contract.md](~/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/contracts/hosted-reachability-verification-contract.md)
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes Red-Green-Refactor coverage tasks. Completion requires a passing full repository test-suite run after the final code changes.
 
@@ -234,7 +234,7 @@ Task: "Add deployment asset regression coverage for denial diagnostics in tests/
 ## Notes
 
 - `[P]` tasks modify different files and are safe parallel candidates once dependencies are satisfied.
-- `[US1]`, `[US2]`, and `[US3]` map directly to the stories in [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/spec.md).
+- `[US1]`, `[US2]`, and `[US3]` map directly to the stories in [spec.md](~/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/spec.md).
 - Every story includes explicit Red, Green, and Refactor work.
 - Targeted test runs are not completion proof; `pytest` in `T033` is the completion gate.
 - The recommended MVP scope is **User Story 1 only** after Setup and Foundational work.

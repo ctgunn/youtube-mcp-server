@@ -14,9 +14,9 @@ Define the external MCP error-code contract changes required to replace string-s
 
 ## Relationship to Prior Contracts
 
-- This contract tightens the error mapping defined by [/Users/ctgunn/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/contracts/mcp-protocol-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/contracts/mcp-protocol-contract.md), which currently documents string-style codes.
-- This contract preserves the hosted access-control and status-family behavior defined by [/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
-- This contract must remain compatible with the streamable hosted transport expectations defined by [/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/contracts/mcp-streamable-http-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/contracts/mcp-streamable-http-contract.md).
+- This contract tightens the error mapping defined by [~/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/contracts/mcp-protocol-contract.md](~/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/contracts/mcp-protocol-contract.md), which currently documents string-style codes.
+- This contract preserves the hosted access-control and status-family behavior defined by [~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md](~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
+- This contract must remain compatible with the streamable hosted transport expectations defined by [~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/contracts/mcp-streamable-http-contract.md](~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/contracts/mcp-streamable-http-contract.md).
 - This contract also updates downstream tool contracts that still refer to string-style failure codes, including retrieval-tool error examples introduced in prior features.
 
 ## Common Error Shape

@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-01
-**Feature**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/002-tool-registry-dispatcher/spec.md)
+**Feature**: [spec.md](~/Projects/youtube-mcp-server/specs/002-tool-registry-dispatcher/spec.md)
 
 ## Content Quality
 

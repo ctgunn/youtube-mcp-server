@@ -14,9 +14,9 @@ Define the externally visible MCP contract updates required so clients can const
 
 ## Relationship to Prior Contracts
 
-- This contract tightens the retrieval-tool discovery expectations introduced in [/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md).
-- This contract preserves the MCP-native discovery and result format defined by [/Users/ctgunn/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/spec.md).
-- This contract must remain compatible with the protected hosted access rules already defined in [/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
+- This contract tightens the retrieval-tool discovery expectations introduced in [~/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md](~/Projects/youtube-mcp-server/specs/014-deep-research-tools/contracts/deep-research-tools-contract.md).
+- This contract preserves the MCP-native discovery and result format defined by [~/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/spec.md](~/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/spec.md).
+- This contract must remain compatible with the protected hosted access rules already defined in [~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md](~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
 
 ## Tool Discovery
 

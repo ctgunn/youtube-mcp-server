@@ -1,7 +1,7 @@
 # Tasks: Local Runtime Ergonomics and Environment Entry Point
 
-**Input**: Design documents from `/Users/ctgunn/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/`
-**Prerequisites**: `/Users/ctgunn/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/plan.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/spec.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/research.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/data-model.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/contracts/local-runtime-entrypoint-contract.md`
+**Input**: Design documents from `~/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/`
+**Prerequisites**: `~/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/plan.md`, `~/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/spec.md`, `~/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/research.md`, `~/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/data-model.md`, `~/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/contracts/local-runtime-entrypoint-contract.md`
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes Red-Green-Refactor coverage tasks. Completion requires a passing full repository test-suite run after the final code changes.
 
@@ -17,8 +17,8 @@
 
 **Purpose**: Prepare shared validation surfaces for the local-runtime workflow changes.
 
-- [x] T001 Create a focused script-regression test module in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_dev_local_script.py`
-- [x] T002 [P] Create a feature-specific workflow coverage module in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py`
+- [x] T001 Create a focused script-regression test module in `~/Projects/youtube-mcp-server/tests/unit/test_dev_local_script.py`
+- [x] T002 [P] Create a feature-specific workflow coverage module in `~/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py`
 
 ---
 
@@ -28,10 +28,10 @@
 
 **⚠️ CRITICAL**: No user story work should begin until this phase is complete.
 
-- [x] T003 Add failing regression tests for missing `.env.local` handling and hosted-mode selection in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_dev_local_script.py`
-- [x] T004 [P] Add failing integration checks for canonical entrypoint references and shared local workflow expectations in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py`
-- [x] T005 Implement deterministic `.env.local` loading, hosted-mode override handling, and operator-facing failure messaging in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/dev_local.sh`
-- [x] T006 Refactor minimal-local and hosted-like mode branching for clarity and testability in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/dev_local.sh`
+- [x] T003 Add failing regression tests for missing `.env.local` handling and hosted-mode selection in `~/Projects/youtube-mcp-server/tests/unit/test_dev_local_script.py`
+- [x] T004 [P] Add failing integration checks for canonical entrypoint references and shared local workflow expectations in `~/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py`
+- [x] T005 Implement deterministic `.env.local` loading, hosted-mode override handling, and operator-facing failure messaging in `~/Projects/youtube-mcp-server/scripts/dev_local.sh`
+- [x] T006 Refactor minimal-local and hosted-like mode branching for clarity and testability in `~/Projects/youtube-mcp-server/scripts/dev_local.sh`
 
 **Checkpoint**: Foundation ready. User stories can proceed in priority order and remain independently testable.
 
@@ -47,14 +47,14 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [x] T007 [P] [US1] Add failing README assertions for the canonical `bash scripts/dev_local.sh` minimal startup flow in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`
-- [x] T008 [P] [US1] Add failing minimal-local workflow assertions for startup evidence and no-cloud prerequisites in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py`
+- [x] T007 [P] [US1] Add failing README assertions for the canonical `bash scripts/dev_local.sh` minimal startup flow in `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`
+- [x] T008 [P] [US1] Add failing minimal-local workflow assertions for startup evidence and no-cloud prerequisites in `~/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py`
 
 ### Implementation for User Story 1
 
-- [x] T009 [US1] Update the minimal local runtime section to use `bash scripts/dev_local.sh` as the canonical startup path in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
-- [x] T010 [US1] Document baseline `.env.local` expectations and local-start success checks in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
-- [x] T011 [US1] Refactor duplicated minimal-local startup wording into one source of truth in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
+- [x] T009 [US1] Update the minimal local runtime section to use `bash scripts/dev_local.sh` as the canonical startup path in `~/Projects/youtube-mcp-server/README.md`
+- [x] T010 [US1] Document baseline `.env.local` expectations and local-start success checks in `~/Projects/youtube-mcp-server/README.md`
+- [x] T011 [US1] Refactor duplicated minimal-local startup wording into one source of truth in `~/Projects/youtube-mcp-server/README.md`
 
 **Checkpoint**: User Story 1 should be fully functional and testable on its own.
 
@@ -68,14 +68,14 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [x] T012 [P] [US2] Add failing contract assertions for hosted-like companion workflow guarantees and failure guidance in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
-- [x] T013 [P] [US2] Add failing integration assertions for dependency bootstrap, entrypoint reuse, and shutdown flow in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_agnostic_infrastructure_workflows.py`
+- [x] T012 [P] [US2] Add failing contract assertions for hosted-like companion workflow guarantees and failure guidance in `~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
+- [x] T013 [P] [US2] Add failing integration assertions for dependency bootstrap, entrypoint reuse, and shutdown flow in `~/Projects/youtube-mcp-server/tests/integration/test_cloud_agnostic_infrastructure_workflows.py`
 
 ### Implementation for User Story 2
 
-- [x] T014 [US2] Update hosted-like local verification instructions, dependency bootstrap, and failure recovery in `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/README.md`
-- [x] T015 [US2] Align hosted-like local example values and override guidance with the companion workflow in `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/.env.example`
-- [x] T016 [US2] Refactor hosted-like local wording and command sequencing across `/Users/ctgunn/Projects/youtube-mcp-server/README.md` and `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/README.md`
+- [x] T014 [US2] Update hosted-like local verification instructions, dependency bootstrap, and failure recovery in `~/Projects/youtube-mcp-server/infrastructure/local/README.md`
+- [x] T015 [US2] Align hosted-like local example values and override guidance with the companion workflow in `~/Projects/youtube-mcp-server/infrastructure/local/.env.example`
+- [x] T016 [US2] Refactor hosted-like local wording and command sequencing across `~/Projects/youtube-mcp-server/README.md` and `~/Projects/youtube-mcp-server/infrastructure/local/README.md`
 
 **Checkpoint**: User Story 2 should be independently testable without relying on User Story 1 implementation details beyond the shared entrypoint.
 
@@ -89,14 +89,14 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [x] T017 [P] [US3] Add failing documentation-boundary assertions for local versus hosted variables in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
-- [x] T018 [P] [US3] Add failing workflow-boundary assertions for baseline defaults versus hosted-like overrides in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py`
+- [x] T017 [P] [US3] Add failing documentation-boundary assertions for local versus hosted variables in `~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
+- [x] T018 [P] [US3] Add failing workflow-boundary assertions for baseline defaults versus hosted-like overrides in `~/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py`
 
 ### Implementation for User Story 3
 
-- [x] T019 [US3] Reorganize baseline local variable groups and override comments in `/Users/ctgunn/Projects/youtube-mcp-server/.env.local`
-- [x] T020 [US3] Document baseline local variables, hosted-like overrides, and hosted deployment-only inputs in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
-- [x] T021 [US3] Refactor variable terminology for consistency across `/Users/ctgunn/Projects/youtube-mcp-server/.env.local`, `/Users/ctgunn/Projects/youtube-mcp-server/README.md`, and `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/.env.example`
+- [x] T019 [US3] Reorganize baseline local variable groups and override comments in `~/Projects/youtube-mcp-server/.env.local`
+- [x] T020 [US3] Document baseline local variables, hosted-like overrides, and hosted deployment-only inputs in `~/Projects/youtube-mcp-server/README.md`
+- [x] T021 [US3] Refactor variable terminology for consistency across `~/Projects/youtube-mcp-server/.env.local`, `~/Projects/youtube-mcp-server/README.md`, and `~/Projects/youtube-mcp-server/infrastructure/local/.env.example`
 
 **Checkpoint**: All three user stories should now be independently functional and reviewable.
 
@@ -106,10 +106,10 @@
 
 **Purpose**: Final validation, cleanup, and full-suite proof.
 
-- [x] T022 [P] Validate the quickstart flows against `/Users/ctgunn/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/quickstart.md`, `/Users/ctgunn/Projects/youtube-mcp-server/scripts/dev_local.sh`, `/Users/ctgunn/Projects/youtube-mcp-server/README.md`, and `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/README.md`
-- [x] T023 [P] Remove redundant assertions and tighten regression coverage in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_dev_local_script.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_agnostic_infrastructure_workflows.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
-- [x] T024 Run `pytest` from `/Users/ctgunn/Projects/youtube-mcp-server` and resolve any failing tests in `/Users/ctgunn/Projects/youtube-mcp-server/tests/` and other touched files before completion
-- [x] T025 Run `ruff check .` from `/Users/ctgunn/Projects/youtube-mcp-server` and resolve any remaining lint issues in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/dev_local.sh`, `/Users/ctgunn/Projects/youtube-mcp-server/README.md`, `/Users/ctgunn/Projects/youtube-mcp-server/.env.local`, and related touched files
+- [x] T022 [P] Validate the quickstart flows against `~/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/quickstart.md`, `~/Projects/youtube-mcp-server/scripts/dev_local.sh`, `~/Projects/youtube-mcp-server/README.md`, and `~/Projects/youtube-mcp-server/infrastructure/local/README.md`
+- [x] T023 [P] Remove redundant assertions and tighten regression coverage in `~/Projects/youtube-mcp-server/tests/unit/test_dev_local_script.py`, `~/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py`, `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`, `~/Projects/youtube-mcp-server/tests/integration/test_cloud_agnostic_infrastructure_workflows.py`, `~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`, and `~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
+- [x] T024 Run `pytest` from `~/Projects/youtube-mcp-server` and resolve any failing tests in `~/Projects/youtube-mcp-server/tests/` and other touched files before completion
+- [x] T025 Run `ruff check .` from `~/Projects/youtube-mcp-server` and resolve any remaining lint issues in `~/Projects/youtube-mcp-server/scripts/dev_local.sh`, `~/Projects/youtube-mcp-server/README.md`, `~/Projects/youtube-mcp-server/.env.local`, and related touched files
 
 ---
 
@@ -160,24 +160,24 @@ Recommended completion order:
 ## Parallel Example: User Story 1
 
 ```bash
-Task: "T007 [US1] Add failing README assertions for the canonical bash scripts/dev_local.sh minimal startup flow in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py"
-Task: "T008 [US1] Add failing minimal-local workflow assertions for startup evidence and no-cloud prerequisites in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py"
+Task: "T007 [US1] Add failing README assertions for the canonical bash scripts/dev_local.sh minimal startup flow in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py"
+Task: "T008 [US1] Add failing minimal-local workflow assertions for startup evidence and no-cloud prerequisites in ~/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py"
 ```
 
 ## Parallel Example: User Story 2
 
 ```bash
-Task: "T012 [US2] Add failing contract assertions for hosted-like companion workflow guarantees and failure guidance in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py"
-Task: "T013 [US2] Add failing integration assertions for dependency bootstrap, entrypoint reuse, and shutdown flow in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_agnostic_infrastructure_workflows.py"
-Task: "T015 [US2] Align hosted-like local example values and override guidance with the companion workflow in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/.env.example"
+Task: "T012 [US2] Add failing contract assertions for hosted-like companion workflow guarantees and failure guidance in ~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py"
+Task: "T013 [US2] Add failing integration assertions for dependency bootstrap, entrypoint reuse, and shutdown flow in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_agnostic_infrastructure_workflows.py"
+Task: "T015 [US2] Align hosted-like local example values and override guidance with the companion workflow in ~/Projects/youtube-mcp-server/infrastructure/local/.env.example"
 ```
 
 ## Parallel Example: User Story 3
 
 ```bash
-Task: "T017 [US3] Add failing documentation-boundary assertions for local versus hosted variables in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py"
-Task: "T018 [US3] Add failing workflow-boundary assertions for baseline defaults versus hosted-like overrides in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py"
-Task: "T019 [US3] Reorganize baseline local variable groups and override comments in /Users/ctgunn/Projects/youtube-mcp-server/.env.local"
+Task: "T017 [US3] Add failing documentation-boundary assertions for local versus hosted variables in ~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py"
+Task: "T018 [US3] Add failing workflow-boundary assertions for baseline defaults versus hosted-like overrides in ~/Projects/youtube-mcp-server/tests/integration/test_local_runtime_entrypoint.py"
+Task: "T019 [US3] Reorganize baseline local variable groups and override comments in ~/Projects/youtube-mcp-server/.env.local"
 ```
 
 ---

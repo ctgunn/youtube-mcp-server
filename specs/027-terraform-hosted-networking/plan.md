@@ -1,6 +1,6 @@
 # Implementation Plan: Terraform-Managed Hosted Networking for Durable Sessions
 
-**Branch**: `027-terraform-hosted-networking` | **Date**: 2026-03-30 | **Spec**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/027-terraform-hosted-networking/spec.md)
+**Branch**: `027-terraform-hosted-networking` | **Date**: 2026-03-30 | **Spec**: [spec.md](~/Projects/youtube-mcp-server/specs/027-terraform-hosted-networking/spec.md)
 **Input**: Feature specification from `/specs/027-terraform-hosted-networking/spec.md`
 
 ## Summary

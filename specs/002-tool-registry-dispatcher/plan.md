@@ -1,6 +1,6 @@
 # Implementation Plan: Tool Registry + Dispatcher (FND-002)
 
-**Branch**: `002-tool-registry-dispatcher` | **Date**: 2026-03-01 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/002-tool-registry-dispatcher/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/002-tool-registry-dispatcher/spec.md)
+**Branch**: `002-tool-registry-dispatcher` | **Date**: 2026-03-01 | **Spec**: [~/Projects/youtube-mcp-server/specs/002-tool-registry-dispatcher/spec.md](~/Projects/youtube-mcp-server/specs/002-tool-registry-dispatcher/spec.md)
 **Input**: Feature specification from `/specs/002-tool-registry-dispatcher/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.

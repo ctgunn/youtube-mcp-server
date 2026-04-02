@@ -1,6 +1,6 @@
 # Implementation Plan: Automated Hosted Deployment Orchestration
 
-**Branch**: `025-hosted-deploy-orchestration` | **Date**: 2026-03-30 | **Spec**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/spec.md)
+**Branch**: `025-hosted-deploy-orchestration` | **Date**: 2026-03-30 | **Spec**: [spec.md](~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/spec.md)
 **Input**: Feature specification from `/specs/025-hosted-deploy-orchestration/spec.md`
 
 ## Summary

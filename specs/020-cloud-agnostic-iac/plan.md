@@ -1,6 +1,6 @@
 # Implementation Plan: Cloud-Agnostic Infrastructure Module Strategy
 
-**Branch**: `020-cloud-agnostic-iac` | **Date**: 2026-03-22 | **Spec**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/spec.md)
+**Branch**: `020-cloud-agnostic-iac` | **Date**: 2026-03-22 | **Spec**: [spec.md](~/Projects/youtube-mcp-server/specs/020-cloud-agnostic-iac/spec.md)
 **Input**: Feature specification from `/specs/020-cloud-agnostic-iac/spec.md`
 
 ## Summary

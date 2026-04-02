@@ -14,9 +14,9 @@ Define the externally visible hosted MCP contract changes required to make sessi
 
 ## Relationship to Prior Contracts
 
-- This contract extends [/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md) by hardening the hosted session model behind the existing streamable transport.
-- This contract depends on the security boundary in [/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
-- This contract preserves the MCP-native request and result semantics established in [/Users/ctgunn/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md).
+- This contract extends [~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md](~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md) by hardening the hosted session model behind the existing streamable transport.
+- This contract depends on the security boundary in [~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md](~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md).
+- This contract preserves the MCP-native request and result semantics established in [~/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md](~/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md).
 
 ## Session Creation
 

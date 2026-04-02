@@ -1,6 +1,6 @@
 # Implementation Plan: Remote MCP Security and Transport Hardening
 
-**Branch**: `013-remote-mcp-security` | **Date**: 2026-03-16 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/spec.md)
+**Branch**: `013-remote-mcp-security` | **Date**: 2026-03-16 | **Spec**: [~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/spec.md](~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/spec.md)
 **Input**: Feature specification from `/specs/013-remote-mcp-security/spec.md`
 
 ## Summary

@@ -21,9 +21,9 @@
 
 **Purpose**: Create the hosted HTTP hardening test and contract scaffolding for this feature
 
-- [X] T001 Create FND-007 task scaffolding references in `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/tasks.md`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`, and `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/contracts/hosted-http-contract.md`
-- [X] T002 [P] Create hosted HTTP unit test scaffolding in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py`
-- [X] T003 [P] Create hosted route integration test scaffolding in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
+- [X] T001 Create FND-007 task scaffolding references in `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/tasks.md`, `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`, and `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/contracts/hosted-http-contract.md`
+- [X] T002 [P] Create hosted HTTP unit test scaffolding in `~/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py`
+- [X] T003 [P] Create hosted route integration test scaffolding in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
 
 ---
 
@@ -33,13 +33,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T004 Add failing unit tests for hosted request classification and status selection in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py`
-- [X] T005 [P] Add failing integration tests for Cloud Run entrypoint method and path routing in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
-- [X] T006 [P] Add failing contract coverage for hosted route semantics in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`
-- [X] T007 Implement shared hosted request classification and response metadata helpers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/http.py`
-- [X] T008 [P] Implement hosted JSON response-writing and content-type helpers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
-- [X] T009 [P] Document foundational hosted status-mapping rules in `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/contracts/hosted-http-contract.md` and `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`
-- [X] T010 Refactor shared classification and response-mapping paths while keeping `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py` green
+- [X] T004 Add failing unit tests for hosted request classification and status selection in `~/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py`
+- [X] T005 [P] Add failing integration tests for Cloud Run entrypoint method and path routing in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
+- [X] T006 [P] Add failing contract coverage for hosted route semantics in `~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py` and `~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`
+- [X] T007 Implement shared hosted request classification and response metadata helpers in `~/Projects/youtube-mcp-server/src/mcp_server/transport/http.py`
+- [X] T008 [P] Implement hosted JSON response-writing and content-type helpers in `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
+- [X] T009 [P] Document foundational hosted status-mapping rules in `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/contracts/hosted-http-contract.md` and `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`
+- [X] T010 Refactor shared classification and response-mapping paths while keeping `~/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py`, `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`, and `~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py` green
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -55,16 +55,16 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T011 [P] [US1] Add failing contract tests for `/healthz` and `/readyz` hosted status semantics in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_readiness_contract.py`
-- [X] T012 [P] [US1] Add failing integration tests for ready and not-ready hosted probe responses in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_readiness_flow.py`
-- [X] T013 [US1] Add failing unit tests for readiness outcome-to-status mapping in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py`
+- [X] T011 [P] [US1] Add failing contract tests for `/healthz` and `/readyz` hosted status semantics in `~/Projects/youtube-mcp-server/tests/contract/test_readiness_contract.py`
+- [X] T012 [P] [US1] Add failing integration tests for ready and not-ready hosted probe responses in `~/Projects/youtube-mcp-server/tests/integration/test_readiness_flow.py`
+- [X] T013 [US1] Add failing unit tests for readiness outcome-to-status mapping in `~/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py`
 
 ### Implementation for User Story 1
 
-- [X] T014 [US1] Implement hosted readiness status mapping for ready and not-ready states in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/http.py`
-- [X] T015 [US1] Preserve lightweight liveness and readiness payload behavior in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/health.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
-- [X] T016 [US1] Document hosted probe expectations and retry guidance in `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/contracts/hosted-http-contract.md` and `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`
-- [X] T017 [US1] Refactor probe route handling to use one shared readiness/liveness decision path while keeping `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_readiness_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_readiness_flow.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py` green
+- [X] T014 [US1] Implement hosted readiness status mapping for ready and not-ready states in `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py` and `~/Projects/youtube-mcp-server/src/mcp_server/transport/http.py`
+- [X] T015 [US1] Preserve lightweight liveness and readiness payload behavior in `~/Projects/youtube-mcp-server/src/mcp_server/health.py` and `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
+- [X] T016 [US1] Document hosted probe expectations and retry guidance in `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/contracts/hosted-http-contract.md` and `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`
+- [X] T017 [US1] Refactor probe route handling to use one shared readiness/liveness decision path while keeping `~/Projects/youtube-mcp-server/tests/contract/test_readiness_contract.py`, `~/Projects/youtube-mcp-server/tests/integration/test_readiness_flow.py`, and `~/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py` green
 
 **Checkpoint**: User Story 1 is independently functional and testable as the MVP
 
@@ -78,17 +78,17 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [X] T018 [P] [US2] Add failing contract tests for hosted `/mcp` status codes and error envelopes in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`
-- [X] T019 [P] [US2] Add failing integration tests for malformed JSON and unsupported media type handling in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
-- [X] T020 [US2] Add failing integration tests for successful hosted MCP request content-type and response handling in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
+- [X] T018 [P] [US2] Add failing contract tests for hosted `/mcp` status codes and error envelopes in `~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`
+- [X] T019 [P] [US2] Add failing integration tests for malformed JSON and unsupported media type handling in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
+- [X] T020 [US2] Add failing integration tests for successful hosted MCP request content-type and response handling in `~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
 
 ### Implementation for User Story 2
 
-- [X] T021 [US2] Implement hosted `/mcp` request validation for JSON decoding and supported media types in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
-- [X] T022 [US2] Implement hosted MCP status-code mapping for success and client-error outcomes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/http.py`
-- [X] T023 [US2] Preserve normalized MCP error payloads and request correlation for hosted failures in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/envelope.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
-- [X] T024 [US2] Document hosted MCP request rules and failure semantics in `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/contracts/hosted-http-contract.md` and `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`
-- [X] T025 [US2] Refactor hosted MCP response handling to minimize branching while keeping `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py` green
+- [X] T021 [US2] Implement hosted `/mcp` request validation for JSON decoding and supported media types in `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
+- [X] T022 [US2] Implement hosted MCP status-code mapping for success and client-error outcomes in `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py` and `~/Projects/youtube-mcp-server/src/mcp_server/transport/http.py`
+- [X] T023 [US2] Preserve normalized MCP error payloads and request correlation for hosted failures in `~/Projects/youtube-mcp-server/src/mcp_server/protocol/envelope.py`, `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`, and `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
+- [X] T024 [US2] Document hosted MCP request rules and failure semantics in `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/contracts/hosted-http-contract.md` and `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`
+- [X] T025 [US2] Refactor hosted MCP response handling to minimize branching while keeping `~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py`, `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`, and `~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py` green
 
 **Checkpoint**: User Stories 1 and 2 both work independently, and hosted MCP behavior is deterministic
 
@@ -102,16 +102,16 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [X] T026 [P] [US3] Add failing contract tests for unknown-path and unsupported-method behavior in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py`
-- [X] T027 [P] [US3] Add failing integration tests for unknown-path and wrong-method hosted requests in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
-- [X] T028 [US3] Add failing unit tests for `method_not_allowed` versus `not_found` classification in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py`
+- [X] T026 [P] [US3] Add failing contract tests for unknown-path and unsupported-method behavior in `~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py`
+- [X] T027 [P] [US3] Add failing integration tests for unknown-path and wrong-method hosted requests in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
+- [X] T028 [US3] Add failing unit tests for `method_not_allowed` versus `not_found` classification in `~/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py`
 
 ### Implementation for User Story 3
 
-- [X] T029 [US3] Implement unknown-path and unsupported-method classification in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/http.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
-- [X] T030 [US3] Implement machine-readable JSON error responses for unsupported hosted requests in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/envelope.py`
-- [X] T031 [US3] Document unsupported-route diagnostics and expected statuses in `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/contracts/hosted-http-contract.md` and `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`
-- [X] T032 [US3] Refactor route classification and error-body selection while keeping `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py` green
+- [X] T029 [US3] Implement unknown-path and unsupported-method classification in `~/Projects/youtube-mcp-server/src/mcp_server/transport/http.py` and `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
+- [X] T030 [US3] Implement machine-readable JSON error responses for unsupported hosted requests in `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py` and `~/Projects/youtube-mcp-server/src/mcp_server/protocol/envelope.py`
+- [X] T031 [US3] Document unsupported-route diagnostics and expected statuses in `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/contracts/hosted-http-contract.md` and `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`
+- [X] T032 [US3] Refactor route classification and error-body selection while keeping `~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py`, `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`, and `~/Projects/youtube-mcp-server/tests/unit/test_hosted_http_semantics.py` green
 
 **Checkpoint**: All user stories are independently functional and unsupported hosted traffic is diagnosable
 
@@ -121,9 +121,9 @@
 
 **Purpose**: Final regression, local-to-hosted parity validation, and cross-story documentation cleanup
 
-- [X] T033 [P] Add regression coverage for local-to-hosted status parity across `/healthz`, `/readyz`, `/mcp`, and unknown paths in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
-- [X] T034 [P] Update feature execution notes and validation evidence in `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md` and `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/tasks.md`
-- [X] T035 Run and record full regression validation in `/Users/ctgunn/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`
+- [X] T033 [P] Add regression coverage for local-to-hosted status parity across `/healthz`, `/readyz`, `/mcp`, and unknown paths in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py` and `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
+- [X] T034 [P] Update feature execution notes and validation evidence in `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md` and `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/tasks.md`
+- [X] T035 Run and record full regression validation in `~/Projects/youtube-mcp-server/specs/007-hosted-http-hardening/quickstart.md`
 
 ---
 
@@ -174,24 +174,24 @@
 
 ```bash
 # Launch User Story 1 Red tasks together
-Task: "Add failing contract tests for /healthz and /readyz hosted status semantics in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_readiness_contract.py"
-Task: "Add failing integration tests for ready and not-ready hosted probe responses in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_readiness_flow.py"
+Task: "Add failing contract tests for /healthz and /readyz hosted status semantics in ~/Projects/youtube-mcp-server/tests/contract/test_readiness_contract.py"
+Task: "Add failing integration tests for ready and not-ready hosted probe responses in ~/Projects/youtube-mcp-server/tests/integration/test_readiness_flow.py"
 ```
 
 ## Parallel Example: User Story 2
 
 ```bash
 # Launch User Story 2 Red tasks together
-Task: "Add failing contract tests for hosted /mcp status codes and error envelopes in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py"
-Task: "Add failing integration tests for malformed JSON and unsupported media type handling in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py"
+Task: "Add failing contract tests for hosted /mcp status codes and error envelopes in ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py"
+Task: "Add failing integration tests for malformed JSON and unsupported media type handling in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py"
 ```
 
 ## Parallel Example: User Story 3
 
 ```bash
 # Launch User Story 3 Red tasks together
-Task: "Add failing contract tests for unknown-path and unsupported-method behavior in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py"
-Task: "Add failing integration tests for unknown-path and wrong-method hosted requests in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py"
+Task: "Add failing contract tests for unknown-path and unsupported-method behavior in ~/Projects/youtube-mcp-server/tests/contract/test_operational_observability_contract.py"
+Task: "Add failing integration tests for unknown-path and wrong-method hosted requests in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py"
 ```
 
 ---

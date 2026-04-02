@@ -1,6 +1,6 @@
 # Implementation Plan: Local Runtime Ergonomics and Environment Entry Point
 
-**Branch**: `026-local-runtime-entrypoint` | **Date**: 2026-03-30 | **Spec**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/spec.md)
+**Branch**: `026-local-runtime-entrypoint` | **Date**: 2026-03-30 | **Spec**: [spec.md](~/Projects/youtube-mcp-server/specs/026-local-runtime-entrypoint/spec.md)
 **Input**: Feature specification from `/specs/026-local-runtime-entrypoint/spec.md`
 
 ## Summary

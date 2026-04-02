@@ -1,6 +1,6 @@
 # Implementation Plan: OpenAI Retrieval Compatibility
 
-**Branch**: `023-openai-retrieval-compatibility` | **Date**: 2026-03-25 | **Spec**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/spec.md)
+**Branch**: `023-openai-retrieval-compatibility` | **Date**: 2026-03-25 | **Spec**: [spec.md](~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/spec.md)
 **Input**: Feature specification from `/specs/023-openai-retrieval-compatibility/spec.md`
 
 ## Summary

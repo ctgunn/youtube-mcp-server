@@ -1,6 +1,6 @@
 # Implementation Plan: Automated Hosted Network Bootstrap Reconciliation
 
-**Branch**: `028-hosted-network-bootstrap` | **Date**: 2026-03-31 | **Spec**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/spec.md)
+**Branch**: `028-hosted-network-bootstrap` | **Date**: 2026-03-31 | **Spec**: [spec.md](~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/spec.md)
 **Input**: Feature specification from `/specs/028-hosted-network-bootstrap/spec.md`
 
 ## Summary

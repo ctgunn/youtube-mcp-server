@@ -1,7 +1,7 @@
 # Tasks: OpenAI Retrieval Compatibility
 
 **Input**: Design documents from `/specs/023-openai-retrieval-compatibility/`
-**Prerequisites**: [plan.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/plan.md), [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/spec.md), [research.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/research.md), [data-model.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/data-model.md), [contracts/openai-retrieval-compatibility-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/contracts/openai-retrieval-compatibility-contract.md), [quickstart.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md)
+**Prerequisites**: [plan.md](~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/plan.md), [spec.md](~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/spec.md), [research.md](~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/research.md), [data-model.md](~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/data-model.md), [contracts/openai-retrieval-compatibility-contract.md](~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/contracts/openai-retrieval-compatibility-contract.md), [quickstart.md](~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md)
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change must include Red-Green-Refactor coverage tasks. Completion requires a passing full repository test-suite run after the final code changes.
 
@@ -17,9 +17,9 @@
 
 **Purpose**: Confirm the existing retrieval surfaces and planning artifacts that this slice will change.
 
-- [X] T001 Review retrieval implementation seams in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py, /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py, and /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py
-- [X] T002 [P] Review retrieval test seams in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py, /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py, and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
-- [X] T003 [P] Review hosted verification and docs seams in /Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py
+- [X] T001 Review retrieval implementation seams in ~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py, ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py, and ~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py
+- [X] T002 [P] Review retrieval test seams in ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py, ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py, and ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
+- [X] T003 [P] Review hosted verification and docs seams in ~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py and ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py
 
 ---
 
@@ -29,10 +29,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T004 Create a shared OpenAI-compatible retrieval contract plan in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py covering `search` query input, `fetch` id input, result field names, and legacy-shape policy
-- [X] T005 [P] Add foundational regression expectations for retrieval contract changes in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py for empty-search success and unavailable-fetch failure semantics
-- [X] T006 [P] Add foundational hosted verification check placeholders for OpenAI retrieval flow in /Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py
-- [X] T007 Record the full targeted Red suite command for retrieval compatibility in /Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md
+- [X] T004 Create a shared OpenAI-compatible retrieval contract plan in ~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py covering `search` query input, `fetch` id input, result field names, and legacy-shape policy
+- [X] T005 [P] Add foundational regression expectations for retrieval contract changes in ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py for empty-search success and unavailable-fetch failure semantics
+- [X] T006 [P] Add foundational hosted verification check placeholders for OpenAI retrieval flow in ~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py
+- [X] T007 Record the full targeted Red suite command for retrieval compatibility in ~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -48,19 +48,19 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T008 [P] [US1] Add unit tests for OpenAI-compatible retrieval schemas and validation in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py
-- [X] T009 [P] [US1] Add contract tests for OpenAI-compatible `tools/list`, `search`, and `fetch` payloads in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py
-- [X] T010 [P] [US1] Add integration tests for OpenAI-compatible `search` to `fetch` MCP flow in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
-- [X] T011 [US1] Run the US1 Red test suite with `pytest tests/unit/test_retrieval_tools.py tests/contract/test_deep_research_tools_contract.py tests/integration/test_mcp_request_flow.py` from /Users/ctgunn/Projects/youtube-mcp-server
+- [X] T008 [P] [US1] Add unit tests for OpenAI-compatible retrieval schemas and validation in ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py
+- [X] T009 [P] [US1] Add contract tests for OpenAI-compatible `tools/list`, `search`, and `fetch` payloads in ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py
+- [X] T010 [P] [US1] Add integration tests for OpenAI-compatible `search` to `fetch` MCP flow in ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
+- [X] T011 [US1] Run the US1 Red test suite with `pytest tests/unit/test_retrieval_tools.py tests/contract/test_deep_research_tools_contract.py tests/integration/test_mcp_request_flow.py` from ~/Projects/youtube-mcp-server
 
 ### Implementation for User Story 1
 
-- [X] T012 [P] [US1] Update OpenAI-compatible search and fetch schemas plus sample-source identifiers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py
-- [X] T013 [P] [US1] Update retrieval tool discovery descriptors and descriptions in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
-- [X] T014 [US1] Implement OpenAI-compatible `search` result shaping and `fetch` request validation in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py
-- [X] T015 [US1] Update MCP tool result wrapping assumptions for the new retrieval payloads in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py
-- [X] T016 [US1] Verify the US1 Green suite passes with `pytest tests/unit/test_retrieval_tools.py tests/contract/test_deep_research_tools_contract.py tests/integration/test_mcp_request_flow.py` from /Users/ctgunn/Projects/youtube-mcp-server
-- [X] T017 [US1] Refactor shared retrieval contract constants and helper functions in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py while keeping US1 tests green
+- [X] T012 [P] [US1] Update OpenAI-compatible search and fetch schemas plus sample-source identifiers in ~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py
+- [X] T013 [P] [US1] Update retrieval tool discovery descriptors and descriptions in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T014 [US1] Implement OpenAI-compatible `search` result shaping and `fetch` request validation in ~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py
+- [X] T015 [US1] Update MCP tool result wrapping assumptions for the new retrieval payloads in ~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py
+- [X] T016 [US1] Verify the US1 Green suite passes with `pytest tests/unit/test_retrieval_tools.py tests/contract/test_deep_research_tools_contract.py tests/integration/test_mcp_request_flow.py` from ~/Projects/youtube-mcp-server
+- [X] T017 [US1] Refactor shared retrieval contract constants and helper functions in ~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py while keeping US1 tests green
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -74,17 +74,17 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [X] T018 [P] [US2] Add docs-example integration coverage for OpenAI retrieval examples in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py
-- [X] T019 [P] [US2] Add hosted-route integration coverage for OpenAI retrieval checks in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py
-- [X] T020 [US2] Run the US2 Red test suite with `pytest tests/integration/test_cloud_run_docs_examples.py tests/integration/test_hosted_http_routes.py` from /Users/ctgunn/Projects/youtube-mcp-server
+- [X] T018 [P] [US2] Add docs-example integration coverage for OpenAI retrieval examples in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py
+- [X] T019 [P] [US2] Add hosted-route integration coverage for OpenAI retrieval checks in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py
+- [X] T020 [US2] Run the US2 Red test suite with `pytest tests/integration/test_cloud_run_docs_examples.py tests/integration/test_hosted_http_routes.py` from ~/Projects/youtube-mcp-server
 
 ### Implementation for User Story 2
 
-- [X] T021 [P] [US2] Update OpenAI-specific retrieval examples and execution steps in /Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md
-- [X] T022 [P] [US2] Update hosted verification check names and request payloads for OpenAI retrieval flow in /Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py
-- [X] T023 [US2] Align any documentation-backed retrieval assertions in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py with the OpenAI verification evidence format
-- [X] T024 [US2] Verify the US2 Green suite passes with `pytest tests/integration/test_cloud_run_docs_examples.py tests/integration/test_hosted_http_routes.py` from /Users/ctgunn/Projects/youtube-mcp-server
-- [X] T025 [US2] Refactor duplicated OpenAI example payloads and hosted check naming across /Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py and /Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md while keeping US2 tests green
+- [X] T021 [P] [US2] Update OpenAI-specific retrieval examples and execution steps in ~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md
+- [X] T022 [P] [US2] Update hosted verification check names and request payloads for OpenAI retrieval flow in ~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py
+- [X] T023 [US2] Align any documentation-backed retrieval assertions in ~/Projects/youtube-mcp-server/src/mcp_server/deploy.py with the OpenAI verification evidence format
+- [X] T024 [US2] Verify the US2 Green suite passes with `pytest tests/integration/test_cloud_run_docs_examples.py tests/integration/test_hosted_http_routes.py` from ~/Projects/youtube-mcp-server
+- [X] T025 [US2] Refactor duplicated OpenAI example payloads and hosted check naming across ~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py and ~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md while keeping US2 tests green
 
 **Checkpoint**: At this point, User Stories 1 and 2 should both work independently
 
@@ -98,19 +98,19 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [X] T026 [P] [US3] Add unit tests for unsupported legacy retrieval shapes and compatibility-boundary failures in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py
-- [X] T027 [P] [US3] Add contract tests for documented compatibility-boundary behavior in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py
-- [X] T028 [P] [US3] Add hosted verification and integration checks for legacy-shape failures in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py
-- [X] T029 [US3] Run the US3 Red test suite with `pytest tests/unit/test_retrieval_tools.py tests/contract/test_deep_research_tools_contract.py tests/integration/test_hosted_http_routes.py` from /Users/ctgunn/Projects/youtube-mcp-server
+- [X] T026 [P] [US3] Add unit tests for unsupported legacy retrieval shapes and compatibility-boundary failures in ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py
+- [X] T027 [P] [US3] Add contract tests for documented compatibility-boundary behavior in ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py
+- [X] T028 [P] [US3] Add hosted verification and integration checks for legacy-shape failures in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py
+- [X] T029 [US3] Run the US3 Red test suite with `pytest tests/unit/test_retrieval_tools.py tests/contract/test_deep_research_tools_contract.py tests/integration/test_hosted_http_routes.py` from ~/Projects/youtube-mcp-server
 
 ### Implementation for User Story 3
 
-- [X] T030 [P] [US3] Implement explicit legacy-shape rejection or adaptation behavior in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py
-- [X] T031 [P] [US3] Update compatibility-boundary discovery and descriptor wording in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
-- [X] T032 [P] [US3] Update the public compatibility-boundary contract in /Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/contracts/openai-retrieval-compatibility-contract.md
-- [X] T033 [US3] Update the compatibility-boundary operator and developer guidance in /Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md
-- [X] T034 [US3] Verify the US3 Green suite passes with `pytest tests/unit/test_retrieval_tools.py tests/contract/test_deep_research_tools_contract.py tests/integration/test_hosted_http_routes.py` from /Users/ctgunn/Projects/youtube-mcp-server
-- [X] T035 [US3] Refactor compatibility-boundary constants and error messages in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py and /Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/contracts/openai-retrieval-compatibility-contract.md while keeping US3 tests green
+- [X] T030 [P] [US3] Implement explicit legacy-shape rejection or adaptation behavior in ~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py
+- [X] T031 [P] [US3] Update compatibility-boundary discovery and descriptor wording in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T032 [P] [US3] Update the public compatibility-boundary contract in ~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/contracts/openai-retrieval-compatibility-contract.md
+- [X] T033 [US3] Update the compatibility-boundary operator and developer guidance in ~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md
+- [X] T034 [US3] Verify the US3 Green suite passes with `pytest tests/unit/test_retrieval_tools.py tests/contract/test_deep_research_tools_contract.py tests/integration/test_hosted_http_routes.py` from ~/Projects/youtube-mcp-server
+- [X] T035 [US3] Refactor compatibility-boundary constants and error messages in ~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py and ~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/contracts/openai-retrieval-compatibility-contract.md while keeping US3 tests green
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -120,11 +120,11 @@
 
 **Purpose**: Final alignment, regression proof, and completion gating across all stories
 
-- [X] T036 [P] Update feature-specific contract, research, and data-model wording for final implementation reality in /Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/research.md, /Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/data-model.md, and /Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/spec.md
-- [X] T037 [P] Add any final retrieval regression coverage needed across /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py, /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py, and /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
-- [X] T038 Run quickstart validation against /Users/ctgunn/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md and record any required corrections in that file
-- [X] T039 Run the full repository test suite with `pytest` from /Users/ctgunn/Projects/youtube-mcp-server and resolve any failing tests before completion
-- [X] T040 Run the full repository lint suite with `ruff check .` from /Users/ctgunn/Projects/youtube-mcp-server and resolve any failing issues before completion
+- [X] T036 [P] Update feature-specific contract, research, and data-model wording for final implementation reality in ~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/research.md, ~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/data-model.md, and ~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/spec.md
+- [X] T037 [P] Add any final retrieval regression coverage needed across ~/Projects/youtube-mcp-server/tests/unit/test_retrieval_tools.py, ~/Projects/youtube-mcp-server/tests/contract/test_deep_research_tools_contract.py, and ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
+- [X] T038 Run quickstart validation against ~/Projects/youtube-mcp-server/specs/023-openai-retrieval-compatibility/quickstart.md and record any required corrections in that file
+- [X] T039 Run the full repository test suite with `pytest` from ~/Projects/youtube-mcp-server and resolve any failing tests before completion
+- [X] T040 Run the full repository lint suite with `ruff check .` from ~/Projects/youtube-mcp-server and resolve any failing issues before completion
 
 ---
 

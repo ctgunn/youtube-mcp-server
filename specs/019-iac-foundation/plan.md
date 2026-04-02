@@ -1,6 +1,6 @@
 # Implementation Plan: Infrastructure as Code Foundation
 
-**Branch**: `019-iac-foundation` | **Date**: 2026-03-21 | **Spec**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/019-iac-foundation/spec.md)
+**Branch**: `019-iac-foundation` | **Date**: 2026-03-21 | **Spec**: [spec.md](~/Projects/youtube-mcp-server/specs/019-iac-foundation/spec.md)
 **Input**: Feature specification from `/specs/019-iac-foundation/spec.md`
 
 ## Summary

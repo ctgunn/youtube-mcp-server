@@ -1,7 +1,7 @@
 # Tasks: Initialize Session Correctness
 
 **Input**: Design documents from `/specs/024-initialize-session-correctness/`
-**Prerequisites**: [plan.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/plan.md), [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/spec.md), [research.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/research.md), [data-model.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/data-model.md), [contracts/initialize-session-correctness-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/contracts/initialize-session-correctness-contract.md), [quickstart.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/quickstart.md)
+**Prerequisites**: [plan.md](~/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/plan.md), [spec.md](~/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/spec.md), [research.md](~/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/research.md), [data-model.md](~/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/data-model.md), [contracts/initialize-session-correctness-contract.md](~/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/contracts/initialize-session-correctness-contract.md), [quickstart.md](~/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/quickstart.md)
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes explicit Red-Green-Refactor coverage. Completion requires a passing full repository test-suite run after the final code changes.
 
@@ -11,8 +11,8 @@
 
 **Purpose**: Align shared test helpers and execution scaffolding before lifecycle work begins
 
-- [X] T001 Normalize hosted initialize payload helpers in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/conftest.py`
-- [X] T002 [P] Normalize hosted stream header helpers for initialize and continuation flows in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/conftest.py`
+- [X] T001 Normalize hosted initialize payload helpers in `~/Projects/youtube-mcp-server/tests/contract/conftest.py`
+- [X] T002 [P] Normalize hosted stream header helpers for initialize and continuation flows in `~/Projects/youtube-mcp-server/tests/integration/conftest.py`
 
 ---
 
@@ -22,8 +22,8 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T003 Add a reusable initialize-success predicate for hosted lifecycle decisions in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
-- [X] T004 [P] Add initialize failure/success verifier check scaffolding in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
+- [X] T003 Add a reusable initialize-success predicate for hosted lifecycle decisions in `~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py`
+- [X] T004 [P] Add initialize failure/success verifier check scaffolding in `~/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 
@@ -39,15 +39,15 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T005 [P] [US1] Add unit tests for initialize success detection in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_method_routing.py`
-- [X] T006 [P] [US1] Add contract tests for invalid initialize responses returning no `MCP-Session-Id` in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py`
-- [X] T007 [P] [US1] Add hosted route integration tests for malformed and invalid initialize requests creating no session in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
+- [X] T005 [P] [US1] Add unit tests for initialize success detection in `~/Projects/youtube-mcp-server/tests/unit/test_method_routing.py`
+- [X] T006 [P] [US1] Add contract tests for invalid initialize responses returning no `MCP-Session-Id` in `~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py`
+- [X] T007 [P] [US1] Add hosted route integration tests for malformed and invalid initialize requests creating no session in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
 
 ### Implementation for User Story 1
 
-- [X] T008 [US1] Gate session creation and initialize header emission on successful initialize outcomes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
-- [X] T009 [US1] Refactor initialize response handling to reuse the shared success predicate in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
-- [X] T010 [US1] Re-run targeted US1 lifecycle suites from `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_method_routing.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
+- [X] T008 [US1] Gate session creation and initialize header emission on successful initialize outcomes in `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
+- [X] T009 [US1] Refactor initialize response handling to reuse the shared success predicate in `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
+- [X] T010 [US1] Re-run targeted US1 lifecycle suites from `~/Projects/youtube-mcp-server/tests/unit/test_method_routing.py`, `~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py`, and `~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py`
 
 **Checkpoint**: User Story 1 should now be independently functional and testable as the MVP slice
 
@@ -61,15 +61,15 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [X] T011 [P] [US2] Add contract tests for unauthorized initialize returning no session header in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py`
-- [X] T012 [P] [US2] Add stream transport integration tests for retry-after-failure and invalid continuation behavior in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py`
-- [X] T013 [P] [US2] Add request-flow regression coverage for continuation using only issued sessions in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
+- [X] T011 [P] [US2] Add contract tests for unauthorized initialize returning no session header in `~/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py`
+- [X] T012 [P] [US2] Add stream transport integration tests for retry-after-failure and invalid continuation behavior in `~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py`
+- [X] T013 [P] [US2] Add request-flow regression coverage for continuation using only issued sessions in `~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
 
 ### Implementation for User Story 2
 
-- [X] T014 [US2] Enforce retry-after-failure and non-issued-session continuation behavior in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
-- [X] T015 [US2] Distinguish rejected initialize decisions from continuation decisions in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/observability.py`
-- [X] T016 [US2] Re-run targeted US2 continuation suites from `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
+- [X] T014 [US2] Enforce retry-after-failure and non-issued-session continuation behavior in `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
+- [X] T015 [US2] Distinguish rejected initialize decisions from continuation decisions in `~/Projects/youtube-mcp-server/src/mcp_server/observability.py`
+- [X] T016 [US2] Re-run targeted US2 continuation suites from `~/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py`, `~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py`, and `~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py`
 
 **Checkpoint**: User Stories 1 and 2 should both work independently, with retry and continuation semantics locked down
 
@@ -83,15 +83,15 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [X] T017 [P] [US3] Add verification-flow tests for initialize failure/success evidence in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
-- [X] T018 [P] [US3] Add documentation-backed assertions for failed initialize with no `MCP-Session-Id` in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`
+- [X] T017 [P] [US3] Add verification-flow tests for initialize failure/success evidence in `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py`
+- [X] T018 [P] [US3] Add documentation-backed assertions for failed initialize with no `MCP-Session-Id` in `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`
 
 ### Implementation for User Story 3
 
-- [X] T019 [US3] Update initialize verification checks and evidence output in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
-- [X] T020 [US3] Surface the corrected initialize verification evidence in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py`
-- [X] T021 [US3] Document the corrected initialize/session lifecycle in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
-- [X] T022 [US3] Re-run targeted US3 verification and docs suites from `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`
+- [X] T019 [US3] Update initialize verification checks and evidence output in `~/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
+- [X] T020 [US3] Surface the corrected initialize verification evidence in `~/Projects/youtube-mcp-server/scripts/verify_cloud_run_foundation.py`
+- [X] T021 [US3] Document the corrected initialize/session lifecycle in `~/Projects/youtube-mcp-server/README.md`
+- [X] T022 [US3] Re-run targeted US3 verification and docs suites from `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py` and `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py`
 
 **Checkpoint**: All user stories should now be independently functional, verified, and documented
 
@@ -101,8 +101,8 @@
 
 **Purpose**: Final cleanup, manual validation, and full-suite proof
 
-- [X] T023 [P] Validate the manual lifecycle checks in `/Users/ctgunn/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/quickstart.md`
-- [X] T024 Run the full repository test suite and lint checks covering `/Users/ctgunn/Projects/youtube-mcp-server/tests/` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/`
+- [X] T023 [P] Validate the manual lifecycle checks in `~/Projects/youtube-mcp-server/specs/024-initialize-session-correctness/quickstart.md`
+- [X] T024 Run the full repository test suite and lint checks covering `~/Projects/youtube-mcp-server/tests/` and `~/Projects/youtube-mcp-server/src/mcp_server/`
 
 ---
 
@@ -120,7 +120,7 @@
 ### User Story Dependencies
 
 - **US1 (P1)**: Can start after Foundational phase completion - no story dependency
-- **US2 (P2)**: Can start after Foundational phase completion but depends on the US1 session-creation gate landing first in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
+- **US2 (P2)**: Can start after Foundational phase completion but depends on the US1 session-creation gate landing first in `~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py`
 - **US3 (P3)**: Depends on US1 and US2 because verification and docs must describe the final corrected behavior
 
 ### Within Each User Story
@@ -148,26 +148,26 @@
 
 ```bash
 # Launch all Red tests for User Story 1 together:
-Task: "Add unit tests for initialize success detection in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_method_routing.py"
-Task: "Add contract tests for invalid initialize responses returning no MCP-Session-Id in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py"
-Task: "Add hosted route integration tests for malformed and invalid initialize requests creating no session in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py"
+Task: "Add unit tests for initialize success detection in ~/Projects/youtube-mcp-server/tests/unit/test_method_routing.py"
+Task: "Add contract tests for invalid initialize responses returning no MCP-Session-Id in ~/Projects/youtube-mcp-server/tests/contract/test_streamable_http_contract.py"
+Task: "Add hosted route integration tests for malformed and invalid initialize requests creating no session in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_http_routes.py"
 ```
 
 ## Parallel Example: User Story 2
 
 ```bash
 # Launch all Red tests for User Story 2 together:
-Task: "Add contract tests for unauthorized initialize returning no session header in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py"
-Task: "Add stream transport integration tests for retry-after-failure and invalid continuation behavior in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py"
-Task: "Add request-flow regression coverage for continuation using only issued sessions in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py"
+Task: "Add contract tests for unauthorized initialize returning no session header in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_mcp_security_contract.py"
+Task: "Add stream transport integration tests for retry-after-failure and invalid continuation behavior in ~/Projects/youtube-mcp-server/tests/integration/test_streamable_http_transport.py"
+Task: "Add request-flow regression coverage for continuation using only issued sessions in ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py"
 ```
 
 ## Parallel Example: User Story 3
 
 ```bash
 # Launch all Red tests for User Story 3 together:
-Task: "Add verification-flow tests for initialize failure/success evidence in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py"
-Task: "Add documentation-backed assertions for failed initialize with no MCP-Session-Id in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py"
+Task: "Add verification-flow tests for initialize failure/success evidence in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_verification_flow.py"
+Task: "Add documentation-backed assertions for failed initialize with no MCP-Session-Id in ~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py"
 ```
 
 ---

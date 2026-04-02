@@ -11,9 +11,9 @@
 
 **Purpose**: Prepare shared fixtures and baseline tool test scaffolding.
 
-- [X] T001 Create baseline tool fixture builders for test payloads in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/conftest.py
-- [X] T002 [P] Add integration request helper utilities for baseline smoke flows in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/conftest.py
-- [X] T003 [P] Add contract payload helper utilities for `tools/call` baseline invocations in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/conftest.py
+- [X] T001 Create baseline tool fixture builders for test payloads in ~/Projects/youtube-mcp-server/tests/unit/conftest.py
+- [X] T002 [P] Add integration request helper utilities for baseline smoke flows in ~/Projects/youtube-mcp-server/tests/integration/conftest.py
+- [X] T003 [P] Add contract payload helper utilities for `tools/call` baseline invocations in ~/Projects/youtube-mcp-server/tests/contract/conftest.py
 
 ---
 
@@ -23,11 +23,11 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete.
 
-- [X] T004 Add failing foundational envelope assertions for baseline tool success/error consistency in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_envelope_contract.py
-- [X] T005 [P] Add failing foundational routing assertions for baseline tool discovery and invocation entry points in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_method_routing.py
-- [X] T006 Implement shared server metadata loader for dispatcher bootstrap in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/app.py
-- [X] T007 Implement shared baseline tool descriptor constants for registry parity in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
-- [X] T008 Refactor dispatcher initialization to accept injected metadata while preserving existing behavior in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T004 Add failing foundational envelope assertions for baseline tool success/error consistency in ~/Projects/youtube-mcp-server/tests/unit/test_envelope_contract.py
+- [X] T005 [P] Add failing foundational routing assertions for baseline tool discovery and invocation entry points in ~/Projects/youtube-mcp-server/tests/unit/test_method_routing.py
+- [X] T006 Implement shared server metadata loader for dispatcher bootstrap in ~/Projects/youtube-mcp-server/src/mcp_server/app.py
+- [X] T007 Implement shared baseline tool descriptor constants for registry parity in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T008 Refactor dispatcher initialization to accept injected metadata while preserving existing behavior in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
 
 **Checkpoint**: Foundation is ready; user stories are independently executable.
 
@@ -41,15 +41,15 @@
 
 ### Tests for User Story 1 (REQUIRED)
 
-- [X] T009 [P] [US1] Add failing contract assertions for `server_ping` payload fields in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py
-- [X] T010 [P] [US1] Add failing integration test for repeated `server_ping` invocations in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
-- [X] T011 [P] [US1] Add failing unit tests for `server_ping` payload generation in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_baseline_server_tools.py
+- [X] T009 [P] [US1] Add failing contract assertions for `server_ping` payload fields in ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py
+- [X] T010 [P] [US1] Add failing integration test for repeated `server_ping` invocations in ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
+- [X] T011 [P] [US1] Add failing unit tests for `server_ping` payload generation in ~/Projects/youtube-mcp-server/tests/unit/test_baseline_server_tools.py
 
 ### Implementation for User Story 1
 
-- [X] T012 [US1] Implement `server_ping` payload helper with required `status` and `timestamp` fields in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
-- [X] T013 [US1] Ensure `tools/call` response shape for `server_ping` remains MCP-envelope compliant in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py
-- [X] T014 [US1] Refactor `server_ping` handler internals for readability while keeping US1 tests green in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T012 [US1] Implement `server_ping` payload helper with required `status` and `timestamp` fields in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T013 [US1] Ensure `tools/call` response shape for `server_ping` remains MCP-envelope compliant in ~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py
+- [X] T014 [US1] Refactor `server_ping` handler internals for readability while keeping US1 tests green in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
 
 **Checkpoint**: US1 is independently functional and testable.
 
@@ -63,16 +63,16 @@
 
 ### Tests for User Story 2 (REQUIRED)
 
-- [X] T015 [P] [US2] Add failing contract assertions for `server_info` result schema in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py
-- [X] T016 [P] [US2] Add failing integration tests for `server_info` configured and fallback scenarios in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
-- [X] T017 [P] [US2] Add failing unit tests for server metadata fallback behavior in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_baseline_server_tools.py
+- [X] T015 [P] [US2] Add failing contract assertions for `server_info` result schema in ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py
+- [X] T016 [P] [US2] Add failing integration tests for `server_info` configured and fallback scenarios in ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
+- [X] T017 [P] [US2] Add failing unit tests for server metadata fallback behavior in ~/Projects/youtube-mcp-server/tests/unit/test_baseline_server_tools.py
 
 ### Implementation for User Story 2
 
-- [X] T018 [US2] Register `server_info` with description and input schema in dispatcher defaults in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
-- [X] T019 [US2] Implement `server_info` handler returning `version`, `environment`, and `build` payload in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
-- [X] T020 [US2] Wire app bootstrap metadata into dispatcher construction for `server_info` execution in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/app.py
-- [X] T021 [US2] Refactor metadata-building helper logic while preserving US2 contract/integration coverage in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T018 [US2] Register `server_info` with description and input schema in dispatcher defaults in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T019 [US2] Implement `server_info` handler returning `version`, `environment`, and `build` payload in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T020 [US2] Wire app bootstrap metadata into dispatcher construction for `server_info` execution in ~/Projects/youtube-mcp-server/src/mcp_server/app.py
+- [X] T021 [US2] Refactor metadata-building helper logic while preserving US2 contract/integration coverage in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
 
 **Checkpoint**: US2 is independently functional and testable.
 
@@ -86,16 +86,16 @@
 
 ### Tests for User Story 3 (REQUIRED)
 
-- [X] T022 [P] [US3] Add failing contract assertions for `server_list_tools` result entries in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py
-- [X] T023 [P] [US3] Add failing integration tests for dynamic registry reflection via `server_list_tools` in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
-- [X] T024 [P] [US3] Add failing unit tests for deterministic tool summary ordering in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_list_tools_method.py
+- [X] T022 [P] [US3] Add failing contract assertions for `server_list_tools` result entries in ~/Projects/youtube-mcp-server/tests/contract/test_mcp_transport_contract.py
+- [X] T023 [P] [US3] Add failing integration tests for dynamic registry reflection via `server_list_tools` in ~/Projects/youtube-mcp-server/tests/integration/test_mcp_request_flow.py
+- [X] T024 [P] [US3] Add failing unit tests for deterministic tool summary ordering in ~/Projects/youtube-mcp-server/tests/unit/test_list_tools_method.py
 
 ### Implementation for User Story 3
 
-- [X] T025 [US3] Register `server_list_tools` with description and input schema in dispatcher defaults in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
-- [X] T026 [US3] Implement `server_list_tools` handler returning active registry name/description summaries in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
-- [X] T027 [US3] Ensure `server_list_tools` output remains aligned with `tools/list` descriptor contract in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py
-- [X] T028 [US3] Refactor shared descriptor mapping between `list_tools` and `server_list_tools` paths in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T025 [US3] Register `server_list_tools` with description and input schema in dispatcher defaults in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T026 [US3] Implement `server_list_tools` handler returning active registry name/description summaries in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
+- [X] T027 [US3] Ensure `server_list_tools` output remains aligned with `tools/list` descriptor contract in ~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py
+- [X] T028 [US3] Refactor shared descriptor mapping between `list_tools` and `server_list_tools` paths in ~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py
 
 **Checkpoint**: US3 is independently functional and testable.
 
@@ -105,10 +105,10 @@
 
 **Purpose**: Final documentation alignment, regression evidence, and cross-story consistency.
 
-- [X] T029 [P] Update final baseline payload examples and coverage notes in /Users/ctgunn/Projects/youtube-mcp-server/specs/003-baseline-server-tools/contracts/mcp-baseline-server-tools-contract.md
-- [X] T030 [P] Update execution evidence and smoke validation steps in /Users/ctgunn/Projects/youtube-mcp-server/specs/003-baseline-server-tools/quickstart.md
-- [X] T031 Run full regression suite and record pass/fail evidence in /Users/ctgunn/Projects/youtube-mcp-server/specs/003-baseline-server-tools/quickstart.md
-- [X] T032 [P] Update checklist notes with final verification status in /Users/ctgunn/Projects/youtube-mcp-server/specs/003-baseline-server-tools/checklists/requirements.md
+- [X] T029 [P] Update final baseline payload examples and coverage notes in ~/Projects/youtube-mcp-server/specs/003-baseline-server-tools/contracts/mcp-baseline-server-tools-contract.md
+- [X] T030 [P] Update execution evidence and smoke validation steps in ~/Projects/youtube-mcp-server/specs/003-baseline-server-tools/quickstart.md
+- [X] T031 Run full regression suite and record pass/fail evidence in ~/Projects/youtube-mcp-server/specs/003-baseline-server-tools/quickstart.md
+- [X] T032 [P] Update checklist notes with final verification status in ~/Projects/youtube-mcp-server/specs/003-baseline-server-tools/checklists/requirements.md
 
 ---
 

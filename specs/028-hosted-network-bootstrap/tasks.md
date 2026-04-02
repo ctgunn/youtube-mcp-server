@@ -1,7 +1,7 @@
 # Tasks: Automated Hosted Network Bootstrap Reconciliation
 
 **Input**: Design documents from `/specs/028-hosted-network-bootstrap/`
-**Prerequisites**: [plan.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/plan.md), [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/spec.md), [data-model.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/data-model.md), contracts in [/Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts](/Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts), [quickstart.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/quickstart.md)
+**Prerequisites**: [plan.md](~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/plan.md), [spec.md](~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/spec.md), [data-model.md](~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/data-model.md), contracts in [~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts](~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts), [quickstart.md](~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/quickstart.md)
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes Red-Green-Refactor coverage tasks. Completion requires a passing full repository test-suite run after the final code changes.
 
@@ -11,8 +11,8 @@
 
 **Purpose**: Create the feature-specific test surfaces used across the implementation
 
-- [X] T001 Create contract and integration test scaffolds in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py`
-- [X] T002 [P] Create documentation and unit test scaffolds in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_docs.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_network_bootstrap_failure_helpers.py`
+- [X] T001 Create contract and integration test scaffolds in `~/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py` and `~/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py`
+- [X] T002 [P] Create documentation and unit test scaffolds in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_docs.py` and `~/Projects/youtube-mcp-server/tests/unit/test_hosted_network_bootstrap_failure_helpers.py`
 
 ---
 
@@ -22,10 +22,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T003 Add reusable bootstrap failure-classification helpers and workflow-summary extension points in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
-- [X] T004 [P] Extend shared workflow ordering coverage in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py`
-- [X] T005 [P] Extend shared bootstrap helper coverage in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_bootstrap_helpers.py`
-- [X] T006 Update shared contract aggregation assertions for FND-028 in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py`
+- [X] T003 Add reusable bootstrap failure-classification helpers and workflow-summary extension points in `~/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
+- [X] T004 [P] Extend shared workflow ordering coverage in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py`
+- [X] T005 [P] Extend shared bootstrap helper coverage in `~/Projects/youtube-mcp-server/tests/unit/test_hosted_deployment_bootstrap_helpers.py`
+- [X] T006 Update shared contract aggregation assertions for FND-028 in `~/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py`
 
 **Checkpoint**: Foundation ready. User story work can now proceed in priority order or in parallel if staffed.
 
@@ -39,15 +39,15 @@
 
 ### Tests for User Story 1 (REQUIRED) ⚠️
 
-- [X] T007 [P] [US1] Add failing contract assertions for ordered network-bootstrap semantics in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py`
-- [X] T008 [P] [US1] Add failing integration coverage for reconcile-before-deploy ordering in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py`
+- [X] T007 [P] [US1] Add failing contract assertions for ordered network-bootstrap semantics in `~/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py`
+- [X] T008 [P] [US1] Add failing integration coverage for reconcile-before-deploy ordering in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py`
 
 ### Implementation for User Story 1
 
-- [X] T009 [US1] Update the pipeline behavior contract in `/Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts/hosted-network-bootstrap-pipeline-contract.md`
-- [X] T010 [P] [US1] Update primary automatic pipeline semantics in `/Users/ctgunn/Projects/youtube-mcp-server/cloudbuild.yaml`
-- [X] T011 [P] [US1] Update fallback workflow semantics in `/Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml`
-- [X] T012 [US1] Refactor shared stage-order serialization and regression assertions in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py`
+- [X] T009 [US1] Update the pipeline behavior contract in `~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts/hosted-network-bootstrap-pipeline-contract.md`
+- [X] T010 [P] [US1] Update primary automatic pipeline semantics in `~/Projects/youtube-mcp-server/cloudbuild.yaml`
+- [X] T011 [P] [US1] Update fallback workflow semantics in `~/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml`
+- [X] T012 [US1] Refactor shared stage-order serialization and regression assertions in `~/Projects/youtube-mcp-server/src/mcp_server/deploy.py` and `~/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py`
 
 **Checkpoint**: User Story 1 is independently testable when the pipeline contract and automation surfaces make network reconciliation an explicit pre-deploy gate.
 
@@ -61,15 +61,15 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [X] T013 [P] [US2] Add failing unit coverage for bootstrap-vs-network-vs-deploy-vs-verification classification in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_network_bootstrap_failure_helpers.py`
-- [X] T014 [P] [US2] Add failing integration coverage for operator-visible failure boundaries in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py`
-- [X] T015 [P] [US2] Add failing contract assertions for failure taxonomy expectations in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py`
+- [X] T013 [P] [US2] Add failing unit coverage for bootstrap-vs-network-vs-deploy-vs-verification classification in `~/Projects/youtube-mcp-server/tests/unit/test_hosted_network_bootstrap_failure_helpers.py`
+- [X] T014 [P] [US2] Add failing integration coverage for operator-visible failure boundaries in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py`
+- [X] T015 [P] [US2] Add failing contract assertions for failure taxonomy expectations in `~/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py`
 
 ### Implementation for User Story 2
 
-- [X] T016 [US2] Implement bootstrap failure classification and workflow summary fields in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
-- [X] T017 [US2] Update the failure-boundary contract in `/Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts/hosted-network-bootstrap-failure-boundary-contract.md`
-- [X] T018 [US2] Refactor remediation wording and regression assertions in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py`
+- [X] T016 [US2] Implement bootstrap failure classification and workflow summary fields in `~/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
+- [X] T017 [US2] Update the failure-boundary contract in `~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts/hosted-network-bootstrap-failure-boundary-contract.md`
+- [X] T018 [US2] Refactor remediation wording and regression assertions in `~/Projects/youtube-mcp-server/src/mcp_server/deploy.py` and `~/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py`
 
 **Checkpoint**: User Story 2 is independently testable when failed runs can be classified by boundary from workflow artifacts and deployment evidence alone.
 
@@ -83,15 +83,15 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [X] T019 [P] [US3] Add failing contract assertions for the remaining prerequisite boundary in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py`
-- [X] T020 [P] [US3] Add failing documentation integration coverage in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_docs.py`
+- [X] T019 [P] [US3] Add failing contract assertions for the remaining prerequisite boundary in `~/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py`
+- [X] T020 [P] [US3] Add failing documentation integration coverage in `~/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_docs.py`
 
 ### Implementation for User Story 3
 
-- [X] T021 [P] [US3] Update the prerequisite-boundary contract in `/Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts/hosted-network-bootstrap-prerequisite-contract.md`
-- [X] T022 [P] [US3] Update hosted bootstrap guidance in `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md`
-- [X] T023 [US3] Update repository-level hosted deployment guidance in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
-- [X] T024 [US3] Refactor prerequisite language across `/Users/ctgunn/Projects/youtube-mcp-server/README.md` and `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md` to keep local and hosted paths separate
+- [X] T021 [P] [US3] Update the prerequisite-boundary contract in `~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts/hosted-network-bootstrap-prerequisite-contract.md`
+- [X] T022 [P] [US3] Update hosted bootstrap guidance in `~/Projects/youtube-mcp-server/infrastructure/gcp/README.md`
+- [X] T023 [US3] Update repository-level hosted deployment guidance in `~/Projects/youtube-mcp-server/README.md`
+- [X] T024 [US3] Refactor prerequisite language across `~/Projects/youtube-mcp-server/README.md` and `~/Projects/youtube-mcp-server/infrastructure/gcp/README.md` to keep local and hosted paths separate
 
 **Checkpoint**: User Story 3 is independently testable when the runbooks make the bootstrap boundary explicit and eliminate any implication of recurring manual network provisioning.
 
@@ -101,10 +101,10 @@
 
 **Purpose**: Finish cross-story validation, cleanup, and final repository verification
 
-- [X] T025 [P] Validate the operator flow in `/Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/quickstart.md` against the final workflow and documentation behavior
-- [X] T026 [P] Add cross-story regression coverage in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py`
-- [X] T027 Run targeted feature validation in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_network_bootstrap_failure_helpers.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_docs.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py`
-- [X] T028 Run the full repository validation with `pytest` and `ruff check .` from `/Users/ctgunn/Projects/youtube-mcp-server` and fix any failures in affected files before completion
+- [X] T025 [P] Validate the operator flow in `~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/quickstart.md` against the final workflow and documentation behavior
+- [X] T026 [P] Add cross-story regression coverage in `~/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py` and `~/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py`
+- [X] T027 Run targeted feature validation in `~/Projects/youtube-mcp-server/tests/unit/test_hosted_network_bootstrap_failure_helpers.py`, `~/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py`, `~/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_docs.py`, and `~/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py`
+- [X] T028 Run the full repository validation with `pytest` and `ruff check .` from `~/Projects/youtube-mcp-server` and fix any failures in affected files before completion
 
 ---
 
@@ -157,29 +157,29 @@
 ## Parallel Example: User Story 1
 
 ```bash
-Task: "Add failing contract assertions for ordered network-bootstrap semantics in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py"
-Task: "Add failing integration coverage for reconcile-before-deploy ordering in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py"
+Task: "Add failing contract assertions for ordered network-bootstrap semantics in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py"
+Task: "Add failing integration coverage for reconcile-before-deploy ordering in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py"
 
-Task: "Update primary automatic pipeline semantics in /Users/ctgunn/Projects/youtube-mcp-server/cloudbuild.yaml"
-Task: "Update fallback workflow semantics in /Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml"
+Task: "Update primary automatic pipeline semantics in ~/Projects/youtube-mcp-server/cloudbuild.yaml"
+Task: "Update fallback workflow semantics in ~/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml"
 ```
 
 ## Parallel Example: User Story 2
 
 ```bash
-Task: "Add failing unit coverage for bootstrap-vs-network-vs-deploy-vs-verification classification in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_hosted_network_bootstrap_failure_helpers.py"
-Task: "Add failing integration coverage for operator-visible failure boundaries in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py"
-Task: "Add failing contract assertions for failure taxonomy expectations in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py"
+Task: "Add failing unit coverage for bootstrap-vs-network-vs-deploy-vs-verification classification in ~/Projects/youtube-mcp-server/tests/unit/test_hosted_network_bootstrap_failure_helpers.py"
+Task: "Add failing integration coverage for operator-visible failure boundaries in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_flow.py"
+Task: "Add failing contract assertions for failure taxonomy expectations in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py"
 ```
 
 ## Parallel Example: User Story 3
 
 ```bash
-Task: "Add failing contract assertions for the remaining prerequisite boundary in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py"
-Task: "Add failing documentation integration coverage in /Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_docs.py"
+Task: "Add failing contract assertions for the remaining prerequisite boundary in ~/Projects/youtube-mcp-server/tests/contract/test_hosted_network_bootstrap_contract.py"
+Task: "Add failing documentation integration coverage in ~/Projects/youtube-mcp-server/tests/integration/test_hosted_network_bootstrap_docs.py"
 
-Task: "Update the prerequisite-boundary contract in /Users/ctgunn/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts/hosted-network-bootstrap-prerequisite-contract.md"
-Task: "Update hosted bootstrap guidance in /Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md"
+Task: "Update the prerequisite-boundary contract in ~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/contracts/hosted-network-bootstrap-prerequisite-contract.md"
+Task: "Update hosted bootstrap guidance in ~/Projects/youtube-mcp-server/infrastructure/gcp/README.md"
 ```
 
 ---

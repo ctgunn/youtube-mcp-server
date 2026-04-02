@@ -1,6 +1,6 @@
 # Implementation Plan: Cloud Run Public Reachability for Remote MCP
 
-**Branch**: `021-cloud-run-reachability` | **Date**: 2026-03-24 | **Spec**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/spec.md)
+**Branch**: `021-cloud-run-reachability` | **Date**: 2026-03-24 | **Spec**: [spec.md](~/Projects/youtube-mcp-server/specs/021-cloud-run-reachability/spec.md)
 **Input**: Feature specification from `/specs/021-cloud-run-reachability/spec.md`
 
 ## Summary

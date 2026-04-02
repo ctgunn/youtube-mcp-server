@@ -1,7 +1,7 @@
 # Tasks: Infrastructure as Code Foundation
 
 **Input**: Design documents from `/specs/019-iac-foundation/`
-**Prerequisites**: [plan.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/019-iac-foundation/plan.md), [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/019-iac-foundation/spec.md), [research.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/019-iac-foundation/research.md), [data-model.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/019-iac-foundation/data-model.md), [contracts/](/Users/ctgunn/Projects/youtube-mcp-server/specs/019-iac-foundation/contracts), [quickstart.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/019-iac-foundation/quickstart.md)
+**Prerequisites**: [plan.md](~/Projects/youtube-mcp-server/specs/019-iac-foundation/plan.md), [spec.md](~/Projects/youtube-mcp-server/specs/019-iac-foundation/spec.md), [research.md](~/Projects/youtube-mcp-server/specs/019-iac-foundation/research.md), [data-model.md](~/Projects/youtube-mcp-server/specs/019-iac-foundation/data-model.md), [contracts/](~/Projects/youtube-mcp-server/specs/019-iac-foundation/contracts), [quickstart.md](~/Projects/youtube-mcp-server/specs/019-iac-foundation/quickstart.md)
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes Red-Green-Refactor coverage tasks. Completion requires a passing full repository test-suite run with `pytest`.
 
@@ -17,8 +17,8 @@
 
 **Purpose**: Create the file scaffolding for the new infrastructure and test surfaces.
 
-- [X] T001 Create the infrastructure scaffolding files in `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/versions.tf`, `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/variables.tf`, `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/main.tf`, `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/session.tf`, `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/outputs.tf`, `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md`, `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/terraform.tfvars.example`, `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/compose.yaml`, `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/.env.example`, and `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/README.md`
-- [X] T002 [P] Create the feature test scaffolding in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
+- [X] T001 Create the infrastructure scaffolding files in `~/Projects/youtube-mcp-server/infrastructure/gcp/versions.tf`, `~/Projects/youtube-mcp-server/infrastructure/gcp/variables.tf`, `~/Projects/youtube-mcp-server/infrastructure/gcp/main.tf`, `~/Projects/youtube-mcp-server/infrastructure/gcp/session.tf`, `~/Projects/youtube-mcp-server/infrastructure/gcp/outputs.tf`, `~/Projects/youtube-mcp-server/infrastructure/gcp/README.md`, `~/Projects/youtube-mcp-server/infrastructure/gcp/terraform.tfvars.example`, `~/Projects/youtube-mcp-server/infrastructure/local/compose.yaml`, `~/Projects/youtube-mcp-server/infrastructure/local/.env.example`, and `~/Projects/youtube-mcp-server/infrastructure/local/README.md`
+- [X] T002 [P] Create the feature test scaffolding in `~/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py`, `~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`, and `~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
 
 ---
 
@@ -28,12 +28,12 @@
 
 **⚠️ CRITICAL**: No user story work should start until this phase is complete.
 
-- [X] T003 Add failing shared contract assertions for the new provisioning and local dependency contracts in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
-- [X] T004 [P] Add failing shared integration assertions for provisioning, deployment handoff, and local hosted-like workflow coverage in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
-- [X] T005 [P] Add failing shared unit assertions for infrastructure input parsing and output normalization in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py`
-- [X] T006 Implement shared infrastructure handoff helpers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
-- [X] T007 Align shared environment and deployment variable guidance in `/Users/ctgunn/Projects/youtube-mcp-server/README.md` and `/Users/ctgunn/Projects/youtube-mcp-server/.env.example`
-- [X] T008 Refactor shared naming and failure guidance across `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`, `/Users/ctgunn/Projects/youtube-mcp-server/README.md`, and `/Users/ctgunn/Projects/youtube-mcp-server/.env.example` while keeping the foundational tests green
+- [X] T003 Add failing shared contract assertions for the new provisioning and local dependency contracts in `~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
+- [X] T004 [P] Add failing shared integration assertions for provisioning, deployment handoff, and local hosted-like workflow coverage in `~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
+- [X] T005 [P] Add failing shared unit assertions for infrastructure input parsing and output normalization in `~/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py`
+- [X] T006 Implement shared infrastructure handoff helpers in `~/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
+- [X] T007 Align shared environment and deployment variable guidance in `~/Projects/youtube-mcp-server/README.md` and `~/Projects/youtube-mcp-server/.env.example`
+- [X] T008 Refactor shared naming and failure guidance across `~/Projects/youtube-mcp-server/src/mcp_server/deploy.py`, `~/Projects/youtube-mcp-server/README.md`, and `~/Projects/youtube-mcp-server/.env.example` while keeping the foundational tests green
 
 **Checkpoint**: Foundational test surfaces, shared helpers, and common variable conventions are in place.
 
@@ -47,16 +47,16 @@
 
 ### Tests for User Story 1 (REQUIRED) ⚠️
 
-- [X] T009 [P] [US1] Add contract coverage for required GCP resources and provisioning outputs in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
-- [X] T010 [P] [US1] Add integration coverage for the operator provisioning workflow in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
+- [X] T009 [P] [US1] Add contract coverage for required GCP resources and provisioning outputs in `~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
+- [X] T010 [P] [US1] Add integration coverage for the operator provisioning workflow in `~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
 
 ### Implementation for User Story 1
 
-- [X] T011 [P] [US1] Define the Terraform provider and root variable contract in `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/versions.tf` and `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/variables.tf`
-- [X] T012 [P] [US1] Define the Cloud Run service foundation, runtime identity, and secret integration resources in `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/main.tf`
-- [X] T013 [P] [US1] Define the Redis-compatible durable session backend and exported outputs in `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/session.tf` and `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/outputs.tf`
-- [X] T014 [US1] Document the provisioning workflow, required tfvars, and expected outputs in `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md` and `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/terraform.tfvars.example`
-- [X] T015 [US1] Refactor variable naming, output descriptions, and provisioning guidance across `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/variables.tf`, `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/outputs.tf`, and `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md` while keeping US1 tests green
+- [X] T011 [P] [US1] Define the Terraform provider and root variable contract in `~/Projects/youtube-mcp-server/infrastructure/gcp/versions.tf` and `~/Projects/youtube-mcp-server/infrastructure/gcp/variables.tf`
+- [X] T012 [P] [US1] Define the Cloud Run service foundation, runtime identity, and secret integration resources in `~/Projects/youtube-mcp-server/infrastructure/gcp/main.tf`
+- [X] T013 [P] [US1] Define the Redis-compatible durable session backend and exported outputs in `~/Projects/youtube-mcp-server/infrastructure/gcp/session.tf` and `~/Projects/youtube-mcp-server/infrastructure/gcp/outputs.tf`
+- [X] T014 [US1] Document the provisioning workflow, required tfvars, and expected outputs in `~/Projects/youtube-mcp-server/infrastructure/gcp/README.md` and `~/Projects/youtube-mcp-server/infrastructure/gcp/terraform.tfvars.example`
+- [X] T015 [US1] Refactor variable naming, output descriptions, and provisioning guidance across `~/Projects/youtube-mcp-server/infrastructure/gcp/variables.tf`, `~/Projects/youtube-mcp-server/infrastructure/gcp/outputs.tf`, and `~/Projects/youtube-mcp-server/infrastructure/gcp/README.md` while keeping US1 tests green
 
 **Checkpoint**: User Story 1 is independently demonstrable as a reproducible infrastructure provisioning path.
 
@@ -70,15 +70,15 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [X] T016 [P] [US2] Add contract coverage for the deployment handoff values consumed after infrastructure provisioning in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
-- [X] T017 [P] [US2] Add integration coverage for the infrastructure-output-to-deployment-script workflow in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
+- [X] T016 [P] [US2] Add contract coverage for the deployment handoff values consumed after infrastructure provisioning in `~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
+- [X] T017 [P] [US2] Add integration coverage for the infrastructure-output-to-deployment-script workflow in `~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
 
 ### Implementation for User Story 2
 
-- [X] T018 [P] [US2] Implement deployment-input serialization and validation for IaC-produced outputs in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py`
-- [X] T019 [US2] Update the deployment workflow to consume the documented infrastructure outputs in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh`
-- [X] T020 [US2] Align deployment documentation and examples with the infrastructure handoff contract in `/Users/ctgunn/Projects/youtube-mcp-server/README.md` and `/Users/ctgunn/Projects/youtube-mcp-server/specs/019-iac-foundation/quickstart.md`
-- [X] T021 [US2] Refactor deployment input naming, validation errors, and handoff guidance in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`, `/Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh`, and `/Users/ctgunn/Projects/youtube-mcp-server/README.md` while keeping US2 tests green
+- [X] T018 [P] [US2] Implement deployment-input serialization and validation for IaC-produced outputs in `~/Projects/youtube-mcp-server/src/mcp_server/deploy.py` and `~/Projects/youtube-mcp-server/tests/unit/test_iac_foundation_inputs.py`
+- [X] T019 [US2] Update the deployment workflow to consume the documented infrastructure outputs in `~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh`
+- [X] T020 [US2] Align deployment documentation and examples with the infrastructure handoff contract in `~/Projects/youtube-mcp-server/README.md` and `~/Projects/youtube-mcp-server/specs/019-iac-foundation/quickstart.md`
+- [X] T021 [US2] Refactor deployment input naming, validation errors, and handoff guidance in `~/Projects/youtube-mcp-server/src/mcp_server/deploy.py`, `~/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh`, and `~/Projects/youtube-mcp-server/README.md` while keeping US2 tests green
 
 **Checkpoint**: User Story 2 is independently demonstrable as a reproducible deployment path that consumes infrastructure outputs.
 
@@ -92,15 +92,15 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [X] T022 [P] [US3] Add contract coverage for minimal-local versus hosted-like-local workflow guarantees in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
-- [X] T023 [P] [US3] Add integration coverage for the minimal-local and hosted-like-local workflows in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
+- [X] T022 [P] [US3] Add contract coverage for minimal-local versus hosted-like-local workflow guarantees in `~/Projects/youtube-mcp-server/tests/contract/test_iac_foundation_contract.py`
+- [X] T023 [P] [US3] Add integration coverage for the minimal-local and hosted-like-local workflows in `~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
 
 ### Implementation for User Story 3
 
-- [X] T024 [P] [US3] Define the local Redis dependency stack in `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/compose.yaml`
-- [X] T025 [P] [US3] Document hosted-like local environment variables and startup steps in `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/.env.example` and `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/README.md`
-- [X] T026 [US3] Update the minimal-local and hosted-like-local runtime guidance in `/Users/ctgunn/Projects/youtube-mcp-server/README.md` and `/Users/ctgunn/Projects/youtube-mcp-server/specs/019-iac-foundation/quickstart.md`
-- [X] T027 [US3] Refactor local workflow naming, teardown instructions, and verification guidance across `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/README.md`, `/Users/ctgunn/Projects/youtube-mcp-server/README.md`, and `/Users/ctgunn/Projects/youtube-mcp-server/specs/019-iac-foundation/quickstart.md` while keeping US3 tests green
+- [X] T024 [P] [US3] Define the local Redis dependency stack in `~/Projects/youtube-mcp-server/infrastructure/local/compose.yaml`
+- [X] T025 [P] [US3] Document hosted-like local environment variables and startup steps in `~/Projects/youtube-mcp-server/infrastructure/local/.env.example` and `~/Projects/youtube-mcp-server/infrastructure/local/README.md`
+- [X] T026 [US3] Update the minimal-local and hosted-like-local runtime guidance in `~/Projects/youtube-mcp-server/README.md` and `~/Projects/youtube-mcp-server/specs/019-iac-foundation/quickstart.md`
+- [X] T027 [US3] Refactor local workflow naming, teardown instructions, and verification guidance across `~/Projects/youtube-mcp-server/infrastructure/local/README.md`, `~/Projects/youtube-mcp-server/README.md`, and `~/Projects/youtube-mcp-server/specs/019-iac-foundation/quickstart.md` while keeping US3 tests green
 
 **Checkpoint**: User Story 3 is independently demonstrable as a separate hosted-like local verification path that does not break the minimal local workflow.
 
@@ -110,9 +110,9 @@
 
 **Purpose**: Final consistency, regression proof, and completion evidence across all stories.
 
-- [X] T028 [P] Add regression coverage for infrastructure and documentation examples in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
-- [X] T029 Validate the operator quickstarts and contract docs in `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/gcp/README.md`, `/Users/ctgunn/Projects/youtube-mcp-server/infrastructure/local/README.md`, and `/Users/ctgunn/Projects/youtube-mcp-server/specs/019-iac-foundation/quickstart.md`
-- [X] T030 Run the full repository test suite with `pytest` from `/Users/ctgunn/Projects/youtube-mcp-server` and resolve any failures before marking the feature complete
+- [X] T028 [P] Add regression coverage for infrastructure and documentation examples in `~/Projects/youtube-mcp-server/tests/integration/test_cloud_run_docs_examples.py` and `~/Projects/youtube-mcp-server/tests/integration/test_iac_foundation_workflows.py`
+- [X] T029 Validate the operator quickstarts and contract docs in `~/Projects/youtube-mcp-server/infrastructure/gcp/README.md`, `~/Projects/youtube-mcp-server/infrastructure/local/README.md`, and `~/Projects/youtube-mcp-server/specs/019-iac-foundation/quickstart.md`
+- [X] T030 Run the full repository test suite with `pytest` from `~/Projects/youtube-mcp-server` and resolve any failures before marking the feature complete
 
 ---
 

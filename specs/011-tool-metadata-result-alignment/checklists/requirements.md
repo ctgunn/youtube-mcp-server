@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-16
-**Feature**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/spec.md)
+**Feature**: [spec.md](~/Projects/youtube-mcp-server/specs/011-tool-metadata-result-alignment/spec.md)
 
 ## Content Quality
 

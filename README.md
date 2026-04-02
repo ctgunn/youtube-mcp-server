@@ -62,7 +62,7 @@ development or manual testing before pushing code.
 ### 1. Open the repository
 
 ```bash
-cd /Users/ctgunn/Projects/youtube-mcp-server
+cd ~/Projects/youtube-mcp-server
 ```
 
 ### 2. Create and activate a virtual environment
@@ -410,30 +410,30 @@ directly.
 
 These modules are the main moving parts:
 
-- [src/mcp_server/cloud_run_entrypoint.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py)
+- [src/mcp_server/cloud_run_entrypoint.py](~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py)
   This is the hosted front door. It receives raw HTTP requests and turns them
   into hosted MCP behavior.
-- [src/mcp_server/app.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/app.py)
+- [src/mcp_server/app.py](~/Projects/youtube-mcp-server/src/mcp_server/app.py)
   This creates the transport object and loads runtime configuration.
-- [src/mcp_server/config.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/config.py)
+- [src/mcp_server/config.py](~/Projects/youtube-mcp-server/src/mcp_server/config.py)
   This reads environment variables and defines runtime settings such as auth,
   session backend, TTLs, and readiness expectations.
-- [src/mcp_server/transport/http.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/http.py)
+- [src/mcp_server/transport/http.py](~/Projects/youtube-mcp-server/src/mcp_server/transport/http.py)
   This classifies requests, owns hosted route behavior, and routes `/mcp`
   payloads into the MCP protocol layer.
-- [src/mcp_server/security.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/security.py)
+- [src/mcp_server/security.py](~/Projects/youtube-mcp-server/src/mcp_server/security.py)
   This decides whether a request is allowed based on bearer auth, origin
   handling, and browser preflight rules.
-- [src/mcp_server/transport/streaming.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py)
+- [src/mcp_server/transport/streaming.py](~/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py)
   This manages sessions, streams, replay windows, and SSE payload encoding.
-- [src/mcp_server/protocol/methods.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py)
+- [src/mcp_server/protocol/methods.py](~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py)
   This implements the MCP methods supported by the server, such as
   `initialize`, `tools/list`, and `tools/call`.
-- [src/mcp_server/tools/dispatcher.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py)
+- [src/mcp_server/tools/dispatcher.py](~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py)
   This is the registry and dispatcher for tools.
-- [src/mcp_server/tools/retrieval.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py)
+- [src/mcp_server/tools/retrieval.py](~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py)
   This is one current tool module that implements `search` and `fetch`.
-- [src/mcp_server/transport/session_store.py](/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/session_store.py)
+- [src/mcp_server/transport/session_store.py](~/Projects/youtube-mcp-server/src/mcp_server/transport/session_store.py)
   This defines where hosted session state is stored: in memory or in Redis.
 
 ## Ground Level: One Request Lifecycle

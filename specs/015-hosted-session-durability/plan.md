@@ -1,6 +1,6 @@
 # Implementation Plan: Hosted MCP Session Durability
 
-**Branch**: `015-hosted-session-durability` | **Date**: 2026-03-18 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/015-hosted-session-durability/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/015-hosted-session-durability/spec.md)
+**Branch**: `015-hosted-session-durability` | **Date**: 2026-03-18 | **Spec**: [~/Projects/youtube-mcp-server/specs/015-hosted-session-durability/spec.md](~/Projects/youtube-mcp-server/specs/015-hosted-session-durability/spec.md)
 **Input**: Feature specification from `/specs/015-hosted-session-durability/spec.md`
 
 ## Summary

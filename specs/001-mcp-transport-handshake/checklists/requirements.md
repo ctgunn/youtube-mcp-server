@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-01
-**Feature**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/spec.md)
+**Feature**: [~/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/spec.md](~/Projects/youtube-mcp-server/specs/001-mcp-transport-handshake/spec.md)
 
 ## Content Quality
 

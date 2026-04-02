@@ -1,7 +1,7 @@
 # Tasks: Hosted Dependency Wiring for Secrets and Durable Sessions
 
 **Input**: Design documents from `/specs/022-hosted-dependency-wiring/`
-**Prerequisites**: [plan.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/plan.md), [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/spec.md), [research.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/research.md), [data-model.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/data-model.md), [quickstart.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/quickstart.md), [runtime-secret-access-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/contracts/runtime-secret-access-contract.md), [runtime-session-connectivity-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/contracts/runtime-session-connectivity-contract.md), [hosted-dependency-verification-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/contracts/hosted-dependency-verification-contract.md)
+**Prerequisites**: [plan.md](~/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/plan.md), [spec.md](~/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/spec.md), [research.md](~/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/research.md), [data-model.md](~/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/data-model.md), [quickstart.md](~/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/quickstart.md), [runtime-secret-access-contract.md](~/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/contracts/runtime-secret-access-contract.md), [runtime-session-connectivity-contract.md](~/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/contracts/runtime-session-connectivity-contract.md), [hosted-dependency-verification-contract.md](~/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/contracts/hosted-dependency-verification-contract.md)
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes Red-Green-Refactor coverage tasks. Completion requires a passing full repository test-suite run after the final code changes.
 
@@ -241,7 +241,7 @@ Task: "Update the main operator documentation for hosted dependency wiring in RE
 ## Notes
 
 - `[P]` tasks modify different files and are safe parallel candidates once dependencies are satisfied.
-- `[US1]`, `[US2]`, and `[US3]` map directly to the stories in [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/spec.md).
+- `[US1]`, `[US2]`, and `[US3]` map directly to the stories in [spec.md](~/Projects/youtube-mcp-server/specs/022-hosted-dependency-wiring/spec.md).
 - Every story includes explicit Red, Green, and Refactor work.
 - Targeted test runs are not completion proof; `pytest` in `T037` is the completion gate.
 - The recommended MVP scope is **User Story 1 only** after Setup and Foundational work.

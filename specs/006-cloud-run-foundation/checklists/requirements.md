@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-13
-**Feature**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/006-cloud-run-foundation/spec.md)
+**Feature**: [spec.md](~/Projects/youtube-mcp-server/specs/006-cloud-run-foundation/spec.md)
 
 ## Content Quality
 

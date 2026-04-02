@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-15
-**Feature**: [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md)
+**Feature**: [spec.md](~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md)
 
 ## Content Quality
 

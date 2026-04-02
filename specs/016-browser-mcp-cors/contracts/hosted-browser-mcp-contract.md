@@ -14,10 +14,10 @@ Define the externally visible hosted MCP contract for browser-originated access,
 
 ## Relationship to Prior Contracts
 
-- This contract extends [/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md) by making browser-originated hosted access explicit rather than implicit.
-- This contract preserves the hosted streamable transport expectations established in [/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md).
-- This contract preserves the MCP-native request, result, and error semantics established in [/Users/ctgunn/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md).
-- This contract must remain compatible with the durable hosted session behavior established in [/Users/ctgunn/Projects/youtube-mcp-server/specs/015-hosted-session-durability/contracts/hosted-session-durability-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/015-hosted-session-durability/contracts/hosted-session-durability-contract.md).
+- This contract extends [~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md](~/Projects/youtube-mcp-server/specs/013-remote-mcp-security/contracts/hosted-mcp-security.md) by making browser-originated hosted access explicit rather than implicit.
+- This contract preserves the hosted streamable transport expectations established in [~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md](~/Projects/youtube-mcp-server/specs/009-mcp-streamable-http-transport/spec.md).
+- This contract preserves the MCP-native request, result, and error semantics established in [~/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md](~/Projects/youtube-mcp-server/specs/010-mcp-protocol-alignment/spec.md).
+- This contract must remain compatible with the durable hosted session behavior established in [~/Projects/youtube-mcp-server/specs/015-hosted-session-durability/contracts/hosted-session-durability-contract.md](~/Projects/youtube-mcp-server/specs/015-hosted-session-durability/contracts/hosted-session-durability-contract.md).
 
 ## Browser Access Model
 
