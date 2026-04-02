@@ -53,13 +53,13 @@ Use this path when you need Redis-backed session continuity locally.
 
 1. Review [`./.env.example`](./.env.example) for the override values used only by hosted-like local verification.
 2. Start the shared-state dependency:
-   `docker compose -f infrastructure/local/compose.yaml up -d`
+   `./scripts/local_compose.sh up -d`
 3. Reuse the same entry point in hosted-like mode:
    `LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh`
    This hosted-like profile applies `MCP_SESSION_BACKEND=redis` and the local Redis store reference from `./.env.example`.
 4. Start the app locally and run the verification flow against the local endpoint.
 5. Stop the dependency when finished:
-   `docker compose -f infrastructure/local/compose.yaml down`
+   `./scripts/local_compose.sh down`
 
 Hosted-like local verification remains part of the shared platform contract, but it is still distinct from hosted cloud deployment.
 
@@ -72,7 +72,7 @@ Choose this path when:
 
 If Redis is not running, hosted-like local verification should fail clearly and the minimal local runtime remains available.
 If `.env.local` is missing, `bash scripts/dev_local.sh` fails immediately and tells you to restore the local runtime defaults file before retrying.
-If hosted-like local verification is selected without the Redis dependency running, start `docker compose -f infrastructure/local/compose.yaml up -d` first and then rerun `LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh`.
+If hosted-like local verification is selected without the Redis dependency running, start `./scripts/local_compose.sh up -d` first and then rerun `LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh`.
 
 ## What does not change here
 

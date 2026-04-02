@@ -56,7 +56,8 @@ development or manual testing before pushing code.
 - `python3` 3.11 or newer
 - `pip`
 - `make`
-- `docker` and `docker compose` if you want the hosted-like Redis-backed path
+- one supported compose command if you want the hosted-like Redis-backed path:
+  `docker compose`, `docker-compose`, `podman compose`, or `podman-compose`
 
 ### 1. Open the repository
 
@@ -149,10 +150,15 @@ curl -i \
 This path is useful when you want local behavior that is closer to hosted
 session durability.
 
+If `make dev` is still running, stop that in-memory local server first with
+`Ctrl+C` before switching modes. `make dev-down` only stops the Redis
+containers used by the hosted-like path; it does not stop the server process
+started by `make dev`.
+
 Start the local Redis dependency:
 
 ```bash
-docker compose -f infrastructure/local/compose.yaml up -d
+./scripts/local_compose.sh up -d
 ```
 
 Start the app in hosted-like mode:
@@ -551,7 +557,7 @@ Redis-backed session settings used by the hosted deployment without provisioning
 cloud infrastructure first:
 
 ```bash
-docker compose -f infrastructure/local/compose.yaml up -d
+./scripts/local_compose.sh up -d
 ```
 
 ```bash
@@ -561,7 +567,7 @@ LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh
 When finished:
 
 ```bash
-docker compose -f infrastructure/local/compose.yaml down
+./scripts/local_compose.sh down
 ```
 
 These local and hosted-like local workflows are execution modes of the shared platform contract. They remain separate from the primary hosted provider adapter and any future provider adapter.
@@ -571,7 +577,7 @@ Hosted-like local verification keeps the same startup entry point but changes th
 - baseline local values still come from `.env.local`
 - hosted-like local overrides are documented in `infrastructure/local/.env.example`
 - the Redis bootstrap path must be running before `LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh`
-- if the durable-session dependency is unavailable, start `docker compose -f infrastructure/local/compose.yaml up -d` and retry
+- if the durable-session dependency is unavailable, start `./scripts/local_compose.sh up -d` and retry
 
 ## Engineering workflow
 
