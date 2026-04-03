@@ -184,29 +184,51 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - Layer 3 is the only public YouTube tool layer currently committed for the initial release.
 
 ### 6.2 Layer 1 Integration Requirements
-- The Layer 1 integration layer MUST wrap the YouTube Data API endpoints and transcript flows required by the initial Layer 3 tool catalog.
-- The Layer 1 integration layer MUST expose typed methods for:
-  - video retrieval
-  - video search
-  - channel retrieval
-  - batch channel retrieval
-  - playlist retrieval
-  - playlist item retrieval
-  - transcript track discovery
-  - transcript download
+- The Layer 1 integration layer MUST serve as the internal endpoint-wrapper layer for the documented YouTube Data API v3 surface used by this product.
+- The Layer 1 integration layer MUST begin with shared internal scaffolding for:
+  - request execution
+  - API key and OAuth credential injection
+  - retry and backoff hooks
+  - request and response logging hooks
+  - upstream error normalization
+  - endpoint metadata declaration
+- The Layer 1 integration layer MUST expose typed wrappers for each currently documented YouTube Data API v3 endpoint/resource method included in the Layer 1 workstream, not only the subset immediately needed by the first Layer 3 tools.
+- Every Layer 1 wrapper MUST record:
+  - resource and method name
+  - HTTP method and path shape
+  - official YouTube Data API quota-unit cost
+  - auth mode (`api_key`, `oauth_required`, or mixed/conditional)
+  - deprecation or availability state when applicable
+- Method signatures, docstrings, or adjacent implementation comments for Layer 1 wrappers MUST explicitly include the official quota-unit cost for that endpoint.
 - The Layer 1 integration layer MUST support server-side composition where a Layer 3 tool depends on multiple upstream resources.
 - The Layer 1 integration layer MUST keep upstream API naming and transport details out of Layer 3 tool handlers wherever practical.
+- The Layer 1 integration layer MUST explicitly document or flag known official-doc inconsistencies encountered during endpoint inventorying, especially around quota or availability/deprecation behavior.
 
 ### 6.3 Required Upstream API Surface
 - Primary data source: YouTube Data API v3.
-- Initial required endpoint surface:
-  - `videos.list`
+- Layer 1 endpoint inventory target:
+  - `activities.list`
+  - `captions.list`, `captions.insert`, `captions.update`, `captions.download`, `captions.delete`
+  - `channelBanners.insert`
+  - `channels.list`, `channels.update`
+  - `channelSections.list`, `channelSections.insert`, `channelSections.update`, `channelSections.delete`
+  - `comments.list`, `comments.insert`, `comments.update`, `comments.setModerationStatus`, `comments.delete`
+  - `commentThreads.list`, `commentThreads.insert`
+  - `guideCategories.list`
+  - `i18nLanguages.list`, `i18nRegions.list`
+  - `members.list`, `membershipsLevels.list`
+  - `playlistImages.list`, `playlistImages.insert`, `playlistImages.update`, `playlistImages.delete`
+  - `playlistItems.list`, `playlistItems.insert`, `playlistItems.update`, `playlistItems.delete`
+  - `playlists.list`, `playlists.insert`, `playlists.update`, `playlists.delete`
   - `search.list`
-  - `channels.list`
-  - `playlists.list`
-  - `playlistItems.list`
-  - `captions.list`
-  - `captions.download`
+  - `subscriptions.list`, `subscriptions.insert`, `subscriptions.delete`
+  - `thumbnails.set`
+  - `videoAbuseReportReasons.list`
+  - `videoCategories.list`
+  - `videos.list`, `videos.insert`, `videos.update`, `videos.rate`, `videos.getRating`, `videos.reportAbuse`, `videos.delete`
+  - `watermarks.set`, `watermarks.unset`
+- Layer 3 initial public tools depend on a smaller subset of that inventory, but the Layer 1 product requirement is intentionally broader so the integration layer can later support Layer 2 and future Layer 3 additions without redesign.
+- The system MUST maintain a documented per-endpoint quota inventory for the Layer 1 wrappers so downstream tool authors can reason about daily-credit impact before composing multi-call workflows.
 - The system MUST explicitly document which Layer 3 tools depend on single endpoints versus composite multi-endpoint workflows.
 - The system MUST distinguish raw upstream fields from server-derived normalized or heuristic fields in the public contract documentation.
 
@@ -534,14 +556,14 @@ The initial public Layer 3 catalog contains 19 MCP tools.
 
 ## 8. API and Data Requirements
 - Primary data source: YouTube Data API v3.
-- Initial required endpoint inventory:
-  - `videos.list` for video retrieval and selected video metadata enrichment.
-  - `search.list` for video search, channel discovery, creator-discovery candidate gathering, and ranked channel-content workflows.
-  - `channels.list` for channel retrieval, batch channel retrieval, channel metadata enrichment, statistics, and uploads-playlist lookup.
-  - `playlists.list` for playlist retrieval.
-  - `playlistItems.list` for playlist contents and uploads-playlist-driven channel video enumeration.
-  - `captions.list` for transcript track discovery.
-  - `captions.download` for transcript retrieval.
+- Layer 1 integration inventory must cover the currently documented YouTube Data API v3 endpoint/resource methods listed in Section 6.3.
+- The highest-impact quota methods MUST be especially visible in Layer 1 documentation and implementation notes, including but not limited to:
+  - `search.list` at `100` units
+  - `captions.insert` at `400` units
+  - `captions.update` at `450` units
+  - `captions.download` at `200` units
+  - `videos.insert` at `1600` units
+- Layer 3 implementation planning should assume that composite workflows multiply upstream quota usage and should document that impact when a public tool fans out across multiple resources.
 - Endpoint alignment notes:
   - Search workflows use `search.list` with resource-specific filtering where appropriate.
   - Channel video listing can use either:
@@ -633,6 +655,8 @@ The initial public Layer 3 catalog contains 19 MCP tools.
 - Composite higher-level tools are clearly documented where behavior is not provided by a single native YouTube endpoint.
 - The public documentation distinguishes the internal Layer 1 integration layer from the initial public Layer 3 tool catalog.
 - The public documentation identifies which Layer 3 fields are raw upstream values versus normalized or heuristic values.
+- The product requirements and implementation planning document Layer 1 as an endpoint-by-endpoint YouTube Data API integration inventory rather than an ad hoc set of helper calls.
+- Layer 1 wrapper standards require per-endpoint quota-cost documentation in metadata plus method-level comments/docstrings.
 
 ## 15. Milestones
 1. Complete MCP server foundation (transport, registry, baseline tools, health endpoints).
@@ -652,10 +676,10 @@ The initial public Layer 3 catalog contains 19 MCP tools.
 15. Provision Terraform-managed hosted networking, including VPC, subnets, and Cloud Run connectivity resources required for durable hosted sessions.
 16. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
 17. Define the layered YouTube product model and the initial Layer 3 public tool catalog.
-18. Define Layer 1 endpoint wrappers, endpoint-to-tool dependency mapping, and response normalization rules.
+18. Define the Layer 1 shared client foundation, endpoint metadata/quota standards, and full documented YouTube Data API endpoint inventory.
 19. Implement the initial Layer 3 core public tools.
 20. Implement the additional Layer 3 value-add tools for statistics, transcript discovery/search, channel playlist/content workflows, and playlist transcript/search workflows.
-21. Add auth, secrets, quota/error handling, and transcript-access hardening.
+21. Implement the Layer 1 endpoint wrappers, then add auth, secrets, quota/error handling, and transcript-access hardening across composed higher-level workflows.
 22. Add monitoring, alerts, and release documentation.
 
 ## 16. Open Decisions

@@ -494,6 +494,769 @@ Acceptance criteria:
 Dependencies:
 - `FND-025`, `FND-027`
 
+### YT-101: Layer 1 Shared Client Foundation
+Description:
+Build the shared Layer 1 integration scaffolding required before individual
+YouTube Data API endpoints are wrapped.
+
+Primary stories:
+- As a maintainer, I can add endpoint wrappers on top of one consistent
+  transport/auth/error foundation.
+- As a future Layer 3 tool author, I can depend on typed integration methods
+  instead of writing raw HTTP logic inside tool handlers.
+
+Acceptance criteria:
+- Shared Layer 1 abstractions exist for:
+  - request execution
+  - API key and OAuth credential injection
+  - retry/backoff hooks
+  - request/response logging hooks
+  - upstream error normalization
+- Endpoint wrappers can declare their HTTP method, path, auth mode, and quota
+  metadata through one shared contract.
+- Layer 1 remains internal and does not itself expose public MCP tools.
+
+Dependencies:
+- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`, `FND-019`, `FND-020`, `FND-021`, `FND-022`, `FND-023`, `FND-024`, `FND-025`, `FND-026`, `FND-027`, `FND-028`
+
+### YT-102: Layer 1 Endpoint Metadata, Quota, and Signature Standards
+Description:
+Define the Layer 1 wrapper contract so every endpoint method clearly records
+its upstream identity, quota cost, auth expectations, and documentation notes.
+
+Primary stories:
+- As a maintainer, I can look at any Layer 1 method signature or docstring and
+  immediately know what endpoint it calls and how expensive it is.
+- As a future Layer 2 or Layer 3 author, I can understand quota implications
+  before composing higher-level workflows.
+
+Acceptance criteria:
+- Every Layer 1 wrapper method records:
+  - resource and method name
+  - HTTP method and path
+  - official quota-unit cost
+  - auth mode (`api_key`, `oauth_required`, or mixed/conditional)
+  - deprecation state when applicable
+- Method signatures, docstrings, or adjacent implementation comments MUST
+  include the official quota-unit cost for that endpoint.
+- Shared documentation resolves or explicitly flags any official-doc
+  inconsistencies encountered during implementation.
+
+Dependencies:
+- `YT-101`
+
+### YT-103: Layer 1 Endpoint `activities.list`
+Description:
+Wrap `GET /activities`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `activities.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Supported auth/filter behavior is documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-104: Layer 1 Endpoint `captions.list`
+Description:
+Wrap `GET /captions`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `captions.list`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Required auth expectations are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-105: Layer 1 Endpoint `captions.insert`
+Description:
+Wrap `POST /captions`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `captions.insert`.
+- Official quota cost of `400` units is recorded in method metadata and method
+  comments/docstrings.
+- Media-upload requirements and OAuth requirements are documented in the wrapper
+  contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-106: Layer 1 Endpoint `captions.update`
+Description:
+Wrap `PUT /captions`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `captions.update`.
+- Official quota cost of `450` units is recorded in method metadata and method
+  comments/docstrings.
+- Media-upload/update behavior and OAuth requirements are documented in the
+  wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-107: Layer 1 Endpoint `captions.download`
+Description:
+Wrap `GET /captions/{id}` for caption download.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `captions.download`.
+- Official quota cost of `200` units is recorded in method metadata and method
+  comments/docstrings.
+- Edit-permission requirements, format conversion options, and language
+  translation parameters are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-108: Layer 1 Endpoint `captions.delete`
+Description:
+Wrap `DELETE /captions`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `captions.delete`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth and content-owner delegation behavior are documented in the wrapper
+  contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-109: Layer 1 Endpoint `channelBanners.insert`
+Description:
+Wrap `POST /channelBanners/insert`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `channelBanners.insert`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Media-upload and OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-110: Layer 1 Endpoint `channels.list`
+Description:
+Wrap `GET /channels`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `channels.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Filter modes such as `id`, `mine`, `forHandle`, and username-style lookup are
+  documented if supported by the current endpoint.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-111: Layer 1 Endpoint `channels.update`
+Description:
+Wrap `PUT /channels`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `channels.update`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Writable resource-part limitations and OAuth requirements are documented in
+  the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-112: Layer 1 Endpoint `channelSections.list`
+Description:
+Wrap `GET /channelSections`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `channelSections.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Filter criteria and deprecation caveats are documented where applicable.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-113: Layer 1 Endpoint `channelSections.insert`
+Description:
+Wrap `POST /channelSections`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `channelSections.insert`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth and content-structure requirements are documented in the wrapper
+  contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-114: Layer 1 Endpoint `channelSections.update`
+Description:
+Wrap `PUT /channelSections`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `channelSections.update`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Writable field expectations are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-115: Layer 1 Endpoint `channelSections.delete`
+Description:
+Wrap `DELETE /channelSections`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `channelSections.delete`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-116: Layer 1 Endpoint `comments.list`
+Description:
+Wrap `GET /comments`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `comments.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Parent-comment and ID-based retrieval modes are documented in the wrapper
+  contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-117: Layer 1 Endpoint `comments.insert`
+Description:
+Wrap `POST /comments`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `comments.insert`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Reply-creation behavior and OAuth requirements are documented in the wrapper
+  contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-118: Layer 1 Endpoint `comments.update`
+Description:
+Wrap `PUT /comments`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `comments.update`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Writable field expectations are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-119: Layer 1 Endpoint `comments.setModerationStatus`
+Description:
+Wrap `POST /comments/setModerationStatus`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `comments.setModerationStatus`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Moderation-state transitions and OAuth requirements are documented in the
+  wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-120: Layer 1 Endpoint `comments.delete`
+Description:
+Wrap `DELETE /comments`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `comments.delete`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-121: Layer 1 Endpoint `commentThreads.list`
+Description:
+Wrap `GET /commentThreads`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `commentThreads.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Supported filter modes such as `videoId`, `allThreadsRelatedToChannelId`, and
+  ID-based retrieval are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-122: Layer 1 Endpoint `commentThreads.insert`
+Description:
+Wrap `POST /commentThreads`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `commentThreads.insert`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Top-level-comment creation behavior and OAuth requirements are documented in
+  the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-123: Layer 1 Endpoint `guideCategories.list`
+Description:
+Wrap `GET /guideCategories`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `guideCategories.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- The wrapper contract explicitly flags this method as deprecated/unavailable
+  in current platform behavior where official docs say so.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-124: Layer 1 Endpoint `i18nLanguages.list`
+Description:
+Wrap `GET /i18nLanguages`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `i18nLanguages.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Localization-lookup usage is documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-125: Layer 1 Endpoint `i18nRegions.list`
+Description:
+Wrap `GET /i18nRegions`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `i18nRegions.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Region-lookup usage is documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-126: Layer 1 Endpoint `members.list`
+Description:
+Wrap `GET /members`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `members.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- OAuth and owner-only visibility requirements are documented in the wrapper
+  contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-127: Layer 1 Endpoint `membershipsLevels.list`
+Description:
+Wrap `GET /membershipsLevels`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `membershipsLevels.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- OAuth and owner-only visibility requirements are documented in the wrapper
+  contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-128: Layer 1 Endpoint `playlistImages.list`
+Description:
+Wrap `GET /playlistImages`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlistImages.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- OAuth and playlist-image filter modes are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-129: Layer 1 Endpoint `playlistImages.insert`
+Description:
+Wrap `POST /playlistImages`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlistImages.insert`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Media-upload requirements and OAuth requirements are documented in the
+  wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-130: Layer 1 Endpoint `playlistImages.update`
+Description:
+Wrap `PUT /playlistImages`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlistImages.update`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Media-update requirements and OAuth requirements are documented in the
+  wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-131: Layer 1 Endpoint `playlistImages.delete`
+Description:
+Wrap `DELETE /playlistImages`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlistImages.delete`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-132: Layer 1 Endpoint `playlistItems.list`
+Description:
+Wrap `GET /playlistItems`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlistItems.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Pagination and playlist/ID filter modes are documented in the wrapper
+  contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-133: Layer 1 Endpoint `playlistItems.insert`
+Description:
+Wrap `POST /playlistItems`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlistItems.insert`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth and writable-part requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-134: Layer 1 Endpoint `playlistItems.update`
+Description:
+Wrap `PUT /playlistItems`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlistItems.update`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Writable field expectations are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-135: Layer 1 Endpoint `playlistItems.delete`
+Description:
+Wrap `DELETE /playlistItems`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlistItems.delete`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-136: Layer 1 Endpoint `playlists.list`
+Description:
+Wrap `GET /playlists`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlists.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Pagination and filter modes are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-137: Layer 1 Endpoint `playlists.insert`
+Description:
+Wrap `POST /playlists`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlists.insert`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth and writable-part requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-138: Layer 1 Endpoint `playlists.update`
+Description:
+Wrap `PUT /playlists`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlists.update`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Writable field expectations are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-139: Layer 1 Endpoint `playlists.delete`
+Description:
+Wrap `DELETE /playlists`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `playlists.delete`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-140: Layer 1 Endpoint `search.list`
+Description:
+Wrap `GET /search`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `search.list`.
+- Official quota cost of `100` units is recorded in method metadata and method
+  comments/docstrings.
+- Search type, pagination, date filtering, and language/region refinements are
+  documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-141: Layer 1 Endpoint `subscriptions.list`
+Description:
+Wrap `GET /subscriptions`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `subscriptions.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Filter modes and OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-142: Layer 1 Endpoint `subscriptions.insert`
+Description:
+Wrap `POST /subscriptions`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `subscriptions.insert`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth and writable-part requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-143: Layer 1 Endpoint `subscriptions.delete`
+Description:
+Wrap `DELETE /subscriptions`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `subscriptions.delete`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-144: Layer 1 Endpoint `thumbnails.set`
+Description:
+Wrap `POST /thumbnails/set`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `thumbnails.set`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Media-upload and OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-145: Layer 1 Endpoint `videoAbuseReportReasons.list`
+Description:
+Wrap `GET /videoAbuseReportReasons`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `videoAbuseReportReasons.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Localization usage is documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-146: Layer 1 Endpoint `videoCategories.list`
+Description:
+Wrap `GET /videoCategories`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `videoCategories.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Region-specific lookup behavior is documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-147: Layer 1 Endpoint `videos.list`
+Description:
+Wrap `GET /videos`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `videos.list`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- Filter modes such as `id`, `chart`, and other supported selectors are
+  documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-148: Layer 1 Endpoint `videos.insert`
+Description:
+Wrap `POST /videos`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `videos.insert`.
+- Official quota cost of `1600` units is recorded in method metadata and
+  method comments/docstrings.
+- Media-upload, resumable upload, audit/private-default behavior, and OAuth
+  requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-149: Layer 1 Endpoint `videos.update`
+Description:
+Wrap `PUT /videos`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `videos.update`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Writable-part requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-150: Layer 1 Endpoint `videos.rate`
+Description:
+Wrap `POST /videos/rate`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `videos.rate`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Rating semantics and OAuth requirements are documented in the wrapper
+  contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-151: Layer 1 Endpoint `videos.getRating`
+Description:
+Wrap `GET /videos/getRating`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `videos.getRating`.
+- Official quota cost of `1` unit is recorded in method metadata and method
+  comments/docstrings.
+- OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-152: Layer 1 Endpoint `videos.reportAbuse`
+Description:
+Wrap `POST /videos/reportAbuse`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `videos.reportAbuse`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Abuse-report payload expectations and OAuth requirements are documented in the
+  wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-153: Layer 1 Endpoint `videos.delete`
+Description:
+Wrap `DELETE /videos`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `videos.delete`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-154: Layer 1 Endpoint `watermarks.set`
+Description:
+Wrap `POST /watermarks/set`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `watermarks.set`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- Media-upload and OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-155: Layer 1 Endpoint `watermarks.unset`
+Description:
+Wrap `POST /watermarks/unset`.
+
+Acceptance criteria:
+- Layer 1 exposes a typed wrapper for `watermarks.unset`.
+- Official quota cost of `50` units is recorded in method metadata and method
+  comments/docstrings.
+- OAuth requirements are documented in the wrapper contract.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
 ### YT-301: Layer 3 Shared Scaffolding and Contracts
 Description:
 Build the shared Layer 3 scaffolding needed by the public tool catalog, including naming, shared schemas, normalized response conventions, heuristic-field documentation, and reusable interfaces the individual tools will depend on.
@@ -930,15 +1693,21 @@ Dependencies:
 26. `FND-026`
 27. `FND-027`
 28. `FND-028`
-29. `YT-301`
-30. `YT-302` + `YT-304` + `YT-305` + `YT-309` + `YT-310` (parallel where practical)
-31. `YT-303` + `YT-306` + `YT-307` + `YT-311` (parallel where practical)
-32. `YT-308`
-33. `YT-312` + `YT-313` + `YT-316` + `YT-317` (parallel where practical)
-34. `YT-314` + `YT-318` + `YT-319` (parallel where practical)
-35. `YT-315` + `YT-320`
-36. `OPS-401`
-37. `OPS-402`
+29. `YT-101`
+30. `YT-102`
+31. `YT-103` through `YT-110` (read and metadata foundations, grouped by resource where practical)
+32. `YT-111` through `YT-123` (channel, comments, comment-thread, and legacy-category endpoints)
+33. `YT-124` through `YT-139` (localization, member, playlist-image, playlist-item, and playlist endpoints)
+34. `YT-140` through `YT-155` (search, subscriptions, thumbnails, video, and watermark endpoints)
+35. `YT-301`
+36. `YT-302` + `YT-304` + `YT-305` + `YT-309` + `YT-310` (parallel where practical)
+37. `YT-303` + `YT-306` + `YT-307` + `YT-311` (parallel where practical)
+38. `YT-308`
+39. `YT-312` + `YT-313` + `YT-316` + `YT-317` (parallel where practical)
+40. `YT-314` + `YT-318` + `YT-319` (parallel where practical)
+41. `YT-315` + `YT-320`
+42. `OPS-401`
+43. `OPS-402`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
