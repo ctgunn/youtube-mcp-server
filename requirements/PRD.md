@@ -10,6 +10,7 @@ Build an MCP-compliant server that exposes YouTube data and transcript workflows
 - Establish deep research-compatible MCP foundations before domain-specific YouTube tool expansion.
 - Distinguish generic MCP compatibility from OpenAI-specific retrieval compatibility where OpenAI currently documents additional expectations.
 - Support video, channel, playlist, and transcript workflows.
+- Use a layered product model so low-level YouTube integrations and higher-level research-oriented tools can evolve independently.
 - Deploy as a production-ready Cloud Run service.
 - Keep response formats structured for agent consumption.
 
@@ -75,6 +76,10 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - MCP core (tool registry, dispatcher, schema validation, errors).
   - Integrations layer (YouTube API client wrapper, transcript adapters).
   - Domain/tool layer (individual tool handlers).
+- Product layers for YouTube capability:
+  - Layer 1: integration layer that wraps YouTube Data API and transcript providers through typed internal abstractions.
+  - Layer 2: optional lower-level MCP tools that expose raw or near-raw YouTube resource operations for power users and debugging.
+  - Layer 3: higher-level MCP tools that normalize, enrich, filter, combine, and rank YouTube data for research workflows.
 - Dependency boundaries:
   - Tools must depend on integration interfaces, not concrete HTTP clients.
   - Config and secrets must be injected, not read ad-hoc inside tools.
@@ -159,30 +164,360 @@ This phase establishes a working MCP server before any YouTube tools are added.
 
 ## 6. Core Functional Requirements (Phase 1+)
 
-### 6.1 Video Information Tools
-- Get video details (title, description, duration, publish date, tags, category, thumbnails).
-- List channel videos (filterable by date/order/page).
-- Get video statistics (views, likes, comments, favorites where available).
-- Search videos across YouTube (query/q, sort, date range, `relevanceLanguage`, region filters).
+### 6.1 Layered YouTube Capability Model
+- Layer 1 is the internal integration layer:
+  - typed wrappers around YouTube Data API resources and transcript providers
+  - request shaping, retry behavior, quota/error mapping, and auth handling
+  - reusable enrichment helpers that can be shared by multiple public tools
+  - required for the initial release as the implementation foundation for Layer 3
+- Layer 2 is an optional future low-level MCP layer:
+  - near-direct exposure of selected YouTube resource operations
+  - useful for debugging, raw exploration, or power-user workflows
+  - not required for the initial public tool catalog
+- Layer 3 is the initial public MCP tool layer for v1:
+  - the primary user-facing tool catalog
+  - tools may combine multiple YouTube endpoints and local heuristics
+  - tools may perform ETL-style normalization, filtering, enrichment, and ranking before returning results
+- Initial scope decision:
+  - Layer 1 is required for implementation support.
+  - Layer 2 is explicitly out of scope for the initial public release unless added later through a separate decision.
+  - Layer 3 is the only public YouTube tool layer currently committed for the initial release.
 
-### 6.2 Transcript Management Tools
-- Retrieve video transcripts.
-- Support transcript retrieval in multiple languages.
-- Return timestamped caption segments.
-- Search within transcript text and return matching timestamps.
-- Transcript/caption operations are authorization-sensitive and require caption track access context.
+### 6.2 Layer 1 Integration Requirements
+- The Layer 1 integration layer MUST wrap the YouTube Data API endpoints and transcript flows required by the initial Layer 3 tool catalog.
+- The Layer 1 integration layer MUST expose typed methods for:
+  - video retrieval
+  - video search
+  - channel retrieval
+  - batch channel retrieval
+  - playlist retrieval
+  - playlist item retrieval
+  - transcript track discovery
+  - transcript download
+- The Layer 1 integration layer MUST support server-side composition where a Layer 3 tool depends on multiple upstream resources.
+- The Layer 1 integration layer MUST keep upstream API naming and transport details out of Layer 3 tool handlers wherever practical.
 
-### 6.3 Channel Management Tools
-- Get channel details (metadata/branding fields available from API).
-- List channel playlists.
-- Get channel statistics.
-- Search within channel content.
+### 6.3 Required Upstream API Surface
+- Primary data source: YouTube Data API v3.
+- Initial required endpoint surface:
+  - `videos.list`
+  - `search.list`
+  - `channels.list`
+  - `playlists.list`
+  - `playlistItems.list`
+  - `captions.list`
+  - `captions.download`
+- The system MUST explicitly document which Layer 3 tools depend on single endpoints versus composite multi-endpoint workflows.
+- The system MUST distinguish raw upstream fields from server-derived normalized or heuristic fields in the public contract documentation.
 
-### 6.4 Playlist Management Tools
-- List playlist items.
-- Get playlist details.
-- Search within playlists.
-- Get playlist video transcripts.
+### 6.3.1 Initial Endpoint-to-Tool Mapping
+- `videos_getVideo`
+  - primary dependency: `videos.list`
+- `videos_searchVideos`
+  - primary dependency: `search.list`
+  - optional enrichment/filtering dependency: `channels.list`
+- `videos_getStatistics`
+  - primary dependency: `videos.list`
+- `transcripts_getTranscript`
+  - primary dependencies: `captions.list`, `captions.download`
+- `transcripts_listLanguages`
+  - primary dependency: `captions.list`
+- `transcripts_getTimestampedCaptions`
+  - primary dependencies: `captions.list`, `captions.download`
+- `transcripts_searchTranscript`
+  - primary dependencies: transcript retrieval flow plus in-server text search
+- `channels_getChannel`
+  - primary dependency: `channels.list`
+  - optional enrichment dependency for latest upload metadata: `search.list` or uploads-playlist path
+- `channels_getChannels`
+  - primary dependency: `channels.list`
+  - optional enrichment dependency for latest upload metadata: `search.list` or uploads-playlist path
+- `channels_searchChannels`
+  - primary dependency: `search.list`
+  - optional enrichment/filtering dependency: `channels.list`
+- `channels_findCreators`
+  - primary dependencies: `search.list`, `channels.list`
+  - optional enrichment dependency for latest upload/activity and sample videos: uploads-playlist path or additional `search.list` calls
+- `channels_listVideos`
+  - primary dependency: `search.list` or uploads-playlist path
+  - uploads-playlist path dependencies: `channels.list`, `playlistItems.list`
+- `channels_listPlaylists`
+  - primary dependency: `playlists.list`
+- `channels_getStatistics`
+  - primary dependency: `channels.list`
+- `channels_searchContent`
+  - primary dependency: `search.list`
+- `playlists_getPlaylist`
+  - primary dependency: `playlists.list`
+- `playlists_getPlaylistItems`
+  - primary dependency: `playlistItems.list`
+- `playlists_searchItems`
+  - primary dependencies: `playlistItems.list` plus in-server filtering
+- `playlists_getVideoTranscripts`
+  - primary dependencies: `playlistItems.list` plus transcript retrieval flow
+
+### 6.4 Initial Layer 3 Public Tool Catalog
+The initial public Layer 3 catalog contains 19 MCP tools.
+
+#### 6.4.1 `videos_getVideo`
+- Purpose:
+  - return detailed information about a YouTube video in one normalized response
+- Required parameters:
+  - `videoId` string
+- Optional parameters:
+  - `parts` string[]
+- Minimum output expectations:
+  - normalized core video metadata
+  - selected part coverage based on `parts` when provided
+  - stable fields for agent consumption
+
+#### 6.4.2 `videos_searchVideos`
+- Purpose:
+  - search for videos on YouTube with optional channel- and creator-oriented refinement
+- Required parameters:
+  - `query` string
+- Optional parameters:
+  - `maxResults` number
+  - `order` string
+  - `publishedAfter` string (ISO 8601)
+  - `publishedBefore` string (ISO 8601)
+  - `channelId` string
+  - `uniqueChannels` boolean
+  - `channelMinSubscribers` number
+  - `channelMaxSubscribers` number
+  - `channelLastUploadAfter` string (ISO 8601)
+  - `channelLastUploadBefore` string (ISO 8601)
+  - `creatorOnly` boolean
+  - `sortBy` string
+- Required behavior:
+  - support direct YouTube search behavior for the base query
+  - support post-search enrichment and filtering by matched channel metadata
+  - support one-result-per-channel behavior when `uniqueChannels=true`
+  - support ranking modes including relevance, subscriber-based ordering, indie-priority, and recent-activity
+
+#### 6.4.3 `videos_getStatistics`
+- Purpose:
+  - return statistics for a single YouTube video
+- Required parameters:
+  - `videoId` string
+- Optional parameters:
+  - none
+- Required behavior:
+  - return available counts such as views, likes, comments, and favorites where available
+  - document how hidden or unavailable counts are represented
+
+#### 6.4.4 `transcripts_getTranscript`
+- Purpose:
+  - retrieve the transcript of a YouTube video
+- Required parameters:
+  - `videoId` string
+- Optional parameters:
+  - `language` string
+- Required behavior:
+  - support transcript language selection
+  - fall back to `YOUTUBE_TRANSCRIPT_LANG` or `en` when explicit language is not provided
+  - document auth-sensitive behavior when official caption access is required
+
+#### 6.4.5 `transcripts_listLanguages`
+- Purpose:
+  - list transcript or caption languages available for a video
+- Required parameters:
+  - `videoId` string
+- Optional parameters:
+  - none
+- Required behavior:
+  - expose the language choices and any available track metadata the public contract chooses to surface
+  - document auth-sensitive limitations where applicable
+
+#### 6.4.6 `transcripts_getTimestampedCaptions`
+- Purpose:
+  - return caption segments with explicit timestamp boundaries
+- Required parameters:
+  - `videoId` string
+- Optional parameters:
+  - `language` string
+- Required behavior:
+  - return start/end or equivalent timing information per segment
+  - document auth-sensitive behavior when official caption access is required
+
+#### 6.4.7 `transcripts_searchTranscript`
+- Purpose:
+  - search transcript text and return matching snippets with timing
+- Required parameters:
+  - `videoId` string
+  - `query` string
+- Optional parameters:
+  - `language` string
+  - `maxMatches` number
+- Required behavior:
+  - this is a composite higher-level tool built on transcript retrieval plus in-server text search
+  - document match ranking, snippet extraction, and timestamp behavior clearly
+
+#### 6.4.8 `channels_getChannel`
+- Purpose:
+  - return information about a single YouTube channel
+- Required parameters:
+  - `channelId` string
+- Optional parameters:
+  - none
+- Required output enrichment:
+  - `latestVideoPublishedAt`
+  - `normalizedMetadata`
+  - `normalizedMetadata.country`
+  - `normalizedMetadata.defaultLanguage`
+  - `normalizedMetadata.joinedAt`
+  - `normalizedMetadata.customUrl`
+  - `normalizedMetadata.emailsFound`
+  - `normalizedMetadata.contactLinks`
+  - creator-versus-brand heuristic fields
+
+#### 6.4.9 `channels_getChannels`
+- Purpose:
+  - return information about multiple YouTube channels in one request
+- Required parameters:
+  - `channelIds` string[]
+- Optional parameters:
+  - `parts` string[]
+  - `includeLatestUpload` boolean
+- Required behavior:
+  - support batch retrieval and normalization
+  - optionally suppress latest-upload enrichment when `includeLatestUpload=false`
+
+#### 6.4.10 `channels_searchChannels`
+- Purpose:
+  - search for channels by handle, channel name, or general query
+- Required parameters:
+  - `query` string
+- Optional parameters:
+  - `maxResults` number
+  - `order` string
+  - `channelType` string
+  - `minSubscribers` number
+  - `maxSubscribers` number
+  - `lastUploadAfter` string (ISO 8601)
+  - `lastUploadBefore` string (ISO 8601)
+  - `creatorOnly` boolean
+  - `sortBy` string
+- Required behavior:
+  - support both upstream channel discovery and server-side enrichment/filtering
+  - support creator-focused filtering and ranking modes
+
+#### 6.4.11 `channels_findCreators`
+- Purpose:
+  - discover creator channels from matched or mentioning videos and then rank/filter the resulting channels
+- Required parameters:
+  - `query` string
+- Optional parameters:
+  - `maxResults` number
+  - `order` string
+  - `videoPublishedAfter` string (ISO 8601)
+  - `videoPublishedBefore` string (ISO 8601)
+  - `channelMinSubscribers` number
+  - `channelMaxSubscribers` number
+  - `channelLastUploadAfter` string (ISO 8601)
+  - `channelLastUploadBefore` string (ISO 8601)
+  - `creatorOnly` boolean
+  - `sortBy` string
+  - `sampleVideosPerChannel` number
+- Required behavior:
+  - this is a composite higher-level tool, not a single-endpoint passthrough
+  - it may search matched videos first, then derive and enrich candidate channels
+  - it must document the ranking, filtering, and sample-video inclusion rules clearly
+
+#### 6.4.12 `channels_listVideos`
+- Purpose:
+  - get videos from a specific channel
+- Required parameters:
+  - `channelId` string
+- Optional parameters:
+  - `maxResults` number
+- Required behavior:
+  - support deterministic listing behavior appropriate for the chosen implementation path
+  - document whether the implementation uses ranked search behavior, uploads-playlist behavior, or both
+
+#### 6.4.13 `channels_listPlaylists`
+- Purpose:
+  - get playlists from a specific channel
+- Required parameters:
+  - `channelId` string
+- Optional parameters:
+  - `maxResults` number
+- Required behavior:
+  - return normalized playlist list results that align with the playlist tool family
+
+#### 6.4.14 `channels_getStatistics`
+- Purpose:
+  - return statistics for a single YouTube channel
+- Required parameters:
+  - `channelId` string
+- Optional parameters:
+  - none
+- Required behavior:
+  - return available counts such as subscribers, videos, and views where available
+  - document how hidden or unavailable counts are represented
+
+#### 6.4.15 `channels_searchContent`
+- Purpose:
+  - search within the content of a specific channel
+- Required parameters:
+  - `channelId` string
+  - `query` string
+- Optional parameters:
+  - `maxResults` number
+  - `order` string
+- Required behavior:
+  - document when the behavior is direct upstream search versus additional in-server shaping
+
+#### 6.4.16 `playlists_getPlaylist`
+- Purpose:
+  - return information about a playlist
+- Required parameters:
+  - `playlistId` string
+- Optional parameters:
+  - none
+
+#### 6.4.17 `playlists_getPlaylistItems`
+- Purpose:
+  - return the videos contained in a playlist
+- Required parameters:
+  - `playlistId` string
+- Optional parameters:
+  - `maxResults` number
+
+#### 6.4.18 `playlists_searchItems`
+- Purpose:
+  - search within a playlist for matching items
+- Required parameters:
+  - `playlistId` string
+  - `query` string
+- Optional parameters:
+  - `maxResults` number
+- Required behavior:
+  - this is a composite higher-level tool rather than a single-endpoint passthrough
+  - document matching and result-shaping behavior clearly
+
+#### 6.4.19 `playlists_getVideoTranscripts`
+- Purpose:
+  - retrieve transcript data for videos contained in a playlist
+- Required parameters:
+  - `playlistId` string
+- Optional parameters:
+  - `language` string
+  - `maxResults` number
+- Required behavior:
+  - this is a composite higher-level tool built from playlist enumeration plus transcript retrieval
+  - document bounded fan-out behavior and auth-sensitive limitations explicitly
+
+### 6.5 Layer 3 Contract Rules
+- Layer 3 tools MUST use stable MCP-facing parameter names rather than raw YouTube API parameter names.
+- Layer 3 tools MAY combine multiple upstream resources before returning a response.
+- Layer 3 tools MAY add derived fields, normalized fields, and heuristic classifications when those fields are documented explicitly.
+- Layer 3 tools MUST distinguish:
+  - raw upstream fields
+  - normalized fields
+  - heuristic or inferred fields
+- Layer 3 tools MUST return enough structured output that downstream agents can use them without having to understand raw YouTube API response shapes.
+- Defaults, bounds, and result-shaping behavior for repeated parameters such as `maxResults`, `parts`, and language fallback MUST be documented in the final tool contract before implementation begins.
 
 ## 7. MCP Tool Contract Requirements
 - Each tool must include:
@@ -193,19 +528,33 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - Structured error model (`code`, `message`, `details`).
 - Consistent pagination fields (`nextPageToken`, `pageSize`, `totalResults` when available).
 - Deterministic parameter names across tools (e.g., `videoId`, `channelId`, `playlistId`, `query`, `language`), with explicit mapping to YouTube terms (`query -> q`, `pageSize -> maxResults`).
+- Layer 3 public tool names SHOULD avoid redundant provider prefixes when the repository context already makes the provider obvious.
+- The initial public Layer 3 catalog uses grouped names such as `videos_*`, `channels_*`, `playlists_*`, and `transcripts_*`.
+- Tool contracts MUST explicitly document optional filters and ranking fields whose behavior is implemented partly in-server rather than directly by a single upstream YouTube endpoint.
 
 ## 8. API and Data Requirements
 - Primary data source: YouTube Data API v3.
-- Endpoint alignment (verified against YouTube docs on February 26, 2026):
-  - Search workflows use `search.list` with `type=video`.
+- Initial required endpoint inventory:
+  - `videos.list` for video retrieval and selected video metadata enrichment.
+  - `search.list` for video search, channel discovery, creator-discovery candidate gathering, and ranked channel-content workflows.
+  - `channels.list` for channel retrieval, batch channel retrieval, channel metadata enrichment, statistics, and uploads-playlist lookup.
+  - `playlists.list` for playlist retrieval.
+  - `playlistItems.list` for playlist contents and uploads-playlist-driven channel video enumeration.
+  - `captions.list` for transcript track discovery.
+  - `captions.download` for transcript retrieval.
+- Endpoint alignment notes:
+  - Search workflows use `search.list` with resource-specific filtering where appropriate.
   - Channel video listing can use either:
     - `search.list` with `channelId` for ranked/discoverability behavior.
     - Uploads playlist flow (`channels.list` -> `contentDetails.relatedPlaylists.uploads` -> `playlistItems.list`) for deterministic exhaustive listing.
-  - Playlist search is composite behavior (list playlist items then filter in-server).
+  - Creator-finding and advanced channel/video filters may require composite server-side workflows that enrich search results with channel data before final filtering and ranking.
 - Transcript source strategy:
   - Official path: `captions.list(videoId)` and `captions.download(captionTrackId)`.
   - These endpoints require OAuth authorization context for the target caption track.
   - Any public transcript fallback (if used) must be explicitly documented as non-YouTube-Data-API behavior.
+- Data-shaping rules:
+  - public Layer 3 responses may include raw upstream fields, normalized fields, and heuristic fields
+  - normalized and heuristic fields must be documented clearly in the public tool contract
 - Handle quota limits with explicit error responses and retry guidance.
 - Normalize disparate API responses into stable MCP output schemas.
 
@@ -272,7 +621,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Failed initialize requests do not create or expose hosted continuation sessions.
 - Tool discovery metadata is sufficient for supported MCP clients to construct valid foundational tool requests.
 - Error codes and error payloads match the supported protocol expectations for downstream consumers.
-- All 16 tools in Sections 6.1-6.4 are implemented and callable via MCP.
+- All 19 initial Layer 3 tools in Section 6.4 are implemented and callable via MCP.
 - Every tool validates inputs and returns structured errors.
 - Cloud Run deployment succeeds and serves MCP traffic.
 - Cloud Run deployment is publicly reachable to trusted remote MCP consumers using an explicit documented configuration.
@@ -281,7 +630,9 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Automated deployment provisions the required hosted network resources through IaC rather than relying on pre-existing manual VPC/subnet/connector configuration.
 - Logs and core metrics are visible in Google Cloud.
 - README includes setup, config, run, and deploy instructions.
-- Composite tools are clearly documented where behavior is not provided by a single native YouTube endpoint (playlist search and transcript text search).
+- Composite higher-level tools are clearly documented where behavior is not provided by a single native YouTube endpoint.
+- The public documentation distinguishes the internal Layer 1 integration layer from the initial public Layer 3 tool catalog.
+- The public documentation identifies which Layer 3 fields are raw upstream values versus normalized or heuristic values.
 
 ## 15. Milestones
 1. Complete MCP server foundation (transport, registry, baseline tools, health endpoints).
@@ -300,11 +651,12 @@ This phase establishes a working MCP server before any YouTube tools are added.
 14. Provide a one-command local startup workflow with dedicated local runtime environment defaults.
 15. Provision Terraform-managed hosted networking, including VPC, subnets, and Cloud Run connectivity resources required for durable hosted sessions.
 16. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
-17. Define YouTube tool schemas and response contracts.
-18. Implement video/channel/playlist tools.
-19. Implement transcript retrieval/search flows.
-20. Add auth, secrets, and quota/error handling hardening.
-21. Add monitoring, alerts, and release documentation.
+17. Define the layered YouTube product model and the initial Layer 3 public tool catalog.
+18. Define Layer 1 endpoint wrappers, endpoint-to-tool dependency mapping, and response normalization rules.
+19. Implement the initial Layer 3 core public tools.
+20. Implement the additional Layer 3 value-add tools for statistics, transcript discovery/search, channel playlist/content workflows, and playlist transcript/search workflows.
+21. Add auth, secrets, quota/error handling, and transcript-access hardening.
+22. Add monitoring, alerts, and release documentation.
 
 ## 16. Open Decisions
 - Final transcript fallback approach when official captions are unavailable.

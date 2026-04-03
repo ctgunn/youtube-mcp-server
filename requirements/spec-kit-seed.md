@@ -5,7 +5,12 @@
 - `requirements/tool-specs.md`
 
 ## 1. Product Goal
-Deliver a production-deployed MCP server on Cloud Run that supports a reliable baseline server experience first, then incrementally adds 16 YouTube tools across video, transcript, channel, and playlist domains.
+Deliver a production-deployed MCP server on Cloud Run that supports a reliable baseline server experience first, then adds a layered YouTube capability stack. For planning and numbering:
+- `YT-1xx` is reserved for Layer 1 internal integrations and wrappers.
+- `YT-2xx` is reserved for Layer 2 lower-level/raw-resource MCP tools.
+- `YT-3xx` is reserved for Layer 3 higher-level public MCP tools.
+
+The immediate planning focus is the initial Layer 3 public catalog of 10 higher-level video, transcript, channel, and playlist tools.
 
 ## 2. Scope Model
 - Phase 0: MCP server foundation (must be complete before YouTube tools).
@@ -489,90 +494,385 @@ Acceptance criteria:
 Dependencies:
 - `FND-025`, `FND-027`
 
-### YT-101: YouTube Client Integration Layer
+### YT-301: Layer 3 Shared Scaffolding and Contracts
 Description:
-Build typed wrapper for YouTube Data API v3 with auth, retry, quota, and error mapping.
+Build the shared Layer 3 scaffolding needed by the public tool catalog, including naming, shared schemas, normalized response conventions, heuristic-field documentation, and reusable interfaces the individual tools will depend on.
 
 Primary stories:
-- As a tool developer, I can call YouTube endpoints via shared client abstractions.
+- As a maintainer, I can add each Layer 3 tool without redefining the same contract and normalization rules repeatedly.
+- As a client developer, I can rely on consistent naming and result-shaping across the Layer 3 public tool catalog.
 
 Acceptance criteria:
-- Wrapper supports videos/channels/playlists/search endpoints.
-- Quota and upstream errors map to standard server errors.
+- Shared Layer 3 naming rules are documented and use grouped tool prefixes such as `videos_*`, `channels_*`, `playlists_*`, and `transcripts_*`.
+- Shared parameter conventions are documented for repeated fields such as `videoId`, `channelId`, `playlistId`, `query`, `language`, `maxResults`, `order`, and ISO 8601 date filters.
+- Shared Layer 3 response conventions distinguish raw upstream values from normalized fields and heuristic/inferred fields.
+- Shared rules for ranking/filtering semantics such as `creatorOnly`, subscriber-band filters, latest-upload filters, and `sortBy` are documented wherever multiple tools reuse them.
+- Layer 3 tool slices can depend on these shared contracts without redefining cross-cutting rules in each tool spec.
 
 Dependencies:
 - `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`, `FND-019`, `FND-020`, `FND-021`, `FND-022`, `FND-023`, `FND-024`, `FND-025`, `FND-026`, `FND-027`, `FND-028`
 
-### YT-102: Video Tools
+### YT-302: Layer 3 Tool `videos_getVideo`
 Description:
-Implement video tool set from `tool-specs.md`.
+Define and implement the higher-level video detail tool.
 
-Tools:
-- `youtube_get_video_details`
-- `youtube_list_channel_videos`
-- `youtube_get_video_statistics`
-- `youtube_search_videos`
+Primary stories:
+- As an MCP client, I can request detailed information about one YouTube video.
 
 Acceptance criteria:
-- All 4 tools implemented with schema validation and documented examples.
-- Pagination and parameter mapping (`query -> q`, `pageSize -> maxResults`) enforced.
+- `videos_getVideo` supports:
+  - required `videoId`
+  - optional `parts`
+- Response contract documents the normalized video fields returned by default.
+- Optional `parts` behavior is documented, including how requested parts map to returned fields.
+- Error behavior is documented for invalid IDs, unavailable videos, and upstream quota/access failures.
 
 Dependencies:
-- `YT-101`
+- `YT-301`
 
-### YT-103: Channel Tools
+### YT-303: Layer 3 Tool `videos_searchVideos`
 Description:
-Implement channel tool set from `tool-specs.md`.
+Define and implement the higher-level video search tool with channel-aware enrichment and ranking/filtering behavior.
 
-Tools:
-- `youtube_get_channel_details`
-- `youtube_list_channel_playlists`
-- `youtube_get_channel_statistics`
-- `youtube_search_channel_content`
+Primary stories:
+- As an MCP client, I can search for videos and optionally refine results by channel- and creator-oriented filters.
 
 Acceptance criteria:
-- All 4 tools implemented and integrated into registry.
-- Consistent response envelope and error handling.
+- `videos_searchVideos` supports:
+  - required `query`
+  - optional `maxResults`, `order`, `publishedAfter`, `publishedBefore`, `channelId`
+  - optional `uniqueChannels`
+  - optional `channelMinSubscribers`, `channelMaxSubscribers`
+  - optional `channelLastUploadAfter`, `channelLastUploadBefore`
+  - optional `creatorOnly`
+  - optional `sortBy`
+- `sortBy` semantics are documented for:
+  - `relevance`
+  - `subscribers_asc`
+  - `subscribers_desc`
+  - `indie_priority`
+  - `recent_activity`
+- Search enrichment and post-search filtering behavior are documented when channel metadata is required to compute final results.
+- `uniqueChannels=true` behavior is documented explicitly.
 
 Dependencies:
-- `YT-101`
+- `YT-301`
 
-### YT-104: Playlist Tools
+### YT-304: Layer 3 Tool `transcripts_getTranscript`
 Description:
-Implement playlist tool set including composite playlist search behavior.
+Define and implement the higher-level transcript retrieval tool.
 
-Tools:
-- `youtube_list_playlist_items`
-- `youtube_get_playlist_details`
-- `youtube_search_playlist_items` (composite)
+Primary stories:
+- As an MCP client, I can retrieve the transcript of a YouTube video in a predictable language-selection flow.
 
 Acceptance criteria:
-- All 3 tools implemented.
-- Composite search behavior documented and tested.
+- `transcripts_getTranscript` supports:
+  - required `videoId`
+  - optional `language`
+- Transcript language fallback behavior is documented:
+  - explicit parameter
+  - then `YOUTUBE_TRANSCRIPT_LANG`
+  - then `en`
+- Official caption-access requirements and failure modes are documented.
+- Output contract is detailed enough for agents to consume transcript text and/or timestamped segments safely.
 
 Dependencies:
-- `YT-101`
+- `YT-301`
 
-### YT-105: Transcript/Captions Tools
+### YT-305: Layer 3 Tool `channels_getChannel`
 Description:
-Implement transcript tools using authorized captions flow.
+Define and implement the higher-level single-channel detail tool.
 
-Tools:
-- `youtube_get_video_transcript`
-- `youtube_list_transcript_languages`
-- `youtube_get_timestamped_captions`
-- `youtube_search_transcript` (composite)
-- `youtube_get_playlist_video_transcripts` (composite)
+Primary stories:
+- As an MCP client, I can retrieve normalized and enriched information about a YouTube channel.
 
 Acceptance criteria:
-- Caption-track flow implemented (`captions.list` + `captions.download`).
-- Explicit auth-sensitive errors returned when access is not permitted.
-- Composite transcript search and playlist transcript behavior documented.
+- `channels_getChannel` supports:
+  - required `channelId`
+  - enriched output including `latestVideoPublishedAt`
+  - `normalizedMetadata`
+  - normalized metadata fields for `country`, `defaultLanguage`, `joinedAt`, `customUrl`, `emailsFound`, and `contactLinks`
+  - creator-versus-brand heuristic fields
+- The contract distinguishes which returned channel fields are raw upstream metadata versus normalized or heuristic fields.
 
 Dependencies:
-- `YT-101`, `YT-104`
+- `YT-301`
 
-### OPS-201: CI/CD and Quality Gates
+### YT-306: Layer 3 Tool `channels_getChannels`
+Description:
+Define and implement the higher-level batch channel detail tool.
+
+Primary stories:
+- As an MCP client, I can retrieve information about multiple channels in one request.
+
+Acceptance criteria:
+- `channels_getChannels` supports:
+  - required `channelIds`
+  - optional `parts`
+  - optional `includeLatestUpload`
+- `includeLatestUpload` default behavior is documented as `true`.
+- Batch output shape is documented and consistent with the single-channel normalization rules where applicable.
+
+Dependencies:
+- `YT-301`
+
+### YT-307: Layer 3 Tool `channels_searchChannels`
+Description:
+Define and implement the higher-level channel search tool.
+
+Primary stories:
+- As an MCP client, I can search for channels by handle, name, or general query and then filter/rank them in useful ways.
+
+Acceptance criteria:
+- `channels_searchChannels` supports:
+  - required `query`
+  - optional `maxResults`, `order`, `channelType`
+  - optional `minSubscribers`, `maxSubscribers`
+  - optional `lastUploadAfter`, `lastUploadBefore`
+  - optional `creatorOnly`
+  - optional `sortBy`
+- `sortBy` semantics are documented for:
+  - `relevance`
+  - `subscribers_asc`
+  - `subscribers_desc`
+  - `indie_priority`
+  - `recent_activity`
+- Search, enrichment, filtering, and ranking behavior are documented when they require composite in-server logic.
+
+Dependencies:
+- `YT-301`
+
+### YT-308: Layer 3 Tool `channels_findCreators`
+Description:
+Define and implement the higher-level creator-discovery tool.
+
+Primary stories:
+- As an MCP client, I can discover creator channels from matched videos and then refine those results by channel size and activity.
+
+Acceptance criteria:
+- `channels_findCreators` supports:
+  - required `query`
+  - optional `maxResults`, `order`
+  - optional `videoPublishedAfter`, `videoPublishedBefore`
+  - optional `channelMinSubscribers`, `channelMaxSubscribers`
+  - optional `channelLastUploadAfter`, `channelLastUploadBefore`
+  - optional `creatorOnly`
+  - optional `sortBy`
+  - optional `sampleVideosPerChannel`
+- The contract documents that this is a composite higher-level tool rather than a single-endpoint passthrough.
+- Creator-discovery, candidate-channel derivation, sampling behavior, and ranking/filtering semantics are documented explicitly.
+
+Dependencies:
+- `YT-301`
+- `YT-305`
+- `YT-307`
+
+### YT-309: Layer 3 Tool `channels_listVideos`
+Description:
+Define and implement the higher-level channel video listing tool.
+
+Primary stories:
+- As an MCP client, I can retrieve videos from a specific channel through a stable MCP-facing contract.
+
+Acceptance criteria:
+- `channels_listVideos` supports:
+  - required `channelId`
+  - optional `maxResults`
+- The contract documents whether the implementation uses ranked search behavior, uploads-playlist behavior, or a documented combination of both.
+
+Dependencies:
+- `YT-301`
+
+### YT-310: Layer 3 Tool `playlists_getPlaylist`
+Description:
+Define and implement the higher-level playlist detail tool.
+
+Primary stories:
+- As an MCP client, I can retrieve information about a YouTube playlist.
+
+Acceptance criteria:
+- `playlists_getPlaylist` supports:
+  - required `playlistId`
+- Playlist detail output is normalized for agent consumption.
+
+Dependencies:
+- `YT-301`
+
+### YT-311: Layer 3 Tool `playlists_getPlaylistItems`
+Description:
+Define and implement the higher-level playlist items tool.
+
+Primary stories:
+- As an MCP client, I can retrieve the videos contained in a playlist.
+
+Acceptance criteria:
+- `playlists_getPlaylistItems` supports:
+  - required `playlistId`
+  - optional `maxResults`
+- Playlist item output is normalized for agent consumption and does not leak raw upstream response complexity unnecessarily.
+
+Dependencies:
+- `YT-301`
+
+### YT-312: Layer 3 Tool `videos_getStatistics`
+Description:
+Define and implement the higher-level video statistics tool.
+
+Primary stories:
+- As an MCP client, I can retrieve view, like, comment, and other available statistics for a video.
+
+Acceptance criteria:
+- `videos_getStatistics` supports:
+  - required `videoId`
+- The contract documents which statistics are expected when available from YouTube and how missing/hidden counts are represented.
+- Output is normalized for agent consumption and consistent with the rest of the Layer 3 video catalog.
+
+Dependencies:
+- `YT-301`
+
+### YT-313: Layer 3 Tool `transcripts_listLanguages`
+Description:
+Define and implement the transcript-language discovery tool.
+
+Primary stories:
+- As an MCP client, I can discover which transcript/caption languages are available for a video before requesting one.
+
+Acceptance criteria:
+- `transcripts_listLanguages` supports:
+  - required `videoId`
+- Output documents available languages, any track identifiers or track metadata exposed to callers, and any auth-sensitive limitations.
+
+Dependencies:
+- `YT-301`
+
+### YT-314: Layer 3 Tool `transcripts_getTimestampedCaptions`
+Description:
+Define and implement the timestamped caption-segment retrieval tool.
+
+Primary stories:
+- As an MCP client, I can retrieve caption segments with explicit start/end timing for a video.
+
+Acceptance criteria:
+- `transcripts_getTimestampedCaptions` supports:
+  - required `videoId`
+  - optional `language`
+- Output contract documents timestamp fields and segment granularity clearly.
+- Auth-sensitive caption access rules and failure modes are documented.
+
+Dependencies:
+- `YT-301`
+
+### YT-315: Layer 3 Tool `transcripts_searchTranscript`
+Description:
+Define and implement the higher-level transcript text search tool.
+
+Primary stories:
+- As an MCP client, I can search within a transcript and retrieve matching snippets with timestamps.
+
+Acceptance criteria:
+- `transcripts_searchTranscript` supports:
+  - required `videoId`
+  - required `query`
+  - optional `language`
+  - optional `maxMatches`
+- The contract documents that this is a composite higher-level tool built on transcript retrieval plus in-server text search.
+- Match ranking, snippet extraction, and timestamp behavior are documented explicitly.
+
+Dependencies:
+- `YT-301`
+- `YT-304`
+
+### YT-316: Layer 3 Tool `channels_listPlaylists`
+Description:
+Define and implement the higher-level channel playlist listing tool.
+
+Primary stories:
+- As an MCP client, I can retrieve the playlists associated with a channel.
+
+Acceptance criteria:
+- `channels_listPlaylists` supports:
+  - required `channelId`
+  - optional `maxResults`
+- Playlist listing output is normalized for agent consumption and consistent with the playlist tool family.
+
+Dependencies:
+- `YT-301`
+
+### YT-317: Layer 3 Tool `channels_getStatistics`
+Description:
+Define and implement the higher-level channel statistics tool.
+
+Primary stories:
+- As an MCP client, I can retrieve statistics for a channel such as subscriber, video, and view counts when available.
+
+Acceptance criteria:
+- `channels_getStatistics` supports:
+  - required `channelId`
+- The contract documents which statistics are expected when available from YouTube and how missing/hidden counts are represented.
+- Output is normalized for agent consumption and consistent with the rest of the Layer 3 channel catalog.
+
+Dependencies:
+- `YT-301`
+
+### YT-318: Layer 3 Tool `channels_searchContent`
+Description:
+Define and implement the higher-level channel-content search tool.
+
+Primary stories:
+- As an MCP client, I can search within the content of a specific channel.
+
+Acceptance criteria:
+- `channels_searchContent` supports:
+  - required `channelId`
+  - required `query`
+  - optional `maxResults`, `order`
+  - optional language or other relevance refinements if exposed in the final contract
+- The contract documents when behavior is a direct upstream search versus composite in-server enrichment/filtering.
+
+Dependencies:
+- `YT-301`
+- `YT-309`
+
+### YT-319: Layer 3 Tool `playlists_searchItems`
+Description:
+Define and implement the higher-level playlist item search tool.
+
+Primary stories:
+- As an MCP client, I can search within a playlist for matching videos or items.
+
+Acceptance criteria:
+- `playlists_searchItems` supports:
+  - required `playlistId`
+  - required `query`
+  - optional `maxResults`
+- The contract documents that this is a composite higher-level tool rather than a single-endpoint passthrough.
+- Search matching and result-shaping behavior are documented clearly.
+
+Dependencies:
+- `YT-301`
+- `YT-311`
+
+### YT-320: Layer 3 Tool `playlists_getVideoTranscripts`
+Description:
+Define and implement the higher-level playlist transcript aggregation tool.
+
+Primary stories:
+- As an MCP client, I can retrieve transcript data for videos contained in a playlist.
+
+Acceptance criteria:
+- `playlists_getVideoTranscripts` supports:
+  - required `playlistId`
+  - optional `language`
+  - optional `maxResults` or equivalent bounded playlist-processing controls in the final contract
+- The contract documents that this is a composite higher-level tool built from playlist enumeration plus transcript retrieval.
+- Auth-sensitive caption-access limitations and bounded fan-out behavior are documented explicitly.
+
+Dependencies:
+- `YT-301`
+- `YT-304`
+- `YT-311`
+
+### OPS-401: CI/CD and Quality Gates
 Description:
 Add CI checks and deploy automation guardrails.
 
@@ -586,7 +886,7 @@ Acceptance criteria:
 Dependencies:
 - `FND-008`
 
-### OPS-202: Production Hardening
+### OPS-402: Production Hardening
 Description:
 Add rate limiting, caching policy, and operational alerts.
 
@@ -599,7 +899,7 @@ Acceptance criteria:
 - Caching strategy documented and applied where appropriate.
 
 Dependencies:
-- `YT-102`, `YT-103`, `YT-104`, `YT-105`
+- `YT-302`, `YT-303`, `YT-304`, `YT-305`, `YT-306`, `YT-307`, `YT-308`, `YT-309`, `YT-310`, `YT-311`, `YT-312`, `YT-313`, `YT-314`, `YT-315`, `YT-316`, `YT-317`, `YT-318`, `YT-319`, `YT-320`
 
 ## 4. Suggested Delivery Order
 1. `FND-001`
@@ -630,12 +930,15 @@ Dependencies:
 26. `FND-026`
 27. `FND-027`
 28. `FND-028`
-29. `YT-101`
-30. `YT-102` + `YT-103` (parallel)
-31. `YT-104`
-32. `YT-105`
-33. `OPS-201`
-34. `OPS-202`
+29. `YT-301`
+30. `YT-302` + `YT-304` + `YT-305` + `YT-309` + `YT-310` (parallel where practical)
+31. `YT-303` + `YT-306` + `YT-307` + `YT-311` (parallel where practical)
+32. `YT-308`
+33. `YT-312` + `YT-313` + `YT-316` + `YT-317` (parallel where practical)
+34. `YT-314` + `YT-318` + `YT-319` (parallel where practical)
+35. `YT-315` + `YT-320`
+36. `OPS-401`
+37. `OPS-402`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
@@ -674,6 +977,7 @@ A feature is done when:
 - YouTube quota exhaustion under batch/composite operations.
 - Composite tools can hide latency growth; enforce p95 monitoring.
 - Schema drift between implementation and `tool-specs.md`.
+- Derived creator heuristics and normalized metadata fields can drift from their documented semantics unless the public contract distinguishes raw upstream data from inferred/enriched data.
 
 ## 9. Immediate Next SpecKit Inputs
 Create first SpecKit specs in this order:
