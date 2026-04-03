@@ -1257,6 +1257,760 @@ Acceptance criteria:
 Dependencies:
 - `YT-101`, `YT-102`
 
+### YT-201: Layer 2 Shared Scaffolding and Contracts
+Description:
+Build the shared Layer 2 scaffolding required before individual YouTube Data
+API endpoint MCP tools are exposed publicly.
+
+Primary stories:
+- As a maintainer, I can expose raw or near-raw YouTube endpoint tools without
+  redefining the same naming, schema, quota, and auth rules for every method.
+- As a power user, I can access low-level YouTube endpoint tools through a
+  consistent MCP contract that stays close to the upstream API.
+
+Acceptance criteria:
+- Shared Layer 2 naming rules are documented and use resource-grouped public
+  tool names without a redundant `youtube_` prefix.
+- Shared Layer 2 parameter-mapping rules document how MCP-facing inputs align
+  to upstream YouTube Data API request parameters.
+- Shared Layer 2 response conventions document when the tool returns near-raw
+  upstream fields versus lightly normalized wrapper fields.
+- Shared Layer 2 error conventions document how upstream auth, quota, missing
+  resource, invalid request, and deprecation errors surface through MCP.
+- Layer 2 tool slices can depend on these shared contracts without redefining
+  cross-cutting rules in every endpoint tool spec.
+
+Dependencies:
+- `YT-101`, `YT-102`
+
+### YT-202: Layer 2 Tool Metadata, Naming, and Quota Standards
+Description:
+Define the public Layer 2 contract standards so every endpoint-backed MCP tool
+clearly communicates its upstream identity, auth mode, and quota cost.
+
+Primary stories:
+- As a client developer, I can inspect any Layer 2 tool and immediately know
+  which YouTube endpoint it maps to and how expensive it is to call.
+- As a future Layer 3 author, I can compose lower-level tools with explicit
+  visibility into quota consumption and auth requirements.
+
+Acceptance criteria:
+- Every Layer 2 tool definition records:
+  - public MCP tool name
+  - mapped YouTube resource and method name
+  - official quota-unit cost
+  - auth mode (`api_key`, `oauth_required`, or mixed/conditional)
+  - deprecation state when applicable
+- Layer 2 descriptions and example usage notes explicitly include the official
+  quota-unit cost for that endpoint.
+- Shared documentation defines how low-level tool names are derived from
+  resource-method pairs such as `videos_list`, `playlists_insert`, and
+  `comments_setModerationStatus`.
+- Shared documentation defines when a Layer 2 tool may lightly reshape an
+  upstream response and when it must stay near-raw.
+
+Dependencies:
+- `YT-201`
+
+### YT-203: Layer 2 Tool `activities_list`
+Description:
+Expose `activities.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `activities_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Tool contract stays close to upstream filter and pagination behavior.
+
+Dependencies:
+- `YT-103`, `YT-201`, `YT-202`
+
+### YT-204: Layer 2 Tool `captions_list`
+Description:
+Expose `captions.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `captions_list`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- OAuth requirements and caption-track lookup behavior are documented clearly.
+
+Dependencies:
+- `YT-104`, `YT-201`, `YT-202`
+
+### YT-205: Layer 2 Tool `captions_insert`
+Description:
+Expose `captions.insert` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `captions_insert`.
+- Official quota cost of `400` units is documented in tool metadata and tool
+  description/examples.
+- Media-upload and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-105`, `YT-201`, `YT-202`
+
+### YT-206: Layer 2 Tool `captions_update`
+Description:
+Expose `captions.update` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `captions_update`.
+- Official quota cost of `450` units is documented in tool metadata and tool
+  description/examples.
+- Update semantics, media-upload behavior, and OAuth requirements are
+  documented clearly.
+
+Dependencies:
+- `YT-106`, `YT-201`, `YT-202`
+
+### YT-207: Layer 2 Tool `captions_download`
+Description:
+Expose `captions.download` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `captions_download`.
+- Official quota cost of `200` units is documented in tool metadata and tool
+  description/examples.
+- Permission requirements and format/language conversion options are documented
+  clearly.
+
+Dependencies:
+- `YT-107`, `YT-201`, `YT-202`
+
+### YT-208: Layer 2 Tool `captions_delete`
+Description:
+Expose `captions.delete` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `captions_delete`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- OAuth and content-owner delegation behavior are documented clearly.
+
+Dependencies:
+- `YT-108`, `YT-201`, `YT-202`
+
+### YT-209: Layer 2 Tool `channelBanners_insert`
+Description:
+Expose `channelBanners.insert` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `channelBanners_insert`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Media-upload and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-109`, `YT-201`, `YT-202`
+
+### YT-210: Layer 2 Tool `channels_list`
+Description:
+Expose `channels.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `channels_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Supported filter modes such as `id`, `mine`, `forHandle`, and username-style
+  lookup are documented clearly.
+
+Dependencies:
+- `YT-110`, `YT-201`, `YT-202`
+
+### YT-211: Layer 2 Tool `channels_update`
+Description:
+Expose `channels.update` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `channels_update`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Writable resource-part limitations and OAuth requirements are documented
+  clearly.
+
+Dependencies:
+- `YT-111`, `YT-201`, `YT-202`
+
+### YT-212: Layer 2 Tool `channelSections_list`
+Description:
+Expose `channelSections.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `channelSections_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Filter criteria and deprecation caveats are documented clearly.
+
+Dependencies:
+- `YT-112`, `YT-201`, `YT-202`
+
+### YT-213: Layer 2 Tool `channelSections_insert`
+Description:
+Expose `channelSections.insert` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `channelSections_insert`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- OAuth and content-structure requirements are documented clearly.
+
+Dependencies:
+- `YT-113`, `YT-201`, `YT-202`
+
+### YT-214: Layer 2 Tool `channelSections_update`
+Description:
+Expose `channelSections.update` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `channelSections_update`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Writable field expectations are documented clearly.
+
+Dependencies:
+- `YT-114`, `YT-201`, `YT-202`
+
+### YT-215: Layer 2 Tool `channelSections_delete`
+Description:
+Expose `channelSections.delete` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `channelSections_delete`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-115`, `YT-201`, `YT-202`
+
+### YT-216: Layer 2 Tool `comments_list`
+Description:
+Expose `comments.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `comments_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Parent-comment and ID-based retrieval modes are documented clearly.
+
+Dependencies:
+- `YT-116`, `YT-201`, `YT-202`
+
+### YT-217: Layer 2 Tool `comments_insert`
+Description:
+Expose `comments.insert` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `comments_insert`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Reply-creation behavior and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-117`, `YT-201`, `YT-202`
+
+### YT-218: Layer 2 Tool `comments_update`
+Description:
+Expose `comments.update` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `comments_update`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Writable field expectations are documented clearly.
+
+Dependencies:
+- `YT-118`, `YT-201`, `YT-202`
+
+### YT-219: Layer 2 Tool `comments_setModerationStatus`
+Description:
+Expose `comments.setModerationStatus` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `comments_setModerationStatus`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Moderation-state transitions and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-119`, `YT-201`, `YT-202`
+
+### YT-220: Layer 2 Tool `comments_delete`
+Description:
+Expose `comments.delete` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `comments_delete`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-120`, `YT-201`, `YT-202`
+
+### YT-221: Layer 2 Tool `commentThreads_list`
+Description:
+Expose `commentThreads.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `commentThreads_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Supported filter modes such as `videoId`, `allThreadsRelatedToChannelId`, and
+  ID-based retrieval are documented clearly.
+
+Dependencies:
+- `YT-121`, `YT-201`, `YT-202`
+
+### YT-222: Layer 2 Tool `commentThreads_insert`
+Description:
+Expose `commentThreads.insert` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `commentThreads_insert`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Top-level-comment creation behavior and OAuth requirements are documented
+  clearly.
+
+Dependencies:
+- `YT-122`, `YT-201`, `YT-202`
+
+### YT-223: Layer 2 Tool `guideCategories_list`
+Description:
+Expose `guideCategories.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `guideCategories_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Deprecated or unavailable platform behavior is documented clearly.
+
+Dependencies:
+- `YT-123`, `YT-201`, `YT-202`
+
+### YT-224: Layer 2 Tool `i18nLanguages_list`
+Description:
+Expose `i18nLanguages.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `i18nLanguages_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Localization lookup usage is documented clearly.
+
+Dependencies:
+- `YT-124`, `YT-201`, `YT-202`
+
+### YT-225: Layer 2 Tool `i18nRegions_list`
+Description:
+Expose `i18nRegions.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `i18nRegions_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Region lookup usage is documented clearly.
+
+Dependencies:
+- `YT-125`, `YT-201`, `YT-202`
+
+### YT-226: Layer 2 Tool `members_list`
+Description:
+Expose `members.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `members_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- OAuth and channel-membership access constraints are documented clearly.
+
+Dependencies:
+- `YT-126`, `YT-201`, `YT-202`
+
+### YT-227: Layer 2 Tool `membershipsLevels_list`
+Description:
+Expose `membershipsLevels.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `membershipsLevels_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- OAuth and channel-membership access constraints are documented clearly.
+
+Dependencies:
+- `YT-127`, `YT-201`, `YT-202`
+
+### YT-228: Layer 2 Tool `playlistImages_list`
+Description:
+Expose `playlistImages.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlistImages_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Image lookup behavior and resource-part expectations are documented clearly.
+
+Dependencies:
+- `YT-128`, `YT-201`, `YT-202`
+
+### YT-229: Layer 2 Tool `playlistImages_insert`
+Description:
+Expose `playlistImages.insert` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlistImages_insert`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Media-upload and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-129`, `YT-201`, `YT-202`
+
+### YT-230: Layer 2 Tool `playlistImages_update`
+Description:
+Expose `playlistImages.update` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlistImages_update`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Update semantics, media-upload behavior, and OAuth requirements are
+  documented clearly.
+
+Dependencies:
+- `YT-130`, `YT-201`, `YT-202`
+
+### YT-231: Layer 2 Tool `playlistImages_delete`
+Description:
+Expose `playlistImages.delete` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlistImages_delete`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-131`, `YT-201`, `YT-202`
+
+### YT-232: Layer 2 Tool `playlistItems_list`
+Description:
+Expose `playlistItems.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlistItems_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Near-raw playlist item listing and pagination behavior are documented clearly.
+
+Dependencies:
+- `YT-132`, `YT-201`, `YT-202`
+
+### YT-233: Layer 2 Tool `playlistItems_insert`
+Description:
+Expose `playlistItems.insert` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlistItems_insert`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Insert semantics and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-133`, `YT-201`, `YT-202`
+
+### YT-234: Layer 2 Tool `playlistItems_update`
+Description:
+Expose `playlistItems.update` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlistItems_update`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Update semantics and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-134`, `YT-201`, `YT-202`
+
+### YT-235: Layer 2 Tool `playlistItems_delete`
+Description:
+Expose `playlistItems.delete` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlistItems_delete`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-135`, `YT-201`, `YT-202`
+
+### YT-236: Layer 2 Tool `playlists_list`
+Description:
+Expose `playlists.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlists_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Filter and pagination behavior are documented clearly.
+
+Dependencies:
+- `YT-136`, `YT-201`, `YT-202`
+
+### YT-237: Layer 2 Tool `playlists_insert`
+Description:
+Expose `playlists.insert` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlists_insert`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Create semantics and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-137`, `YT-201`, `YT-202`
+
+### YT-238: Layer 2 Tool `playlists_update`
+Description:
+Expose `playlists.update` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlists_update`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Update semantics and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-138`, `YT-201`, `YT-202`
+
+### YT-239: Layer 2 Tool `playlists_delete`
+Description:
+Expose `playlists.delete` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `playlists_delete`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-139`, `YT-201`, `YT-202`
+
+### YT-240: Layer 2 Tool `search_list`
+Description:
+Expose `search.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `search_list`.
+- Official quota cost of `100` units is documented in tool metadata and tool
+  description/examples.
+- Search cost, supported filter modes, and pagination behavior are documented
+  clearly.
+
+Dependencies:
+- `YT-140`, `YT-201`, `YT-202`
+
+### YT-241: Layer 2 Tool `subscriptions_list`
+Description:
+Expose `subscriptions.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `subscriptions_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Supported filter modes and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-141`, `YT-201`, `YT-202`
+
+### YT-242: Layer 2 Tool `subscriptions_insert`
+Description:
+Expose `subscriptions.insert` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `subscriptions_insert`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Create semantics and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-142`, `YT-201`, `YT-202`
+
+### YT-243: Layer 2 Tool `subscriptions_delete`
+Description:
+Expose `subscriptions.delete` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `subscriptions_delete`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-143`, `YT-201`, `YT-202`
+
+### YT-244: Layer 2 Tool `thumbnails_set`
+Description:
+Expose `thumbnails.set` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `thumbnails_set`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Media-upload and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-144`, `YT-201`, `YT-202`
+
+### YT-245: Layer 2 Tool `videoAbuseReportReasons_list`
+Description:
+Expose `videoAbuseReportReasons.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `videoAbuseReportReasons_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Lookup behavior and localization considerations are documented clearly.
+
+Dependencies:
+- `YT-145`, `YT-201`, `YT-202`
+
+### YT-246: Layer 2 Tool `videoCategories_list`
+Description:
+Expose `videoCategories.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `videoCategories_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Lookup behavior and localization considerations are documented clearly.
+
+Dependencies:
+- `YT-146`, `YT-201`, `YT-202`
+
+### YT-247: Layer 2 Tool `videos_list`
+Description:
+Expose `videos.list` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `videos_list`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Part selection, filter modes, and pagination behavior are documented clearly.
+
+Dependencies:
+- `YT-147`, `YT-201`, `YT-202`
+
+### YT-248: Layer 2 Tool `videos_insert`
+Description:
+Expose `videos.insert` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `videos_insert`.
+- Official quota cost of `1600` units is documented in tool metadata and tool
+  description/examples.
+- Media-upload and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-148`, `YT-201`, `YT-202`
+
+### YT-249: Layer 2 Tool `videos_update`
+Description:
+Expose `videos.update` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `videos_update`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Update semantics, writable parts, and OAuth requirements are documented
+  clearly.
+
+Dependencies:
+- `YT-149`, `YT-201`, `YT-202`
+
+### YT-250: Layer 2 Tool `videos_rate`
+Description:
+Expose `videos.rate` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `videos_rate`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Rating-state semantics and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-150`, `YT-201`, `YT-202`
+
+### YT-251: Layer 2 Tool `videos_getRating`
+Description:
+Expose `videos.getRating` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `videos_getRating`.
+- Official quota cost of `1` unit is documented in tool metadata and tool
+  description/examples.
+- Rating lookup behavior and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-151`, `YT-201`, `YT-202`
+
+### YT-252: Layer 2 Tool `videos_reportAbuse`
+Description:
+Expose `videos.reportAbuse` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `videos_reportAbuse`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Abuse-report payload expectations and OAuth requirements are documented
+  clearly.
+
+Dependencies:
+- `YT-152`, `YT-201`, `YT-202`
+
+### YT-253: Layer 2 Tool `videos_delete`
+Description:
+Expose `videos.delete` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `videos_delete`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-153`, `YT-201`, `YT-202`
+
+### YT-254: Layer 2 Tool `watermarks_set`
+Description:
+Expose `watermarks.set` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `watermarks_set`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- Media-upload and OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-154`, `YT-201`, `YT-202`
+
+### YT-255: Layer 2 Tool `watermarks_unset`
+Description:
+Expose `watermarks.unset` as a low-level MCP tool.
+
+Acceptance criteria:
+- Layer 2 exposes `watermarks_unset`.
+- Official quota cost of `50` units is documented in tool metadata and tool
+  description/examples.
+- OAuth requirements are documented clearly.
+
+Dependencies:
+- `YT-155`, `YT-201`, `YT-202`
+
 ### YT-301: Layer 3 Shared Scaffolding and Contracts
 Description:
 Build the shared Layer 3 scaffolding needed by the public tool catalog, including naming, shared schemas, normalized response conventions, heuristic-field documentation, and reusable interfaces the individual tools will depend on.
@@ -1662,7 +2416,7 @@ Acceptance criteria:
 - Caching strategy documented and applied where appropriate.
 
 Dependencies:
-- `YT-302`, `YT-303`, `YT-304`, `YT-305`, `YT-306`, `YT-307`, `YT-308`, `YT-309`, `YT-310`, `YT-311`, `YT-312`, `YT-313`, `YT-314`, `YT-315`, `YT-316`, `YT-317`, `YT-318`, `YT-319`, `YT-320`
+- `YT-203`, `YT-204`, `YT-205`, `YT-206`, `YT-207`, `YT-208`, `YT-209`, `YT-210`, `YT-211`, `YT-212`, `YT-213`, `YT-214`, `YT-215`, `YT-216`, `YT-217`, `YT-218`, `YT-219`, `YT-220`, `YT-221`, `YT-222`, `YT-223`, `YT-224`, `YT-225`, `YT-226`, `YT-227`, `YT-228`, `YT-229`, `YT-230`, `YT-231`, `YT-232`, `YT-233`, `YT-234`, `YT-235`, `YT-236`, `YT-237`, `YT-238`, `YT-239`, `YT-240`, `YT-241`, `YT-242`, `YT-243`, `YT-244`, `YT-245`, `YT-246`, `YT-247`, `YT-248`, `YT-249`, `YT-250`, `YT-251`, `YT-252`, `YT-253`, `YT-254`, `YT-255`, `YT-302`, `YT-303`, `YT-304`, `YT-305`, `YT-306`, `YT-307`, `YT-308`, `YT-309`, `YT-310`, `YT-311`, `YT-312`, `YT-313`, `YT-314`, `YT-315`, `YT-316`, `YT-317`, `YT-318`, `YT-319`, `YT-320`
 
 ## 4. Suggested Delivery Order
 1. `FND-001`
@@ -1699,15 +2453,21 @@ Dependencies:
 32. `YT-111` through `YT-123` (channel, comments, comment-thread, and legacy-category endpoints)
 33. `YT-124` through `YT-139` (localization, member, playlist-image, playlist-item, and playlist endpoints)
 34. `YT-140` through `YT-155` (search, subscriptions, thumbnails, video, and watermark endpoints)
-35. `YT-301`
-36. `YT-302` + `YT-304` + `YT-305` + `YT-309` + `YT-310` (parallel where practical)
-37. `YT-303` + `YT-306` + `YT-307` + `YT-311` (parallel where practical)
-38. `YT-308`
-39. `YT-312` + `YT-313` + `YT-316` + `YT-317` (parallel where practical)
-40. `YT-314` + `YT-318` + `YT-319` (parallel where practical)
-41. `YT-315` + `YT-320`
-42. `OPS-401`
-43. `OPS-402`
+35. `YT-201`
+36. `YT-202`
+37. `YT-203` through `YT-210` (initial read/list Layer 2 endpoint tools)
+38. `YT-211` through `YT-223` (update/comment/category Layer 2 endpoint tools)
+39. `YT-224` through `YT-239` (localization/member/playlist Layer 2 endpoint tools)
+40. `YT-240` through `YT-255` (search/subscription/video/watermark Layer 2 endpoint tools)
+41. `YT-301`
+42. `YT-302` + `YT-304` + `YT-305` + `YT-309` + `YT-310` (parallel where practical)
+43. `YT-303` + `YT-306` + `YT-307` + `YT-311` (parallel where practical)
+44. `YT-308`
+45. `YT-312` + `YT-313` + `YT-316` + `YT-317` (parallel where practical)
+46. `YT-314` + `YT-318` + `YT-319` (parallel where practical)
+47. `YT-315` + `YT-320`
+48. `OPS-401`
+49. `OPS-402`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:

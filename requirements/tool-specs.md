@@ -2,30 +2,33 @@
 ## Project: YouTube MCP Server on Cloud Run
 
 ## 1. Purpose
-This document defines the public Layer 3 MCP tool contract for the YouTube MCP
-Server.
+This document defines the public MCP tool contracts for the YouTube MCP Server.
 
-It is intentionally focused on the user-facing tool layer:
+It covers the two public tool layers:
 
 - Layer 1: internal integrations and wrappers
-- Layer 2: optional future lower-level/raw-resource MCP tools
+- Layer 2: lower-level MCP tools that expose one documented YouTube Data API
+  endpoint per tool with near-raw request/response semantics
 - Layer 3: higher-level public MCP tools
 
-This file specifies Layer 3 only.
+This file does not define Layer 1 implementation details beyond the public
+context needed to understand how Layers 2 and 3 are derived.
 
 ## 2. Design Principles
 - Tool names are grouped by domain:
-  - `videos_*`
-  - `transcripts_*`
-  - `channels_*`
-  - `playlists_*`
+  - Layer 2 uses `resource_method` names such as `videos_list` or
+    `comments_setModerationStatus`
+  - Layer 3 uses domain-grouped names such as `videos_*`, `channels_*`,
+    `playlists_*`, and `transcripts_*`
 - Tool names do not include a redundant `youtube_` prefix.
 - MCP transport, JSON-RPC framing, and top-level result/error envelopes are
   governed by the foundation contracts.
 - This file defines the logical request schema and logical payload returned in
   MCP tool results.
-- Public tool contracts use MCP-facing parameter names, not raw YouTube API
-  parameter names.
+- Layer 2 tools stay close to upstream YouTube request/response semantics while
+  still using MCP-friendly descriptions and validation.
+- Layer 3 public tool contracts use MCP-facing parameter names, not raw YouTube
+  API parameter names.
 - Tools may combine multiple upstream YouTube endpoints and local enrichment
   logic before producing a final result.
 - Public contracts must distinguish:
@@ -48,6 +51,8 @@ This file specifies Layer 3 only.
   `lastUploadAfter`, and `lastUploadBefore` MUST accept ISO 8601 timestamps.
 
 ### 3.3 Pagination and Limits
+- Layer 2 preserves upstream pagination and limit concepts where practical,
+  including `maxResults`, `pageToken`, and resource-specific filters.
 - The public Layer 3 catalog prefers `maxResults` over `pageSize`.
 - Unless a tool defines otherwise:
   - default `maxResults` = `10`
@@ -101,6 +106,16 @@ If `parts` is present:
 - only supported public part names may be requested
 - unsupported part names MUST fail validation
 
+### 3.7 Quota Visibility
+- Every Layer 2 tool MUST document its official YouTube Data API quota-unit
+  cost in the tool description or adjacent public contract notes.
+- Layer 3 tools SHOULD document when they are likely to fan out into multiple
+  upstream calls or expensive endpoints.
+- Especially expensive upstream methods such as `search.list`,
+  `captions.insert`, `captions.update`, `captions.download`, and
+  `videos.insert` must remain highly visible in both implementation and public
+  contract documentation.
+
 ## 4. Common Output Rules
 
 ### 4.1 Logical Payload Model
@@ -109,6 +124,12 @@ MCP-native tool result content.
 
 This file does not redefine the transport envelope. It defines the
 `structuredContent` payload shape that agents should expect for each tool.
+
+Layer-specific intent:
+- Layer 2 returns near-raw upstream resource payloads or lightly normalized
+  wrappers that remain obviously traceable to a single endpoint call.
+- Layer 3 returns higher-level normalized or composite payloads optimized for
+  agent workflows.
 
 ### 4.2 List Result Shape
 Tools returning multiple items SHOULD follow this shape when applicable:
@@ -154,7 +175,40 @@ The exact transport error envelope is governed by the MCP foundation, but Layer
 - `internal_execution_failure`
 
 ## 6. Upstream Endpoint Dependencies
-Initial Layer 3 tools may depend on these upstream YouTube Data API endpoints:
+Layer 2 exposes the currently documented YouTube Data API v3 surface through one
+public MCP tool per endpoint/resource method.
+
+Current Layer 2 inventory:
+- `activities.list`
+- `captions.list`, `captions.insert`, `captions.update`,
+  `captions.download`, `captions.delete`
+- `channelBanners.insert`
+- `channels.list`, `channels.update`
+- `channelSections.list`, `channelSections.insert`,
+  `channelSections.update`, `channelSections.delete`
+- `comments.list`, `comments.insert`, `comments.update`,
+  `comments.setModerationStatus`, `comments.delete`
+- `commentThreads.list`, `commentThreads.insert`
+- `guideCategories.list`
+- `i18nLanguages.list`, `i18nRegions.list`
+- `members.list`, `membershipsLevels.list`
+- `playlistImages.list`, `playlistImages.insert`,
+  `playlistImages.update`, `playlistImages.delete`
+- `playlistItems.list`, `playlistItems.insert`,
+  `playlistItems.update`, `playlistItems.delete`
+- `playlists.list`, `playlists.insert`, `playlists.update`,
+  `playlists.delete`
+- `search.list`
+- `subscriptions.list`, `subscriptions.insert`, `subscriptions.delete`
+- `thumbnails.set`
+- `videoAbuseReportReasons.list`
+- `videoCategories.list`
+- `videos.list`, `videos.insert`, `videos.update`, `videos.rate`,
+  `videos.getRating`, `videos.reportAbuse`, `videos.delete`
+- `watermarks.set`, `watermarks.unset`
+
+Initial Layer 3 tools may depend on this subset of upstream YouTube Data API
+endpoints:
 
 - `videos.list`
 - `search.list`
@@ -166,11 +220,403 @@ Initial Layer 3 tools may depend on these upstream YouTube Data API endpoints:
 
 Composite tools must document where they depend on more than one endpoint.
 
-## 7. Tool Catalog
+## 7. Layer 2 Tool Catalog
 
-### 7.1 Video Tools
+### 7.1 Shared Layer 2 Rules
+- Layer 2 tools expose one documented YouTube Data API endpoint/resource method
+  per MCP tool.
+- Tool names follow `resource_method`, preserving camelCase method suffixes
+  where needed, such as `comments_setModerationStatus` and `videos_getRating`.
+- Input contracts should stay close to upstream request parameters.
+- Output contracts should stay near-raw to the upstream resource shape, with
+  only light normalization when needed for MCP clarity.
+- OAuth-only endpoints MUST say so explicitly in the tool description and
+  validation/error behavior.
+- Deprecated or availability-constrained endpoints MUST say so explicitly in the
+  tool description.
 
-#### 7.1.1 `videos_getVideo`
+### 7.2 Layer 2 Resource Catalog
+
+#### 7.2.1 Activities
+- `activities_list`
+  Endpoint: `activities.list`
+  Quota: `1`
+  Auth: `api_key` or mixed, depending on filter mode
+  Inputs: near-raw upstream filters such as `part`, `channelId`, `home`,
+  `mine`, `publishedAfter`, `pageToken`, `maxResults`
+  Output: near-raw activity list payload with items, paging, and requested
+  parts
+
+#### 7.2.2 Captions
+- `captions_list`
+  Endpoint: `captions.list`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: near-raw upstream filters such as `part`, `videoId`, `id`,
+  `onBehalfOfContentOwner`
+  Output: near-raw caption track list payload
+- `captions_insert`
+  Endpoint: `captions.insert`
+  Quota: `400`
+  Auth: `oauth_required`
+  Inputs: metadata plus media-upload inputs required by the upstream endpoint
+  Output: created caption resource payload
+- `captions_update`
+  Endpoint: `captions.update`
+  Quota: `450`
+  Auth: `oauth_required`
+  Inputs: caption resource update body plus media-upload inputs when required
+  Output: updated caption resource payload
+- `captions_download`
+  Endpoint: `captions.download`
+  Quota: `200`
+  Auth: `oauth_required`
+  Inputs: caption track identifier plus optional `tfmt`, `tlang`, and
+  delegation flags where supported
+  Output: downloaded caption content plus any light metadata wrapper needed for
+  MCP-safe delivery
+- `captions_delete`
+  Endpoint: `captions.delete`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: caption identifier plus delegation flags where supported
+  Output: deletion acknowledgment payload
+
+#### 7.2.3 Channel Banners
+- `channelBanners_insert`
+  Endpoint: `channelBanners.insert`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: media-upload inputs and optional channel/delegation context
+  Output: banner update result payload
+
+#### 7.2.4 Channels
+- `channels_list`
+  Endpoint: `channels.list`
+  Quota: `1`
+  Auth: `api_key` or mixed, depending on filter mode
+  Inputs: near-raw upstream filters such as `part`, `id`, `mine`,
+  `forHandle`, `managedByMe`, `pageToken`, `maxResults`
+  Output: near-raw channel list payload
+- `channels_update`
+  Endpoint: `channels.update`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: writable channel resource body plus `part`
+  Output: updated channel resource payload
+
+#### 7.2.5 Channel Sections
+- `channelSections_list`
+  Endpoint: `channelSections.list`
+  Quota: `1`
+  Auth: `api_key` or mixed, depending on filter mode
+  Inputs: `part` plus upstream filters such as `channelId`, `id`, `mine`
+  Output: near-raw channel section list payload
+- `channelSections_insert`
+  Endpoint: `channelSections.insert`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `part` plus channel section resource body
+  Output: created channel section payload
+- `channelSections_update`
+  Endpoint: `channelSections.update`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `part` plus channel section resource body
+  Output: updated channel section payload
+- `channelSections_delete`
+  Endpoint: `channelSections.delete`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: section identifier
+  Output: deletion acknowledgment payload
+
+#### 7.2.6 Comments
+- `comments_list`
+  Endpoint: `comments.list`
+  Quota: `1`
+  Auth: `api_key` or mixed, depending on filter mode
+  Inputs: `part` plus `id`, `parentId`, `pageToken`, `maxResults`, `textFormat`
+  Output: near-raw comment list payload
+- `comments_insert`
+  Endpoint: `comments.insert`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `part` plus reply-creation body
+  Output: created comment resource payload
+- `comments_update`
+  Endpoint: `comments.update`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `part` plus writable comment resource body
+  Output: updated comment resource payload
+- `comments_setModerationStatus`
+  Endpoint: `comments.setModerationStatus`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: comment identifiers plus moderation status flags
+  Output: moderation-update acknowledgment payload
+- `comments_delete`
+  Endpoint: `comments.delete`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: comment identifier
+  Output: deletion acknowledgment payload
+
+#### 7.2.7 Comment Threads
+- `commentThreads_list`
+  Endpoint: `commentThreads.list`
+  Quota: `1`
+  Auth: `api_key` or mixed, depending on filter mode
+  Inputs: `part` plus filters such as `videoId`, `allThreadsRelatedToChannelId`,
+  `id`, `pageToken`, `maxResults`, `order`, `searchTerms`, `textFormat`
+  Output: near-raw comment-thread list payload
+- `commentThreads_insert`
+  Endpoint: `commentThreads.insert`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `part` plus top-level comment thread body
+  Output: created comment thread payload
+
+#### 7.2.8 Guide Categories
+- `guideCategories_list`
+  Endpoint: `guideCategories.list`
+  Quota: `1`
+  Auth: `api_key`
+  Inputs: `part`, `regionCode`
+  Output: near-raw guide-category payload
+  Notes: must explicitly document deprecated or unavailable platform behavior
+
+#### 7.2.9 Localization
+- `i18nLanguages_list`
+  Endpoint: `i18nLanguages.list`
+  Quota: `1`
+  Auth: `api_key`
+  Inputs: `part`, `hl`
+  Output: near-raw language lookup payload
+- `i18nRegions_list`
+  Endpoint: `i18nRegions.list`
+  Quota: `1`
+  Auth: `api_key`
+  Inputs: `part`, `hl`
+  Output: near-raw region lookup payload
+
+#### 7.2.10 Memberships
+- `members_list`
+  Endpoint: `members.list`
+  Quota: `1`
+  Auth: `oauth_required`
+  Inputs: `part`, `mode`, `pageToken`, `maxResults`, delegation flags if
+  supported
+  Output: near-raw membership list payload
+- `membershipsLevels_list`
+  Endpoint: `membershipsLevels.list`
+  Quota: `1`
+  Auth: `oauth_required`
+  Inputs: `part`
+  Output: near-raw membership-level payload
+
+#### 7.2.11 Playlist Images
+- `playlistImages_list`
+  Endpoint: `playlistImages.list`
+  Quota: `1`
+  Auth: `api_key` or mixed, depending on filter mode
+  Inputs: `part`, `playlistId`, `id`, paging flags where supported
+  Output: near-raw playlist-image payload
+- `playlistImages_insert`
+  Endpoint: `playlistImages.insert`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: metadata plus media-upload inputs
+  Output: created playlist-image payload
+- `playlistImages_update`
+  Endpoint: `playlistImages.update`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: update body plus media-upload inputs when required
+  Output: updated playlist-image payload
+- `playlistImages_delete`
+  Endpoint: `playlistImages.delete`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: image identifier
+  Output: deletion acknowledgment payload
+
+#### 7.2.12 Playlist Items
+- `playlistItems_list`
+  Endpoint: `playlistItems.list`
+  Quota: `1`
+  Auth: `api_key` or mixed, depending on filter mode
+  Inputs: `part`, `playlistId`, `id`, `pageToken`, `maxResults`,
+  `videoId`, delegation flags where supported
+  Output: near-raw playlist item list payload
+- `playlistItems_insert`
+  Endpoint: `playlistItems.insert`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `part` plus playlist item resource body
+  Output: created playlist item payload
+- `playlistItems_update`
+  Endpoint: `playlistItems.update`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `part` plus playlist item resource body
+  Output: updated playlist item payload
+- `playlistItems_delete`
+  Endpoint: `playlistItems.delete`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: playlist item identifier
+  Output: deletion acknowledgment payload
+
+#### 7.2.13 Playlists
+- `playlists_list`
+  Endpoint: `playlists.list`
+  Quota: `1`
+  Auth: `api_key` or mixed, depending on filter mode
+  Inputs: `part`, `channelId`, `id`, `mine`, `pageToken`, `maxResults`
+  Output: near-raw playlist list payload
+- `playlists_insert`
+  Endpoint: `playlists.insert`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `part` plus playlist resource body
+  Output: created playlist payload
+- `playlists_update`
+  Endpoint: `playlists.update`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `part` plus playlist resource body
+  Output: updated playlist payload
+- `playlists_delete`
+  Endpoint: `playlists.delete`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: playlist identifier
+  Output: deletion acknowledgment payload
+
+#### 7.2.14 Search
+- `search_list`
+  Endpoint: `search.list`
+  Quota: `100`
+  Auth: `api_key`
+  Inputs: near-raw upstream filters such as `part`, `q`, `channelId`,
+  `forContentOwner`, `forDeveloper`, `forMine`, `publishedAfter`,
+  `publishedBefore`, `regionCode`, `relevanceLanguage`, `safeSearch`, `type`,
+  `videoCaption`, `videoDefinition`, `videoDuration`, `videoEmbeddable`,
+  `videoLicense`, `videoPaidProductPlacement`, `videoSyndicated`,
+  `videoType`, `order`, `pageToken`, `maxResults`
+  Output: near-raw search result payload
+  Notes: must explicitly warn about the high quota cost
+
+#### 7.2.15 Subscriptions
+- `subscriptions_list`
+  Endpoint: `subscriptions.list`
+  Quota: `1`
+  Auth: `api_key` or mixed, depending on filter mode
+  Inputs: `part`, `channelId`, `id`, `mine`, `myRecentSubscribers`,
+  `mySubscribers`, `pageToken`, `maxResults`, `order`
+  Output: near-raw subscription list payload
+- `subscriptions_insert`
+  Endpoint: `subscriptions.insert`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `part` plus subscription resource body
+  Output: created subscription payload
+- `subscriptions_delete`
+  Endpoint: `subscriptions.delete`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: subscription identifier
+  Output: deletion acknowledgment payload
+
+#### 7.2.16 Thumbnails
+- `thumbnails_set`
+  Endpoint: `thumbnails.set`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `videoId` plus media-upload inputs
+  Output: thumbnail update result payload
+
+#### 7.2.17 Video Lookup Utilities
+- `videoAbuseReportReasons_list`
+  Endpoint: `videoAbuseReportReasons.list`
+  Quota: `1`
+  Auth: `api_key`
+  Inputs: `part`, `hl`
+  Output: near-raw abuse-reason lookup payload
+- `videoCategories_list`
+  Endpoint: `videoCategories.list`
+  Quota: `1`
+  Auth: `api_key`
+  Inputs: `part`, `id`, `regionCode`, `hl`
+  Output: near-raw category lookup payload
+
+#### 7.2.18 Videos
+- `videos_list`
+  Endpoint: `videos.list`
+  Quota: `1`
+  Auth: `api_key` or mixed, depending on filter mode
+  Inputs: `part`, `id`, `chart`, `myRating`, `pageToken`, `maxResults`,
+  `regionCode`, `videoCategoryId`
+  Output: near-raw video list payload
+- `videos_insert`
+  Endpoint: `videos.insert`
+  Quota: `1600`
+  Auth: `oauth_required`
+  Inputs: `part` plus metadata and media-upload inputs
+  Output: created video resource payload
+  Notes: must be called out as one of the highest-cost tools in the system
+- `videos_update`
+  Endpoint: `videos.update`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `part` plus writable video resource body
+  Output: updated video resource payload
+- `videos_rate`
+  Endpoint: `videos.rate`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: `id`, `rating`
+  Output: rating-update acknowledgment payload
+- `videos_getRating`
+  Endpoint: `videos.getRating`
+  Quota: `1`
+  Auth: `oauth_required`
+  Inputs: `id`
+  Output: near-raw video rating payload
+- `videos_reportAbuse`
+  Endpoint: `videos.reportAbuse`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: abuse-report request body
+  Output: abuse-report acknowledgment payload
+- `videos_delete`
+  Endpoint: `videos.delete`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: video identifier
+  Output: deletion acknowledgment payload
+
+#### 7.2.19 Watermarks
+- `watermarks_set`
+  Endpoint: `watermarks.set`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: channel/watermark placement metadata plus media-upload inputs
+  Output: watermark update result payload
+- `watermarks_unset`
+  Endpoint: `watermarks.unset`
+  Quota: `50`
+  Auth: `oauth_required`
+  Inputs: channel context where required
+  Output: watermark removal acknowledgment payload
+
+## 8. Layer 3 Tool Catalog
+
+### 8.1 Video Tools
+
+#### 8.1.1 `videos_getVideo`
 Purpose:
 - Return detailed information about a single YouTube video in a normalized
   shape.
@@ -232,7 +678,7 @@ Logical payload:
 }
 ```
 
-#### 7.1.2 `videos_searchVideos`
+#### 8.1.2 `videos_searchVideos`
 Purpose:
 - Search for videos and optionally refine results using channel- and
   creator-aware filters.
@@ -302,7 +748,7 @@ Logical payload:
 }
 ```
 
-#### 7.1.3 `videos_getStatistics`
+#### 8.1.3 `videos_getStatistics`
 Purpose:
 - Return statistics for a single video.
 
@@ -338,9 +784,9 @@ Behavior notes:
 - Hidden or unavailable counts SHOULD be omitted or returned as null-like
   values consistently; the final implementation must not invent counts.
 
-### 7.2 Transcript Tools
+### 8.2 Transcript Tools
 
-#### 7.2.1 `transcripts_getTranscript`
+#### 8.2.1 `transcripts_getTranscript`
 Purpose:
 - Retrieve the transcript of a video using the supported transcript strategy.
 
@@ -384,7 +830,7 @@ Logical payload:
 }
 ```
 
-#### 7.2.2 `transcripts_listLanguages`
+#### 8.2.2 `transcripts_listLanguages`
 Purpose:
 - List available transcript or caption languages for a video.
 
@@ -424,7 +870,7 @@ Logical payload:
 }
 ```
 
-#### 7.2.3 `transcripts_getTimestampedCaptions`
+#### 8.2.3 `transcripts_getTimestampedCaptions`
 Purpose:
 - Return transcript or caption data with explicit segment timing.
 
@@ -460,7 +906,7 @@ Logical payload:
 }
 ```
 
-#### 7.2.4 `transcripts_searchTranscript`
+#### 8.2.4 `transcripts_searchTranscript`
 Purpose:
 - Search transcript text and return matching snippets with timing.
 
@@ -503,9 +949,9 @@ Logical payload:
 }
 ```
 
-### 7.3 Channel Tools
+### 8.3 Channel Tools
 
-#### 7.3.1 `channels_getChannel`
+#### 8.3.1 `channels_getChannel`
 Purpose:
 - Return information about a single channel in a normalized and enriched shape.
 
@@ -556,7 +1002,7 @@ Behavior notes:
 - `heuristics` contains inferred fields and must not be treated as canonical
   upstream truth.
 
-#### 7.3.2 `channels_getChannels`
+#### 8.3.2 `channels_getChannels`
 Purpose:
 - Return information about multiple channels in one request.
 
@@ -609,7 +1055,7 @@ Logical payload:
 }
 ```
 
-#### 7.3.3 `channels_searchChannels`
+#### 8.3.3 `channels_searchChannels`
 Purpose:
 - Search for channels by handle, name, or general query.
 
@@ -666,7 +1112,7 @@ Logical payload:
 }
 ```
 
-#### 7.3.4 `channels_findCreators`
+#### 8.3.4 `channels_findCreators`
 Purpose:
 - Discover creator channels from matched or mentioning videos and then filter
   and rank them.
@@ -732,7 +1178,7 @@ Logical payload:
 }
 ```
 
-#### 7.3.5 `channels_listVideos`
+#### 8.3.5 `channels_listVideos`
 Purpose:
 - List videos for a specific channel.
 
@@ -776,7 +1222,7 @@ Logical payload:
 }
 ```
 
-#### 7.3.6 `channels_listPlaylists`
+#### 8.3.6 `channels_listPlaylists`
 Purpose:
 - List playlists associated with a channel.
 
@@ -814,7 +1260,7 @@ Logical payload:
 }
 ```
 
-#### 7.3.7 `channels_getStatistics`
+#### 8.3.7 `channels_getStatistics`
 Purpose:
 - Return statistics for a single channel.
 
@@ -845,7 +1291,7 @@ Logical payload:
 }
 ```
 
-#### 7.3.8 `channels_searchContent`
+#### 8.3.8 `channels_searchContent`
 Purpose:
 - Search within the content of a specific channel.
 
@@ -885,9 +1331,9 @@ Logical payload:
 }
 ```
 
-### 7.4 Playlist Tools
+### 8.4 Playlist Tools
 
-#### 7.4.1 `playlists_getPlaylist`
+#### 8.4.1 `playlists_getPlaylist`
 Purpose:
 - Return information about a playlist.
 
@@ -919,7 +1365,7 @@ Logical payload:
 }
 ```
 
-#### 7.4.2 `playlists_getPlaylistItems`
+#### 8.4.2 `playlists_getPlaylistItems`
 Purpose:
 - Return the videos contained in a playlist.
 
@@ -957,7 +1403,7 @@ Logical payload:
 }
 ```
 
-#### 7.4.3 `playlists_searchItems`
+#### 8.4.3 `playlists_searchItems`
 Purpose:
 - Search within a playlist for matching items.
 
@@ -999,7 +1445,7 @@ Logical payload:
 }
 ```
 
-#### 7.4.4 `playlists_getVideoTranscripts`
+#### 8.4.4 `playlists_getVideoTranscripts`
 Purpose:
 - Retrieve transcript data for videos in a playlist.
 
@@ -1049,7 +1495,7 @@ Logical payload:
 }
 ```
 
-## 8. Implementation Notes for Future Agents
+## 9. Implementation Notes for Future Agents
 - Do not expose raw YouTube API response shapes directly unless the public
   contract explicitly calls for them.
 - Prefer one normalized shape per tool and keep optional expansions controlled.
@@ -1064,7 +1510,7 @@ Logical payload:
 - When a tool exposes `maxResults`, ensure the implementation does not silently
   exceed upstream quota expectations without documentation.
 
-## 9. Acceptance Checks
+## 10. Acceptance Checks
 - Every public Layer 3 tool has JSON-schema-validatable input.
 - Every tool has a documented logical payload for MCP `structuredContent`.
 - Composite tools are explicitly labeled as composite.

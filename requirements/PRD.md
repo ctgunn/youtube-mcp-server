@@ -78,7 +78,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - Domain/tool layer (individual tool handlers).
 - Product layers for YouTube capability:
   - Layer 1: integration layer that wraps YouTube Data API and transcript providers through typed internal abstractions.
-  - Layer 2: optional lower-level MCP tools that expose raw or near-raw YouTube resource operations for power users and debugging.
+  - Layer 2: lower-level MCP tools that expose raw or near-raw YouTube resource operations for power users, debugging, and direct endpoint access.
   - Layer 3: higher-level MCP tools that normalize, enrich, filter, combine, and rank YouTube data for research workflows.
 - Dependency boundaries:
   - Tools must depend on integration interfaces, not concrete HTTP clients.
@@ -169,19 +169,20 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - typed wrappers around YouTube Data API resources and transcript providers
   - request shaping, retry behavior, quota/error mapping, and auth handling
   - reusable enrichment helpers that can be shared by multiple public tools
-  - required for the initial release as the implementation foundation for Layer 3
-- Layer 2 is an optional future low-level MCP layer:
-  - near-direct exposure of selected YouTube resource operations
-  - useful for debugging, raw exploration, or power-user workflows
-  - not required for the initial public tool catalog
-- Layer 3 is the initial public MCP tool layer for v1:
-  - the primary user-facing tool catalog
+  - required for the initial release as the implementation foundation for Layers 2 and 3
+- Layer 2 is the low-level public MCP layer for v1:
+  - near-direct exposure of documented YouTube Data API resource operations
+  - one public MCP tool per documented YouTube Data API endpoint/resource method in the supported inventory
+  - useful for debugging, raw exploration, direct endpoint access, and advanced power-user workflows
+- Layer 3 is the higher-level public MCP tool layer for v1:
+  - the primary research-oriented user-facing tool catalog
   - tools may combine multiple YouTube endpoints and local heuristics
   - tools may perform ETL-style normalization, filtering, enrichment, and ranking before returning results
 - Initial scope decision:
   - Layer 1 is required for implementation support.
-  - Layer 2 is explicitly out of scope for the initial public release unless added later through a separate decision.
-  - Layer 3 is the only public YouTube tool layer currently committed for the initial release.
+  - Layer 2 is part of the public v1 tool surface.
+  - Layer 3 is also part of the public v1 tool surface.
+  - Layer 2 and Layer 3 serve different user needs and are both first-class public layers.
 
 ### 6.2 Layer 1 Integration Requirements
 - The Layer 1 integration layer MUST serve as the internal endpoint-wrapper layer for the documented YouTube Data API v3 surface used by this product.
@@ -201,8 +202,25 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - deprecation or availability state when applicable
 - Method signatures, docstrings, or adjacent implementation comments for Layer 1 wrappers MUST explicitly include the official quota-unit cost for that endpoint.
 - The Layer 1 integration layer MUST support server-side composition where a Layer 3 tool depends on multiple upstream resources.
+- The Layer 1 integration layer MUST support direct exposure through Layer 2 tools without requiring each Layer 2 tool to duplicate request execution, auth, quota, or upstream error logic.
 - The Layer 1 integration layer MUST keep upstream API naming and transport details out of Layer 3 tool handlers wherever practical.
 - The Layer 1 integration layer MUST explicitly document or flag known official-doc inconsistencies encountered during endpoint inventorying, especially around quota or availability/deprecation behavior.
+
+### 6.2.1 Layer 2 Public Endpoint Tool Requirements
+- The Layer 2 public MCP layer MUST expose one endpoint-backed tool for each documented YouTube Data API v3 resource method included in the supported Layer 1 inventory.
+- Layer 2 public tool names MUST follow `resource_method` naming such as:
+  - `videos_list`
+  - `playlists_insert`
+  - `comments_setModerationStatus`
+  - `videos_getRating`
+- Layer 2 tools MUST stay close to upstream request and response semantics while remaining usable through MCP-compatible descriptions, validation, and structured results.
+- Layer 2 tool definitions MUST explicitly document:
+  - mapped YouTube resource and method
+  - official quota-unit cost
+  - auth mode (`api_key`, `oauth_required`, or mixed/conditional)
+  - deprecation or availability caveats when applicable
+- Layer 2 tools MAY lightly normalize upstream payloads for MCP clarity, but they MUST NOT masquerade as higher-level composed or heuristic tools.
+- Layer 2 tools SHOULD preserve upstream pagination, part-selection, and filter concepts where those concepts exist upstream.
 
 ### 6.3 Required Upstream API Surface
 - Primary data source: YouTube Data API v3.
@@ -227,12 +245,39 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - `videoCategories.list`
   - `videos.list`, `videos.insert`, `videos.update`, `videos.rate`, `videos.getRating`, `videos.reportAbuse`, `videos.delete`
   - `watermarks.set`, `watermarks.unset`
-- Layer 3 initial public tools depend on a smaller subset of that inventory, but the Layer 1 product requirement is intentionally broader so the integration layer can later support Layer 2 and future Layer 3 additions without redesign.
+- Layer 2 public endpoint tools map one-to-one to that inventory.
+- Layer 3 public tools depend on a smaller subset of that inventory, but the Layer 1 product requirement is intentionally broader so the integration layer can support both Layer 2 and future Layer 3 additions without redesign.
 - The system MUST maintain a documented per-endpoint quota inventory for the Layer 1 wrappers so downstream tool authors can reason about daily-credit impact before composing multi-call workflows.
+- The system MUST maintain equivalent quota visibility in Layer 2 public tool documentation so callers can reason about direct endpoint costs before invocation.
 - The system MUST explicitly document which Layer 3 tools depend on single endpoints versus composite multi-endpoint workflows.
 - The system MUST distinguish raw upstream fields from server-derived normalized or heuristic fields in the public contract documentation.
 
-### 6.3.1 Initial Endpoint-to-Tool Mapping
+### 6.3.1 Layer 2 Public Endpoint Tool Mapping
+- Layer 2 exposes one public MCP tool per documented YouTube Data API endpoint/resource method in Section 6.3.
+- The Layer 2 public catalog includes the following tool families:
+  - `activities_list`
+  - `captions_list`, `captions_insert`, `captions_update`, `captions_download`, `captions_delete`
+  - `channelBanners_insert`
+  - `channels_list`, `channels_update`
+  - `channelSections_list`, `channelSections_insert`, `channelSections_update`, `channelSections_delete`
+  - `comments_list`, `comments_insert`, `comments_update`, `comments_setModerationStatus`, `comments_delete`
+  - `commentThreads_list`, `commentThreads_insert`
+  - `guideCategories_list`
+  - `i18nLanguages_list`, `i18nRegions_list`
+  - `members_list`, `membershipsLevels_list`
+  - `playlistImages_list`, `playlistImages_insert`, `playlistImages_update`, `playlistImages_delete`
+  - `playlistItems_list`, `playlistItems_insert`, `playlistItems_update`, `playlistItems_delete`
+  - `playlists_list`, `playlists_insert`, `playlists_update`, `playlists_delete`
+  - `search_list`
+  - `subscriptions_list`, `subscriptions_insert`, `subscriptions_delete`
+  - `thumbnails_set`
+  - `videoAbuseReportReasons_list`
+  - `videoCategories_list`
+  - `videos_list`, `videos_insert`, `videos_update`, `videos_rate`, `videos_getRating`, `videos_reportAbuse`, `videos_delete`
+  - `watermarks_set`, `watermarks_unset`
+- Layer 2 tools MUST keep a clear one-to-one relationship with their upstream endpoint identity even when the MCP contract applies light validation or payload reshaping.
+
+### 6.3.2 Initial Layer 3 Endpoint-to-Tool Mapping
 - `videos_getVideo`
   - primary dependency: `videos.list`
 - `videos_searchVideos`
@@ -643,6 +688,7 @@ The initial public Layer 3 catalog contains 19 MCP tools.
 - Failed initialize requests do not create or expose hosted continuation sessions.
 - Tool discovery metadata is sufficient for supported MCP clients to construct valid foundational tool requests.
 - Error codes and error payloads match the supported protocol expectations for downstream consumers.
+- All Layer 2 endpoint-backed tools in the supported inventory are implemented and callable via MCP.
 - All 19 initial Layer 3 tools in Section 6.4 are implemented and callable via MCP.
 - Every tool validates inputs and returns structured errors.
 - Cloud Run deployment succeeds and serves MCP traffic.
@@ -653,10 +699,12 @@ The initial public Layer 3 catalog contains 19 MCP tools.
 - Logs and core metrics are visible in Google Cloud.
 - README includes setup, config, run, and deploy instructions.
 - Composite higher-level tools are clearly documented where behavior is not provided by a single native YouTube endpoint.
-- The public documentation distinguishes the internal Layer 1 integration layer from the initial public Layer 3 tool catalog.
+- The public documentation distinguishes the internal Layer 1 integration layer from the public Layer 2 and Layer 3 tool catalogs.
+- The public documentation distinguishes Layer 2 near-raw endpoint tools from Layer 3 higher-level composed tools.
 - The public documentation identifies which Layer 3 fields are raw upstream values versus normalized or heuristic values.
 - The product requirements and implementation planning document Layer 1 as an endpoint-by-endpoint YouTube Data API integration inventory rather than an ad hoc set of helper calls.
 - Layer 1 wrapper standards require per-endpoint quota-cost documentation in metadata plus method-level comments/docstrings.
+- Layer 2 public tool contracts expose per-endpoint quota cost, auth mode, and deprecation or availability caveats clearly.
 
 ## 15. Milestones
 1. Complete MCP server foundation (transport, registry, baseline tools, health endpoints).
@@ -675,12 +723,14 @@ The initial public Layer 3 catalog contains 19 MCP tools.
 14. Provide a one-command local startup workflow with dedicated local runtime environment defaults.
 15. Provision Terraform-managed hosted networking, including VPC, subnets, and Cloud Run connectivity resources required for durable hosted sessions.
 16. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
-17. Define the layered YouTube product model and the initial Layer 3 public tool catalog.
+17. Define the layered YouTube product model plus the public Layer 2 and Layer 3 tool taxonomies.
 18. Define the Layer 1 shared client foundation, endpoint metadata/quota standards, and full documented YouTube Data API endpoint inventory.
-19. Implement the initial Layer 3 core public tools.
-20. Implement the additional Layer 3 value-add tools for statistics, transcript discovery/search, channel playlist/content workflows, and playlist transcript/search workflows.
-21. Implement the Layer 1 endpoint wrappers, then add auth, secrets, quota/error handling, and transcript-access hardening across composed higher-level workflows.
-22. Add monitoring, alerts, and release documentation.
+19. Implement the Layer 1 endpoint wrappers.
+20. Implement the Layer 2 endpoint-backed public MCP catalog with per-endpoint quota/auth/deprecation documentation.
+21. Implement the Layer 3 core public tools.
+22. Implement the additional Layer 3 value-add tools for statistics, transcript discovery/search, channel playlist/content workflows, and playlist transcript/search workflows.
+23. Add auth, secrets, quota/error handling, and transcript-access hardening across low-level and composed public workflows.
+24. Add monitoring, alerts, and release documentation.
 
 ## 16. Open Decisions
 - Final transcript fallback approach when official captions are unavailable.
