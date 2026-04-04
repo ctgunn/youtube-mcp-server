@@ -18,7 +18,7 @@ Auto-generated from all feature plans. Last updated: [DATE]
 
 ## Code Style
 
-[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE]
+[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE. For Python, require reStructuredText docstrings for all new or changed functions.]
 
 ## Recent Changes
 

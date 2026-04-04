@@ -8,7 +8,7 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: Test tasks are REQUIRED. Every user story and foundational change must include Red-Green-Refactor coverage tasks. Completion requires a passing full repository test-suite run after the final code changes.
+**Tests**: Test tasks are REQUIRED. Every user story and foundational change must include Red-Green-Refactor coverage tasks. Completion requires a passing full repository test-suite run after the final code changes. When Python code changes, tasks MUST include reStructuredText docstring updates for all new or modified functions.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -94,7 +94,8 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
 - [ ] T016 [US1] Add validation and error handling
 - [ ] T017 [US1] Add logging for user story 1 operations
-- [ ] T018 [US1] Refactor user story 1 implementation while keeping all tests green
+- [ ] T018 [US1] Add or update reStructuredText docstrings for changed Python functions
+- [ ] T019 [US1] Refactor user story 1 implementation while keeping all tests green
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -108,16 +109,17 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [ ] T019 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T020 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T020 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T021 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
 
 ### Implementation for User Story 2
 
-- [ ] T021 [P] [US2] Create [Entity] model in src/models/[entity].py
-- [ ] T022 [US2] Implement [Service] in src/services/[service].py
-- [ ] T023 [US2] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T024 [US2] Integrate with User Story 1 components (if needed)
-- [ ] T025 [US2] Refactor user story 2 implementation while keeping all tests green
+- [ ] T022 [P] [US2] Create [Entity] model in src/models/[entity].py
+- [ ] T023 [US2] Implement [Service] in src/services/[service].py
+- [ ] T024 [US2] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T025 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T026 [US2] Add or update reStructuredText docstrings for changed Python functions
+- [ ] T027 [US2] Refactor user story 2 implementation while keeping all tests green
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -131,15 +133,16 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [ ] T026 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T027 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T028 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T029 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
 
 ### Implementation for User Story 3
 
-- [ ] T028 [P] [US3] Create [Entity] model in src/models/[entity].py
-- [ ] T029 [US3] Implement [Service] in src/services/[service].py
-- [ ] T030 [US3] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T031 [US3] Refactor user story 3 implementation while keeping all tests green
+- [ ] T030 [P] [US3] Create [Entity] model in src/models/[entity].py
+- [ ] T031 [US3] Implement [Service] in src/services/[service].py
+- [ ] T032 [US3] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T033 [US3] Add or update reStructuredText docstrings for changed Python functions
+- [ ] T034 [US3] Refactor user story 3 implementation while keeping all tests green
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -157,6 +160,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories
 - [ ] TXXX [P] Additional regression/unit tests in tests/unit/
+- [ ] TXXX [P] Review reStructuredText docstrings for shared Python modules touched across stories
 - [ ] TXXX Security hardening
 - [ ] TXXX Run quickstart.md validation
 - [ ] TXXX Run the full repository test suite and resolve any failing tests before completion
@@ -186,6 +190,7 @@ Examples of foundational tasks (adjust based on your project):
 - Models before services
 - Services before endpoints
 - Core implementation before integration (Green)
+- Update reStructuredText docstrings for every new or changed Python function before story completion
 - Refactor only after tests pass; re-run full affected test suites (Refactor)
 - Before marking the story or feature complete, run the full repository test suite and fix any failures
 - Story complete before moving to next priority

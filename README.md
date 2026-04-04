@@ -585,7 +585,8 @@ Feature specification, planning, and implementation in this repository follow a
 mandatory Red-Green-Refactor TDD workflow. Every feature plan and task list
 must include explicit failing-test, minimal-pass, and refactor phases. Work is
 not complete until the full repository test suite has been run after the final
-code changes and every test is passing.
+code changes and every test is passing. All new or modified Python functions
+must include reStructuredText docstrings before review and merge.
 
 ## Runtime configuration profiles
 

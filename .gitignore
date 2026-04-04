@@ -230,6 +230,7 @@ Thumbs.db
 **/.codex/shell_snapshots/*
 **/.codex/models_cache.json
 **/.codex/log/
+**/.codex/plugins/
 **/.codex/config.toml
 **/.codex/version.json
 **/.codex/.personality_migration

@@ -21,6 +21,7 @@
 **Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
 **Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
 **Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
+**Documentation Style**: [e.g., Python reStructuredText docstrings for all new or changed functions, N/A, or NEEDS CLARIFICATION]  
 **Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
 **Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]  
 **Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
@@ -38,6 +39,7 @@
 - [ ] Refactor phase includes cleanup tasks with a full repository test-suite re-run
 - [ ] Integration and regression coverage strategy is documented
 - [ ] Plan names the command that proves the full repository test suite passes before completion
+- [ ] Plan defines how reStructuredText docstrings will be added or preserved for new and changed Python functions
 - [ ] Observability, security, and simplicity constraints are addressed
 
 ## Project Structure

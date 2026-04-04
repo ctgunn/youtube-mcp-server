@@ -114,6 +114,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Setup first**: Initialize project structure, dependencies, configuration
    - **Tests before code**: If you need to write tests for contracts, entities, and integration scenarios
    - **Core development**: Implement models, services, CLI commands, endpoints
+   - **Python documentation**: Add or update reStructuredText docstrings for every new or modified Python function before considering the related task done
    - **Integration work**: Database connections, middleware, logging, external services
    - **Polish and validation**: Unit tests, performance optimization, documentation
 
@@ -130,6 +131,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Check that implemented features match the original specification
    - Validate that the full repository test suite passes after the final code changes; targeted test runs are insufficient for completion
    - If any test fails in that full-suite run, fix the failure before considering the functionality complete
+   - Validate that every new or changed Python function has a reStructuredText docstring
    - Validate that coverage meets requirements
    - Confirm the implementation follows the technical plan
    - Report final status with summary of completed work

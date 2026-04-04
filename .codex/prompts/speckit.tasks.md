@@ -70,6 +70,8 @@ The tasks.md should be immediately executable - each task must be specific enoug
 
 **Tests are MANDATORY**: Generate test tasks for every user story and for foundational behavior that can affect user-facing outcomes. Include an explicit final task to run the full repository test suite and fix any failures before the feature is considered complete.
 
+**Python documentation is MANDATORY**: When a task changes Python code, generate explicit tasks to add or update reStructuredText docstrings for every new or modified function before the story is marked complete.
+
 ### Checklist Format (REQUIRED)
 
 Every task MUST strictly follow this format:
@@ -126,6 +128,7 @@ Every task MUST strictly follow this format:
    - Shared infrastructure → Setup phase (Phase 1)
    - Foundational/blocking tasks → Foundational phase (Phase 2)
    - Story-specific setup → within that story's phase
+   - If Python modules are added or changed, include story-local docstring tasks in the same phase as the implementation work
 
 ### Phase Structure
 

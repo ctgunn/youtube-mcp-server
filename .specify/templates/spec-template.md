@@ -81,6 +81,7 @@
 - Define the minimal implementation boundary required to pass those tests (Green).
 - Define expected refactoring scope after tests pass, including a required full repository test-suite check after changes (Refactor).
 - List required test levels for this feature (unit, integration, contract, end-to-end as applicable).
+- Define the reStructuredText docstring work required for every new or changed Python function in scope.
 - Include concrete test evidence expectations for pull request review, including the full-suite command and expected passing result.
 
 ## Requirements *(mandatory)*

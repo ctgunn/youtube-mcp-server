@@ -1,12 +1,13 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 -> 1.1.0
+- Version change: 1.1.0 -> 1.2.0
 - Modified principles:
   - Template Principle 1 -> I. MCP Contract-First Design
   - Template Principle 2 -> II. CLI and Tooling Consistency
   - Template Principle 3 -> III. Red-Green-Refactor TDD (NON-NEGOTIABLE)
   - IV. Integration and Regression Coverage -> IV. Full-Suite Integration and Regression Coverage
-  - Template Principle 5 -> V. Observability, Security, and Simplicity
+  - V. Observability, Security, and Simplicity ->
+    V. Observability, Documentation, Security, and Simplicity
 - Added sections:
   - None
 - Removed sections:
@@ -15,9 +16,12 @@ Sync Impact Report
   - ✅ updated: .specify/templates/plan-template.md
   - ✅ updated: .specify/templates/spec-template.md
   - ✅ updated: .specify/templates/tasks-template.md
+  - ✅ updated: .specify/templates/agent-file-template.md
   - ⚠ pending: .specify/templates/commands/*.md (directory not present in repository)
+  - ✅ updated: .codex/prompts/speckit.plan.md
   - ✅ updated: .codex/prompts/speckit.tasks.md
   - ✅ updated: .codex/prompts/speckit.implement.md
+  - ✅ updated: AGENTS.md
   - ✅ updated: README.md
 - Deferred follow-up TODOs:
   - TODO(RATIFICATION_DATE): Original adoption date not recoverable from repository history in this workspace.
@@ -57,11 +61,13 @@ targeted or feature-local tests. If any test fails during that full run, the
 failure MUST be fixed before the feature or bugfix is considered complete.
 Rationale: Unit-only validation is insufficient for MCP server interoperability.
 
-### V. Observability, Security, and Simplicity
+### V. Observability, Documentation, Security, and Simplicity
 Changes MUST include actionable logs for failure diagnosis, MUST avoid exposing
 secrets in code or logs, and MUST prefer the simplest architecture that meets
-stated requirements. Complexity MUST be justified in the plan's constitution
-exceptions table.
+stated requirements. Every new or modified Python function MUST include a
+reStructuredText docstring that documents purpose, inputs, outputs, raised
+errors when relevant, and side effects when relevant. Complexity MUST be
+justified in the plan's constitution exceptions table.
 Rationale: Maintainability and safe operations are required for production use.
 
 ## Engineering Constraints
@@ -71,6 +77,7 @@ Rationale: Maintainability and safe operations are required for production use.
 - Every feature plan MUST define:
   - required test frameworks and commands,
   - contract validation approach,
+  - Python docstring expectations for new or changed modules,
   - rollback or mitigation strategy for breaking behavior,
   - the command used to run the full repository test suite before completion.
 - Feature specs MUST define independently testable user stories and measurable
@@ -102,7 +109,10 @@ Compliance review expectations:
 - Every plan and task artifact MUST include a constitution compliance check.
 - Pull requests MUST provide evidence of Red-Green-Refactor execution and a
   passing full repository test-suite run performed after the final code changes.
+- Pull requests that add or modify Python functions MUST show reStructuredText
+  docstrings in the changed code before approval.
 - Reviewers MUST reject changes that bypass mandatory TDD, omit required
-  coverage, or rely only on partial test runs when full-suite validation is expected.
+  coverage, rely only on partial test runs when full-suite validation is
+  expected, or omit required Python docstrings.
 
-**Version**: 1.1.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown | **Last Amended**: 2026-03-21
+**Version**: 1.2.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown | **Last Amended**: 2026-04-04

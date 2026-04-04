@@ -68,7 +68,7 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 
 ## Code Style
 
-Python 3.11: Follow standard conventions
+Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
 - 028-hosted-network-bootstrap: Added Python 3.11 for service, deployment, verification, and workflow-support tooling; checked-in workflow definitions for automated and fallback hosted rollou + FastAPI, Pydantic v2, Uvicorn, Terraform-compatible IaC under `infrastructure/gcp`, `cloudbuild.yaml`, `.github/workflows/hosted-deploy.yml`, deployment helpers in `src/mcp_server/deploy.py`, `scripts/deploy_cloud_run.sh`, `scripts/verify_cloud_run_foundation.py`
