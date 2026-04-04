@@ -11,7 +11,11 @@ from mcp_server.transport.http import MCPHTTPTransport
 
 
 def load_server_metadata(env: Mapping[str, str]) -> dict:
-    """Load server metadata from environment with safe defaults."""
+    """Load server metadata from environment with safe defaults.
+
+    :param env: Environment-style mapping containing optional server metadata.
+    :return: A normalized metadata dictionary used by the transport layer.
+    """
     return {
         "version": env.get("MCP_SERVER_VERSION", "0.1.0"),
         "environment": env.get("MCP_ENVIRONMENT", "dev"),
@@ -24,6 +28,11 @@ def load_server_metadata(env: Mapping[str, str]) -> dict:
 
 
 def _build_startup_error(validation: StartupValidationResult) -> str:
+    """Build a stable startup validation error message.
+
+    :param validation: Failed startup validation result.
+    :return: Human-readable error text summarizing the invalid keys.
+    """
     failure_keys = ", ".join(item.key for item in validation.failures) or "unknown"
     return f"Startup configuration validation failed for profile '{validation.profile}': {failure_keys}"
 
@@ -34,7 +43,15 @@ def create_app(
     runtime_stdout: TextIO | None = None,
     runtime_stderr: TextIO | None = None,
 ) -> MCPHTTPTransport:
-    """Create an app-like transport object for local execution and tests."""
+    """Create the in-process transport used by local flows and tests.
+
+    :param env: Optional environment mapping to evaluate instead of ``os.environ``.
+    :param validate_startup: Whether invalid startup config should raise immediately.
+    :param runtime_stdout: Optional structured-log stdout stream.
+    :param runtime_stderr: Optional structured-log stderr stream.
+    :return: Configured HTTP transport instance.
+    :raises RuntimeError: If startup validation fails while strict validation is enabled.
+    """
     runtime_env = dict(os.environ if env is None else env)
     runtime_settings = load_hosted_runtime_settings(runtime_env)
     try:

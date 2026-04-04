@@ -24,6 +24,7 @@ from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, wri
 
 
 def _http_request(base_url: str, path: str, payload: object) -> dict:
+    """Execute one verification HTTP request against the hosted service."""
     if not hasattr(_http_request, "_session_id"):
         _http_request._session_id = None  # type: ignore[attr-defined]
     url = f"{base_url.rstrip('/')}{path}"
@@ -94,6 +95,7 @@ def _http_request(base_url: str, path: str, payload: object) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the Cloud Run verification CLI and emit a summary payload."""
     parser = argparse.ArgumentParser(description="Verify hosted Cloud Run foundation behavior.")
     parser.add_argument("--deployment-record")
     parser.add_argument("--service-url")

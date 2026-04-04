@@ -16,6 +16,8 @@ except ImportError:  # pragma: no cover - optional dependency
 
 @dataclass(frozen=True)
 class SessionStoreStatus:
+    """Describe the health and topology of a session store backend."""
+
     backend: str
     configured: bool
     healthy: bool
@@ -24,18 +26,22 @@ class SessionStoreStatus:
 
     @property
     def continuity_mode(self) -> str:
+        """Return the continuity model exposed to hosted session logic."""
         if self.shared and self.healthy:
             return "shared_state"
         return "process_local"
 
     @property
     def supported_topology(self) -> str:
+        """Return the deployment topology supported by the store."""
         if self.shared and self.healthy:
             return "multi_instance_shared_state"
         return "single_instance_only"
 
 
 class BaseSessionStore:
+    """Abstract session-store interface used by hosted stream management."""
+
     def status(self) -> SessionStoreStatus:
         raise NotImplementedError
 
@@ -63,12 +69,16 @@ _SHARED_MEMORY_LOCK = RLock()
 
 
 def reset_memory_session_store_registry() -> None:
+    """Reset the shared in-memory session-store registry for tests."""
     with _SHARED_MEMORY_LOCK:
         _SHARED_MEMORY_STORES.clear()
 
 
 class InMemorySessionStore(BaseSessionStore):
+    """In-process session store with optional shared test registry state."""
+
     def __init__(self, *, shared_name: str | None = None):
+        """Initialize an in-memory session store."""
         self._shared_name = shared_name
         if shared_name:
             with _SHARED_MEMORY_LOCK:
@@ -80,6 +90,7 @@ class InMemorySessionStore(BaseSessionStore):
             self._lock = RLock()
 
     def status(self) -> SessionStoreStatus:
+        """Return health and topology metadata for the in-memory backend."""
         return SessionStoreStatus(
             backend="memory",
             configured=True,
@@ -88,34 +99,43 @@ class InMemorySessionStore(BaseSessionStore):
         )
 
     def load_session(self, session_id: str) -> dict[str, Any] | None:
+        """Load a stored session payload by id."""
         with self._lock:
             payload = self._state["sessions"].get(session_id)
             return deepcopy(payload) if payload is not None else None
 
     def save_session(self, session_id: str, payload: dict[str, Any]) -> None:
+        """Persist a session payload by id."""
         with self._lock:
             self._state["sessions"][session_id] = deepcopy(payload)
 
     def load_stream(self, stream_id: str) -> dict[str, Any] | None:
+        """Load a stored stream payload by id."""
         with self._lock:
             payload = self._state["streams"].get(stream_id)
             return deepcopy(payload) if payload is not None else None
 
     def save_stream(self, stream_id: str, payload: dict[str, Any]) -> None:
+        """Persist a stream payload by id."""
         with self._lock:
             self._state["streams"][stream_id] = deepcopy(payload)
 
     def list_sessions(self) -> dict[str, dict[str, Any]]:
+        """Return all stored sessions for diagnostics and tests."""
         with self._lock:
             return deepcopy(self._state["sessions"])
 
     def list_streams(self) -> dict[str, dict[str, Any]]:
+        """Return all stored streams for diagnostics and tests."""
         with self._lock:
             return deepcopy(self._state["streams"])
 
 
 class RedisSessionStore(BaseSessionStore):
+    """Redis-backed session store used for shared hosted durability."""
+
     def __init__(self, store_url: str | None):
+        """Initialize the Redis session store and probe connectivity."""
         self._store_url = store_url
         self._client = None
         self._status = SessionStoreStatus(
@@ -157,9 +177,11 @@ class RedisSessionStore(BaseSessionStore):
             )
 
     def status(self) -> SessionStoreStatus:
+        """Return the current health and configuration status."""
         return self._status
 
     def _get_json(self, key: str) -> dict[str, Any] | None:
+        """Load a JSON object from Redis."""
         if self._client is None:
             return None
         raw = self._client.get(key)
@@ -169,24 +191,30 @@ class RedisSessionStore(BaseSessionStore):
         return payload if isinstance(payload, dict) else None
 
     def _set_json(self, key: str, payload: dict[str, Any]) -> None:
+        """Persist a JSON object to Redis."""
         if self._client is None:
             return
         self._client.set(key, json.dumps(payload, sort_keys=True))
 
     def load_session(self, session_id: str) -> dict[str, Any] | None:
+        """Load a session payload by id."""
         return self._get_json(f"mcp:session:{session_id}")
 
     def save_session(self, session_id: str, payload: dict[str, Any]) -> None:
+        """Persist a session payload by id."""
         self._set_json(f"mcp:session:{session_id}", payload)
 
     def load_stream(self, stream_id: str) -> dict[str, Any] | None:
+        """Load a stream payload by id."""
         return self._get_json(f"mcp:stream:{stream_id}")
 
     def save_stream(self, stream_id: str, payload: dict[str, Any]) -> None:
+        """Persist a stream payload by id."""
         self._set_json(f"mcp:stream:{stream_id}", payload)
 
 
 def create_session_store(*, backend: str, store_url: str | None) -> BaseSessionStore:
+    """Create the configured session store backend."""
     normalized_backend = (backend or "memory").strip().lower()
     if normalized_backend == "redis":
         return RedisSessionStore(store_url)

@@ -53,13 +53,17 @@ class DuplicateToolError(ValueError):
 
 
 def normalize_tool_name(name: str) -> str:
+    """Normalize a tool name for registry lookups."""
     if not isinstance(name, str) or not name.strip():
         raise ToolRegistrationError("tool name is required")
     return name.strip().lower()
 
 
 class InMemoryToolDispatcher:
+    """Maintain an in-memory registry of MCP tools and handlers."""
+
     def __init__(self, tools=None, server_metadata=None):
+        """Initialize the dispatcher with baseline or caller-provided tools."""
         self._tools: dict[str, dict[str, Any]] = {}
         self._server_metadata = self._normalize_server_metadata(server_metadata)
 
@@ -86,6 +90,7 @@ class InMemoryToolDispatcher:
                 )
 
     def register_tool(self, name: str, description: str, input_schema: dict, handler: Callable):
+        """Register a tool definition and callable handler."""
         if not isinstance(description, str) or not description.strip():
             raise ToolRegistrationError("tool description is required")
         if not isinstance(input_schema, dict):
@@ -108,6 +113,7 @@ class InMemoryToolDispatcher:
         }
 
     def _tool_descriptor(self, entry: dict[str, Any]) -> dict[str, Any]:
+        """Build the public tool descriptor exposed to clients."""
         return {
             "name": entry["name"],
             "description": entry["description"],
@@ -115,6 +121,7 @@ class InMemoryToolDispatcher:
         }
 
     def list_tools(self):
+        """Return registered tools in stable normalized order."""
         items = []
         for normalized in sorted(self._tools.keys()):
             entry = self._tools[normalized]
@@ -122,6 +129,7 @@ class InMemoryToolDispatcher:
         return items
 
     def _baseline_tool_definitions(self):
+        """Build the default built-in tool registry."""
         return [
             {
                 "name": "server_ping",
@@ -156,6 +164,7 @@ class InMemoryToolDispatcher:
         ]
 
     def _normalize_server_metadata(self, server_metadata):
+        """Normalize server metadata used by built-in info tools."""
         metadata = server_metadata or {}
         build = metadata.get("build") if isinstance(metadata.get("build"), dict) else {}
         return {
@@ -170,6 +179,7 @@ class InMemoryToolDispatcher:
         }
 
     def _validate_arguments(self, schema: dict, arguments: dict):
+        """Validate tool call arguments against a simplified JSON schema."""
         schema_type = schema.get("type")
         if schema_type == "object" and not isinstance(arguments, dict):
             raise ValueError("arguments must be an object")
@@ -211,10 +221,12 @@ class InMemoryToolDispatcher:
         self._validate_composed_schema(schema, arguments)
 
     def _validate_composed_schema(self, schema: dict, arguments: dict):
+        """Validate supported composed-schema keywords."""
         self._validate_required_combinations("oneOf", schema, arguments)
         self._validate_required_combinations("anyOf", schema, arguments)
 
     def _validate_required_combinations(self, keyword: str, schema: dict, arguments: dict):
+        """Validate that arguments satisfy one required-field combination."""
         options = schema.get(keyword)
         if not isinstance(options, list):
             return
@@ -239,6 +251,7 @@ class InMemoryToolDispatcher:
                 raise ValueError(f"arguments must satisfy one of the required combinations: {', '.join(required_sets)}")
 
     def call_tool(self, tool_name: str, arguments=None):
+        """Validate and invoke a registered tool handler."""
         arguments = arguments or {}
         if not isinstance(arguments, dict):
             raise ValueError("arguments must be an object")
@@ -256,15 +269,18 @@ class InMemoryToolDispatcher:
         return handler(arguments)
 
     def _server_ping_payload(self):
+        """Build the payload returned by the built-in ping tool."""
         return {
             "status": "ok",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def _server_ping(self, _arguments):
+        """Return the built-in service health payload."""
         return self._server_ping_payload()
 
     def _server_info(self, _arguments):
+        """Return normalized server metadata for clients."""
         return {
             "version": self._server_metadata["version"],
             "environment": self._server_metadata["environment"],
@@ -272,4 +288,5 @@ class InMemoryToolDispatcher:
         }
 
     def _server_list_tools(self, _arguments):
+        """Return the current public tool registry."""
         return self.list_tools()

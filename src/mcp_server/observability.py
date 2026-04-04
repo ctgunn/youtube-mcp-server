@@ -11,6 +11,8 @@ from typing import Any, TextIO
 
 @dataclass
 class RequestContext:
+    """Request-scoped metadata used for logs and metric dimensions."""
+
     request_id: str
     path: str
     method_name: str | None = None
@@ -18,14 +20,22 @@ class RequestContext:
 
 
 def _is_non_empty_string(value: Any) -> bool:
+    """Return whether ``value`` is a non-blank string."""
     return isinstance(value, str) and value.strip() != ""
 
 
 def generate_request_id() -> str:
+    """Generate a unique request identifier for local observability."""
     return f"req-{uuid.uuid4().hex}"
 
 
 def build_request_context(path: str, payload: Any) -> RequestContext:
+    """Build request context from an HTTP path and decoded payload.
+
+    :param path: Request path associated with the payload.
+    :param payload: Decoded request payload.
+    :return: Request context with derived request and tool metadata.
+    """
     request_id = None
     method_name = None
     tool_name = None
@@ -58,12 +68,14 @@ def build_request_context(path: str, payload: Any) -> RequestContext:
 
 
 def classify_endpoint(path: str) -> str:
+    """Map a raw path to the endpoint bucket used by metrics."""
     if path in {"/health", "/ready", "/mcp"}:
         return path
     return "not_found"
 
 
 def runtime_event(event_name: str, status: str, details: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build a structured runtime event payload."""
     payload = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "severity": "INFO" if status == "success" else "ERROR",
@@ -76,11 +88,13 @@ def runtime_event(event_name: str, status: str, details: dict[str, Any] | None =
 
 
 def _should_redact_key(key: str) -> bool:
+    """Return whether a field name should be redacted in logs."""
     normalized = str(key).strip().lower().replace("-", "_")
     return normalized in {"authorization", "mcp_auth_token", "youtube_api_key"} or normalized.endswith("_token") or normalized.endswith("_api_key")
 
 
 def _sanitize_event_payload(value: Any, *, key: str | None = None) -> Any:
+    """Recursively redact sensitive fields from a structured payload."""
     if key is not None and _should_redact_key(key):
         return "[REDACTED]"
     if isinstance(value, dict):
@@ -93,6 +107,7 @@ def _sanitize_event_payload(value: Any, *, key: str | None = None) -> Any:
 
 
 def _percentile(values: list[float], percentile: float) -> float:
+    """Compute a simple percentile from a list of numeric samples."""
     if not values:
         return 0.0
     sorted_values = sorted(values)
@@ -105,6 +120,7 @@ class InMemoryObservability:
     """Stores structured logs and metric aggregates for runtime introspection/tests."""
 
     def __init__(self, runtime_stdout: TextIO | None = None, runtime_stderr: TextIO | None = None):
+        """Initialize the in-memory observability sink."""
         self._logs: list[dict[str, Any]] = []
         self._counts: dict[tuple[str, str, str | None], int] = {}
         self._latencies: dict[tuple[str, str | None], list[float]] = {}
@@ -113,12 +129,15 @@ class InMemoryObservability:
 
     @property
     def logs(self) -> list[dict[str, Any]]:
+        """Return a copy of the structured runtime log buffer."""
         return list(self._logs)
 
     def count_for(self, endpoint: str, outcome: str, tool_name: str | None = None) -> int:
+        """Return the aggregated count for one endpoint/outcome/tool tuple."""
         return self._counts.get((endpoint, outcome, tool_name), 0)
 
     def snapshot(self) -> dict[str, Any]:
+        """Return the current metrics snapshot for diagnostics and tests."""
         endpoint_counts: dict[str, dict[str, int]] = {}
         for (endpoint, outcome, _tool_name), count in self._counts.items():
             bucket = endpoint_counts.setdefault(endpoint, {"success": 0, "error": 0})
@@ -145,6 +164,7 @@ class InMemoryObservability:
         }
 
     def record(self, context: RequestContext, outcome: str, latency_ms: float):
+        """Record request outcome, latency, and a structured log event."""
         endpoint = classify_endpoint(context.path)
         tool_name = context.tool_name if context.method_name == "tools/call" else None
         self._counts[(endpoint, outcome, tool_name)] = self._counts.get((endpoint, outcome, tool_name), 0) + 1
@@ -168,6 +188,7 @@ class InMemoryObservability:
         self._emit_runtime_event(event)
 
     def emit_security_decision(self, decision: dict[str, Any]) -> None:
+        """Record a structured security decision event."""
         event = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "severity": "INFO" if decision.get("decision") == "accepted" else "ERROR",
@@ -192,6 +213,7 @@ class InMemoryObservability:
         self._emit_runtime_event(event)
 
     def emit_session_decision(self, decision: dict[str, Any]) -> None:
+        """Record a structured session lifecycle decision event."""
         session_outcome = decision.get("sessionOutcome")
         event = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -209,6 +231,7 @@ class InMemoryObservability:
         self._emit_runtime_event(event)
 
     def _emit_runtime_event(self, event: dict[str, Any]) -> None:
+        """Emit one sanitized runtime event to the configured stream."""
         stream = self._runtime_stderr if event["status"] == "error" else self._runtime_stdout
         if stream is None:
             return
@@ -217,4 +240,5 @@ class InMemoryObservability:
             stream.flush()
 
     def emit_runtime_event(self, event_name: str, status: str, details: dict[str, Any] | None = None) -> None:
+        """Build and emit a runtime event in one call."""
         self._emit_runtime_event(runtime_event(event_name, status, details))

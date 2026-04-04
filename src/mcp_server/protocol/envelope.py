@@ -36,6 +36,11 @@ ERROR_CODE_BY_CATEGORY = {
 
 
 def _sanitize_message(message: str) -> str:
+    """Normalize error messages before exposing them to MCP clients.
+
+    :param message: Raw message text or exception string.
+    :return: Single-line, non-empty error text safe for responses.
+    """
     text = str(message or "").strip()
     if not text:
         return "Unexpected error."
@@ -45,6 +50,12 @@ def _sanitize_message(message: str) -> str:
 
 
 def success_response(result, request_id=None):
+    """Build a JSON-RPC success envelope.
+
+    :param result: Response result payload.
+    :param request_id: Optional JSON-RPC request identifier.
+    :return: Success response dictionary.
+    """
     response = {
         "jsonrpc": "2.0",
         "result": result,
@@ -55,12 +66,24 @@ def success_response(result, request_id=None):
 
 
 def code_for_category(category: str) -> int:
+    """Resolve the MCP error code for a normalized category.
+
+    :param category: Canonical error category name.
+    :return: Numeric MCP error code.
+    :raises KeyError: If the category is unknown.
+    """
     if category not in ERROR_CODE_BY_CATEGORY:
         raise KeyError(f"Unknown MCP error category: {category}")
     return ERROR_CODE_BY_CATEGORY[category]
 
 
 def _merge_error_details(category: str | None, details: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Merge category metadata into optional error details.
+
+    :param category: Optional canonical error category.
+    :param details: Existing structured error details.
+    :return: Merged details dictionary or ``None``.
+    """
     if category is None:
         return details
     merged = dict(details or {})
@@ -69,6 +92,14 @@ def _merge_error_details(category: str | None, details: dict[str, Any] | None) -
 
 
 def error_response(code: int | str, message: str, request_id=None, details=None):
+    """Build a JSON-RPC error envelope.
+
+    :param code: Numeric or symbolic error code value.
+    :param message: Human-readable error message.
+    :param request_id: Optional JSON-RPC request identifier.
+    :param details: Optional structured error details.
+    :return: Error response dictionary.
+    """
     response = {
         "jsonrpc": "2.0",
         "error": {
@@ -83,6 +114,14 @@ def error_response(code: int | str, message: str, request_id=None, details=None)
 
 
 def error_response_for_category(category: str, message: str, request_id=None, details=None):
+    """Build an error response from a canonical category name.
+
+    :param category: Canonical MCP error category.
+    :param message: Human-readable error text.
+    :param request_id: Optional JSON-RPC request identifier.
+    :param details: Optional structured error details.
+    :return: Error response dictionary.
+    """
     return error_response(
         code_for_category(category),
         message,

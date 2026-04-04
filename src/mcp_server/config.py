@@ -28,6 +28,8 @@ PROFILE_REQUIREMENTS = {
 
 @dataclass(frozen=True)
 class ValidationFailure:
+    """Describe one failed startup configuration check."""
+
     key: str
     reason: str
     is_secret: bool = False
@@ -35,6 +37,8 @@ class ValidationFailure:
 
 @dataclass(frozen=True)
 class StartupValidationResult:
+    """Capture the full outcome of startup configuration validation."""
+
     is_valid: bool
     profile: str
     failures: tuple[ValidationFailure, ...]
@@ -42,12 +46,15 @@ class StartupValidationResult:
 
     @property
     def reason_code(self) -> str | None:
+        """Return the readiness reason code for invalid configurations."""
         if self.is_valid:
             return None
         return "CONFIG_VALIDATION_ERROR"
 
 
 class ConfigValidationError(RuntimeError):
+    """Raised when required runtime configuration is missing or invalid."""
+
     def __init__(self, result: StartupValidationResult):
         self.result = result
         super().__init__("Required runtime configuration is invalid.")
@@ -55,6 +62,8 @@ class ConfigValidationError(RuntimeError):
 
 @dataclass(frozen=True)
 class HostedRuntimeSettings:
+    """Normalized hosted runtime settings derived from environment variables."""
+
     host: str
     port: int
     app_module: str
@@ -71,6 +80,8 @@ class HostedRuntimeSettings:
 
 @dataclass(frozen=True)
 class HostedSessionSettings:
+    """Session durability settings for hosted MCP transport behavior."""
+
     backend: str
     store_url: str | None
     durability_required: bool
@@ -80,10 +91,12 @@ class HostedSessionSettings:
 
 
 def _now_iso() -> str:
+    """Return the current UTC timestamp in ISO 8601 format."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def _value(env: Mapping[str, str], key: str) -> str | None:
+    """Return a stripped environment value or ``None`` when blank."""
     raw = env.get(key)
     if raw is None:
         return None
@@ -92,6 +105,7 @@ def _value(env: Mapping[str, str], key: str) -> str | None:
 
 
 def _bool_value(env: Mapping[str, str], key: str, default: bool) -> bool:
+    """Parse a boolean-like environment value."""
     raw = _value(env, key)
     if raw is None:
         return default
@@ -99,6 +113,7 @@ def _bool_value(env: Mapping[str, str], key: str, default: bool) -> bool:
 
 
 def _csv_values(env: Mapping[str, str], key: str) -> tuple[str, ...]:
+    """Parse a comma-separated environment variable into individual values."""
     raw = _value(env, key)
     if raw is None:
         return ()
@@ -106,6 +121,11 @@ def _csv_values(env: Mapping[str, str], key: str) -> tuple[str, ...]:
 
 
 def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSettings:
+    """Load normalized hosted runtime settings from environment values.
+
+    :param env: Environment-style mapping with runtime settings.
+    :return: Hosted runtime settings object.
+    """
     port_text = _value(env, "PORT") or "8080"
     log_level = (_value(env, "MCP_SERVER_LOG_LEVEL") or "info").lower()
     reload_enabled = (_value(env, "MCP_SERVER_RELOAD") or "false").lower() in {"1", "true", "yes", "on"}
@@ -149,6 +169,11 @@ def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSetting
 
 
 def validate_runtime_config(env: Mapping[str, str]) -> StartupValidationResult:
+    """Validate required runtime configuration for the selected profile.
+
+    :param env: Environment-style mapping to validate.
+    :return: Validation result including all collected failures.
+    """
     failures: list[ValidationFailure] = []
     profile_raw = _value(env, "MCP_ENVIRONMENT")
 
@@ -190,6 +215,7 @@ def validate_runtime_config(env: Mapping[str, str]) -> StartupValidationResult:
 
 
 def ensure_runtime_config(env: Mapping[str, str]) -> StartupValidationResult:
+    """Validate configuration and raise when it is not usable."""
     result = validate_runtime_config(env)
     if not result.is_valid:
         raise ConfigValidationError(result)
@@ -197,10 +223,12 @@ def ensure_runtime_config(env: Mapping[str, str]) -> StartupValidationResult:
 
 
 def sanitized_failures(result: StartupValidationResult) -> list[dict]:
+    """Return failure details without secret markers or sensitive values."""
     return [{"key": item.key, "reason": item.reason} for item in result.failures]
 
 
 def config_validation_error_details(result: StartupValidationResult) -> dict:
+    """Build structured error details for invalid startup configuration."""
     return {
         "profile": result.profile,
         "failures": sanitized_failures(result),
@@ -208,6 +236,12 @@ def config_validation_error_details(result: StartupValidationResult) -> dict:
 
 
 def secret_access_readiness(env: Mapping[str, str], validation: StartupValidationResult) -> dict[str, object]:
+    """Summarize whether secret-backed configuration is ready for use.
+
+    :param env: Environment-style mapping for secret settings.
+    :param validation: Startup validation result for the current runtime.
+    :return: Structured readiness payload for secret access.
+    """
     secret_failures = tuple(item for item in validation.failures if item.is_secret)
     reference_names = _csv_values(env, "MCP_SECRET_REFERENCE_NAMES")
     explicit_access_mode = _value(env, "MCP_SECRET_ACCESS_MODE")

@@ -31,6 +31,8 @@ FETCH_TOOL_SCHEMA = {
 
 @dataclass(frozen=True)
 class RetrievalSource:
+    """Represent one retrieval source returned by the sample corpus."""
+
     document_id: str
     uri: str
     title: str
@@ -44,6 +46,7 @@ class RetrievalError(Exception):
     """Structured retrieval error for MCP-safe mapping."""
 
     def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None):
+        """Initialize a structured retrieval error."""
         super().__init__(message)
         self.category = category
         self.details = details or {}
@@ -90,6 +93,7 @@ SAMPLE_SOURCES: tuple[RetrievalSource, ...] = (
 
 
 def _normalize_query(arguments: dict[str, Any]) -> str:
+    """Normalize and validate a retrieval search query."""
     query = str(arguments.get("query", "")).strip()
     if not query:
         raise ValueError("query must be a non-empty string")
@@ -97,6 +101,7 @@ def _normalize_query(arguments: dict[str, Any]) -> str:
 
 
 def _search_results(query: str) -> list[RetrievalSource]:
+    """Return ranked sample retrieval results for a normalized query."""
     if query == "no-match-sentinel":
         return []
     terms = [term for term in query.split() if term]
@@ -111,6 +116,11 @@ def _search_results(query: str) -> list[RetrievalSource]:
 
 
 def search_tool(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Execute the retrieval ``search`` tool.
+
+    :param arguments: Tool arguments containing ``query``.
+    :return: Search result payload matching the MCP retrieval contract.
+    """
     query = _normalize_query(arguments)
     results = _search_results(query)
     return {
@@ -126,6 +136,7 @@ def search_tool(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _find_by_document_id(document_id: str) -> RetrievalSource | None:
+    """Look up a sample retrieval source by document identifier."""
     for source in SAMPLE_SOURCES:
         if source.document_id == document_id:
             return source
@@ -133,6 +144,12 @@ def _find_by_document_id(document_id: str) -> RetrievalSource | None:
 
 
 def fetch_tool(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Execute the retrieval ``fetch`` tool.
+
+    :param arguments: Tool arguments containing ``id``.
+    :return: Full retrieval source payload.
+    :raises RetrievalError: If the requested source is unavailable.
+    """
     document_id = arguments.get("id")
     if document_id is not None and not isinstance(document_id, str):
         raise ValueError("id must be a string")

@@ -13,6 +13,11 @@ UNKNOWN_TOOL_MESSAGE = "Tool not found."
 
 
 def _validate_payload(payload):
+    """Validate the top-level JSON-RPC request shape.
+
+    :param payload: Decoded request payload.
+    :return: Tuple of validity flag, request id, parsed method/params pair, and error response.
+    """
     if not isinstance(payload, dict):
         return False, None, None, error_response_for_category("malformed_request", "payload must be an object")
     request_id = payload.get("id")
@@ -31,6 +36,11 @@ def _validate_payload(payload):
 
 
 def _serialize_tool_result(result) -> dict:
+    """Convert a tool result into MCP content blocks.
+
+    :param result: Raw tool result.
+    :return: MCP ``tools/call`` result payload.
+    """
     content = {
         "type": "text",
         "text": json.dumps(result, sort_keys=True),
@@ -46,6 +56,12 @@ def _serialize_tool_result(result) -> dict:
 
 
 def _parse_call_params(request_id, params):
+    """Validate and extract tool call parameters.
+
+    :param request_id: JSON-RPC request identifier.
+    :param params: Raw method parameters.
+    :return: Tuple of tool name, arguments, and optional validation error.
+    """
     tool_name = params.get("name")
     if tool_name is None:
         tool_name = params.get("toolName")
@@ -68,6 +84,12 @@ def _parse_call_params(request_id, params):
 
 
 def _handle_initialize(request_id, params):
+    """Handle the MCP ``initialize`` method.
+
+    :param request_id: JSON-RPC request identifier.
+    :param params: Initialization parameters from the client.
+    :return: JSON-RPC response payload.
+    """
     client_info = params.get("clientInfo")
     if not isinstance(client_info, dict) or not client_info.get("name"):
         return error_response_for_category(
@@ -89,6 +111,11 @@ def _handle_initialize(request_id, params):
 
 
 def initialize_succeeded(response: dict) -> bool:
+    """Check whether an initialize response represents success.
+
+    :param response: JSON-RPC response payload.
+    :return: ``True`` when the response contains initialize capabilities.
+    """
     if not isinstance(response, dict) or "error" in response:
         return False
     result = response.get("result")
@@ -96,10 +123,18 @@ def initialize_succeeded(response: dict) -> bool:
 
 
 def _handle_list(request_id, _params, dispatcher):
+    """Handle the MCP ``tools/list`` method."""
     return success_response({"tools": dispatcher.list_tools()}, request_id=request_id)
 
 
 def _handle_call(request_id, params, dispatcher):
+    """Handle the MCP ``tools/call`` method.
+
+    :param request_id: JSON-RPC request identifier.
+    :param params: Tool call parameters.
+    :param dispatcher: Tool dispatcher used for invocation.
+    :return: JSON-RPC response payload.
+    """
     tool_name, arguments, validation_error = _parse_call_params(request_id, params)
     if validation_error:
         return validation_error
@@ -134,6 +169,12 @@ def _handle_call(request_id, params, dispatcher):
 
 
 def route_mcp_request(payload: dict, dispatcher) -> dict:
+    """Route a decoded MCP request to the correct method handler.
+
+    :param payload: Decoded JSON-RPC request payload.
+    :param dispatcher: Tool dispatcher used for list/call methods.
+    :return: JSON-RPC response payload.
+    """
     valid, request_id, parsed, error = _validate_payload(payload)
     if not valid:
         return error

@@ -31,6 +31,8 @@ SECURITY_STATUS_CODES = {
 
 @dataclass(frozen=True)
 class HostedRequestClassification:
+    """Describe how a hosted HTTP request maps onto MCP transport behavior."""
+
     path_class: str
     method_class: str
     media_type_class: str
@@ -39,6 +41,7 @@ class HostedRequestClassification:
 
 
 def _normalize_content_type(content_type: str | None) -> str | None:
+    """Normalize an HTTP content type to its media type token."""
     if not content_type:
         return None
     return content_type.split(";", 1)[0].strip().lower() or None
@@ -52,6 +55,7 @@ def classify_hosted_request(
     body_present: bool = False,
     body_valid: bool = True,
 ) -> HostedRequestClassification:
+    """Classify an incoming hosted HTTP request for status-code mapping."""
     normalized_method = (method or "").upper()
     if path not in SUPPORTED_HOSTED_METHODS:
         return HostedRequestClassification(
@@ -119,6 +123,7 @@ def classify_hosted_request(
 
 
 def hosted_status_code(classification: HostedRequestClassification, response: dict | None = None) -> int:
+    """Translate request classification and response payload into an HTTP status code."""
     if classification.outcome_class == "not_found":
         return 404
     if classification.outcome_class == "method_not_allowed":
@@ -137,6 +142,7 @@ def hosted_status_code(classification: HostedRequestClassification, response: di
 
 
 def hosted_security_status_code(decision_category: str) -> int:
+    """Map a security decision category to its HTTP status code."""
     if not is_mcp_application_security_category(decision_category):
         return 403
     return SECURITY_STATUS_CODES.get(decision_category, 403)
@@ -156,6 +162,7 @@ class MCPHTTPTransport:
         runtime_stdout: TextIO | None = None,
         runtime_stderr: TextIO | None = None,
     ):
+        """Initialize the local in-process transport facade."""
         self.dispatcher = dispatcher or InMemoryToolDispatcher(server_metadata=server_metadata)
         self.observability = InMemoryObservability(runtime_stdout=runtime_stdout, runtime_stderr=runtime_stderr)
         session_settings = runtime_settings.session if runtime_settings is not None else None
@@ -182,6 +189,7 @@ class MCPHTTPTransport:
                 self.runtime_lifecycle.mark_degraded(durability["reason"])
 
     def handle(self, path: str, payload: dict) -> dict:
+        """Handle one local request against the transport surface."""
         context = build_request_context(path, payload)
         started_at = perf_counter()
 
@@ -229,6 +237,7 @@ class MCPHTTPTransport:
         return response
 
     def queue_server_event(self, session_id: str, payload: dict) -> None:
+        """Queue a server-sent event for an active MCP session."""
         self.stream_manager.enqueue_event(
             session_id=session_id,
             payload=payload,

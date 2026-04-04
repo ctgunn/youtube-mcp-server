@@ -18,25 +18,31 @@ SUPPORTED_MCP_PROTOCOL_VERSIONS = ("2025-11-25",)
 
 
 def _timestamp() -> str:
+    """Return the current UTC timestamp in ISO 8601 format."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def _add_seconds(timestamp: str, seconds: int) -> str:
+    """Return an ISO timestamp shifted forward by ``seconds``."""
     return (datetime.fromisoformat(timestamp) + timedelta(seconds=seconds)).isoformat()
 
 
 def _is_past(timestamp: str | None) -> bool:
+    """Return whether an ISO timestamp is in the past."""
     if not timestamp:
         return False
     return datetime.fromisoformat(timestamp) <= datetime.now(timezone.utc)
 
 
 def generate_session_id() -> str:
+    """Generate a hosted MCP session identifier."""
     return uuid.uuid4().hex
 
 
 @dataclass
 class StreamEvent:
+    """Represent one event emitted on a streamable HTTP channel."""
+
     event_id: str
     stream_id: str
     event_type: str
@@ -48,6 +54,8 @@ class StreamEvent:
 
 @dataclass
 class StreamChannel:
+    """Represent a streamable HTTP event channel for one session."""
+
     stream_id: str
     session_id: str
     origin_method: str
@@ -62,6 +70,8 @@ class StreamChannel:
 
 @dataclass
 class HostedMCPSession:
+    """Represent hosted MCP session state persisted by the stream manager."""
+
     session_id: str
     protocol_version: str
     created_at: str
@@ -95,12 +105,14 @@ class StreamManager:
         session_ttl_seconds: int = 1800,
         replay_ttl_seconds: int = 300,
     ):
+        """Initialize the stream manager and its backing session store."""
         self._store = store or InMemorySessionStore()
         self._session_ttl_seconds = session_ttl_seconds
         self._replay_ttl_seconds = replay_ttl_seconds
 
     @classmethod
     def from_session_settings(cls, settings: HostedSessionSettings) -> "StreamManager":
+        """Build a stream manager from hosted session settings."""
         return cls(
             store=create_session_store(backend=settings.backend, store_url=settings.store_url),
             session_ttl_seconds=settings.session_ttl_seconds,
@@ -109,6 +121,7 @@ class StreamManager:
 
     @property
     def sessions(self) -> dict[str, HostedMCPSession]:
+        """Return active sessions keyed by session id."""
         return {
             session_id: self._session_from_record(record)
             for session_id, record in self._store.list_sessions().items()
@@ -117,15 +130,18 @@ class StreamManager:
 
     @property
     def streams(self) -> dict[str, StreamChannel]:
+        """Return known streams keyed by stream id."""
         return {
             stream_id: self._stream_from_record(record)
             for stream_id, record in self._store.list_streams().items()
         }
 
     def session_store_status(self) -> SessionStoreStatus:
+        """Return health metadata for the configured session store."""
         return self._store.status()
 
     def durability_status(self, *, required: bool) -> dict[str, object]:
+        """Summarize whether session durability is currently available."""
         status = self.session_store_status()
         available = status.healthy and (status.shared or not required)
         if required and not status.shared:
@@ -154,6 +170,7 @@ class StreamManager:
         }
 
     def create_session(self, *, protocol_version: str, client_metadata: dict | None = None) -> HostedMCPSession:
+        """Create and persist a new hosted MCP session."""
         now = _timestamp()
         status = self.session_store_status()
         session = HostedMCPSession(
@@ -170,6 +187,7 @@ class StreamManager:
         return session
 
     def get_session(self, session_id: str) -> HostedMCPSession:
+        """Load an active session or raise a session-state error."""
         session = self._load_session(session_id)
         if session.state == "closed":
             raise InvalidSessionError(session_id)
@@ -180,6 +198,7 @@ class StreamManager:
         return session
 
     def has_session(self, session_id: str) -> bool:
+        """Return whether the session exists and remains usable."""
         try:
             self.get_session(session_id)
             return True
@@ -187,6 +206,7 @@ class StreamManager:
             return False
 
     def touch_session(self, session_id: str) -> HostedMCPSession:
+        """Refresh a session's activity and expiration timestamps."""
         session = self.get_session(session_id)
         session.last_activity_at = _timestamp()
         session.expires_at = _add_seconds(session.last_activity_at, self._session_ttl_seconds)
@@ -200,6 +220,7 @@ class StreamManager:
         origin_method: str,
         pending_response_id: str | None = None,
     ) -> StreamChannel:
+        """Open or resume a stream for the given session."""
         session = self.touch_session(session_id)
         if origin_method == "GET":
             for stream_id in reversed(session.stream_ids):
@@ -225,6 +246,7 @@ class StreamManager:
         return stream
 
     def close_stream(self, stream_id: str, *, completed: bool = False) -> None:
+        """Close a stream and optionally mark it completed."""
         stream = self._load_stream_optional(stream_id)
         if stream is None:
             return
@@ -240,6 +262,7 @@ class StreamManager:
         payload_class: str = "jsonrpc_notification",
         stream_id: str | None = None,
     ) -> StreamEvent:
+        """Append an event to a stream for the given session."""
         if stream_id is None:
             stream = self.open_stream(session_id, origin_method="GET")
         else:
@@ -260,6 +283,7 @@ class StreamManager:
         return event
 
     def ensure_primer_event(self, stream: StreamChannel) -> StreamEvent:
+        """Ensure the stream begins with a primer event."""
         if stream.events:
             return stream.events[0]
         return self.enqueue_event(
@@ -271,6 +295,7 @@ class StreamManager:
         )
 
     def events_after(self, session_id: str, last_event_id: str | None = None) -> tuple[StreamChannel, list[StreamEvent]]:
+        """Return events available after the given replay cursor."""
         session = self.get_session(session_id)
         candidate_streams: list[StreamChannel] = []
         expired_cursor_seen = False
@@ -308,6 +333,7 @@ class StreamManager:
         return stream, list(stream.events) or [self.ensure_primer_event(stream)]
 
     def build_post_response_stream(self, session_id: str, request_id: str, response_payload: dict) -> tuple[StreamChannel, list[StreamEvent]]:
+        """Build the SSE response stream for a POST-originated request."""
         stream = self.open_stream(session_id, origin_method="POST", pending_response_id=request_id)
         primer = self.ensure_primer_event(stream)
         response_event = self.enqueue_event(
@@ -328,30 +354,36 @@ class StreamManager:
         return refreshed, refreshed.events[:2]
 
     def _load_session(self, session_id: str) -> HostedMCPSession:
+        """Load a stored session record or raise ``InvalidSessionError``."""
         record = self._store.load_session(session_id)
         if record is None:
             raise InvalidSessionError(session_id)
         return self._session_from_record(record)
 
     def _load_stream(self, stream_id: str) -> StreamChannel:
+        """Load a stored stream record or raise ``ReplayUnavailableError``."""
         record = self._store.load_stream(stream_id)
         if record is None:
             raise ReplayUnavailableError(stream_id)
         return self._stream_from_record(record)
 
     def _load_stream_optional(self, stream_id: str) -> StreamChannel | None:
+        """Load a stream record when present."""
         record = self._store.load_stream(stream_id)
         return self._stream_from_record(record) if record is not None else None
 
     def _session_record(self, session: HostedMCPSession) -> dict:
+        """Serialize a session dataclass into storage format."""
         return asdict(session)
 
     def _stream_record(self, stream: StreamChannel) -> dict:
+        """Serialize a stream dataclass into storage format."""
         payload = asdict(stream)
         payload["events"] = [asdict(event) for event in stream.events]
         return payload
 
     def _session_from_record(self, record: dict) -> HostedMCPSession:
+        """Deserialize a stored session record."""
         return HostedMCPSession(
             session_id=record["session_id"],
             protocol_version=record["protocol_version"],
@@ -365,6 +397,7 @@ class StreamManager:
         )
 
     def _stream_from_record(self, record: dict) -> StreamChannel:
+        """Deserialize a stored stream record."""
         return StreamChannel(
             stream_id=record["stream_id"],
             session_id=record["session_id"],
@@ -391,6 +424,7 @@ class StreamManager:
 
 
 def encode_sse(events: list[StreamEvent]) -> str:
+    """Encode stream events into an SSE response body."""
     lines: list[str] = []
     for event in events:
         lines.append(f"id: {event.event_id}")
@@ -403,6 +437,7 @@ def encode_sse(events: list[StreamEvent]) -> str:
 
 
 def normalize_accept_header(header_value: str | None) -> set[str]:
+    """Parse an ``Accept`` header into normalized media types."""
     if not header_value:
         return set()
     values = set()

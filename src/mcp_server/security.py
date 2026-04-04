@@ -32,6 +32,8 @@ MCP_APPLICATION_SECURITY_CATEGORIES = (
 
 @dataclass(frozen=True)
 class HostedSecuritySettings:
+    """Hosted security configuration used for auth and browser decisions."""
+
     auth_required: bool
     auth_token: str | None
     allowed_origins: tuple[str, ...]
@@ -45,6 +47,8 @@ class HostedSecuritySettings:
 
 @dataclass(frozen=True)
 class OriginEvaluation:
+    """Describe how the request origin was classified."""
+
     client_type: str
     origin_present: bool
     origin_value: str | None
@@ -54,6 +58,8 @@ class OriginEvaluation:
 
 @dataclass(frozen=True)
 class CredentialEvaluation:
+    """Describe how the request credential was classified."""
+
     scheme: str | None
     present: bool
     token_state: str
@@ -63,6 +69,8 @@ class CredentialEvaluation:
 
 @dataclass(frozen=True)
 class SecurityDecision:
+    """Describe the overall security outcome for one hosted request."""
+
     request_id: str
     path: str
     decision: str
@@ -78,6 +86,8 @@ class SecurityDecision:
 
 @dataclass(frozen=True)
 class BrowserPreflightEvaluation:
+    """Describe the outcome of browser preflight validation."""
+
     decision_category: str
     status_code: int
     origin_value: str | None
@@ -86,6 +96,7 @@ class BrowserPreflightEvaluation:
 
 
 def normalize_origin(value: str | None) -> str | None:
+    """Normalize an origin to ``scheme://host[:port]`` form."""
     text = str(value or "").strip()
     if not text:
         return None
@@ -96,6 +107,7 @@ def normalize_origin(value: str | None) -> str | None:
 
 
 def parse_allowed_origins(raw: str | None) -> tuple[str, ...]:
+    """Parse and normalize configured allowed browser origins."""
     items: list[str] = []
     for entry in str(raw or "").split(","):
         normalized = normalize_origin(entry)
@@ -105,6 +117,7 @@ def parse_allowed_origins(raw: str | None) -> tuple[str, ...]:
 
 
 def parse_requested_headers(raw: str | None) -> tuple[str, ...]:
+    """Parse a browser preflight header list into unique lowercase values."""
     headers: list[str] = []
     for entry in str(raw or "").split(","):
         cleaned = entry.strip().lower()
@@ -119,6 +132,13 @@ def evaluate_browser_preflight(
     request_headers: Mapping[str, str],
     settings: HostedSecuritySettings,
 ) -> BrowserPreflightEvaluation:
+    """Evaluate whether a browser preflight request is allowed.
+
+    :param path: Request path under evaluation.
+    :param request_headers: Lowercase request headers.
+    :param settings: Hosted security settings.
+    :return: Browser preflight decision payload.
+    """
     origin = evaluate_origin(request_headers, settings)
     if origin.match_result == "denied":
         return BrowserPreflightEvaluation(
@@ -189,6 +209,7 @@ def browser_preflight_headers(
     evaluation: BrowserPreflightEvaluation,
     settings: HostedSecuritySettings,
 ) -> dict[str, str]:
+    """Build CORS preflight response headers for approved browser access."""
     if evaluation.decision_category != "approved" or evaluation.origin_value is None:
         return {}
     allow_headers = evaluation.requested_headers or settings.browser_allowed_request_headers
@@ -207,6 +228,7 @@ def browser_response_headers(
     request_headers: Mapping[str, str],
     settings: HostedSecuritySettings,
 ) -> dict[str, str]:
+    """Build browser-facing response headers for approved requests."""
     origin = evaluate_origin(request_headers, settings)
     if (
         not origin.origin_present
@@ -222,6 +244,7 @@ def browser_response_headers(
 
 
 def parse_bearer_token(authorization: str | None) -> tuple[str | None, str | None, str]:
+    """Parse a bearer authorization header into normalized parts."""
     text = str(authorization or "").strip()
     if not text:
         return None, None, "missing"
@@ -235,6 +258,7 @@ def parse_bearer_token(authorization: str | None) -> tuple[str | None, str | Non
 
 
 def evaluate_origin(request_headers: Mapping[str, str], settings: HostedSecuritySettings) -> OriginEvaluation:
+    """Evaluate origin requirements for browser and non-browser clients."""
     normalized_origin = normalize_origin(request_headers.get("origin"))
     if request_headers.get("origin") and normalized_origin is None:
         return OriginEvaluation(
@@ -262,6 +286,7 @@ def evaluate_origin(request_headers: Mapping[str, str], settings: HostedSecurity
 
 
 def _fingerprint(token: str | None) -> str | None:
+    """Create a safe short fingerprint for an auth token."""
     if not token:
         return None
     return hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
@@ -273,6 +298,7 @@ def evaluate_credential(
     *,
     environment: str,
 ) -> CredentialEvaluation:
+    """Evaluate request credentials against hosted auth settings."""
     scheme, token, state = parse_bearer_token(request_headers.get("authorization"))
     if not settings.auth_required:
         return CredentialEvaluation(
@@ -319,6 +345,7 @@ def evaluate_security_request(
     request_id: str,
     environment: str,
 ) -> SecurityDecision:
+    """Evaluate a full hosted request for auth and origin policy compliance."""
     origin = evaluate_origin(request_headers, settings)
     if origin.match_result == "denied":
         malformed = origin.reason_code == "malformed_origin"
@@ -376,4 +403,5 @@ def evaluate_security_request(
 
 
 def is_mcp_application_security_category(value: str) -> bool:
+    """Return whether a decision category maps to an MCP application error."""
     return str(value or "").strip() in MCP_APPLICATION_SECURITY_CATEGORIES

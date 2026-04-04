@@ -13,10 +13,12 @@ from mcp_server.infrastructure_contract import is_supported_public_invocation_in
 
 
 def _now_iso() -> str:
+    """Return the current UTC timestamp in ISO 8601 format."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def _clean_env_value(value: object) -> str | None:
+    """Normalize a shell-like value to a stripped string or ``None``."""
     if value is None:
         return None
     text = str(value).strip()
@@ -45,6 +47,7 @@ class DeploymentInputSet:
     session_connector_reference: str = ""
 
     def validate(self) -> list[str]:
+        """Validate the deployment input set and return any failure messages."""
         failures: list[str] = []
         if self.environment not in {"dev", "staging", "prod"}:
             failures.append("environment must be one of dev, staging, prod")
@@ -194,6 +197,7 @@ IAC_OUTPUT_ALIASES = {
 
 
 def load_iac_outputs_file(path: str | Path) -> dict:
+    """Load a Terraform-style outputs document from disk."""
     payload = json.loads(Path(path).read_text())
     if isinstance(payload, dict) and isinstance(payload.get("outputs"), dict):
         return payload["outputs"]
@@ -203,12 +207,14 @@ def load_iac_outputs_file(path: str | Path) -> dict:
 
 
 def _normalize_iac_value(value: object) -> object:
+    """Extract the raw value from a Terraform output record when needed."""
     if isinstance(value, dict) and "value" in value:
         return value["value"]
     return value
 
 
 def iac_outputs_to_mapping(outputs: Mapping[str, object]) -> dict[str, str]:
+    """Normalize IaC outputs into environment-style deployment inputs."""
     resolved: dict[str, str] = {}
     for env_key, aliases in IAC_OUTPUT_ALIASES.items():
         for alias in aliases:
@@ -233,6 +239,7 @@ def merge_deployment_values(
     base_values: Mapping[str, object],
     explicit_values: Mapping[str, object],
 ) -> dict[str, object]:
+    """Merge base deployment values with explicit non-empty overrides."""
     merged: dict[str, object] = dict(base_values)
     for key, value in explicit_values.items():
         if value is None:
@@ -249,6 +256,7 @@ def deployment_input_from_iac_outputs(
     image_reference: str,
     explicit_values: Mapping[str, object] | None = None,
 ) -> DeploymentInputSet:
+    """Build deployment inputs from IaC outputs and explicit overrides."""
     merged: dict[str, object] = merge_deployment_values(
         iac_outputs_to_mapping(outputs),
         {"IMAGE_REFERENCE": image_reference, **dict(explicit_values or {})},
@@ -296,6 +304,8 @@ def build_deploy_command(settings: DeploymentInputSet) -> list[str]:
 
 @dataclass(frozen=True)
 class RuntimeSettingsSnapshot:
+    """Capture normalized runtime settings recorded for a deployment."""
+
     service_name: str
     environment_profile: str
     runtime_identity: str
@@ -317,6 +327,8 @@ class RuntimeSettingsSnapshot:
 
 @dataclass(frozen=True)
 class DeploymentRunRecord:
+    """Capture the outcome of one deploy command execution."""
+
     deployment_id: str
     executed_at: str
     outcome: str
@@ -341,6 +353,8 @@ WORKFLOW_STAGE_ORDER = (
 
 @dataclass(frozen=True)
 class HostedDeploymentWorkflowStage:
+    """Describe one stage in the hosted deployment workflow."""
+
     stage_name: str
     result: str
     summary: str
@@ -350,6 +364,8 @@ class HostedDeploymentWorkflowStage:
 
 @dataclass(frozen=True)
 class BootstrapPrerequisite:
+    """Describe one prerequisite required before hosted deployment can proceed."""
+
     name: str
     owner: str
     required_for_stage: str
@@ -409,6 +425,7 @@ BOOTSTRAP_PREREQUISITES = (
 
 
 def snapshot_runtime_settings(settings: DeploymentInputSet) -> RuntimeSettingsSnapshot:
+    """Snapshot deployment inputs into the runtime-settings evidence shape."""
     return RuntimeSettingsSnapshot(
         service_name=settings.service_name,
         environment_profile=settings.environment,
@@ -431,6 +448,7 @@ def snapshot_runtime_settings(settings: DeploymentInputSet) -> RuntimeSettingsSn
 
 
 def serialize_deployment_run(record: DeploymentRunRecord) -> dict:
+    """Serialize a deployment run record into the public artifact shape."""
     return {
         "deploymentId": record.deployment_id,
         "executedAt": record.executed_at,
@@ -465,6 +483,7 @@ def serialize_deployment_run(record: DeploymentRunRecord) -> dict:
 
 
 def serialize_workflow_stage(record: HostedDeploymentWorkflowStage) -> dict[str, object]:
+    """Serialize one workflow stage for workflow reporting artifacts."""
     failure_boundary = record.failure_boundary
     if failure_boundary is None and record.result != "pass":
         failure_boundary = classify_bootstrap_failure(record.stage_name, record.summary)
@@ -478,6 +497,7 @@ def serialize_workflow_stage(record: HostedDeploymentWorkflowStage) -> dict[str,
 
 
 def workflow_overall_result(stages: tuple[HostedDeploymentWorkflowStage, ...] | list[HostedDeploymentWorkflowStage]) -> str:
+    """Derive the overall workflow result from individual stages."""
     if any(stage.result == "fail" for stage in stages):
         return "fail"
     if any(stage.result == "incomplete" for stage in stages):
@@ -488,6 +508,7 @@ def workflow_overall_result(stages: tuple[HostedDeploymentWorkflowStage, ...] | 
 
 
 def classify_bootstrap_failure(stage_name: str, summary: str = "") -> str | None:
+    """Map a failing workflow stage to a higher-level failure boundary."""
     normalized_stage = (stage_name or "").strip()
     normalized_summary = (summary or "").strip().lower()
     if not normalized_stage:
@@ -510,6 +531,7 @@ def serialize_workflow_run(
     revision_ref: str,
     stages: tuple[HostedDeploymentWorkflowStage, ...] | list[HostedDeploymentWorkflowStage],
 ) -> dict[str, object]:
+    """Serialize the full hosted deployment workflow summary."""
     ordered_stage_names = [stage.stage_name for stage in stages]
     first_failed_stage = next((stage for stage in stages if stage.result != "pass"), None)
     first_failed = first_failed_stage.stage_name if first_failed_stage else None
@@ -536,6 +558,7 @@ def serialize_workflow_run(
 
 
 def load_json_artifact(path: str | Path) -> dict:
+    """Load a JSON workflow artifact from disk."""
     payload = json.loads(Path(path).read_text())
     if not isinstance(payload, dict):
         raise ValueError("Workflow artifact must contain a JSON object.")
@@ -543,6 +566,7 @@ def load_json_artifact(path: str | Path) -> dict:
 
 
 def collect_missing_bootstrap_prerequisites(values: Mapping[str, object]) -> tuple[BootstrapPrerequisite, ...]:
+    """Return the declared bootstrap prerequisites that are still missing."""
     missing: list[BootstrapPrerequisite] = []
     for prerequisite in BOOTSTRAP_PREREQUISITES:
         value = values.get(prerequisite.name)
@@ -568,6 +592,7 @@ def _build_deployment_record(
     failure_stage: str | None = None,
     remediation: str | None = None,
 ) -> DeploymentRunRecord:
+    """Build a deployment run record from execution inputs and outcome."""
     return DeploymentRunRecord(
         deployment_id=f"deploy-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
         executed_at=_now_iso(),
@@ -583,6 +608,7 @@ def _build_deployment_record(
 
 
 def _parse_deploy_metadata(stdout: str) -> tuple[str | None, str | None]:
+    """Parse revision metadata from ``gcloud run deploy`` JSON output."""
     text = stdout.strip()
     if not text:
         return None, None
@@ -611,6 +637,7 @@ def execute_deploy_command(
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     gcloud_bin: str = "gcloud",
 ) -> DeploymentRunRecord:
+    """Execute the deploy command and normalize the resulting run record."""
     failures = settings.validate()
     if failures:
         return _build_deployment_record(
@@ -658,6 +685,8 @@ def execute_deploy_command(
 
 @dataclass(frozen=True)
 class HostedRevisionRecord:
+    """Describe the hosted revision that verification should inspect."""
+
     revision_name: str
     service_name: str
     deployment_timestamp: str
@@ -678,6 +707,8 @@ class HostedRevisionRecord:
 
 @dataclass(frozen=True)
 class VerificationCheckResult:
+    """Describe the outcome of one hosted verification check."""
+
     check_name: str
     endpoint_url: str
     executed_at: str
@@ -692,6 +723,8 @@ class VerificationCheckResult:
 
 @dataclass(frozen=True)
 class HostedVerificationRun:
+    """Capture the aggregate outcome of hosted verification."""
+
     revision_name: str
     runtime_identity: str
     started_at: str
@@ -704,6 +737,7 @@ class HostedVerificationRun:
 
 
 def serialize_verification_run(run: HostedVerificationRun) -> dict:
+    """Serialize hosted verification results into an evidence payload."""
     return {
         "revisionName": run.revision_name,
         "runtimeIdentity": run.runtime_identity,
@@ -735,6 +769,7 @@ Requester = Callable[[str, object], object]
 
 
 def _parse_sse_events(body: bytes | str) -> list[dict[str, str]]:
+    """Parse an SSE response body into event dictionaries."""
     text = body.decode("utf-8") if isinstance(body, bytes) else str(body or "")
     events: list[dict[str, str]] = []
     current: dict[str, str] = {}
@@ -752,6 +787,7 @@ def _parse_sse_events(body: bytes | str) -> list[dict[str, str]]:
 
 
 def _normalize_request_result(result: object) -> dict:
+    """Normalize HTTP requester output into one verification payload shape."""
     if isinstance(result, dict):
         return result
 
@@ -783,6 +819,7 @@ def _normalize_request_result(result: object) -> dict:
 
 
 def _result_tools(payload: dict) -> list[dict]:
+    """Extract tool descriptors from a verification response payload."""
     result = payload.get("result")
     if isinstance(result, dict):
         tools = result.get("tools")
@@ -792,6 +829,7 @@ def _result_tools(payload: dict) -> list[dict]:
 
 
 def _result_content_text(payload: dict) -> str | None:
+    """Extract the first text content block from a tool result payload."""
     result = payload.get("result")
     if not isinstance(result, dict):
         return None
@@ -806,6 +844,7 @@ def _result_content_text(payload: dict) -> str | None:
 
 
 def _result_structured_content(payload: dict):
+    """Extract the first structured content block from a tool result payload."""
     result = payload.get("result")
     if not isinstance(result, dict):
         return None
@@ -819,19 +858,23 @@ def _result_structured_content(payload: dict):
 
 
 def _initialize_has_session_header(payload: dict) -> bool:
+    """Return whether a response payload includes ``MCP-Session-Id``."""
     headers = payload.get("_headers", {})
     return isinstance(headers, dict) and bool(headers.get("MCP-Session-Id"))
 
 
 def _initialize_success_check(payload: dict) -> bool:
+    """Return whether an initialize payload represents success."""
     return isinstance(payload.get("result"), dict) and "capabilities" in payload.get("result", {})
 
 
 def _initialize_failure_without_session_check(payload: dict) -> bool:
+    """Return whether a failed initialize omitted session creation."""
     return isinstance(payload.get("error"), dict) and not _initialize_has_session_header(payload)
 
 
 def _reason_code(payload: dict) -> str | None:
+    """Extract the highest-signal reason code from a verification payload."""
     reason = payload.get("reason")
     if isinstance(reason, dict):
         code = reason.get("code")
@@ -1380,6 +1423,7 @@ def run_hosted_verification(
 
 
 def write_verification_evidence(destination: str | Path, run: HostedVerificationRun) -> Path:
+    """Write a text evidence artifact for a hosted verification run."""
     path = Path(destination)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = serialize_verification_run(run)

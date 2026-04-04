@@ -52,6 +52,8 @@ except ImportError:  # pragma: no cover - exercised when optional deps are absen
 
 @dataclass(frozen=True)
 class HostedHTTPResult:
+    """Represent the normalized HTTP response returned by the hosted executor."""
+
     status: int
     headers: dict[str, str]
     payload: dict | None
@@ -62,9 +64,11 @@ class HostedASGIApplication:
     """ASGI wrapper around the hosted request executor."""
 
     def __init__(self, transport):
+        """Wrap a local transport in an ASGI-compatible application."""
         self.transport = transport
 
     async def __call__(self, scope, receive, send) -> None:
+        """Serve one ASGI request using the hosted executor."""
         if scope["type"] != "http":
             await send({"type": "http.response.start", "status": 500, "headers": []})
             await send({"type": "http.response.body", "body": b"Unsupported scope type."})
@@ -91,6 +95,7 @@ class HostedASGIApplication:
 
 
 def _json_result(status: int, payload: dict, extra_headers: Mapping[str, str] | None = None) -> HostedHTTPResult:
+    """Build a JSON response result for hosted execution."""
     body = json.dumps(payload, sort_keys=True).encode("utf-8")
     headers = {"Content-Type": JSON_CONTENT_TYPE}
     if extra_headers:
@@ -104,6 +109,7 @@ def _json_result(status: int, payload: dict, extra_headers: Mapping[str, str] | 
 
 
 def _sse_result(status: int, body_text: str, extra_headers: Mapping[str, str] | None = None) -> HostedHTTPResult:
+    """Build an SSE response result for hosted execution."""
     headers = {
         "Content-Type": SSE_CONTENT_TYPE,
         "Cache-Control": "no-cache",
@@ -119,6 +125,7 @@ def _sse_result(status: int, body_text: str, extra_headers: Mapping[str, str] | 
 
 
 def _empty_result(status: int, extra_headers: Mapping[str, str] | None = None) -> HostedHTTPResult:
+    """Build an empty-body hosted response result."""
     headers = dict(extra_headers or {})
     return HostedHTTPResult(
         status=status,
@@ -129,6 +136,7 @@ def _empty_result(status: int, extra_headers: Mapping[str, str] | None = None) -
 
 
 def _combine_headers(*mappings: Mapping[str, str] | None) -> dict[str, str]:
+    """Merge one or more header mappings into a single dictionary."""
     headers: dict[str, str] = {}
     for mapping in mappings:
         if mapping:
@@ -137,10 +145,12 @@ def _combine_headers(*mappings: Mapping[str, str] | None) -> dict[str, str]:
 
 
 def _normalize_headers(headers: Mapping[str, str] | None) -> dict[str, str]:
+    """Normalize request headers to lowercase keys."""
     return {key.lower(): value for key, value in dict(headers or {}).items()}
 
 
 def _protocol_version_or_default(request_headers: Mapping[str, str], payload: dict | None = None) -> str:
+    """Resolve the requested MCP protocol version or return the default."""
     header_version = request_headers.get(MCP_PROTOCOL_VERSION_HEADER.lower())
     if header_version:
         return header_version
@@ -150,11 +160,13 @@ def _protocol_version_or_default(request_headers: Mapping[str, str], payload: di
 
 
 def _require_accept(request_headers: Mapping[str, str], required: set[str]) -> bool:
+    """Return whether the request ``Accept`` header includes all required types."""
     accept_types = normalize_accept_header(request_headers.get("accept"))
     return required.issubset(accept_types)
 
 
 def _preflight_error_category(decision_category: str) -> str:
+    """Map a preflight decision category to the exposed error category."""
     return {
         "malformed_origin": "malformed_origin",
         "malformed_security_input": "malformed_security_input",
@@ -166,6 +178,7 @@ def _preflight_error_category(decision_category: str) -> str:
 
 
 def _request_error(category: str, message: str, *, request_id=None, details: Mapping[str, Any] | None = None) -> dict:
+    """Build a hosted request error payload."""
     return error_response_for_category(category, message, request_id=request_id, details=dict(details or {}))
 
 
@@ -177,6 +190,7 @@ def execute_hosted_request(
     headers: Mapping[str, str] | None = None,
     body: bytes | None = None,
 ) -> HostedHTTPResult:
+    """Execute one hosted HTTP request against the MCP transport surface."""
     started_at = perf_counter()
     request_headers = _normalize_headers(headers)
     raw_body = body or b""
@@ -540,6 +554,7 @@ def build_asgi_app(
     runtime_stdout=None,
     runtime_stderr=None,
 ):
+    """Build the hosted ASGI application or a fallback ASGI wrapper."""
     transport = create_app(
         env=env,
         validate_startup=validate_startup,
@@ -616,6 +631,7 @@ def build_asgi_app(
 
 
 def run_server() -> None:
+    """Run the hosted server with Uvicorn or the stdlib fallback server."""
     runtime_settings = load_hosted_runtime_settings(os.environ)
     if uvicorn is not None:
         uvicorn.run(
