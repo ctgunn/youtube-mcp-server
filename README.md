@@ -297,13 +297,81 @@ The repository root `.env` is the operator-oriented deployment input file for
 the supported Cloud Run path. Review and set the values you actually intend to
 deploy, especially:
 
-- `PROJECT_ID`
-- `REGION`
-- `SERVICE_NAME`
-- `SERVICE_ACCOUNT_EMAIL`
-- `MCP_ENVIRONMENT`
-- `PUBLIC_INVOCATION_INTENT`
-- `MCP_ALLOWED_ORIGINS`
+- `PROJECT_ID`: the GCP project ID that owns the Cloud Run service, secrets,
+  and other hosted resources.
+- `REGION`: the GCP region for the hosted deployment, such as `us-central1`.
+- `SERVICE_NAME`: the Cloud Run service name to deploy.
+- `SERVICE_ACCOUNT_EMAIL`: the runtime service account email used by Cloud Run.
+  In this repository, Terraform creates that service account from
+  `service_account_name` in `infrastructure/gcp/*.tfvars`, and you can read the
+  resulting email with
+  `terraform -chdir=infrastructure/gcp output service_account_email` after
+  apply. Before Terraform runs, you can usually predict the value as
+  `SERVICE_ACCOUNT_NAME@PROJECT_ID.iam.gserviceaccount.com`. For example, if
+  `service_account_name="youtube-mcp-server"` and `PROJECT_ID="my-gcp-project"`,
+  the runtime email will usually be
+  `youtube-mcp-server@my-gcp-project.iam.gserviceaccount.com`.
+- `IMAGE_REFERENCE`: the container image to deploy, for example
+  `us-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:TAG`.
+- `MCP_ENVIRONMENT`: runtime profile for the deployed service. Allowed values:
+  `dev`, `staging`, `prod`.
+  `dev`: local or low-friction validation profile; auth may be relaxed unless
+  explicitly configured.
+  `staging`: pre-production hosted profile; requires `YOUTUBE_API_KEY` and
+  `MCP_AUTH_TOKEN`.
+  `prod`: production hosted profile; same required secrets as `staging`.
+- `PUBLIC_INVOCATION_INTENT`: whether the Cloud Run service is intentionally
+  reachable by trusted remote MCP clients. Allowed values:
+  `public_remote_mcp`, `private_only`.
+  `public_remote_mcp`: intended for reachable remote MCP access.
+  `private_only`: do not treat the service as part of the public remote MCP
+  path.
+- `MCP_ALLOWED_ORIGINS`: comma-separated browser origin allowlist for protected
+  `/mcp` requests, for example `https://chat.openai.com`. This matters for
+  browser-based callers that send an `Origin` header.
+- `SECRET_REFERENCES`: comma-separated Secret Manager secret names injected into
+  the runtime. For `staging` and `prod`, include both `YOUTUBE_API_KEY` and
+  `MCP_AUTH_TOKEN`.
+
+Other operator inputs in `.env` are usually fine to keep at the example
+defaults unless you need to tune behavior:
+
+- `MIN_INSTANCES`, `MAX_INSTANCES`, `CONCURRENCY`, `TIMEOUT_SECONDS`: Cloud Run
+  scaling and request handling settings.
+- `MCP_AUTH_REQUIRED`: optional boolean override for bearer-token enforcement.
+  Leave blank to use profile defaults. Accepted true-like values are
+  `1`, `true`, `yes`, `on`; anything else is treated as false.
+- `MCP_ALLOW_ORIGINLESS_CLIENTS`: boolean control for non-browser clients that
+  do not send `Origin`. Accepted true-like values are `1`, `true`, `yes`, `on`.
+- `MCP_SECRET_ACCESS_MODE`: how the runtime receives secret-backed config. In
+  the hosted GCP path this is typically `secret_manager_env`.
+- `MCP_SECRET_REFERENCE_NAMES`: comma-separated secret names mirrored into the
+  runtime configuration. This should match `SECRET_REFERENCES` for hosted
+  deploys.
+- `MCP_SESSION_BACKEND`: hosted session backend. Common values:
+  `memory` for local-only or single-process validation,
+  `redis` for durable hosted sessions across instances.
+- `MCP_SESSION_STORE_URL`: required when `MCP_SESSION_BACKEND=redis`; points to
+  the shared session store. For the Terraform-managed GCP path, it is normal
+  for this to be blank in `.env` before infrastructure exists. Terraform
+  creates the Redis instance and exports `mcp_session_store_url`, which this
+  repository can consume later through
+  `INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json` after running
+  `terraform -chdir=infrastructure/gcp output -json > artifacts/gcp-foundation-outputs.json`.
+  The generated value follows the pattern `redis://REDIS_HOST:6379/0`.
+- `MCP_SESSION_CONNECTIVITY_MODEL`: provider-specific connectivity path to the
+  session backend. Common values:
+  `local_process` for local-only execution,
+  `serverless_vpc_connector` for the hosted GCP durable-session path.
+- `MCP_SESSION_DURABILITY_REQUIRED`: boolean flag indicating whether hosted
+  deployment should require durable sessions.
+- `MCP_SESSION_TTL_SECONDS`: hosted session lifetime in seconds.
+- `MCP_SESSION_REPLAY_TTL_SECONDS`: replay event retention window in seconds for
+  reconnect flows.
+- `INFRA_OUTPUTS_FILE`: optional Terraform `output -json` handoff file. When
+  set, the deploy workflow merges values such as `SERVICE_ACCOUNT_EMAIL`,
+  `MCP_SESSION_STORE_URL`, and the session network references from Terraform
+  outputs, so you do not need to copy them into `.env` by hand.
 
 For a real remote MCP deployment, `MCP_ENVIRONMENT=staging` and
 `PUBLIC_INVOCATION_INTENT=public_remote_mcp` are the usual starting point.

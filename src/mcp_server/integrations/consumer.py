@@ -39,4 +39,6 @@ class RepresentativeHigherLayerConsumer:
             "videoId": item["id"],
             "title": item.get("title"),
             "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
         }
