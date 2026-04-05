@@ -218,6 +218,7 @@ Thumbs.db
 # Codex runtime/local state
 **/.codex/auth.json
 **/.codex/history.jsonl
+**/.codex/session_index.jsonl
 
 # Terraform working state
 .terraform/
@@ -245,6 +246,7 @@ Thumbs.db
 **/.codex/*auth*
 **/.codex/*config*
 **/.codex/*version*
+**/.codex/session_index.jsonl
 
 # Terraform
 .terraform/

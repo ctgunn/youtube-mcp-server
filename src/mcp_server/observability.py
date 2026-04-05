@@ -87,6 +87,45 @@ def runtime_event(event_name: str, status: str, details: dict[str, Any] | None =
     return payload
 
 
+def integration_execution_event(
+    *,
+    request_id: str,
+    phase: str,
+    status: str,
+    metadata: Any,
+    auth_mode: str,
+    latency_ms: float,
+    error: Any | None = None,
+) -> dict[str, Any]:
+    """Build a structured internal integration execution event.
+
+    :param request_id: Request identifier associated with the internal workflow.
+    :param phase: Execution phase such as request, response, or error.
+    :param status: High-level status for the event.
+    :param metadata: Wrapper metadata object for the execution.
+    :param auth_mode: Auth mode used for the execution.
+    :param latency_ms: Observed latency for the phase.
+    :param error: Optional normalized error information.
+    :return: Structured integration execution event.
+    """
+    payload = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "severity": "INFO" if status == "success" else "ERROR",
+        "event": "integration.execution",
+        "requestId": request_id,
+        "phase": phase,
+        "status": status,
+        "resourceName": getattr(metadata, "resource_name", None),
+        "operationName": getattr(metadata, "operation_name", None),
+        "authMode": auth_mode,
+        "latencyMs": round(max(float(latency_ms), 0.0), 3),
+    }
+    if error is not None:
+        payload["errorCategory"] = getattr(error, "category", None)
+        payload["retryable"] = getattr(error, "retryable", None)
+    return payload
+
+
 def _should_redact_key(key: str) -> bool:
     """Return whether a field name should be redacted in logs."""
     normalized = str(key).strip().lower().replace("-", "_")
@@ -242,3 +281,10 @@ class InMemoryObservability:
     def emit_runtime_event(self, event_name: str, status: str, details: dict[str, Any] | None = None) -> None:
         """Build and emit a runtime event in one call."""
         self._emit_runtime_event(runtime_event(event_name, status, details))
+
+    def record_integration_execution(self, event: dict[str, Any]) -> None:
+        """Record one internal integration execution event.
+
+        :param event: Prebuilt integration execution event payload.
+        """
+        self._logs.append(event)
