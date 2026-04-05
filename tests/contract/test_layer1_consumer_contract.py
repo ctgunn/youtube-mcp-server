@@ -44,6 +44,8 @@ class Layer1ConsumerContractTests(unittest.TestCase):
 
         self.assertEqual(result["videoId"], "video-123")
         self.assertEqual(result["sourceOperation"], "videos.list")
+        self.assertEqual(result["sourceAuthMode"], "api_key")
+        self.assertEqual(result["sourceQuotaCost"], 1)
 
     def test_consumer_surfaces_normalized_failures_without_raw_upstream_shapes(self):
         wrapper = self._build_wrapper()

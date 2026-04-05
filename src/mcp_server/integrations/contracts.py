@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from mcp_server.integrations.auth import AuthMode
+
+
+_REVIEWABLE_LIFECYCLE_STATES = frozenset({"deprecated", "limited", "inconsistent-docs"})
+
 
 @dataclass(frozen=True)
 class EndpointRequestShape:
@@ -54,6 +59,8 @@ class EndpointMetadata:
     :param quota_cost: Official quota-unit cost for the endpoint.
     :param lifecycle_state: Lifecycle note for the wrapper.
     :param notes: Additional maintainer-facing notes.
+    :param caveat_note: Required maintainer-facing caveat note for reviewable lifecycle states.
+    :param auth_condition_note: Required explanation when auth mode is conditional.
     """
 
     resource_name: str
@@ -65,17 +72,67 @@ class EndpointMetadata:
     quota_cost: int
     lifecycle_state: str = "active"
     notes: str | None = None
+    caveat_note: str | None = None
+    auth_condition_note: str | None = None
 
     def __post_init__(self) -> None:
-        """Validate wrapper metadata for completeness and reviewability."""
+        """Validate wrapper metadata for completeness and reviewability.
+
+        :raises ValueError: If required metadata or review notes are missing.
+        """
         for field_name in ("resource_name", "operation_name", "http_method", "path_shape", "lifecycle_state"):
             value = getattr(self, field_name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{field_name} is required")
         if self.quota_cost <= 0:
             raise ValueError("quota_cost must be greater than zero")
+        if self.auth_mode is AuthMode.CONDITIONAL and not self._has_text(self.auth_condition_note):
+            raise ValueError("auth_condition_note is required for conditional auth metadata")
+        if self.requires_caveat_note and not self._has_text(self.caveat_note):
+            raise ValueError("caveat_note is required for reviewable lifecycle states")
 
     @property
     def operation_key(self) -> str:
         """Return the stable resource and operation identifier."""
         return f"{self.resource_name}.{self.operation_name}"
+
+    @property
+    def review_auth_mode(self) -> str:
+        """Return the maintainer-facing auth mode label for review surfaces."""
+        if self.auth_mode is AuthMode.CONDITIONAL:
+            return "mixed/conditional"
+        if isinstance(self.auth_mode, AuthMode):
+            return self.auth_mode.value
+        return str(self.auth_mode)
+
+    @property
+    def requires_caveat_note(self) -> bool:
+        """Return whether the lifecycle state requires a maintainer-facing caveat note."""
+        return self.lifecycle_state in _REVIEWABLE_LIFECYCLE_STATES
+
+    def review_surface(self) -> dict[str, object]:
+        """Return maintainer-visible metadata used for review and planning.
+
+        :return: Reviewable identity, quota, auth, and caveat details.
+        """
+        return {
+            "resourceName": self.resource_name,
+            "operationName": self.operation_name,
+            "operationKey": self.operation_key,
+            "httpMethod": self.http_method,
+            "pathShape": self.path_shape,
+            "quotaCost": self.quota_cost,
+            "authMode": self.review_auth_mode,
+            "lifecycleState": self.lifecycle_state,
+            "caveatNote": self.caveat_note,
+            "authConditionNote": self.auth_condition_note,
+        }
+
+    @staticmethod
+    def _has_text(value: str | None) -> bool:
+        """Return whether a maintainer-facing metadata note contains visible text.
+
+        :param value: Candidate note text.
+        :return: ``True`` when the note has non-whitespace content.
+        """
+        return isinstance(value, str) and bool(value.strip())

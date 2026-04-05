@@ -13,6 +13,15 @@ class AuthMode(str, Enum):
     OAUTH_REQUIRED = "oauth_required"
     CONDITIONAL = "conditional"
 
+    def review_label(self) -> str:
+        """Return the maintainer-facing label used in metadata review flows.
+
+        :return: Review-friendly auth mode label.
+        """
+        if self is AuthMode.CONDITIONAL:
+            return "mixed/conditional"
+        return self.value
+
 
 @dataclass(frozen=True)
 class CredentialBundle:

@@ -15,6 +15,7 @@ class RepresentativeEndpointWrapper:
     """Represent one metadata-driven Layer 1 wrapper.
 
     :param metadata: Declared wrapper metadata and request shape.
+    :ivar metadata: Includes upstream identity, quota cost, auth mode, and review notes.
     """
 
     metadata: EndpointMetadata
@@ -40,3 +41,13 @@ class RepresentativeEndpointWrapper:
             auth_context=auth_context,
         )
         return executor.execute(execution)
+
+    def review_surface(self) -> dict[str, object]:
+        """Return the maintainer-facing metadata surface for this wrapper.
+
+        The returned payload keeps endpoint identity, quota cost, auth mode,
+        and lifecycle caveats visible near the wrapper definition.
+
+        :return: Reviewable metadata derived from the wrapper contract.
+        """
+        return self.metadata.review_surface()

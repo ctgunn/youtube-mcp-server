@@ -32,6 +32,53 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 credentials=CredentialBundle(api_key="key-123"),
             )
 
+    def test_requires_auth_condition_note_for_conditional_metadata(self):
+        with self.assertRaises(ValueError):
+            EndpointMetadata(
+                resource_name="activities",
+                operation_name="list",
+                http_method="GET",
+                path_shape="/youtube/v3/activities",
+                request_shape=EndpointRequestShape(required_fields=("part",)),
+                auth_mode=AuthMode.CONDITIONAL,
+                quota_cost=1,
+            )
+
+    def test_requires_caveat_note_for_lifecycle_states_that_need_review_context(self):
+        with self.assertRaises(ValueError):
+            EndpointMetadata(
+                resource_name="captions",
+                operation_name="insert",
+                http_method="POST",
+                path_shape="/youtube/v3/captions",
+                request_shape=EndpointRequestShape(required_fields=("part", "videoId")),
+                auth_mode=AuthMode.OAUTH_REQUIRED,
+                quota_cost=400,
+                lifecycle_state="limited",
+            )
+
+    def test_exposes_review_surface_for_metadata_visibility(self):
+        metadata = EndpointMetadata(
+            resource_name="search",
+            operation_name="list",
+            http_method="GET",
+            path_shape="/youtube/v3/search",
+            request_shape=EndpointRequestShape(required_fields=("part", "q")),
+            auth_mode=AuthMode.CONDITIONAL,
+            quota_cost=100,
+            auth_condition_note="Requires OAuth when private or partner-only filters are used.",
+            lifecycle_state="inconsistent-docs",
+            caveat_note="Official quota guidance differs between the public overview and endpoint reference.",
+        )
+
+        self.assertEqual(metadata.review_auth_mode, "mixed/conditional")
+        self.assertTrue(metadata.requires_caveat_note)
+        review_surface = metadata.review_surface()
+        self.assertEqual(review_surface["operationKey"], "search.list")
+        self.assertEqual(review_surface["quotaCost"], 100)
+        self.assertEqual(review_surface["authMode"], "mixed/conditional")
+        self.assertIn("Official quota guidance differs", review_surface["caveatNote"])
+
     def test_normalizes_retryable_upstream_failures(self):
         error = normalize_upstream_error(
             RuntimeError("temporary upstream outage"),

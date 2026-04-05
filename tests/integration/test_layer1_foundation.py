@@ -123,6 +123,37 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         self.assertEqual(result["videoId"], "video-123")
         self.assertEqual(result["sourceOperation"], "videos.list")
 
+    def test_representative_wrappers_can_be_compared_for_quota_and_auth_review(self):
+        public_metadata = EndpointMetadata(
+            resource_name="videos",
+            operation_name="list",
+            http_method="GET",
+            path_shape="/youtube/v3/videos",
+            request_shape=EndpointRequestShape(required_fields=("part", "id")),
+            auth_mode=AuthMode.API_KEY,
+            quota_cost=1,
+        )
+        restricted_metadata = EndpointMetadata(
+            resource_name="search",
+            operation_name="list",
+            http_method="GET",
+            path_shape="/youtube/v3/search",
+            request_shape=EndpointRequestShape(required_fields=("part", "q")),
+            auth_mode=AuthMode.CONDITIONAL,
+            quota_cost=100,
+            auth_condition_note="Requires OAuth when private or partner-only filters are used.",
+            lifecycle_state="limited",
+            caveat_note="Restricted filters are not available for every caller context.",
+        )
+
+        public_surface = public_metadata.review_surface()
+        restricted_surface = restricted_metadata.review_surface()
+
+        self.assertEqual(public_surface["authMode"], "api_key")
+        self.assertEqual(restricted_surface["authMode"], "mixed/conditional")
+        self.assertLess(public_surface["quotaCost"], restricted_surface["quotaCost"])
+        self.assertIn("Restricted filters", restricted_surface["caveatNote"])
+
 
 if __name__ == "__main__":
     unittest.main()
