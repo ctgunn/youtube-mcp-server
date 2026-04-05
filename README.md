@@ -158,6 +158,7 @@ started by `make dev`.
 Start the local Redis dependency:
 
 ```bash
+docker compose -f infrastructure/local/compose.yaml up -d
 ./scripts/local_compose.sh up -d
 ```
 
@@ -557,6 +558,7 @@ Redis-backed session settings used by the hosted deployment without provisioning
 cloud infrastructure first:
 
 ```bash
+docker compose -f infrastructure/local/compose.yaml up -d
 ./scripts/local_compose.sh up -d
 ```
 
@@ -577,7 +579,7 @@ Hosted-like local verification keeps the same startup entry point but changes th
 - baseline local values still come from `.env.local`
 - hosted-like local overrides are documented in `infrastructure/local/.env.example`
 - the Redis bootstrap path must be running before `LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh`
-- if the durable-session dependency is unavailable, start `./scripts/local_compose.sh up -d` and retry
+- if the durable-session dependency is unavailable, start `docker compose -f infrastructure/local/compose.yaml up -d` or `./scripts/local_compose.sh up -d` and retry
 
 ## Engineering workflow
 
