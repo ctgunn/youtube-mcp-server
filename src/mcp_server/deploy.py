@@ -791,7 +791,26 @@ def _parse_sse_events(body: bytes | str) -> list[dict[str, str]]:
 def _normalize_request_result(result: object) -> dict:
     """Normalize HTTP requester output into one verification payload shape."""
     if isinstance(result, dict):
-        return result
+        normalized = dict(result)
+        headers = normalized.get("_headers", {}) or {}
+        content_type = None
+        if isinstance(headers, dict):
+            content_type = headers.get("Content-Type") or headers.get("content-type")
+        if content_type == "text/event-stream" and isinstance(normalized.get("_sseBody"), str):
+            events = _parse_sse_events(normalized["_sseBody"])
+            normalized["_sseEvents"] = events
+            for event in reversed(events):
+                data = event.get("data", "")
+                if not data:
+                    continue
+                try:
+                    decoded = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(decoded, dict):
+                    normalized.update(decoded)
+                    break
+        return normalized
 
     status = getattr(result, "status", None)
     headers = getattr(result, "headers", {}) or {}
@@ -859,10 +878,21 @@ def _result_structured_content(payload: dict):
     return first.get("structuredContent")
 
 
+def _header_value(payload: dict, header_name: str) -> str | None:
+    """Return one response header value using a case-insensitive lookup."""
+    headers = payload.get("_headers", {})
+    if not isinstance(headers, dict):
+        return None
+    target = header_name.lower()
+    for key, value in headers.items():
+        if str(key).lower() == target and isinstance(value, str):
+            return value
+    return None
+
+
 def _initialize_has_session_header(payload: dict) -> bool:
     """Return whether a response payload includes ``MCP-Session-Id``."""
-    headers = payload.get("_headers", {})
-    return isinstance(headers, dict) and bool(headers.get("MCP-Session-Id"))
+    return bool(_header_value(payload, "MCP-Session-Id"))
 
 
 def _initialize_success_check(payload: dict) -> bool:
@@ -1054,7 +1084,7 @@ def run_hosted_verification(
     ):
         return _finalize("fail")
 
-    health_payload = _normalize_request_result(requester("/health", {}))
+    health_payload = _normalize_request_result(requester("/health", {"__httpMethod": "GET"}))
     if not _append(
         "liveness",
         health_payload,
@@ -1063,7 +1093,7 @@ def run_hosted_verification(
     ):
         return _finalize("fail")
 
-    ready_payload = _normalize_request_result(requester("/ready", {}))
+    ready_payload = _normalize_request_result(requester("/ready", {"__httpMethod": "GET"}))
     if dependency_checks_enabled:
         if not _append(
             "secret-access",
@@ -1357,7 +1387,7 @@ def run_hosted_verification(
             "browser-preflight-approved",
             approved_preflight_payload,
             lambda payload: payload.get("statusCode") == 204
-            and payload.get("_headers", {}).get("Access-Control-Allow-Origin") == browser_origin,
+            and _header_value(payload, "Access-Control-Allow-Origin") == browser_origin,
             "Approved browser-origin preflight returned the documented allow headers.",
         )
 
@@ -1377,8 +1407,8 @@ def run_hosted_verification(
             "browser-request-approved",
             approved_browser_request_payload,
             lambda payload: payload.get("statusCode") == 200
-            and payload.get("_headers", {}).get("Access-Control-Allow-Origin") == browser_origin
-            and "MCP-Session-Id" in payload.get("_headers", {}).get("Access-Control-Expose-Headers", ""),
+            and _header_value(payload, "Access-Control-Allow-Origin") == browser_origin
+            and "MCP-Session-Id" in (_header_value(payload, "Access-Control-Expose-Headers") or ""),
             "Approved browser-origin hosted MCP request returned the documented browser response headers.",
         )
 
