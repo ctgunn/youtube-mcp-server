@@ -218,6 +218,14 @@ Thumbs.db
 # Codex runtime/local state
 **/.codex/auth.json
 **/.codex/history.jsonl
+
+# Hosted deployment artifacts and local Terraform state
+/artifacts/
+/infrastructure/gcp/*.tfvars
+!/infrastructure/gcp/terraform.tfvars.example
+/infrastructure/gcp/.terraform/
+/infrastructure/gcp/terraform.tfstate
+/infrastructure/gcp/terraform.tfstate.*
 **/.codex/session_index.jsonl
 
 # Terraform working state

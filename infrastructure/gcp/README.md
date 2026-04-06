@@ -112,6 +112,10 @@ includes:
 Operators no longer need to pre-create the supported VPC network, subnet, or
 Serverless VPC Access connector manually for this path.
 
+If you set `managed_vpc_connector_name` yourself, it must satisfy GCP's
+connector ID rules: `^[a-z][-a-z0-9]{0,23}[a-z0-9]$`. The checked-in example
+uses `ytmcp-stg-connector` to stay within that limit.
+
 ## Expected outputs
 
 The apply step exports values that map directly into the deployment workflow:
@@ -186,6 +190,16 @@ Both paths still depend on one-time bootstrap work:
 That boundary is intentional. The workflow may wire references to secrets and
 runtime identities, but it must not create or rotate the secret values
 themselves.
+
+Terraform now tolerates either bootstrap path for the secret containers:
+
+- if a named secret does not exist yet, Terraform creates the Secret Manager
+  secret container
+- if a named secret already exists because you created it earlier, Terraform
+  reuses that secret name and only manages the runtime access bindings
+
+Terraform still does not create or rotate secret versions. Operators remain
+responsible for populating the actual secret values.
 
 The managed hosted network layer remains automation-managed for the supported
 hosted path. The remaining one-time bootstrap inputs are non-network prerequisites

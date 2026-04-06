@@ -46,6 +46,12 @@ variable "bootstrap_image_reference" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
+variable "gcloud_bin" {
+  description = "gcloud executable used by Terraform helper scripts when reconciling pre-existing GCP resources."
+  type        = string
+  default     = "gcloud"
+}
+
 variable "secret_access_mode" {
   description = "How Cloud Run receives required secret-backed runtime values."
   type        = string
@@ -157,6 +163,11 @@ variable "managed_vpc_connector_name" {
   description = "Optional override for the Terraform-managed Serverless VPC Access connector name."
   type        = string
   default     = ""
+
+  validation {
+    condition     = var.managed_vpc_connector_name == "" || can(regex("^[a-z][-a-z0-9]{0,23}[a-z0-9]$", var.managed_vpc_connector_name))
+    error_message = "managed_vpc_connector_name must match ^[a-z][-a-z0-9]{0,23}[a-z0-9]$ when set."
+  }
 }
 
 variable "managed_vpc_connector_cidr" {
