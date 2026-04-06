@@ -16,15 +16,26 @@ class EndpointRequestShape:
 
     :param required_fields: Required request field names.
     :param optional_fields: Optional request field names.
+    :param exactly_one_of: Selector fields where exactly one must be present.
     """
 
     required_fields: tuple[str, ...]
     optional_fields: tuple[str, ...] = ()
+    exactly_one_of: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        """Validate that the request shape includes at least one required field."""
+        """Validate that the request shape includes at least one required field.
+
+        :raises ValueError: If the declared selector fields are not supported.
+        """
         if not self.required_fields:
             raise ValueError("required_fields must contain at least one field")
+        allowed = set(self.required_fields) | set(self.optional_fields)
+        missing_selectors = [field for field in self.exactly_one_of if field not in allowed]
+        if missing_selectors:
+            raise ValueError(
+                "exactly_one_of fields must be included in required_fields or optional_fields"
+            )
 
     def validate_arguments(self, arguments: dict[str, object]) -> None:
         """Validate one wrapper argument payload against the declared shape.
@@ -44,6 +55,36 @@ class EndpointRequestShape:
         for field in arguments:
             if field not in allowed:
                 raise ValueError(f"unexpected field: {field}")
+        if self.exactly_one_of:
+            self._validate_exactly_one_of(arguments)
+
+    def _validate_exactly_one_of(self, arguments: dict[str, object]) -> None:
+        """Validate a mutually exclusive selector set.
+
+        :param arguments: Wrapper arguments to validate.
+        :raises ValueError: If zero or more than one selector is provided.
+        """
+        selected = [
+            field
+            for field in self.exactly_one_of
+            if self._has_value(arguments.get(field))
+        ]
+        if len(selected) != 1:
+            joined = ", ".join(self.exactly_one_of)
+            raise ValueError(f"exactly one selector is required from: {joined}")
+
+    @staticmethod
+    def _has_value(value: object) -> bool:
+        """Return whether one argument value should count as present.
+
+        :param value: Candidate argument value.
+        :return: ``True`` when the value is not empty for selector purposes.
+        """
+        if value is None:
+            return False
+        if isinstance(value, str):
+            return bool(value.strip())
+        return True
 
 
 @dataclass(frozen=True)
@@ -121,6 +162,9 @@ class EndpointMetadata:
             "operationKey": self.operation_key,
             "httpMethod": self.http_method,
             "pathShape": self.path_shape,
+            "requiredFields": self.request_shape.required_fields,
+            "optionalFields": self.request_shape.optional_fields,
+            "exclusiveSelectors": self.request_shape.exactly_one_of,
             "quotaCost": self.quota_cost,
             "authMode": self.review_auth_mode,
             "lifecycleState": self.lifecycle_state,

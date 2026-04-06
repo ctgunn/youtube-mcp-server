@@ -545,9 +545,24 @@ Acceptance criteria:
 Dependencies:
 - `YT-101`
 
+## Layer 1 Endpoint Slice Rule
+
+For every `YT-1xx` Layer 1 endpoint slice below:
+- “Wrap `GET/POST/PUT/DELETE ...`” means implement the real YouTube Data API call for that endpoint.
+- The slice is not complete if it only adds metadata, wrapper signatures, contract markdown, validation logic, or fake/injected test transports.
+- Each slice MUST deliver a concrete execution path that can call the named upstream YouTube endpoint using the shared Layer 1 foundation from `YT-101` and `YT-102`.
+- Later Layer 2 slices depend on Layer 1 for live upstream execution, not only interface shape.
+- Each Layer 1 endpoint slice MUST include:
+  - request construction for the real upstream path
+  - credential attachment for supported auth modes
+  - outbound HTTP execution to the real upstream endpoint
+  - response parsing for successful upstream results
+  - upstream error normalization through the shared Layer 1 error model
+
 ### YT-103: Layer 1 Endpoint `activities.list`
 Description:
-Wrap `GET /activities`.
+Implement a typed Layer 1 wrapper that performs the real `GET /activities`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `activities.list`.
@@ -560,7 +575,8 @@ Dependencies:
 
 ### YT-104: Layer 1 Endpoint `captions.list`
 Description:
-Wrap `GET /captions`.
+Implement a typed Layer 1 wrapper that performs the real `GET /captions`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `captions.list`.
@@ -573,7 +589,8 @@ Dependencies:
 
 ### YT-105: Layer 1 Endpoint `captions.insert`
 Description:
-Wrap `POST /captions`.
+Implement a typed Layer 1 wrapper that performs the real `POST /captions`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `captions.insert`.
@@ -587,7 +604,8 @@ Dependencies:
 
 ### YT-106: Layer 1 Endpoint `captions.update`
 Description:
-Wrap `PUT /captions`.
+Implement a typed Layer 1 wrapper that performs the real `PUT /captions`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `captions.update`.
@@ -601,7 +619,8 @@ Dependencies:
 
 ### YT-107: Layer 1 Endpoint `captions.download`
 Description:
-Wrap `GET /captions/{id}` for caption download.
+Implement a typed Layer 1 wrapper that performs the real `GET /captions/{id}`
+YouTube Data API request for caption download.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `captions.download`.
@@ -615,7 +634,8 @@ Dependencies:
 
 ### YT-108: Layer 1 Endpoint `captions.delete`
 Description:
-Wrap `DELETE /captions`.
+Implement a typed Layer 1 wrapper that performs the real `DELETE /captions`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `captions.delete`.
@@ -629,7 +649,8 @@ Dependencies:
 
 ### YT-109: Layer 1 Endpoint `channelBanners.insert`
 Description:
-Wrap `POST /channelBanners/insert`.
+Implement a typed Layer 1 wrapper that performs the real
+`POST /channelBanners/insert` YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `channelBanners.insert`.
@@ -642,7 +663,8 @@ Dependencies:
 
 ### YT-110: Layer 1 Endpoint `channels.list`
 Description:
-Wrap `GET /channels`.
+Implement a typed Layer 1 wrapper that performs the real `GET /channels`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `channels.list`.
@@ -656,7 +678,8 @@ Dependencies:
 
 ### YT-111: Layer 1 Endpoint `channels.update`
 Description:
-Wrap `PUT /channels`.
+Implement a typed Layer 1 wrapper that performs the real `PUT /channels`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `channels.update`.
@@ -670,7 +693,8 @@ Dependencies:
 
 ### YT-112: Layer 1 Endpoint `channelSections.list`
 Description:
-Wrap `GET /channelSections`.
+Implement a typed Layer 1 wrapper that performs the real `GET /channelSections`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `channelSections.list`.
@@ -683,7 +707,8 @@ Dependencies:
 
 ### YT-113: Layer 1 Endpoint `channelSections.insert`
 Description:
-Wrap `POST /channelSections`.
+Implement a typed Layer 1 wrapper that performs the real `POST /channelSections`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `channelSections.insert`.
@@ -697,7 +722,8 @@ Dependencies:
 
 ### YT-114: Layer 1 Endpoint `channelSections.update`
 Description:
-Wrap `PUT /channelSections`.
+Implement a typed Layer 1 wrapper that performs the real `PUT /channelSections`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `channelSections.update`.
@@ -710,7 +736,8 @@ Dependencies:
 
 ### YT-115: Layer 1 Endpoint `channelSections.delete`
 Description:
-Wrap `DELETE /channelSections`.
+Implement a typed Layer 1 wrapper that performs the real `DELETE /channelSections`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `channelSections.delete`.
@@ -723,7 +750,8 @@ Dependencies:
 
 ### YT-116: Layer 1 Endpoint `comments.list`
 Description:
-Wrap `GET /comments`.
+Implement a typed Layer 1 wrapper that performs the real `GET /comments`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `comments.list`.
@@ -737,7 +765,8 @@ Dependencies:
 
 ### YT-117: Layer 1 Endpoint `comments.insert`
 Description:
-Wrap `POST /comments`.
+Implement a typed Layer 1 wrapper that performs the real `POST /comments`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `comments.insert`.
@@ -751,7 +780,8 @@ Dependencies:
 
 ### YT-118: Layer 1 Endpoint `comments.update`
 Description:
-Wrap `PUT /comments`.
+Implement a typed Layer 1 wrapper that performs the real `PUT /comments`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `comments.update`.
@@ -764,7 +794,8 @@ Dependencies:
 
 ### YT-119: Layer 1 Endpoint `comments.setModerationStatus`
 Description:
-Wrap `POST /comments/setModerationStatus`.
+Implement a typed Layer 1 wrapper that performs the real
+`POST /comments/setModerationStatus` YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `comments.setModerationStatus`.
@@ -778,7 +809,8 @@ Dependencies:
 
 ### YT-120: Layer 1 Endpoint `comments.delete`
 Description:
-Wrap `DELETE /comments`.
+Implement a typed Layer 1 wrapper that performs the real `DELETE /comments`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `comments.delete`.
@@ -791,7 +823,8 @@ Dependencies:
 
 ### YT-121: Layer 1 Endpoint `commentThreads.list`
 Description:
-Wrap `GET /commentThreads`.
+Implement a typed Layer 1 wrapper that performs the real `GET /commentThreads`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `commentThreads.list`.
@@ -805,7 +838,8 @@ Dependencies:
 
 ### YT-122: Layer 1 Endpoint `commentThreads.insert`
 Description:
-Wrap `POST /commentThreads`.
+Implement a typed Layer 1 wrapper that performs the real `POST /commentThreads`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `commentThreads.insert`.
@@ -819,7 +853,8 @@ Dependencies:
 
 ### YT-123: Layer 1 Endpoint `guideCategories.list`
 Description:
-Wrap `GET /guideCategories`.
+Implement a typed Layer 1 wrapper that performs the real `GET /guideCategories`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `guideCategories.list`.
@@ -833,7 +868,8 @@ Dependencies:
 
 ### YT-124: Layer 1 Endpoint `i18nLanguages.list`
 Description:
-Wrap `GET /i18nLanguages`.
+Implement a typed Layer 1 wrapper that performs the real `GET /i18nLanguages`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `i18nLanguages.list`.
@@ -846,7 +882,8 @@ Dependencies:
 
 ### YT-125: Layer 1 Endpoint `i18nRegions.list`
 Description:
-Wrap `GET /i18nRegions`.
+Implement a typed Layer 1 wrapper that performs the real `GET /i18nRegions`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `i18nRegions.list`.
@@ -859,7 +896,8 @@ Dependencies:
 
 ### YT-126: Layer 1 Endpoint `members.list`
 Description:
-Wrap `GET /members`.
+Implement a typed Layer 1 wrapper that performs the real `GET /members`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `members.list`.
@@ -873,7 +911,8 @@ Dependencies:
 
 ### YT-127: Layer 1 Endpoint `membershipsLevels.list`
 Description:
-Wrap `GET /membershipsLevels`.
+Implement a typed Layer 1 wrapper that performs the real
+`GET /membershipsLevels` YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `membershipsLevels.list`.
@@ -887,7 +926,8 @@ Dependencies:
 
 ### YT-128: Layer 1 Endpoint `playlistImages.list`
 Description:
-Wrap `GET /playlistImages`.
+Implement a typed Layer 1 wrapper that performs the real `GET /playlistImages`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlistImages.list`.
@@ -900,7 +940,8 @@ Dependencies:
 
 ### YT-129: Layer 1 Endpoint `playlistImages.insert`
 Description:
-Wrap `POST /playlistImages`.
+Implement a typed Layer 1 wrapper that performs the real `POST /playlistImages`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlistImages.insert`.
@@ -914,7 +955,8 @@ Dependencies:
 
 ### YT-130: Layer 1 Endpoint `playlistImages.update`
 Description:
-Wrap `PUT /playlistImages`.
+Implement a typed Layer 1 wrapper that performs the real `PUT /playlistImages`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlistImages.update`.
@@ -928,7 +970,8 @@ Dependencies:
 
 ### YT-131: Layer 1 Endpoint `playlistImages.delete`
 Description:
-Wrap `DELETE /playlistImages`.
+Implement a typed Layer 1 wrapper that performs the real `DELETE /playlistImages`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlistImages.delete`.
@@ -941,7 +984,8 @@ Dependencies:
 
 ### YT-132: Layer 1 Endpoint `playlistItems.list`
 Description:
-Wrap `GET /playlistItems`.
+Implement a typed Layer 1 wrapper that performs the real `GET /playlistItems`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlistItems.list`.
@@ -955,7 +999,8 @@ Dependencies:
 
 ### YT-133: Layer 1 Endpoint `playlistItems.insert`
 Description:
-Wrap `POST /playlistItems`.
+Implement a typed Layer 1 wrapper that performs the real `POST /playlistItems`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlistItems.insert`.
@@ -968,7 +1013,8 @@ Dependencies:
 
 ### YT-134: Layer 1 Endpoint `playlistItems.update`
 Description:
-Wrap `PUT /playlistItems`.
+Implement a typed Layer 1 wrapper that performs the real `PUT /playlistItems`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlistItems.update`.
@@ -981,7 +1027,8 @@ Dependencies:
 
 ### YT-135: Layer 1 Endpoint `playlistItems.delete`
 Description:
-Wrap `DELETE /playlistItems`.
+Implement a typed Layer 1 wrapper that performs the real `DELETE /playlistItems`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlistItems.delete`.
@@ -994,7 +1041,8 @@ Dependencies:
 
 ### YT-136: Layer 1 Endpoint `playlists.list`
 Description:
-Wrap `GET /playlists`.
+Implement a typed Layer 1 wrapper that performs the real `GET /playlists`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlists.list`.
@@ -1007,7 +1055,8 @@ Dependencies:
 
 ### YT-137: Layer 1 Endpoint `playlists.insert`
 Description:
-Wrap `POST /playlists`.
+Implement a typed Layer 1 wrapper that performs the real `POST /playlists`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlists.insert`.
@@ -1020,7 +1069,8 @@ Dependencies:
 
 ### YT-138: Layer 1 Endpoint `playlists.update`
 Description:
-Wrap `PUT /playlists`.
+Implement a typed Layer 1 wrapper that performs the real `PUT /playlists`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlists.update`.
@@ -1033,7 +1083,8 @@ Dependencies:
 
 ### YT-139: Layer 1 Endpoint `playlists.delete`
 Description:
-Wrap `DELETE /playlists`.
+Implement a typed Layer 1 wrapper that performs the real `DELETE /playlists`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `playlists.delete`.
@@ -1046,7 +1097,8 @@ Dependencies:
 
 ### YT-140: Layer 1 Endpoint `search.list`
 Description:
-Wrap `GET /search`.
+Implement a typed Layer 1 wrapper that performs the real `GET /search`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `search.list`.
@@ -1060,7 +1112,8 @@ Dependencies:
 
 ### YT-141: Layer 1 Endpoint `subscriptions.list`
 Description:
-Wrap `GET /subscriptions`.
+Implement a typed Layer 1 wrapper that performs the real `GET /subscriptions`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `subscriptions.list`.
@@ -1073,7 +1126,8 @@ Dependencies:
 
 ### YT-142: Layer 1 Endpoint `subscriptions.insert`
 Description:
-Wrap `POST /subscriptions`.
+Implement a typed Layer 1 wrapper that performs the real `POST /subscriptions`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `subscriptions.insert`.
@@ -1086,7 +1140,8 @@ Dependencies:
 
 ### YT-143: Layer 1 Endpoint `subscriptions.delete`
 Description:
-Wrap `DELETE /subscriptions`.
+Implement a typed Layer 1 wrapper that performs the real `DELETE /subscriptions`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `subscriptions.delete`.
@@ -1099,7 +1154,8 @@ Dependencies:
 
 ### YT-144: Layer 1 Endpoint `thumbnails.set`
 Description:
-Wrap `POST /thumbnails/set`.
+Implement a typed Layer 1 wrapper that performs the real `POST /thumbnails/set`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `thumbnails.set`.
@@ -1112,7 +1168,8 @@ Dependencies:
 
 ### YT-145: Layer 1 Endpoint `videoAbuseReportReasons.list`
 Description:
-Wrap `GET /videoAbuseReportReasons`.
+Implement a typed Layer 1 wrapper that performs the real
+`GET /videoAbuseReportReasons` YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `videoAbuseReportReasons.list`.
@@ -1125,7 +1182,8 @@ Dependencies:
 
 ### YT-146: Layer 1 Endpoint `videoCategories.list`
 Description:
-Wrap `GET /videoCategories`.
+Implement a typed Layer 1 wrapper that performs the real `GET /videoCategories`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `videoCategories.list`.
@@ -1138,7 +1196,8 @@ Dependencies:
 
 ### YT-147: Layer 1 Endpoint `videos.list`
 Description:
-Wrap `GET /videos`.
+Implement a typed Layer 1 wrapper that performs the real `GET /videos`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `videos.list`.
@@ -1152,7 +1211,8 @@ Dependencies:
 
 ### YT-148: Layer 1 Endpoint `videos.insert`
 Description:
-Wrap `POST /videos`.
+Implement a typed Layer 1 wrapper that performs the real `POST /videos`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `videos.insert`.
@@ -1166,7 +1226,8 @@ Dependencies:
 
 ### YT-149: Layer 1 Endpoint `videos.update`
 Description:
-Wrap `PUT /videos`.
+Implement a typed Layer 1 wrapper that performs the real `PUT /videos`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `videos.update`.
@@ -1179,7 +1240,8 @@ Dependencies:
 
 ### YT-150: Layer 1 Endpoint `videos.rate`
 Description:
-Wrap `POST /videos/rate`.
+Implement a typed Layer 1 wrapper that performs the real `POST /videos/rate`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `videos.rate`.
@@ -1193,7 +1255,8 @@ Dependencies:
 
 ### YT-151: Layer 1 Endpoint `videos.getRating`
 Description:
-Wrap `GET /videos/getRating`.
+Implement a typed Layer 1 wrapper that performs the real `GET /videos/getRating`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `videos.getRating`.
@@ -1206,7 +1269,8 @@ Dependencies:
 
 ### YT-152: Layer 1 Endpoint `videos.reportAbuse`
 Description:
-Wrap `POST /videos/reportAbuse`.
+Implement a typed Layer 1 wrapper that performs the real
+`POST /videos/reportAbuse` YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `videos.reportAbuse`.
@@ -1220,7 +1284,8 @@ Dependencies:
 
 ### YT-153: Layer 1 Endpoint `videos.delete`
 Description:
-Wrap `DELETE /videos`.
+Implement a typed Layer 1 wrapper that performs the real `DELETE /videos`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `videos.delete`.
@@ -1233,7 +1298,8 @@ Dependencies:
 
 ### YT-154: Layer 1 Endpoint `watermarks.set`
 Description:
-Wrap `POST /watermarks/set`.
+Implement a typed Layer 1 wrapper that performs the real `POST /watermarks/set`
+YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `watermarks.set`.
@@ -1246,7 +1312,8 @@ Dependencies:
 
 ### YT-155: Layer 1 Endpoint `watermarks.unset`
 Description:
-Wrap `POST /watermarks/unset`.
+Implement a typed Layer 1 wrapper that performs the real
+`POST /watermarks/unset` YouTube Data API request.
 
 Acceptance criteria:
 - Layer 1 exposes a typed wrapper for `watermarks.unset`.
