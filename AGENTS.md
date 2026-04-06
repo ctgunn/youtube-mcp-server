@@ -58,6 +58,10 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - Python 3.11 + FastAPI, Pydantic v2, Redis, Uvicorn, Python standard-library dataclasses and enum support, existing in-repo Layer 1 integration modules under `src/mcp_server/integrations/` (102-layer1-metadata-standards)
 - Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff (102-layer1-metadata-standards)
 - N/A for feature-specific persistence; metadata remains in-memory and file-documented only (102-layer1-metadata-standards)
+- N/A for feature-specific persistence; wrapper metadata and request validation remain in-memory and feature artifacts remain file-based (103-activities-list)
+- Python 3.11 + Python standard library dataclasses and enums, existing integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff (103-activities-list)
+- N/A for feature-specific persistence; request handling remains in-memory and design artifacts remain file-based under `/Users/ctgunn/Projects/youtube-mcp-server/specs/103-activities-list/` (103-activities-list)
+- N/A for feature-specific persistence; wrapper metadata and request validation remain in-memory and feature design artifacts remain file-based (103-activities-list)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -78,9 +82,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
-- 102-layer1-metadata-standards: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
-- 102-layer1-metadata-standards: Added Python 3.11 + FastAPI, Pydantic v2, Redis, Uvicorn, Python standard-library dataclasses and enum support, existing in-repo Layer 1 integration modules under `src/mcp_server/integrations/`
-- 101-layer1-client-foundation: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Redis-compatible session support, Python standard-library JSON/HTTP/config/logging tooling
+- 103-activities-list: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
+- 103-activities-list: Added Python 3.11 + Python standard library dataclasses and enums, existing integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
+- 103-activities-list: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
 
 
 <!-- MANUAL ADDITIONS START -->

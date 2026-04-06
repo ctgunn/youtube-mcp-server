@@ -59,6 +59,21 @@ development or manual testing before pushing code.
 - one supported compose command if you want the hosted-like Redis-backed path:
   `docker compose`, `docker-compose`, `podman compose`, or `podman-compose`
 
+These tools must already be installed on your machine before you start.
+
+Recommended install paths:
+
+- `python3`: use your platform package manager or the official Python installer.
+  On macOS with Homebrew: `brew install python@3.11`
+- `pip`: usually included with Python 3. If not, install Python again using the
+  official installer or your package manager.
+- `make`: usually preinstalled on macOS. If not, install the Xcode Command Line
+  Tools with `xcode-select --install`
+- `docker compose`: easiest path for most users is Docker Desktop, which
+  includes both `docker` and `docker compose`
+- `podman compose`: use Podman if you prefer it over Docker; install it from
+  your platform package manager or the official installer
+
 ### 1. Open the repository
 
 ```bash
@@ -190,6 +205,28 @@ can reach over the network.
 - `python3`
 - a Google Cloud account with billing enabled
 - a GCP project you can administer, or permission to create one
+
+These tools must already be installed on your machine before you start.
+
+Recommended install paths:
+
+- `gcloud`: install the Google Cloud CLI. On macOS with Homebrew:
+  `brew install --cask google-cloud-sdk`
+- `terraform`: install the HashiCorp Terraform CLI. On macOS with Homebrew:
+  `brew tap hashicorp/tap && brew install hashicorp/tap/terraform`
+- `docker`: easiest path for most users is Docker Desktop, which also includes
+  `docker compose`
+- `python3`: use your platform package manager or the official Python installer.
+  On macOS with Homebrew: `brew install python@3.11`
+
+After installing them, verify they are on your `PATH`:
+
+```bash
+gcloud version
+terraform version
+docker --version
+python3 --version
+```
 
 Before you start the hosted path, make sure you have already done the Google
 Cloud account-level setup outside this repository:

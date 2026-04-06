@@ -8,11 +8,83 @@ from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
 from mcp_server.integrations.executor import IntegrationExecutor, build_observability_hooks
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.integrations.wrappers import RepresentativeEndpointWrapper
+from mcp_server.integrations.wrappers import RepresentativeEndpointWrapper, build_activities_list_wrapper
 from mcp_server.observability import InMemoryObservability
 
 
 class Layer1FoundationIntegrationTests(unittest.TestCase):
+    def test_activities_list_wrapper_executes_channel_requests_through_shared_executor(self):
+        wrapper = build_activities_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "activity-123",
+                        "channelId": execution.arguments["channelId"],
+                        "kind": "youtube#activity",
+                    }
+                ]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "channelId": "UC123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "activity-123")
+        self.assertEqual(result["items"][0]["channelId"], "UC123")
+
+    def test_activities_list_wrapper_executes_authorized_user_requests_through_shared_executor(self):
+        wrapper = build_activities_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "activity-234",
+                        "source": "authorized",
+                        "selector": "mine" if execution.arguments.get("mine") else "home",
+                    }
+                ]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "mine": True},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "activity-234")
+        self.assertEqual(result["items"][0]["selector"], "mine")
+
+    def test_activities_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_activities_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "home": True},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+
     def test_representative_wrapper_execution_uses_shared_observability_hooks(self):
         observability = InMemoryObservability()
 

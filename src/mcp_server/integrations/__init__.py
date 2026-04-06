@@ -12,7 +12,7 @@ from mcp_server.integrations.executor import (
     timed_execution,
 )
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.integrations.wrappers import RepresentativeEndpointWrapper
+from mcp_server.integrations.wrappers import RepresentativeEndpointWrapper, build_activities_list_wrapper
 
 __all__ = [
     "AuthContext",
@@ -24,6 +24,7 @@ __all__ = [
     "IntegrationHooks",
     "NormalizedUpstreamError",
     "RepresentativeEndpointWrapper",
+    "build_activities_list_wrapper",
     "RepresentativeHigherLayerConsumer",
     "RequestExecution",
     "RetryPolicy",

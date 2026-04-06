@@ -9,10 +9,75 @@ from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestS
 from mcp_server.integrations.errors import NormalizedUpstreamError, normalize_upstream_error
 from mcp_server.integrations.executor import IntegrationExecutor, IntegrationHooks, RequestExecution, timed_execution
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.integrations.wrappers import RepresentativeEndpointWrapper
+from mcp_server.integrations.wrappers import RepresentativeEndpointWrapper, build_activities_list_wrapper
 
 
 class Layer1FoundationUnitTests(unittest.TestCase):
+    def test_activities_list_wrapper_exposes_expected_metadata(self):
+        wrapper = build_activities_list_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "activities.list")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/activities")
+        self.assertEqual(wrapper.metadata.quota_cost, 1)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "mixed/conditional")
+        self.assertIn("channelId", wrapper.metadata.auth_condition_note)
+
+    def test_activities_list_wrapper_requires_one_selector_field(self):
+        wrapper = build_activities_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+    def test_activities_list_wrapper_rejects_multiple_selector_fields(self):
+        wrapper = build_activities_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "channelId": "UC123", "mine": True}
+            )
+
+    def test_activities_list_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = build_activities_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: playlistId"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "channelId": "UC123", "playlistId": "PL123"}
+            )
+
+    def test_activities_list_wrapper_rejects_authorized_selector_with_api_key_mode(self):
+        wrapper = build_activities_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "mine requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "mine": True},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_activities_list_wrapper_rejects_public_selector_with_oauth_mode(self):
+        wrapper = build_activities_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "channelId requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "channelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
     def test_requires_metadata_fields_for_endpoint_wrappers(self):
         with self.assertRaises(ValueError):
             EndpointMetadata(
