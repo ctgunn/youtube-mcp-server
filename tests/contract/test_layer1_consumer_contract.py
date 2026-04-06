@@ -10,7 +10,11 @@ from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestS
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.integrations.wrappers import RepresentativeEndpointWrapper, build_activities_list_wrapper
+from mcp_server.integrations.wrappers import (
+    RepresentativeEndpointWrapper,
+    build_activities_list_wrapper,
+    build_captions_list_wrapper,
+)
 
 
 class Layer1ConsumerContractTests(unittest.TestCase):
@@ -99,6 +103,29 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["activityCount"], 0)
         self.assertEqual(result["sourceOperation"], "activities.list")
         self.assertEqual(result["sourceQuotaCost"], 1)
+
+    def test_consumer_can_summarize_captions_results_for_higher_layers(self):
+        wrapper = build_captions_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_caption_summary(
+            arguments={"part": "snippet", "videoId": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertTrue(result["isEmpty"])
+        self.assertEqual(result["captionCount"], 0)
+        self.assertEqual(result["sourceOperation"], "captions.list")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("onBehalfOfContentOwner", result["sourceNotes"])
 
 
 if __name__ == "__main__":

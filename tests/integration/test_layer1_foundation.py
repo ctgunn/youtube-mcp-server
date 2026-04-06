@@ -8,7 +8,11 @@ from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
 from mcp_server.integrations.executor import IntegrationExecutor, build_observability_hooks
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.integrations.wrappers import RepresentativeEndpointWrapper, build_activities_list_wrapper
+from mcp_server.integrations.wrappers import (
+    RepresentativeEndpointWrapper,
+    build_activities_list_wrapper,
+    build_captions_list_wrapper,
+)
 from mcp_server.observability import InMemoryObservability
 
 
@@ -77,6 +81,81 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         result = wrapper.call(
             executor,
             arguments={"part": "snippet", "home": True},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+
+    def test_captions_list_wrapper_executes_video_requests_through_shared_executor(self):
+        wrapper = build_captions_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "caption-123",
+                        "videoId": execution.arguments["videoId"],
+                        "kind": "youtube#caption",
+                    }
+                ]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "videoId": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "caption-123")
+        self.assertEqual(result["items"][0]["videoId"], "video-123")
+
+    def test_captions_list_wrapper_executes_delegated_requests_through_shared_executor(self):
+        wrapper = build_captions_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": execution.arguments["id"],
+                        "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                    }
+                ]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "id": "caption-234",
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "caption-234")
+        self.assertEqual(result["items"][0]["delegatedOwner"], "owner-123")
+
+    def test_captions_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_captions_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "id": "caption-345"},
             auth_context=AuthContext(
                 mode=AuthMode.OAUTH_REQUIRED,
                 credentials=CredentialBundle(oauth_token="oauth-123"),

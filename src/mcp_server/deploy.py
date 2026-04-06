@@ -271,7 +271,9 @@ def build_deploy_command(settings: DeploymentInputSet) -> list[str]:
     if failures:
         raise ValueError("; ".join(failures))
 
-    env_vars = ",".join(f"{key}={value}" for key, value in sorted(settings.config_values.items()))
+    # Use a custom delimiter so gcloud can parse values that themselves contain commas.
+    delimiter = "^@@^"
+    env_vars = delimiter + "@@".join(f"{key}={value}" for key, value in sorted(settings.config_values.items()))
     secret_args = ",".join(f"{name}={name}:latest" for name in settings.secret_references)
     command = [
         "gcloud",

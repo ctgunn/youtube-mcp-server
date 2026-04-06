@@ -349,7 +349,7 @@ deploy, especially:
   the runtime email will usually be
   `youtube-mcp-server@my-gcp-project.iam.gserviceaccount.com`.
 - `IMAGE_REFERENCE`: the container image to deploy, for example
-  `us-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:TAG`.
+  `us-central1-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:TAG`.
 - `MCP_ENVIRONMENT`: runtime profile for the deployed service. Allowed values:
   `dev`, `staging`, `prod`.
   `dev`: local or low-friction validation profile; auth may be relaxed unless
@@ -465,32 +465,38 @@ terraform -chdir=infrastructure/gcp output -json > artifacts/gcp-foundation-outp
 Authenticate Docker to Artifact Registry:
 
 ```bash
-gcloud auth configure-docker us-docker.pkg.dev --quiet
+gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 ```
 
 Build the image:
 
 ```bash
-docker build -t us-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001 .
+docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001 .
 ```
 
 Push it:
 
 ```bash
-docker push us-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001
+docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001
 ```
 
 ### 10. Deploy the application through the repository deploy script
 
 ```bash
+set -a
+source .env
+set +a
 INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json \
-IMAGE_REFERENCE=us-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001 \
+IMAGE_REFERENCE=us-central1-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001 \
 DEPLOYMENT_RECORD_FILE=artifacts/cloud-run-deployment.json \
 bash scripts/deploy_cloud_run.sh
 ```
 
 This is the supported application rollout path. It uses the Terraform outputs
 as the handoff from infrastructure reconciliation into Cloud Run deployment.
+The deploy script does not load `.env` on its own, so source it first if you
+want the operator-managed deployment inputs from step 5 to participate in the
+deploy command.
 
 ### 11. Verify the hosted deployment
 
@@ -826,7 +832,7 @@ Execute the deployment workflow with explicit revision settings:
 PROJECT_ID=example-project \
 REGION=us-central1 \
 SERVICE_NAME=youtube-mcp-server \
-IMAGE_REFERENCE=us-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
+IMAGE_REFERENCE=us-central1-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
 SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com \
 MCP_SERVER_IMPLEMENTATION=uvicorn \
 MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \
@@ -854,8 +860,11 @@ If you provisioned the hosted platform through the Terraform workflow in
 deployment workflow instead of retyping the provisioned values:
 
 ```bash
+set -a
+source .env
+set +a
 INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json \
-IMAGE_REFERENCE=us-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
+IMAGE_REFERENCE=us-central1-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
 bash scripts/deploy_cloud_run.sh
 ```
 
@@ -872,7 +881,7 @@ Example:
 PROJECT_ID=example-project \
 REGION=us-central1 \
 SERVICE_NAME=youtube-mcp-server \
-IMAGE_REFERENCE=us-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
+IMAGE_REFERENCE=us-central1-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
 SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com \
 MCP_SERVER_IMPLEMENTATION=uvicorn \
 MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \

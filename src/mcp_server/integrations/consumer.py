@@ -64,3 +64,26 @@ class RepresentativeHigherLayerConsumer:
             "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
             "sourceQuotaCost": self.wrapper.metadata.quota_cost,
         }
+
+    def fetch_caption_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `captions.list` wrapper result.
+
+        :param arguments: Wrapper arguments needed to fetch captions.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing source contract details and result volume.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        items = result.get("items", [])
+        return {
+            "captionCount": len(items),
+            "isEmpty": not items,
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceNotes": self.wrapper.metadata.notes,
+        }

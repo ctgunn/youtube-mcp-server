@@ -12,7 +12,11 @@ from mcp_server.integrations.executor import (
     timed_execution,
 )
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.integrations.wrappers import RepresentativeEndpointWrapper, build_activities_list_wrapper
+from mcp_server.integrations.wrappers import (
+    RepresentativeEndpointWrapper,
+    build_activities_list_wrapper,
+    build_captions_list_wrapper,
+)
 from mcp_server.integrations.youtube import (
     build_youtube_data_api_executor,
     build_youtube_data_api_request,
@@ -30,6 +34,7 @@ __all__ = [
     "NormalizedUpstreamError",
     "RepresentativeEndpointWrapper",
     "build_activities_list_wrapper",
+    "build_captions_list_wrapper",
     "build_youtube_data_api_executor",
     "build_youtube_data_api_request",
     "build_youtube_data_api_transport",

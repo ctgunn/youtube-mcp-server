@@ -4,7 +4,7 @@ environment           = "staging"
 service_name          = "youtube-mcp-server"
 service_account_name  = "youtube-mcp-server"
 public_invocation_intent = "public_remote_mcp"
-bootstrap_image_reference = "us-docker.pkg.dev/cloudrun/container/hello"
+bootstrap_image_reference = "us-central1-docker.pkg.dev/cloudrun/container/hello"
 secret_access_mode = "secret_manager_env"
 
 min_instances = 0

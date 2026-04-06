@@ -99,6 +99,34 @@ class ActivitiesListWrapper(RepresentativeEndpointWrapper):
         raise ValueError("activities.list requires a supported selector")
 
 
+@dataclass(frozen=True)
+class CaptionsListWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `captions.list`.
+
+    Official quota cost: ``50`` quota units. The wrapper uses ``videoId`` for
+    caption inventory lookup and ``id`` for direct caption-track lookup.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `captions.list` with OAuth and delegation validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("captions.list requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
 def build_activities_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `activities.list`.
 
@@ -126,3 +154,33 @@ def build_activities_list_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return ActivitiesListWrapper(metadata=metadata)
+
+
+def build_captions_list_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `captions.list`.
+
+    Official quota cost: ``50`` quota units. The wrapper supports selector
+    paths via ``videoId`` and ``id`` and allows optional
+    ``onBehalfOfContentOwner`` delegation on authorized requests.
+
+    :return: Representative wrapper configured for `captions.list`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="captions",
+        operation_name="list",
+        http_method="GET",
+        path_shape="/youtube/v3/captions",
+        request_shape=EndpointRequestShape(
+            required_fields=("part",),
+            optional_fields=("videoId", "id", "onBehalfOfContentOwner", "pageToken", "maxResults"),
+            exactly_one_of=("videoId", "id"),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `videoId` for caption inventory "
+            "lookup, use `id` for direct caption-track lookup, and treat "
+            "`onBehalfOfContentOwner` as optional delegation context."
+        ),
+    )
+    return CaptionsListWrapper(metadata=metadata)
