@@ -16,7 +16,7 @@ Use this feature to add a reviewable internal `activities.list` wrapper on top o
 1. Add failing unit tests for `activities.list` metadata completeness, quota visibility, and endpoint-specific filter validation.
 2. Add failing contract tests for maintainer-facing artifacts that must explain supported public-channel and authorized-user filter modes.
 3. Add failing integration tests showing the representative wrapper path does not yet make `activities.list` reusable for higher-layer planning.
-4. Implement the smallest updates to `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/contracts.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/wrappers.py`, and any narrowly necessary supporting integration modules needed to satisfy those failures.
+4. Implement the smallest updates to `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/contracts.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/wrappers.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/youtube.py`, and any narrowly necessary supporting integration modules needed to satisfy those failures.
 5. Ensure the wrapper review surface exposes endpoint identity, `quotaCost`, mixed-auth guidance, and the supported selector boundary `channelId`/`mine`/`home` clearly enough for YT-203 planning.
 6. Refactor for naming clarity, reduced duplication, and complete reStructuredText docstrings on all new or changed Python functions.
 
@@ -26,7 +26,9 @@ Representative implementation modules:
 - `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/auth.py`
 - `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/wrappers.py`
 - `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/executor.py`
+- `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/youtube.py`
 - `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer1_foundation.py`
+- `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_transport.py`
 - `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_layer1_foundation.py`
 - `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer1_metadata_contract.py`
 - `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer1_consumer_contract.py`

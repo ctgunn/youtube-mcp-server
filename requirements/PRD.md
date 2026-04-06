@@ -194,6 +194,14 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - upstream error normalization
   - endpoint metadata declaration
 - The Layer 1 integration layer MUST expose typed wrappers for each currently documented YouTube Data API v3 endpoint/resource method included in the Layer 1 workstream, not only the subset immediately needed by the first Layer 3 tools.
+- For each endpoint/resource method in scope, the corresponding Layer 1 wrapper MUST implement the concrete upstream YouTube Data API call, not only a wrapper contract, metadata surface, validation layer, or fake transport used in tests.
+- A Layer 1 endpoint slice is incomplete unless it includes:
+  - real request parameter shaping for the named upstream endpoint
+  - credential attachment for the supported auth modes
+  - outbound HTTP execution against the real YouTube Data API path
+  - parsing of successful upstream responses into the Layer 1 result shape
+  - normalization of upstream failures into the shared Layer 1 error model
+- Test doubles, injected fake transports, or mock executor paths MAY be used in tests, but they MUST NOT be the only implemented execution path for a Layer 1 endpoint slice.
 - Every Layer 1 wrapper MUST record:
   - resource and method name
   - HTTP method and path shape
