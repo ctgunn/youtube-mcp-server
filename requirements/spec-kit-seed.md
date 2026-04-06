@@ -547,7 +547,7 @@ Dependencies:
 
 ## Layer 1 Endpoint Slice Rule
 
-For every `YT-10x` Layer 1 endpoint slice below:
+For every `YT-1xx` Layer 1 endpoint slice below:
 - “Wrap `GET/POST/PUT/DELETE ...`” means implement the real YouTube Data API call for that endpoint.
 - The slice is not complete if it only adds metadata, wrapper signatures, contract markdown, validation logic, or fake/injected test transports.
 - Each slice MUST deliver a concrete execution path that can call the named upstream YouTube endpoint using the shared Layer 1 foundation from `YT-101` and `YT-102`.
