@@ -70,3 +70,10 @@ class AuthContext:
         if self.conditional_reason:
             payload["conditionalReason"] = self.conditional_reason
         return payload
+
+    def requires_oauth_access(self) -> bool:
+        """Return whether the current execution uses OAuth-required access.
+
+        :return: ``True`` when the execution must carry an OAuth token.
+        """
+        return self.mode is AuthMode.OAUTH_REQUIRED

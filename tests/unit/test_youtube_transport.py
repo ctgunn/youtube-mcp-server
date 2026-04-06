@@ -14,7 +14,7 @@ from mcp_server.integrations.youtube import (
     build_youtube_data_api_request,
     build_youtube_data_api_transport,
 )
-from mcp_server.integrations.wrappers import build_activities_list_wrapper
+from mcp_server.integrations.wrappers import build_activities_list_wrapper, build_captions_list_wrapper
 
 
 class _FakeHTTPResponse:
@@ -35,6 +35,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     def _execution(self, *, arguments: dict[str, object], auth_context: AuthContext) -> RequestExecution:
         return RequestExecution(
             metadata=build_activities_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _captions_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_captions_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -71,6 +83,42 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertIn("mine=true", request.full_url)
         self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+
+    def test_builds_oauth_request_for_captions_video_lookup(self):
+        execution = self._captions_execution(
+            arguments={"part": "snippet", "videoId": "video-123", "maxResults": 5},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "GET")
+        self.assertIn("https://www.googleapis.com/youtube/v3/captions?", request.full_url)
+        self.assertIn("videoId=video-123", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("maxResults=5", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+
+    def test_builds_oauth_request_for_captions_delegation(self):
+        execution = self._captions_execution(
+            arguments={
+                "part": "snippet",
+                "id": "caption-123",
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("id=caption-123", request.full_url)
+        self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
 
     def test_transport_parses_successful_youtube_payload(self):
         transport = build_youtube_data_api_transport(
@@ -135,6 +183,30 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("home=true", captured["url"])
         self.assertEqual(captured["authorization"], "Bearer oauth-token")
         self.assertEqual(captured["timeout"], 12.5)
+
+    def test_executor_can_run_live_captions_transport_shape(self):
+        captured = {}
+
+        def opener(request, timeout):
+            captured["url"] = request.full_url
+            captured["authorization"] = request.headers.get("Authorization")
+            captured["timeout"] = timeout
+            return _FakeHTTPResponse({"items": []})
+
+        executor = build_youtube_data_api_executor(opener=opener, timeout_seconds=9.0)
+        result = build_captions_list_wrapper().call(
+            executor,
+            arguments={"part": "snippet", "videoId": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertIn("videoId=video-123", captured["url"])
+        self.assertEqual(captured["authorization"], "Bearer oauth-token")
+        self.assertEqual(captured["timeout"], 9.0)
 
 
 if __name__ == "__main__":

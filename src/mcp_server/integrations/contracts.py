@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 from mcp_server.integrations.auth import AuthMode
 
@@ -17,11 +18,13 @@ class EndpointRequestShape:
     :param required_fields: Required request field names.
     :param optional_fields: Optional request field names.
     :param exactly_one_of: Selector fields where exactly one must be present.
+    :param validators: Additional endpoint-specific validation hooks.
     """
 
     required_fields: tuple[str, ...]
     optional_fields: tuple[str, ...] = ()
     exactly_one_of: tuple[str, ...] = ()
+    validators: tuple[Callable[[dict[str, object]], None], ...] = ()
 
     def __post_init__(self) -> None:
         """Validate that the request shape includes at least one required field.
@@ -57,6 +60,8 @@ class EndpointRequestShape:
                 raise ValueError(f"unexpected field: {field}")
         if self.exactly_one_of:
             self._validate_exactly_one_of(arguments)
+        for validator in self.validators:
+            validator(arguments)
 
     def _validate_exactly_one_of(self, arguments: dict[str, object]) -> None:
         """Validate a mutually exclusive selector set.
@@ -170,6 +175,7 @@ class EndpointMetadata:
             "lifecycleState": self.lifecycle_state,
             "caveatNote": self.caveat_note,
             "authConditionNote": self.auth_condition_note,
+            "notes": self.notes,
         }
 
     @staticmethod

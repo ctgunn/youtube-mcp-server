@@ -151,8 +151,11 @@ The apply step exports values that map directly into the deployment workflow:
 After exporting the Terraform outputs:
 
 ```bash
+set -a
+source .env
+set +a
 INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json \
-IMAGE_REFERENCE=us-docker.pkg.dev/my-gcp-project/apps/youtube-mcp-server:build-20260322-01 \
+IMAGE_REFERENCE=us-central1-docker.pkg.dev/my-gcp-project/apps/youtube-mcp-server:build-20260322-01 \
 bash scripts/deploy_cloud_run.sh
 ```
 

@@ -43,7 +43,7 @@ variable "public_invocation_intent" {
 variable "bootstrap_image_reference" {
   description = "Placeholder image used to create the Cloud Run service foundation before application deployment."
   type        = string
-  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+  default     = "us-central1-docker.pkg.dev/cloudrun/container/hello"
 }
 
 variable "gcloud_bin" {

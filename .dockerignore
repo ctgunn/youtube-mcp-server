@@ -1,23 +1,44 @@
+# Python runtime and build artifacts
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 .venv/
 venv/
 env/
+ENV/
 dist/
 build/
 *.egg-info/
+
+# Test and coverage output
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage/
+
+# Local environment and logs
+.env
+.env.*
+*.log
+
+# VCS and editor state
 .git/
 .gitignore
 .dockerignore
-Dockerfile*
-*.log
-*.log.*
-.env
-.env.*
-coverage/
 .vscode/
 .idea/
-tests/
-specs/
+.DS_Store
+Thumbs.db
+
+# Local tooling state
 .codex/
+artifacts/
+infrastructure/gcp/.terraform/
+infrastructure/gcp/*.tfvars
+.terraform/
+*.tfstate
+*.tfstate.*
+specs/
