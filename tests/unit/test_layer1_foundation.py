@@ -12,6 +12,7 @@ from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_captions_insert_wrapper,
     build_captions_list_wrapper,
 )
 
@@ -124,6 +125,70 @@ class Layer1FoundationUnitTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"part": "snippet", "videoId": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_captions_insert_wrapper_exposes_expected_metadata(self):
+        wrapper = build_captions_insert_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "captions.insert")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/captions")
+        self.assertEqual(wrapper.metadata.quota_cost, 400)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertIn("body", wrapper.metadata.request_shape.required_fields)
+        self.assertIn("media", wrapper.metadata.request_shape.required_fields)
+        self.assertIn("onBehalfOfContentOwner", wrapper.metadata.notes)
+
+    def test_captions_insert_wrapper_requires_metadata_and_media_fields(self):
+        wrapper = build_captions_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: media"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "body": {"snippet": {"videoId": "video-123"}}}
+            )
+
+    def test_captions_insert_wrapper_rejects_incomplete_body_payload(self):
+        wrapper = build_captions_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.snippet is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {"kind": "youtube#caption"},
+                    "media": {"mimeType": "text/plain", "content": "caption"},
+                }
+            )
+
+    def test_captions_insert_wrapper_rejects_incomplete_media_payload(self):
+        wrapper = build_captions_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "media.content is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {"snippet": {"videoId": "video-123"}},
+                    "media": {"mimeType": "text/plain"},
+                }
+            )
+
+    def test_captions_insert_wrapper_requires_oauth_mode(self):
+        wrapper = build_captions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "caption-123", "kind": "youtube#caption"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "captions.insert requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"videoId": "video-123", "language": "en"}},
+                    "media": {"mimeType": "text/plain", "content": "caption body"},
+                },
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),

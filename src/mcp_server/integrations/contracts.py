@@ -92,6 +92,35 @@ class EndpointRequestShape:
         return True
 
 
+def require_mapping_fields(
+    field_name: str,
+    *,
+    required_keys: tuple[str, ...] = (),
+) -> Callable[[dict[str, object]], None]:
+    """Build a validator ensuring one request field is a populated mapping.
+
+    :param field_name: Name of the request field to validate.
+    :param required_keys: Keys that must exist with visible values in the mapping.
+    :return: Validator callable that raises ``ValueError`` for invalid payloads.
+    """
+
+    def validator(arguments: dict[str, object]) -> None:
+        """Validate one mapping-style request field.
+
+        :param arguments: Wrapper arguments to validate.
+        :raises ValueError: If the field is missing, not a mapping, or incomplete.
+        """
+        value = arguments.get(field_name)
+        if not isinstance(value, dict) or not value:
+            raise ValueError(f"{field_name} must be a non-empty mapping")
+        for key in required_keys:
+            nested = value.get(key)
+            if nested is None or (isinstance(nested, str) and nested.strip() == ""):
+                raise ValueError(f"{field_name}.{key} is required")
+
+    return validator
+
+
 @dataclass(frozen=True)
 class EndpointMetadata:
     """Describe one upstream endpoint wrapper for Layer 1.
