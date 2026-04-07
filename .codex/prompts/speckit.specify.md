@@ -24,7 +24,19 @@ The text the user typed after `/speckit.specify` in the triggering message **is*
 
 Given that feature description, do this:
 
-1. **Generate a concise short name** (2-4 words) for the branch:
+1. **Identify the matching feature slice in `requirements/spec-kit-seed.md` before choosing the branch number**:
+   - Load `requirements/spec-kit-seed.md` and find the feature slice that matches the requested work.
+   - Treat the slice identifier in the seed as the source of truth for branch numbering.
+   - Extract the numeric portion of the slice identifier and use it as the branch number with three-digit zero padding.
+   - Examples:
+     - `FND-028` must produce branch number `028` and a branch like `028-hosted-network-bootstrap`
+     - `YT-105` must produce branch number `105` and a branch like `105-captions-insert`
+     - `YT-201` must produce branch number `201` and a branch like `201-short-branch-description`
+   - Do **not** derive the branch number by incrementing the highest existing branch, spec directory, or short-name match.
+   - Existing branches/spec directories are only a collision check; they are not the numbering source.
+   - If no seed slice can be matched confidently, stop and ask the user which seed slice this feature belongs to instead of inventing a new number.
+
+2. **Generate a concise short name** (2-4 words) for the branch:
    - Analyze the feature description and extract the most meaningful keywords
    - Create a 2-4 word short name that captures the essence of the feature
    - Use action-noun format when possible (e.g., "add-user-auth", "fix-payment-bug")
@@ -36,7 +48,7 @@ Given that feature description, do this:
      - "Create a dashboard for analytics" → "analytics-dashboard"
      - "Fix payment processing timeout bug" → "fix-payment-timeout"
 
-2. **Check for existing branches before creating new one**:
+3. **Check for collisions before creating the branch**:
 
    a. First, fetch all remote branches to ensure we have the latest information:
 
@@ -44,33 +56,32 @@ Given that feature description, do this:
       git fetch --all --prune
       ```
 
-   b. Find the highest feature number across all sources for the short-name:
-      - Remote branches: `git ls-remote --heads origin | grep -E 'refs/heads/[0-9]+-<short-name>$'`
-      - Local branches: `git branch | grep -E '^[* ]*[0-9]+-<short-name>$'`
-      - Specs directories: Check for directories matching `specs/[0-9]+-<short-name>`
+   b. Check whether the seed-derived branch number is already in use:
+      - Remote branches: inspect for branches beginning with `<slice-number>-`
+      - Local branches: inspect for branches beginning with `<slice-number>-`
+      - Specs directories: inspect for directories matching `specs/<slice-number>-*`
 
-   c. Determine the next available number:
-      - Extract all numbers from all three sources
-      - Find the highest number N
-      - Use N+1 for the new branch number
+   c. Resolve the collision check:
+      - If the matching existing branch/spec already uses the same slice number for the same feature, reuse that understanding and keep the same slice-derived number.
+      - If the slice number is already used for a different feature name or suffix, stop and ask the user for clarification instead of incrementing to a different number.
 
-   d. Run the script `.specify/scripts/bash/create-new-feature.sh --json "$ARGUMENTS"` with the calculated number and short-name:
-      - Pass `--number N+1` and `--short-name "your-short-name"` along with the feature description
-      - Bash example: `.specify/scripts/bash/create-new-feature.sh --json "$ARGUMENTS" --json --number 5 --short-name "user-auth" "Add user authentication"`
-      - PowerShell example: `.specify/scripts/bash/create-new-feature.sh --json "$ARGUMENTS" -Json -Number 5 -ShortName "user-auth" "Add user authentication"`
+   d. Run the script `.specify/scripts/bash/create-new-feature.sh --json "$ARGUMENTS"` with the seed-derived number and short-name:
+      - Pass `--number <slice-number>` and `--short-name "your-short-name"` along with the feature description
+      - Bash example: `.specify/scripts/bash/create-new-feature.sh --json --number 105 --short-name "captions-insert" "Add caption insertion support"`
+      - PowerShell example: `.specify/scripts/bash/create-new-feature.sh --json -Number 105 -ShortName "captions-insert" "Add caption insertion support"`
 
    **IMPORTANT**:
-   - Check all three sources (remote branches, local branches, specs directories) to find the highest number
-   - Only match branches/directories with the exact short-name pattern
-   - If no existing branches/directories found with this short-name, start with number 1
+   - `requirements/spec-kit-seed.md` is the authoritative source for the branch number
+   - The branch number must be the zero-padded numeric portion of the matched slice identifier
+   - Never increment to a new number just because another branch or spec already exists
    - You must only ever run this script once per feature
    - The JSON is provided in the terminal as output - always refer to it to get the actual content you're looking for
    - The JSON output will contain BRANCH_NAME and SPEC_FILE paths
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot")
 
-3. Load `.specify/templates/spec-template.md` to understand required sections.
+4. Load `.specify/templates/spec-template.md` to understand required sections.
 
-4. Follow this execution flow:
+5. Follow this execution flow:
 
     1. Parse user description from Input
        If empty: ERROR "No feature description provided"
@@ -96,9 +107,9 @@ Given that feature description, do this:
     7. Identify Key Entities (if data involved)
     8. Return: SUCCESS (spec ready for planning)
 
-5. Write the specification to SPEC_FILE using the template structure, replacing placeholders with concrete details derived from the feature description (arguments) while preserving section order and headings.
+6. Write the specification to SPEC_FILE using the template structure, replacing placeholders with concrete details derived from the feature description (arguments) while preserving section order and headings.
 
-6. **Specification Quality Validation**: After writing the initial spec, validate it against quality criteria:
+7. **Specification Quality Validation**: After writing the initial spec, validate it against quality criteria:
 
    a. **Create Spec Quality Checklist**: Generate a checklist file at `FEATURE_DIR/checklists/requirements.md` using the checklist template structure with these validation items:
 
@@ -190,7 +201,7 @@ Given that feature description, do this:
 
    d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
 
-7. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
+8. Report completion with branch name, matched seed slice ID, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
 
 **NOTE:** The script creates and checks out the new branch and initializes the spec file before writing.
 

@@ -121,6 +121,31 @@ def require_mapping_fields(
     return validator
 
 
+def require_optional_mapping_fields(
+    field_name: str,
+    *,
+    required_keys: tuple[str, ...] = (),
+) -> Callable[[dict[str, object]], None]:
+    """Build a validator for one optional mapping-style request field.
+
+    :param field_name: Name of the optional request field to validate.
+    :param required_keys: Keys that must exist with visible values when present.
+    :return: Validator callable that raises ``ValueError`` for invalid payloads.
+    """
+
+    def validator(arguments: dict[str, object]) -> None:
+        """Validate one optional mapping-style request field.
+
+        :param arguments: Wrapper arguments to validate.
+        :raises ValueError: If the optional field is present but incomplete.
+        """
+        if field_name not in arguments or arguments.get(field_name) is None:
+            return
+        require_mapping_fields(field_name, required_keys=required_keys)(arguments)
+
+    return validator
+
+
 @dataclass(frozen=True)
 class EndpointMetadata:
     """Describe one upstream endpoint wrapper for Layer 1.

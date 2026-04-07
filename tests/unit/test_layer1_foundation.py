@@ -14,6 +14,7 @@ from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
+    build_captions_update_wrapper,
 )
 
 
@@ -188,6 +189,63 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                     "part": "snippet",
                     "body": {"snippet": {"videoId": "video-123", "language": "en"}},
                     "media": {"mimeType": "text/plain", "content": "caption body"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_captions_update_wrapper_exposes_expected_metadata(self):
+        wrapper = build_captions_update_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "captions.update")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/captions")
+        self.assertEqual(wrapper.metadata.quota_cost, 450)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "body"))
+        self.assertIn("media", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("onBehalfOfContentOwner", wrapper.metadata.notes)
+
+    def test_captions_update_wrapper_requires_body_field(self):
+        wrapper = build_captions_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: body"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+    def test_captions_update_wrapper_rejects_incomplete_body_payload(self):
+        wrapper = build_captions_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.id is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "body": {"snippet": {"language": "en"}}}
+            )
+
+    def test_captions_update_wrapper_rejects_incomplete_optional_media_payload(self):
+        wrapper = build_captions_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "media.content is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {"id": "caption-123", "snippet": {"language": "en"}},
+                    "media": {"mimeType": "text/plain"},
+                }
+            )
+
+    def test_captions_update_wrapper_requires_oauth_mode(self):
+        wrapper = build_captions_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "caption-123", "kind": "youtube#caption"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "captions.update requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"id": "caption-123", "snippet": {"language": "en"}},
                 },
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,

@@ -10,6 +10,7 @@ from mcp_server.integrations.contracts import (
     EndpointMetadata,
     EndpointRequestShape,
     require_mapping_fields,
+    require_optional_mapping_fields,
 )
 from mcp_server.integrations.executor import IntegrationExecutor, RequestExecution
 
@@ -159,6 +160,35 @@ class CaptionsInsertWrapper(RepresentativeEndpointWrapper):
         return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 
+@dataclass(frozen=True)
+class CaptionsUpdateWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `captions.update`.
+
+    Official quota cost: ``450`` quota units. The wrapper requires a `body`
+    caption resource payload and supports an optional `media` payload for
+    body-plus-media content replacement on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `captions.update` with OAuth and update validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("captions.update requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
 def build_activities_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `activities.list`.
 
@@ -250,3 +280,39 @@ def build_captions_insert_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return CaptionsInsertWrapper(metadata=metadata)
+
+
+def build_captions_update_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `captions.update`.
+
+    Official quota cost: ``450`` quota units. The wrapper requires a `body`
+    caption-resource payload, supports body-only updates and body-plus-media
+    content replacement, allows optional `onBehalfOfContentOwner` delegation on
+    authorized requests, and keeps the update boundary visible for higher-layer
+    reuse.
+
+    :return: Representative wrapper configured for `captions.update`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="captions",
+        operation_name="update",
+        http_method="PUT",
+        path_shape="/youtube/v3/captions",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body"),
+            optional_fields=("media", "onBehalfOfContentOwner"),
+            validators=(
+                require_mapping_fields("body", required_keys=("id", "snippet")),
+                require_optional_mapping_fields("media", required_keys=("mimeType", "content")),
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=450,
+        notes=(
+            "Requires oauth_required auth. Use `body` for the caption resource "
+            "being updated, use `media` only for supported body-plus-media "
+            "content replacement, and treat `onBehalfOfContentOwner` as "
+            "optional delegation context."
+        ),
+    )
+    return CaptionsUpdateWrapper(metadata=metadata)
