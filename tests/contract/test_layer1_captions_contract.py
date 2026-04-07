@@ -5,6 +5,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.integrations.wrappers import (
+    build_captions_download_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
     build_captions_update_wrapper,
@@ -164,6 +165,55 @@ class Layer1CaptionsContractTests(unittest.TestCase):
         self.assertIn("invalid request shape", auth_media_contract)
         self.assertIn("body-only", auth_media_contract)
         self.assertIn("body-plus-media", auth_media_contract)
+
+    def test_download_contract_artifacts_define_access_and_format_guidance(self):
+        root = os.path.abspath("specs/107-captions-download/contracts")
+        with open(
+            os.path.join(root, "layer1-captions-download-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-captions-download-access-format-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            access_contract = handle.read()
+
+        self.assertIn("quota cost of `200`", wrapper_contract)
+        self.assertIn("tfmt", wrapper_contract)
+        self.assertIn("tlang", wrapper_contract)
+        self.assertIn("OAuth-required", access_contract)
+        self.assertIn("onBehalfOfContentOwner", access_contract)
+        self.assertIn("permission", access_contract)
+
+    def test_captions_download_wrapper_review_surface_exposes_identity_quota_and_auth(self):
+        review_surface = build_captions_download_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "captions")
+        self.assertEqual(review_surface["operationName"], "download")
+        self.assertEqual(review_surface["operationKey"], "captions.download")
+        self.assertEqual(review_surface["quotaCost"], 200)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id",))
+        self.assertIn("tfmt", review_surface["optionalFields"])
+        self.assertIn("tlang", review_surface["optionalFields"])
+
+    def test_download_contract_documents_failure_boundary(self):
+        with open(
+            os.path.join(
+                os.path.abspath("specs/107-captions-download/contracts"),
+                "layer1-captions-download-access-format-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            access_contract = handle.read()
+
+        self.assertIn("inaccessible caption tracks", access_contract)
+        self.assertIn("nonexistent caption tracks", access_contract)
+        self.assertIn("invalid request", access_contract)
 
 
 if __name__ == "__main__":

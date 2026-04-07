@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from mcp_server.integrations.executor import IntegrationExecutor, IntegrationHooks, RequestExecution
@@ -46,6 +46,9 @@ def build_youtube_data_api_transport(
         except TimeoutError as error:
             raise _normalized_upstream_failure(str(error), status_code=504, details={"reason": "timeout"})
 
+        if execution.metadata.operation_key == "captions.download":
+            return _download_payload(execution, payload)
+
         parsed = json.loads(payload)
         if not isinstance(parsed, dict):
             raise ValueError("YouTube Data API responses must decode to an object")
@@ -82,9 +85,17 @@ def build_youtube_data_api_request(execution: RequestExecution) -> Request:
     :param execution: Shared request execution details.
     :return: Configured HTTP request object.
     """
-    query_arguments = _query_arguments(execution.metadata.http_method, execution.arguments)
+    resolved_path = _resolved_path_shape(execution.metadata.path_shape, execution.arguments)
+    query_arguments = _query_arguments(
+        execution.metadata.http_method,
+        execution.metadata.path_shape,
+        execution.arguments,
+    )
     query = _query_parameters(query_arguments, execution.credentials)
-    url = f"{YOUTUBE_DATA_API_ORIGIN}{execution.metadata.path_shape}?{urlencode(query, doseq=True)}"
+    query_string = urlencode(query, doseq=True)
+    url = f"{YOUTUBE_DATA_API_ORIGIN}{resolved_path}"
+    if query_string:
+        url = f"{url}?{query_string}"
     headers = {"Accept": "application/json"}
     request_data = _request_data(execution.metadata.http_method, execution.arguments)
     oauth_token = execution.credentials.get("oauthToken")
@@ -95,16 +106,59 @@ def build_youtube_data_api_request(execution: RequestExecution) -> Request:
     return Request(url, data=request_data, method=execution.metadata.http_method.upper(), headers=headers)
 
 
-def _query_arguments(http_method: str, arguments: Mapping[str, object]) -> Mapping[str, object]:
+def _query_arguments(
+    http_method: str,
+    path_shape: str,
+    arguments: Mapping[str, object],
+) -> Mapping[str, object]:
     """Return the argument subset that should remain in the query string.
 
     :param http_method: Upstream HTTP method for the request.
+    :param path_shape: Upstream path shape for the request.
     :param arguments: Wrapper arguments selected for the execution.
     :return: Arguments that belong in the request URL.
     """
+    path_fields = set(_path_parameters(path_shape))
     if http_method.upper() not in {"POST", "PUT", "PATCH"}:
-        return arguments
-    return {key: value for key, value in arguments.items() if key not in {"body", "media"}}
+        return {key: value for key, value in arguments.items() if key not in path_fields}
+    return {
+        key: value
+        for key, value in arguments.items()
+        if key not in {"body", "media"} and key not in path_fields
+    }
+
+
+def _resolved_path_shape(path_shape: str, arguments: Mapping[str, object]) -> str:
+    """Return the path shape with placeholder fields filled from arguments.
+
+    :param path_shape: Declared upstream path shape.
+    :param arguments: Wrapper arguments selected for the execution.
+    :return: Resolved path safe for URL construction.
+    """
+    resolved = path_shape
+    for field_name in _path_parameters(path_shape):
+        resolved = resolved.replace(f"{{{field_name}}}", quote(_stringify_scalar(arguments.get(field_name)), safe=""))
+    return resolved
+
+
+def _path_parameters(path_shape: str) -> tuple[str, ...]:
+    """Return placeholder field names referenced by one path shape.
+
+    :param path_shape: Declared upstream path shape.
+    :return: Ordered placeholder names without braces.
+    """
+    parameters: list[str] = []
+    start_index = 0
+    while True:
+        open_index = path_shape.find("{", start_index)
+        if open_index == -1:
+            break
+        close_index = path_shape.find("}", open_index + 1)
+        if close_index == -1:
+            break
+        parameters.append(path_shape[open_index + 1 : close_index])
+        start_index = close_index + 1
+    return tuple(parameters)
 
 
 def _request_data(http_method: str, arguments: Mapping[str, object]) -> bytes | None:
@@ -279,3 +333,19 @@ def _normalized_upstream_failure(
         status_code=status_code,
         details=details,
     )
+
+
+def _download_payload(execution: RequestExecution, payload: str) -> dict[str, Any]:
+    """Return the internal result shape for a `captions.download` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw caption body returned by the upstream response.
+    :return: Lightweight download result with stable metadata fields.
+    """
+    return {
+        "captionId": _stringify_scalar(execution.arguments.get("id")),
+        "content": payload,
+        "contentFormat": execution.arguments.get("tfmt"),
+        "contentLanguage": execution.arguments.get("tlang"),
+        "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+    }

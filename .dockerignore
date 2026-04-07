@@ -24,11 +24,13 @@ coverage/
 .env
 .env.*
 *.log
+*.log*
 
 # VCS and editor state
 .git/
 .gitignore
 .dockerignore
+Dockerfile*
 .vscode/
 .idea/
 .DS_Store

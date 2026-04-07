@@ -62,6 +62,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - Python 3.11 + Python standard library dataclasses and enums, existing integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff (103-activities-list)
 - N/A for feature-specific persistence; request handling remains in-memory and design artifacts remain file-based under `/Users/ctgunn/Projects/youtube-mcp-server/specs/103-activities-list/` (103-activities-list)
 - N/A for feature-specific persistence; wrapper metadata and request validation remain in-memory and feature design artifacts remain file-based (103-activities-list)
+- N/A for feature-specific persistence; wrapper metadata, request handling, and representative download results remain in-memory and feature design artifacts remain file-based (107-captions-download)
+- N/A for feature-specific persistence; wrapper metadata, request validation, and execution state remain in-memory and feature design artifacts remain file-based (107-captions-download)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -82,9 +84,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
-- 106-captions-update: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
-- 106-captions-update: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
-- 105-captions-insert: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
+- 107-captions-download: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
+- 107-captions-download: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
+- 107-captions-download: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
 
 
 <!-- MANUAL ADDITIONS START -->
