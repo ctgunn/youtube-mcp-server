@@ -108,7 +108,7 @@ def _query_arguments(http_method: str, arguments: Mapping[str, object]) -> Mappi
 
 
 def _request_data(http_method: str, arguments: Mapping[str, object]) -> bytes | None:
-    """Return encoded request data for upload-sensitive operations.
+    """Return encoded request data for caption write operations.
 
     :param http_method: Upstream HTTP method for the request.
     :param arguments: Wrapper arguments selected for the execution.

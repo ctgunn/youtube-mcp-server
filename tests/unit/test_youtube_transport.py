@@ -18,6 +18,7 @@ from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
+    build_captions_update_wrapper,
 )
 
 
@@ -63,6 +64,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_captions_insert_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _captions_update_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_captions_update_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -160,6 +173,51 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("multipart/related", request.headers["Content-type"])
         self.assertIn(b'"videoId": "video-123"', request.data)
         self.assertIn(b"caption payload", request.data)
+
+    def test_builds_oauth_request_for_captions_update_body_only(self):
+        execution = self._captions_update_execution(
+            arguments={
+                "part": "snippet",
+                "body": {"id": "caption-123", "snippet": {"language": "en", "name": "Updated English"}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "PUT")
+        self.assertIn("https://www.googleapis.com/youtube/v3/captions?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertIn(b'"id": "caption-123"', request.data)
+
+    def test_builds_oauth_request_for_captions_update_body_plus_media(self):
+        execution = self._captions_update_execution(
+            arguments={
+                "part": "snippet",
+                "body": {"id": "caption-123", "snippet": {"language": "en", "name": "Updated English"}},
+                "media": {"mimeType": "text/plain", "content": "updated caption payload"},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "PUT")
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertIn("multipart/related", request.headers["Content-type"])
+        self.assertIn(b'"id": "caption-123"', request.data)
+        self.assertIn(b"updated caption payload", request.data)
 
     def test_transport_parses_successful_youtube_payload(self):
         transport = build_youtube_data_api_transport(
@@ -282,6 +340,40 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("multipart/related", captured["content_type"])
         self.assertIn(b"caption payload", captured["data"])
         self.assertEqual(captured["timeout"], 11.0)
+
+    def test_executor_can_run_live_captions_update_transport_shape(self):
+        captured = {}
+
+        def opener(request, timeout):
+            captured["url"] = request.full_url
+            captured["authorization"] = request.headers.get("Authorization")
+            captured["timeout"] = timeout
+            captured["method"] = request.method
+            captured["content_type"] = request.headers.get("Content-type")
+            captured["data"] = request.data
+            return _FakeHTTPResponse({"id": "caption-123", "kind": "youtube#caption"})
+
+        executor = build_youtube_data_api_executor(opener=opener, timeout_seconds=7.5)
+        result = build_captions_update_wrapper().call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"id": "caption-123", "snippet": {"language": "en"}},
+                "media": {"mimeType": "text/plain", "content": "updated caption payload"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "caption-123")
+        self.assertEqual(captured["method"], "PUT")
+        self.assertIn("part=snippet", captured["url"])
+        self.assertEqual(captured["authorization"], "Bearer oauth-token")
+        self.assertIn("multipart/related", captured["content_type"])
+        self.assertIn(b"updated caption payload", captured["data"])
+        self.assertEqual(captured["timeout"], 7.5)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,11 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.integrations.wrappers import build_captions_insert_wrapper, build_captions_list_wrapper
+from mcp_server.integrations.wrappers import (
+    build_captions_insert_wrapper,
+    build_captions_list_wrapper,
+    build_captions_update_wrapper,
+)
 
 
 class Layer1CaptionsContractTests(unittest.TestCase):
@@ -115,6 +119,51 @@ class Layer1CaptionsContractTests(unittest.TestCase):
         self.assertIn("Metadata", auth_upload_contract)
         self.assertIn("upload input", auth_upload_contract)
         self.assertIn("invalid request shape", auth_upload_contract)
+
+    def test_update_contract_artifacts_define_auth_and_media_guidance(self):
+        root = os.path.abspath("specs/106-captions-update/contracts")
+        with open(os.path.join(root, "layer1-captions-update-wrapper-contract.md"), "r", encoding="utf-8") as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-captions-update-auth-media-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_media_contract = handle.read()
+
+        self.assertIn("quota cost of `450`", wrapper_contract)
+        self.assertIn("body", wrapper_contract)
+        self.assertIn("media", wrapper_contract)
+        self.assertIn("OAuth-required", auth_media_contract)
+        self.assertIn("onBehalfOfContentOwner", auth_media_contract)
+        self.assertIn("body", auth_media_contract)
+        self.assertIn("media", auth_media_contract)
+
+    def test_captions_update_wrapper_review_surface_exposes_identity_quota_and_auth(self):
+        review_surface = build_captions_update_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "captions")
+        self.assertEqual(review_surface["operationName"], "update")
+        self.assertEqual(review_surface["operationKey"], "captions.update")
+        self.assertEqual(review_surface["quotaCost"], 450)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body"))
+        self.assertIn("media", review_surface["optionalFields"])
+
+    def test_update_contract_documents_invalid_incomplete_request_shapes(self):
+        with open(
+            os.path.join(
+                os.path.abspath("specs/106-captions-update/contracts"),
+                "layer1-captions-update-auth-media-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_media_contract = handle.read()
+
+        self.assertIn("invalid request shape", auth_media_contract)
+        self.assertIn("body-only", auth_media_contract)
+        self.assertIn("body-plus-media", auth_media_contract)
 
 
 if __name__ == "__main__":

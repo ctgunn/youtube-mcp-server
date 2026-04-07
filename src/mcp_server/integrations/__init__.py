@@ -17,6 +17,7 @@ from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
+    build_captions_update_wrapper,
 )
 from mcp_server.integrations.youtube import (
     build_youtube_data_api_executor,
@@ -37,6 +38,7 @@ __all__ = [
     "build_activities_list_wrapper",
     "build_captions_insert_wrapper",
     "build_captions_list_wrapper",
+    "build_captions_update_wrapper",
     "build_youtube_data_api_executor",
     "build_youtube_data_api_request",
     "build_youtube_data_api_transport",

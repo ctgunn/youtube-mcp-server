@@ -13,6 +13,7 @@ from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
+    build_captions_update_wrapper,
 )
 from mcp_server.observability import InMemoryObservability
 
@@ -194,6 +195,62 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         self.assertEqual(result["id"], "caption-456")
         self.assertEqual(result["videoId"], "video-123")
         self.assertEqual(result["delegatedOwner"], "owner-123")
+
+    def test_captions_update_wrapper_executes_body_only_requests_through_shared_executor(self):
+        wrapper = build_captions_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": execution.arguments["body"]["id"],
+                "language": execution.arguments["body"]["snippet"]["language"],
+                "kind": "youtube#caption",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"id": "caption-567", "snippet": {"language": "en", "name": "Updated English"}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "caption-567")
+        self.assertEqual(result["language"], "en")
+
+    def test_captions_update_wrapper_executes_body_plus_media_requests_through_shared_executor(self):
+        wrapper = build_captions_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": execution.arguments["body"]["id"],
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                "hasMedia": "media" in execution.arguments,
+                "kind": "youtube#caption",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"id": "caption-678", "snippet": {"language": "en", "name": "Updated English"}},
+                "media": {"mimeType": "text/plain", "content": "updated caption body"},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "caption-678")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+        self.assertTrue(result["hasMedia"])
 
     def test_representative_wrapper_execution_uses_shared_observability_hooks(self):
         observability = InMemoryObservability()
