@@ -13,6 +13,7 @@ from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_captions_insert_wrapper,
     build_captions_list_wrapper,
 )
 
@@ -126,6 +127,35 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("onBehalfOfContentOwner", result["sourceNotes"])
+
+    def test_consumer_can_summarize_caption_creation_for_higher_layers(self):
+        wrapper = build_captions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "caption-999", "kind": "youtube#caption"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.create_caption_summary(
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"videoId": "video-123", "language": "en"}},
+                "media": {"mimeType": "text/plain", "content": "caption payload"},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["captionId"], "caption-999")
+        self.assertTrue(result["isCreated"])
+        self.assertEqual(result["sourceOperation"], "captions.insert")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 400)
+        self.assertIn("body", result["sourceNotes"])
+        self.assertIn("media", result["sourceNotes"])
 
 
 if __name__ == "__main__":

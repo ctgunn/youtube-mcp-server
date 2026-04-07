@@ -82,13 +82,58 @@ def build_youtube_data_api_request(execution: RequestExecution) -> Request:
     :param execution: Shared request execution details.
     :return: Configured HTTP request object.
     """
-    query = _query_parameters(execution.arguments, execution.credentials)
+    query_arguments = _query_arguments(execution.metadata.http_method, execution.arguments)
+    query = _query_parameters(query_arguments, execution.credentials)
     url = f"{YOUTUBE_DATA_API_ORIGIN}{execution.metadata.path_shape}?{urlencode(query, doseq=True)}"
     headers = {"Accept": "application/json"}
+    request_data = _request_data(execution.metadata.http_method, execution.arguments)
     oauth_token = execution.credentials.get("oauthToken")
     if oauth_token:
         headers["Authorization"] = f"Bearer {oauth_token}"
-    return Request(url, method=execution.metadata.http_method.upper(), headers=headers)
+    if request_data is not None:
+        headers["Content-Type"] = _request_content_type(execution.arguments)
+    return Request(url, data=request_data, method=execution.metadata.http_method.upper(), headers=headers)
+
+
+def _query_arguments(http_method: str, arguments: Mapping[str, object]) -> Mapping[str, object]:
+    """Return the argument subset that should remain in the query string.
+
+    :param http_method: Upstream HTTP method for the request.
+    :param arguments: Wrapper arguments selected for the execution.
+    :return: Arguments that belong in the request URL.
+    """
+    if http_method.upper() not in {"POST", "PUT", "PATCH"}:
+        return arguments
+    return {key: value for key, value in arguments.items() if key not in {"body", "media"}}
+
+
+def _request_data(http_method: str, arguments: Mapping[str, object]) -> bytes | None:
+    """Return encoded request data for upload-sensitive operations.
+
+    :param http_method: Upstream HTTP method for the request.
+    :param arguments: Wrapper arguments selected for the execution.
+    :return: Encoded request payload when the method carries a body.
+    """
+    if http_method.upper() not in {"POST", "PUT", "PATCH"}:
+        return None
+    body = arguments.get("body")
+    media = arguments.get("media")
+    if isinstance(body, dict) and isinstance(media, dict):
+        return _multipart_related_payload(body=body, media=media)
+    if isinstance(body, dict):
+        return json.dumps(body).encode("utf-8")
+    return None
+
+
+def _request_content_type(arguments: Mapping[str, object]) -> str:
+    """Return the content type for the outgoing request body.
+
+    :param arguments: Wrapper arguments selected for the execution.
+    :return: Content type header value.
+    """
+    if isinstance(arguments.get("media"), dict):
+        return 'multipart/related; boundary="yt-mcp-boundary"'
+    return "application/json; charset=utf-8"
 
 
 def _query_parameters(
@@ -108,6 +153,44 @@ def _query_parameters(
     if api_key:
         params.append(("key", api_key))
     return params
+
+
+def _multipart_related_payload(
+    *,
+    body: Mapping[str, object],
+    media: Mapping[str, object],
+) -> bytes:
+    """Build a multipart payload for caption upload requests.
+
+    :param body: Caption metadata payload.
+    :param media: Media-upload payload including ``mimeType`` and ``content``.
+    :return: Encoded multipart body.
+    """
+    boundary = "yt-mcp-boundary"
+    metadata = json.dumps(body).encode("utf-8")
+    media_bytes = _media_content_bytes(media.get("content"))
+    mime_type = str(media.get("mimeType", "application/octet-stream"))
+    parts = [
+        f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n".encode("utf-8"),
+        metadata,
+        b"\r\n",
+        f"--{boundary}\r\nContent-Type: {mime_type}\r\n\r\n".encode("utf-8"),
+        media_bytes,
+        b"\r\n",
+        f"--{boundary}--\r\n".encode("utf-8"),
+    ]
+    return b"".join(parts)
+
+
+def _media_content_bytes(content: object) -> bytes:
+    """Convert media content into request-body bytes.
+
+    :param content: Media payload content from wrapper arguments.
+    :return: Byte representation of the media content.
+    """
+    if isinstance(content, bytes):
+        return content
+    return str(content).encode("utf-8")
 
 
 def _encode_values(value: object) -> Sequence[str]:

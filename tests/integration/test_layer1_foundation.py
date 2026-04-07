@@ -11,6 +11,7 @@ from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_captions_insert_wrapper,
     build_captions_list_wrapper,
 )
 from mcp_server.observability import InMemoryObservability
@@ -163,6 +164,36 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         )
 
         self.assertEqual(result["items"], [])
+
+    def test_captions_insert_wrapper_executes_authorized_create_requests_through_shared_executor(self):
+        wrapper = build_captions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "caption-456",
+                "videoId": execution.arguments["body"]["snippet"]["videoId"],
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                "kind": "youtube#caption",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"videoId": "video-123", "language": "en", "name": "English"}},
+                "media": {"mimeType": "text/plain", "content": "caption body"},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "caption-456")
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
 
     def test_representative_wrapper_execution_uses_shared_observability_hooks(self):
         observability = InMemoryObservability()
