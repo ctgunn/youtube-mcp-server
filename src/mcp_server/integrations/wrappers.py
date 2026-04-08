@@ -189,6 +189,35 @@ class CaptionsUpdateWrapper(RepresentativeEndpointWrapper):
         return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 
+@dataclass(frozen=True)
+class CaptionsDownloadWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `captions.download`.
+
+    Official quota cost: ``200`` quota units. The wrapper requires a caption
+    track ``id`` and supports optional ``tfmt`` and ``tlang`` modifiers plus
+    optional `onBehalfOfContentOwner` delegation on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `captions.download` with OAuth and option validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("captions.download requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
 def build_activities_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `activities.list`.
 
@@ -316,3 +345,35 @@ def build_captions_update_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return CaptionsUpdateWrapper(metadata=metadata)
+
+
+def build_captions_download_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `captions.download`.
+
+    Official quota cost: ``200`` quota units. The wrapper requires one caption
+    track ``id``, supports optional ``tfmt`` format conversion and ``tlang``
+    translation inputs, and keeps permission-sensitive and delegated download
+    guidance visible for higher-layer reuse.
+
+    :return: Representative wrapper configured for `captions.download`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="captions",
+        operation_name="download",
+        http_method="GET",
+        path_shape="/youtube/v3/captions/{id}",
+        request_shape=EndpointRequestShape(
+            required_fields=("id",),
+            optional_fields=("tfmt", "tlang", "onBehalfOfContentOwner"),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=200,
+        notes=(
+            "Requires oauth_required auth. Use `id` for the caption track being "
+            "downloaded, use `tfmt` and `tlang` only for supported output "
+            "variants, note that some downloads remain permission-sensitive "
+            "even with authorized access, and treat `onBehalfOfContentOwner` "
+            "as optional delegation context."
+        ),
+    )
+    return CaptionsDownloadWrapper(metadata=metadata)

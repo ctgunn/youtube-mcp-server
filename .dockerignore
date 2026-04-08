@@ -24,6 +24,7 @@ coverage/
 .env
 .env.*
 *.log
+*.log*
 
 # VCS and editor state
 .git/

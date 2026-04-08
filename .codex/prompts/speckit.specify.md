@@ -50,22 +50,20 @@ Given that feature description, do this:
 
 3. **Check for collisions before creating the branch**:
 
-   a. First, fetch all remote branches to ensure we have the latest information:
+   The collision check is defensive only. It must never replace the seed-derived branch number.
 
-      ```bash
-      git fetch --all --prune
-      ```
-
-   b. Check whether the seed-derived branch number is already in use:
-      - Remote branches: inspect for branches beginning with `<slice-number>-`
+   a. Check whether the seed-derived branch number is already in use using local evidence only:
       - Local branches: inspect for branches beginning with `<slice-number>-`
       - Specs directories: inspect for directories matching `specs/<slice-number>-*`
+      - Do **not** run `git fetch`, `git ls-remote`, or any other network-dependent command as part of `/speckit.specify`.
+      - Do **not** request elevated permissions for remote branch inspection during this workflow.
 
-   c. Resolve the collision check:
-      - If the matching existing branch/spec already uses the same slice number for the same feature, reuse that understanding and keep the same slice-derived number.
-      - If the slice number is already used for a different feature name or suffix, stop and ask the user for clarification instead of incrementing to a different number.
+   b. Resolve the collision check:
+      - If the matching existing local branch/spec already uses the same slice number for the same feature, reuse that understanding and keep the same slice-derived number.
+      - If local evidence shows the slice number is already used for a different feature name or suffix, stop and ask the user for clarification instead of incrementing to a different number.
+      - If no conflicting local evidence exists, proceed with the seed-derived number.
 
-   d. Run the script `.specify/scripts/bash/create-new-feature.sh --json "$ARGUMENTS"` with the seed-derived number and short-name:
+   c. Run the script `.specify/scripts/bash/create-new-feature.sh --json "$ARGUMENTS"` with the seed-derived number and short-name:
       - Pass `--number <slice-number>` and `--short-name "your-short-name"` along with the feature description
       - Bash example: `.specify/scripts/bash/create-new-feature.sh --json --number 105 --short-name "captions-insert" "Add caption insertion support"`
       - PowerShell example: `.specify/scripts/bash/create-new-feature.sh --json -Number 105 -ShortName "captions-insert" "Add caption insertion support"`
@@ -74,6 +72,8 @@ Given that feature description, do this:
    - `requirements/spec-kit-seed.md` is the authoritative source for the branch number
    - The branch number must be the zero-padded numeric portion of the matched slice identifier
    - Never increment to a new number just because another branch or spec already exists
+   - `/speckit.specify` must use local-only evidence for collision checks
+   - Never run remote fetch/list commands or request network access for branch-number selection
    - You must only ever run this script once per feature
    - The JSON is provided in the terminal as output - always refer to it to get the actual content you're looking for
    - The JSON output will contain BRANCH_NAME and SPEC_FILE paths
@@ -201,7 +201,7 @@ Given that feature description, do this:
 
    d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
 
-8. Report completion with branch name, matched seed slice ID, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
+8. Report completion with branch name, matched seed slice ID, spec file path, checklist results, readiness for the next phase (`/speckit.clarify` or `/speckit.plan`), and any local collision evidence that was found.
 
 **NOTE:** The script creates and checks out the new branch and initializes the spec file before writing.
 

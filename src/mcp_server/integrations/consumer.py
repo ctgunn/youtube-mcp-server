@@ -131,3 +131,28 @@ class RepresentativeHigherLayerConsumer:
             "sourceQuotaCost": self.wrapper.metadata.quota_cost,
             "sourceNotes": self.wrapper.metadata.notes,
         }
+
+    def download_caption_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `captions.download` result.
+
+        :param arguments: Wrapper arguments needed to download caption content.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing source contract details and download outcome.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        content = result.get("content")
+        return {
+            "captionId": result.get("captionId"),
+            "hasContent": isinstance(content, str) and bool(content),
+            "contentFormat": result.get("contentFormat"),
+            "contentLanguage": result.get("contentLanguage"),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceNotes": self.wrapper.metadata.notes,
+        }

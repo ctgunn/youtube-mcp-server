@@ -13,6 +13,7 @@ from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_captions_download_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
     build_captions_update_wrapper,
@@ -186,6 +187,36 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceQuotaCost"], 450)
         self.assertIn("body", result["sourceNotes"])
         self.assertIn("media", result["sourceNotes"])
+
+    def test_consumer_can_summarize_caption_downloads_for_higher_layers(self):
+        wrapper = build_captions_download_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "captionId": execution.arguments["id"],
+                "content": "caption line 1",
+                "contentFormat": execution.arguments.get("tfmt"),
+                "contentLanguage": execution.arguments.get("tlang"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.download_caption_summary(
+            arguments={"id": "caption-777", "tfmt": "srt", "tlang": "es"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["captionId"], "caption-777")
+        self.assertTrue(result["hasContent"])
+        self.assertEqual(result["contentFormat"], "srt")
+        self.assertEqual(result["contentLanguage"], "es")
+        self.assertEqual(result["sourceOperation"], "captions.download")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 200)
+        self.assertIn("tfmt", result["sourceNotes"])
 
 
 if __name__ == "__main__":
