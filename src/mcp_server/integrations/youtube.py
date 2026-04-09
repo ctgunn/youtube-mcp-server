@@ -40,16 +40,40 @@ def build_youtube_data_api_transport(
                 payload = response.read().decode("utf-8")
         except HTTPError as error:
             details = _error_details(error)
-            raise _normalized_upstream_failure(details["message"], status_code=error.code, details=details)
+            raise _normalized_upstream_failure(
+                details["message"],
+                category=_normalized_category_for_execution(execution, status_code=error.code, details=details),
+                status_code=error.code,
+                details=details,
+            )
         except URLError as error:
-            raise _normalized_upstream_failure(str(error.reason), details={"reason": str(error.reason)})
+            raise _normalized_upstream_failure(
+                str(error.reason),
+                category=_normalized_category_for_execution(
+                    execution,
+                    status_code=None,
+                    details={"reason": str(error.reason)},
+                ),
+                details={"reason": str(error.reason)},
+            )
         except TimeoutError as error:
-            raise _normalized_upstream_failure(str(error), status_code=504, details={"reason": "timeout"})
+            raise _normalized_upstream_failure(
+                str(error),
+                category=_normalized_category_for_execution(
+                    execution,
+                    status_code=504,
+                    details={"reason": "timeout"},
+                ),
+                status_code=504,
+                details={"reason": "timeout"},
+            )
 
         if execution.metadata.operation_key == "captions.download":
             return _download_payload(execution, payload)
         if execution.metadata.operation_key == "captions.delete":
             return _delete_payload(execution)
+        if execution.metadata.operation_key == "channelBanners.insert":
+            return _channel_banners_insert_payload(execution, payload)
 
         parsed = json.loads(payload)
         if not isinstance(parsed, dict):
@@ -176,6 +200,8 @@ def _request_data(http_method: str, arguments: Mapping[str, object]) -> bytes | 
     media = arguments.get("media")
     if isinstance(body, dict) and isinstance(media, dict):
         return _multipart_related_payload(body=body, media=media)
+    if isinstance(media, dict):
+        return _media_content_bytes(media.get("content"))
     if isinstance(body, dict):
         return json.dumps(body).encode("utf-8")
     return None
@@ -187,6 +213,9 @@ def _request_content_type(arguments: Mapping[str, object]) -> str:
     :param arguments: Wrapper arguments selected for the execution.
     :return: Content type header value.
     """
+    media = arguments.get("media")
+    if isinstance(media, dict) and not isinstance(arguments.get("body"), dict):
+        return str(media.get("mimeType", "application/octet-stream"))
     if isinstance(arguments.get("media"), dict):
         return 'multipart/related; boundary="yt-mcp-boundary"'
     return "application/json; charset=utf-8"
@@ -318,6 +347,7 @@ def _extract_error_message(body: str) -> str | None:
 def _normalized_upstream_failure(
     message: str,
     *,
+    category: str | None = None,
     status_code: int | None = None,
     details: dict[str, object] | None = None,
 ) -> Exception:
@@ -332,9 +362,36 @@ def _normalized_upstream_failure(
 
     return normalize_upstream_error(
         RuntimeError(message),
+        category=category,
         status_code=status_code,
         details=details,
     )
+
+
+def _normalized_category_for_execution(
+    execution: RequestExecution,
+    *,
+    status_code: int | None,
+    details: Mapping[str, object],
+) -> str | None:
+    """Return an operation-specific normalized error category when needed.
+
+    :param execution: Shared request execution details.
+    :param status_code: Optional upstream status code.
+    :param details: Sanitized upstream error details.
+    :return: Explicit normalized category override when one is needed.
+    """
+    if execution.metadata.operation_key != "channelBanners.insert":
+        return None
+    message = str(details.get("message", "")).lower()
+    reason = str(details.get("reason", "")).lower()
+    body = str(details.get("responseBody", "")).lower()
+    combined = " ".join(part for part in (message, reason, body) if part)
+    if status_code in {400, 422} or "mediabodyrequired" in combined or "invalid image" in combined:
+        return "invalid_request"
+    if status_code == 404 or "target channel" in combined or "channel banner target" in combined:
+        return "target_channel"
+    return None
 
 
 def _download_payload(execution: RequestExecution, payload: str) -> dict[str, Any]:
@@ -362,5 +419,26 @@ def _delete_payload(execution: RequestExecution) -> dict[str, Any]:
     return {
         "captionId": _stringify_scalar(execution.arguments.get("id")),
         "isDeleted": True,
+        "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+    }
+
+
+def _channel_banners_insert_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `channelBanners.insert` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Lightweight banner-upload result with stable metadata fields.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    return {
+        "bannerUrl": parsed.get("url"),
+        "isUploaded": bool(parsed.get("url")),
         "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
     }

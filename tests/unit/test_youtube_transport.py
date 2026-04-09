@@ -16,6 +16,7 @@ from mcp_server.integrations.youtube import (
 )
 from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
+    build_channel_banners_insert_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -105,6 +106,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_captions_delete_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _channel_banners_insert_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_channel_banners_insert_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -308,6 +321,103 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertEqual(result["captionId"], "caption-123")
         self.assertTrue(result["isDeleted"])
         self.assertEqual(result["delegatedOwner"], "owner-123")
+
+    def test_builds_oauth_request_for_channel_banners_insert(self):
+        execution = self._channel_banners_insert_execution(
+            arguments={"media": {"mimeType": "image/png", "content": b"banner-bytes"}},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "POST")
+        self.assertIn("https://www.googleapis.com/youtube/v3/channelBanners/insert", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "image/png")
+        self.assertEqual(request.data, b"banner-bytes")
+
+    def test_builds_oauth_request_for_channel_banners_insert_delegation(self):
+        execution = self._channel_banners_insert_execution(
+            arguments={
+                "media": {"mimeType": "image/png", "content": b"banner-bytes"},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
+
+    def test_transport_normalizes_successful_channel_banners_insert_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse({"url": "https://yt.example/banner"})
+        )
+
+        result = transport(
+            self._channel_banners_insert_execution(
+                arguments={"media": {"mimeType": "image/png", "content": b"banner-bytes"}},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["bannerUrl"], "https://yt.example/banner")
+        self.assertTrue(result["isUploaded"])
+
+    def test_transport_normalizes_channel_banners_invalid_upload_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/channelBanners/insert",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"mediaBodyRequired"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "mediaBodyRequired") as context:
+            transport(
+                self._channel_banners_insert_execution(
+                    arguments={"media": {"mimeType": "image/png", "content": b"banner-bytes"}},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_channel_banners_target_channel_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/channelBanners/insert",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Channel banner target not found"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Channel banner target not found") as context:
+            transport(
+                self._channel_banners_insert_execution(
+                    arguments={"media": {"mimeType": "image/png", "content": b"banner-bytes"}},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "target_channel")
 
     def test_transport_parses_successful_youtube_payload(self):
         transport = build_youtube_data_api_transport(

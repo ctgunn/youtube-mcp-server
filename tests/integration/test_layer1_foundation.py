@@ -12,6 +12,7 @@ from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_channel_banners_insert_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -457,6 +458,132 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "not_found")
+
+    def test_channel_banners_insert_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_channel_banners_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "bannerUrl": "https://yt.example/banner",
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"media": {"mimeType": "image/png", "content": b"banner-bytes"}},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["bannerUrl"], "https://yt.example/banner")
+
+    def test_channel_banners_insert_wrapper_executes_delegated_requests_through_shared_executor(self):
+        wrapper = build_channel_banners_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "bannerUrl": "https://yt.example/banner",
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "media": {"mimeType": "image/png", "content": b"banner-bytes"},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["bannerUrl"], "https://yt.example/banner")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+
+    def test_channel_banners_insert_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_channel_banners_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Banner upload denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Banner upload denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"media": {"mimeType": "image/png", "content": b"banner-bytes"}},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_channel_banners_insert_wrapper_preserves_invalid_upload_failures_from_shared_executor(self):
+        wrapper = build_channel_banners_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Banner upload payload invalid"),
+                    category="invalid_request",
+                    status_code=400,
+                    details={"reason": "mediaBodyRequired"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Banner upload payload invalid") as context:
+            wrapper.call(
+                executor,
+                arguments={"media": {"mimeType": "image/png", "content": b"banner-bytes"}},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_channel_banners_insert_wrapper_preserves_target_channel_failures_from_shared_executor(self):
+        wrapper = build_channel_banners_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Target channel cannot accept banner update"),
+                    category="target_channel",
+                    status_code=404,
+                    details={"reason": "missing"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(
+            NormalizedUpstreamError,
+            "Target channel cannot accept banner update",
+        ) as context:
+            wrapper.call(
+                executor,
+                arguments={"media": {"mimeType": "image/png", "content": b"banner-bytes"}},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "target_channel")
 
     def test_representative_wrapper_execution_uses_shared_observability_hooks(self):
         observability = InMemoryObservability()

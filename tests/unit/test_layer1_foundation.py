@@ -12,6 +12,7 @@ from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_channel_banners_insert_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -352,6 +353,66 @@ class Layer1FoundationUnitTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"id": "caption-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_channel_banners_insert_wrapper_exposes_expected_metadata(self):
+        wrapper = build_channel_banners_insert_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "channelBanners.insert")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/channelBanners/insert")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("media",))
+        self.assertIn("response URL", wrapper.metadata.notes)
+
+    def test_channel_banners_insert_wrapper_requires_media_field(self):
+        wrapper = build_channel_banners_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: media"):
+            wrapper.metadata.request_shape.validate_arguments({})
+
+    def test_channel_banners_insert_wrapper_rejects_incomplete_media_payload(self):
+        wrapper = build_channel_banners_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "media.content is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"media": {"mimeType": "image/png"}}
+            )
+
+    def test_channel_banners_insert_wrapper_rejects_unsupported_mime_type(self):
+        wrapper = build_channel_banners_insert_wrapper()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "media.mimeType must be image/jpeg, image/png, or application/octet-stream",
+        ):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"media": {"mimeType": "image/gif", "content": b"banner-bytes"}}
+            )
+
+    def test_channel_banners_insert_wrapper_rejects_oversized_uploads(self):
+        wrapper = build_channel_banners_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "media.content exceeds the 6 MB channel banner limit"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"media": {"mimeType": "image/png", "content": b"x" * (6 * 1024 * 1024 + 1)}}
+            )
+
+    def test_channel_banners_insert_wrapper_requires_oauth_mode(self):
+        wrapper = build_channel_banners_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"bannerUrl": "https://yt.example/banner"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "channelBanners.insert requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"media": {"mimeType": "image/png", "content": b"banner-bytes"}},
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),

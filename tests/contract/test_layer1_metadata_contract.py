@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.integrations.auth import AuthMode
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
+from mcp_server.integrations.wrappers import build_channel_banners_insert_wrapper
 
 
 class Layer1MetadataContractTests(unittest.TestCase):
@@ -77,6 +78,17 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("what type of caveat applies", reviewability_contract)
         self.assertIn("why it matters for reuse", reviewability_contract)
         self.assertIn("Free-form notes", reviewability_contract)
+
+    def test_channel_banners_insert_review_surface_exposes_quota_auth_and_upload_notes(self):
+        review_surface = build_channel_banners_insert_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "channelBanners")
+        self.assertEqual(review_surface["operationName"], "insert")
+        self.assertEqual(review_surface["operationKey"], "channelBanners.insert")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("media",))
+        self.assertIn("response URL", review_surface["notes"])
 
 
 if __name__ == "__main__":
