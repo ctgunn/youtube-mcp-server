@@ -12,6 +12,7 @@ from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
@@ -337,6 +338,103 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
 
     def test_captions_download_wrapper_preserves_not_found_failures_from_shared_executor(self):
         wrapper = build_captions_download_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Caption track not found"),
+                    status_code=404,
+                    details={"reason": "missing"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Caption track not found") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "caption-404"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "not_found")
+
+    def test_captions_delete_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_captions_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "captionId": execution.arguments["id"],
+                "isDeleted": True,
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "caption-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["captionId"], "caption-123")
+        self.assertTrue(result["isDeleted"])
+
+    def test_captions_delete_wrapper_executes_delegated_requests_through_shared_executor(self):
+        wrapper = build_captions_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "captionId": execution.arguments["id"],
+                "isDeleted": True,
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "caption-234", "onBehalfOfContentOwner": "owner-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["captionId"], "caption-234")
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+
+    def test_captions_delete_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_captions_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Caption delete denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Caption delete denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "caption-403"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_captions_delete_wrapper_preserves_not_found_failures_from_shared_executor(self):
+        wrapper = build_captions_delete_wrapper()
         executor = IntegrationExecutor(
             transport=lambda _execution: (_ for _ in ()).throw(
                 normalize_upstream_error(

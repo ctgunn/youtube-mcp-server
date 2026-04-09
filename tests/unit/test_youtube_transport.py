@@ -16,6 +16,7 @@ from mcp_server.integrations.youtube import (
 )
 from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
+    build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
@@ -92,6 +93,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_captions_download_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _captions_delete_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_captions_delete_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -258,6 +271,44 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
         self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
 
+    def test_builds_oauth_request_for_captions_delete(self):
+        execution = self._captions_delete_execution(
+            arguments={
+                "id": "caption-123",
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "DELETE")
+        self.assertIn("https://www.googleapis.com/youtube/v3/captions/caption-123?", request.full_url)
+        self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+
+    def test_transport_normalizes_successful_captions_delete_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse("")
+        )
+
+        result = transport(
+            self._captions_delete_execution(
+                arguments={"id": "caption-123", "onBehalfOfContentOwner": "owner-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["captionId"], "caption-123")
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+
     def test_transport_parses_successful_youtube_payload(self):
         transport = build_youtube_data_api_transport(
             opener=lambda request, timeout: _FakeHTTPResponse(
@@ -334,6 +385,52 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Caption track not found") as context:
             transport(
                 self._captions_download_execution(
+                    arguments={"id": "caption-404"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "not_found")
+
+    def test_transport_normalizes_captions_delete_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/captions/caption-123",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Caption delete denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Caption delete denied") as context:
+            transport(
+                self._captions_delete_execution(
+                    arguments={"id": "caption-123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_transport_normalizes_captions_delete_not_found_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/captions/caption-404",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Caption track not found"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Caption track not found") as context:
+            transport(
+                self._captions_delete_execution(
                     arguments={"id": "caption-404"},
                     auth_context=AuthContext(
                         mode=AuthMode.OAUTH_REQUIRED,

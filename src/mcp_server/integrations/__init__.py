@@ -15,6 +15,7 @@ from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
@@ -37,6 +38,7 @@ __all__ = [
     "NormalizedUpstreamError",
     "RepresentativeEndpointWrapper",
     "build_activities_list_wrapper",
+    "build_captions_delete_wrapper",
     "build_captions_download_wrapper",
     "build_captions_insert_wrapper",
     "build_captions_list_wrapper",

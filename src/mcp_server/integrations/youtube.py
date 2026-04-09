@@ -48,6 +48,8 @@ def build_youtube_data_api_transport(
 
         if execution.metadata.operation_key == "captions.download":
             return _download_payload(execution, payload)
+        if execution.metadata.operation_key == "captions.delete":
+            return _delete_payload(execution)
 
         parsed = json.loads(payload)
         if not isinstance(parsed, dict):
@@ -347,5 +349,18 @@ def _download_payload(execution: RequestExecution, payload: str) -> dict[str, An
         "content": payload,
         "contentFormat": execution.arguments.get("tfmt"),
         "contentLanguage": execution.arguments.get("tlang"),
+        "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+    }
+
+
+def _delete_payload(execution: RequestExecution) -> dict[str, Any]:
+    """Return the internal result shape for a `captions.delete` response.
+
+    :param execution: Shared request execution details.
+    :return: Lightweight delete result with stable metadata fields.
+    """
+    return {
+        "captionId": _stringify_scalar(execution.arguments.get("id")),
+        "isDeleted": True,
         "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
     }
