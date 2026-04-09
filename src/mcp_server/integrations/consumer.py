@@ -156,3 +156,26 @@ class RepresentativeHigherLayerConsumer:
             "sourceQuotaCost": self.wrapper.metadata.quota_cost,
             "sourceNotes": self.wrapper.metadata.notes,
         }
+
+    def delete_caption_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `captions.delete` result.
+
+        :param arguments: Wrapper arguments needed to delete a caption track.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing source contract details and delete outcome.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        return {
+            "captionId": result.get("captionId"),
+            "isDeleted": bool(result.get("isDeleted")),
+            "delegationApplied": bool(result.get("delegatedOwner")),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceNotes": self.wrapper.metadata.notes,
+        }

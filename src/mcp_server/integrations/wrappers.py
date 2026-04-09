@@ -218,6 +218,35 @@ class CaptionsDownloadWrapper(RepresentativeEndpointWrapper):
         return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 
+@dataclass(frozen=True)
+class CaptionsDeleteWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `captions.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a caption
+    track ``id`` and supports optional ``onBehalfOfContentOwner`` delegation on
+    an authorized request with ownership-sensitive behavior.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `captions.delete` with OAuth and delegation validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("captions.delete requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
 def build_activities_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `activities.list`.
 
@@ -377,3 +406,34 @@ def build_captions_download_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return CaptionsDownloadWrapper(metadata=metadata)
+
+
+def build_captions_delete_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `captions.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one caption
+    track ``id`` and supports optional ``onBehalfOfContentOwner`` delegation
+    while keeping ownership-sensitive delete guidance visible for higher-layer
+    reuse.
+
+    :return: Representative wrapper configured for `captions.delete`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="captions",
+        operation_name="delete",
+        http_method="DELETE",
+        path_shape="/youtube/v3/captions/{id}",
+        request_shape=EndpointRequestShape(
+            required_fields=("id",),
+            optional_fields=("onBehalfOfContentOwner",),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `id` for the caption track being "
+            "deleted, note that deletion remains ownership-sensitive even with "
+            "authorized access, and treat `onBehalfOfContentOwner` as optional "
+            "delegation context."
+        ),
+    )
+    return CaptionsDeleteWrapper(metadata=metadata)

@@ -12,6 +12,7 @@ from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
@@ -298,6 +299,56 @@ class Layer1FoundationUnitTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "captions.download requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"id": "caption-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_captions_delete_wrapper_exposes_expected_metadata(self):
+        wrapper = build_captions_delete_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "captions.delete")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/captions/{id}")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("id",))
+        self.assertIn("onBehalfOfContentOwner", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("ownership", wrapper.metadata.notes)
+
+    def test_captions_delete_wrapper_requires_id_field(self):
+        wrapper = build_captions_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: id"):
+            wrapper.metadata.request_shape.validate_arguments({})
+
+    def test_captions_delete_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = build_captions_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: videoId"):
+            wrapper.metadata.request_shape.validate_arguments({"id": "caption-123", "videoId": "video-123"})
+
+    def test_captions_delete_wrapper_allows_delegation_field(self):
+        wrapper = build_captions_delete_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {
+                "id": "caption-123",
+                "onBehalfOfContentOwner": "owner-123",
+            }
+        )
+
+    def test_captions_delete_wrapper_requires_oauth_mode(self):
+        wrapper = build_captions_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"captionId": "caption-123", "isDeleted": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "captions.delete requires oauth_required auth"):
             wrapper.call(
                 executor,
                 arguments={"id": "caption-123"},
