@@ -86,8 +86,6 @@ Python 3.11: Follow standard conventions and require reStructuredText docstrings
 
 ## Recent Changes
 - 109-channel-banners-insert: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
-- 109-channel-banners-insert: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
-- 109-channel-banners-insert: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
 
 
 <!-- MANUAL ADDITIONS START -->
