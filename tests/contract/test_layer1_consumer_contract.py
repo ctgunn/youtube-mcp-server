@@ -13,6 +13,7 @@ from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_channel_banners_insert_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -246,6 +247,37 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("ownership", result["sourceNotes"])
+
+    def test_consumer_can_summarize_channel_banner_uploads_for_higher_layers(self):
+        wrapper = build_channel_banners_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "bannerUrl": "https://yt.example/banner",
+                "isUploaded": True,
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.upload_channel_banner_summary(
+            arguments={
+                "media": {"mimeType": "image/png", "content": b"banner-bytes"},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["bannerUrl"], "https://yt.example/banner")
+        self.assertTrue(result["isUploaded"])
+        self.assertTrue(result["delegationApplied"])
+        self.assertEqual(result["sourceOperation"], "channelBanners.insert")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("response URL", result["sourceNotes"])
 
 
 if __name__ == "__main__":
