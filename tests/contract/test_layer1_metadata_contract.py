@@ -6,7 +6,10 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.integrations.auth import AuthMode
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
-from mcp_server.integrations.wrappers import build_channel_banners_insert_wrapper
+from mcp_server.integrations.wrappers import (
+    build_channel_banners_insert_wrapper,
+    build_channels_list_wrapper,
+)
 
 
 class Layer1MetadataContractTests(unittest.TestCase):
@@ -89,6 +92,19 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["authMode"], "oauth_required")
         self.assertEqual(review_surface["requiredFields"], ("media",))
         self.assertIn("response URL", review_surface["notes"])
+
+    def test_channels_list_review_surface_exposes_quota_auth_and_selector_notes(self):
+        review_surface = build_channels_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "channels")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "channels.list")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "mixed/conditional")
+        self.assertIn("forHandle", review_surface["optionalFields"])
+        self.assertIn("forUsername", review_surface["optionalFields"])
+        self.assertIn("mine", review_surface["exclusiveSelectors"])
+        self.assertIn("owner-scoped", review_surface["authConditionNote"])
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channels_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -90,6 +91,78 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             auth_context=AuthContext(
                 mode=AuthMode.OAUTH_REQUIRED,
                 credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+
+    def test_channels_list_wrapper_executes_id_selector_requests_through_shared_executor(self):
+        wrapper = build_channels_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {"items": [{"id": execution.arguments["id"]}]},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "id": "UC123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "UC123")
+
+    def test_channels_list_wrapper_executes_handle_selector_requests_through_shared_executor(self):
+        wrapper = build_channels_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {"items": [{"handle": execution.arguments["forHandle"]}]},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "forHandle": "@channel"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["handle"], "@channel")
+
+    def test_channels_list_wrapper_executes_mine_selector_requests_through_shared_executor(self):
+        wrapper = build_channels_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": [{"id": "mine-123"}]},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "mine": True},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "mine-123")
+
+    def test_channels_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_channels_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "forUsername": "legacy-user"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
             ),
         )
 
