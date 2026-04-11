@@ -65,6 +65,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - N/A for feature-specific persistence; wrapper metadata, request handling, and representative download results remain in-memory and feature design artifacts remain file-based (107-captions-download)
 - N/A for feature-specific persistence; wrapper metadata, request validation, and execution state remain in-memory and feature design artifacts remain file-based (107-captions-download)
 - N/A for feature-specific persistence; wrapper metadata, request validation, upload execution state, and feature design artifacts remain in-memory or file-based only (109-channel-banners-insert)
+- N/A for feature-specific persistence; wrapper metadata, selector validation state, and design artifacts remain in-memory or file-based only (110-channels-list-wrapper)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -85,6 +86,7 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 110-channels-list-wrapper: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
 - 109-channel-banners-insert: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
 
 

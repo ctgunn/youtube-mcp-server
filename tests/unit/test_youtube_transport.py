@@ -17,6 +17,7 @@ from mcp_server.integrations.youtube import (
 from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channels_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -58,6 +59,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_captions_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _channels_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_channels_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -143,6 +156,64 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
     def test_builds_oauth_request_for_authorized_activity(self):
         execution = self._execution(
+            arguments={"part": "snippet", "mine": True},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("mine=true", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+
+    def test_builds_api_key_request_for_channels_id_selector(self):
+        execution = self._channels_execution(
+            arguments={"part": "snippet", "id": "UC123", "maxResults": 5},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "GET")
+        self.assertIn("https://www.googleapis.com/youtube/v3/channels?", request.full_url)
+        self.assertIn("id=UC123", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("maxResults=5", request.full_url)
+        self.assertIn("key=yt-key", request.full_url)
+
+    def test_builds_api_key_request_for_channels_handle_selector(self):
+        execution = self._channels_execution(
+            arguments={"part": "snippet", "forHandle": "@channel"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("forHandle=%40channel", request.full_url)
+
+    def test_builds_api_key_request_for_channels_username_selector(self):
+        execution = self._channels_execution(
+            arguments={"part": "snippet", "forUsername": "legacy-user"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("forUsername=legacy-user", request.full_url)
+
+    def test_builds_oauth_request_for_channels_mine_selector(self):
+        execution = self._channels_execution(
             arguments={"part": "snippet", "mine": True},
             auth_context=AuthContext(
                 mode=AuthMode.OAUTH_REQUIRED,
@@ -598,6 +669,30 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("videoId=video-123", captured["url"])
         self.assertEqual(captured["authorization"], "Bearer oauth-token")
         self.assertEqual(captured["timeout"], 9.0)
+
+    def test_executor_can_run_live_channels_transport_shape(self):
+        captured = {}
+
+        def opener(request, timeout):
+            captured["url"] = request.full_url
+            captured["authorization"] = request.headers.get("Authorization")
+            captured["timeout"] = timeout
+            return _FakeHTTPResponse({"items": []})
+
+        executor = build_youtube_data_api_executor(opener=opener, timeout_seconds=8.0)
+        result = build_channels_list_wrapper().call(
+            executor,
+            arguments={"part": "snippet", "forHandle": "@channel"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertIn("forHandle=%40channel", captured["url"])
+        self.assertIsNone(captured["authorization"])
+        self.assertEqual(captured["timeout"], 8.0)
 
     def test_executor_can_run_live_captions_insert_transport_shape(self):
         captured = {}

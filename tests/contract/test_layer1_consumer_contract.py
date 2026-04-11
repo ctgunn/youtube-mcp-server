@@ -14,6 +14,7 @@ from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channels_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -108,6 +109,51 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["activityCount"], 0)
         self.assertEqual(result["sourceOperation"], "activities.list")
         self.assertEqual(result["sourceQuotaCost"], 1)
+
+    def test_consumer_can_summarize_channels_results_for_higher_layers(self):
+        wrapper = build_channels_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {"items": [{"id": execution.arguments.get("id", "UC123")}]},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_channels_summary(
+            arguments={"part": "snippet", "forHandle": "@channel"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "forHandle")
+        self.assertEqual(result["sourceOperation"], "channels.list")
+        self.assertEqual(result["sourceAuthMode"], "mixed/conditional")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("owner-scoped", result["sourceAuthConditionNote"])
+        self.assertIn("forUsername", result["sourceNotes"])
+
+    def test_consumer_can_summarize_empty_channels_results_for_higher_layers(self):
+        wrapper = build_channels_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_channels_summary(
+            arguments={"part": "snippet", "forUsername": "legacy-user"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelCount"], 0)
+        self.assertTrue(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "forUsername")
 
     def test_consumer_can_summarize_captions_results_for_higher_layers(self):
         wrapper = build_captions_list_wrapper()
