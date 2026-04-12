@@ -15,6 +15,7 @@ from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
     build_channels_list_wrapper,
+    build_channels_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -154,6 +155,40 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["channelCount"], 0)
         self.assertTrue(result["isEmpty"])
         self.assertEqual(result["selectorUsed"], "forUsername")
+
+    def test_consumer_can_summarize_channel_updates_for_higher_layers(self):
+        wrapper = build_channels_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {
+                "id": "UC999",
+                "brandingSettings": {"image": {"bannerExternalUrl": "https://yt.example/banner"}},
+                "kind": "youtube#channel",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.update_channel_summary(
+            arguments={
+                "part": "brandingSettings",
+                "body": {
+                    "id": "UC999",
+                    "brandingSettings": {"image": {"bannerExternalUrl": "https://yt.example/banner"}},
+                },
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelId"], "UC999")
+        self.assertTrue(result["isUpdated"])
+        self.assertEqual(result["updatedParts"], ("brandingSettings",))
+        self.assertEqual(result["sourceOperation"], "channels.update")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("bannerExternalUrl", result["sourceNotes"])
 
     def test_consumer_can_summarize_captions_results_for_higher_layers(self):
         wrapper = build_captions_list_wrapper()

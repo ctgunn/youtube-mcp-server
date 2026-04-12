@@ -14,6 +14,7 @@ from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
     build_channels_list_wrapper,
+    build_channels_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -160,6 +161,77 @@ class Layer1FoundationUnitTests(unittest.TestCase):
         wrapper.metadata.request_shape.validate_arguments(
             {"part": "snippet", "forUsername": "legacy-user"}
         )
+
+    def test_channels_update_wrapper_exposes_expected_metadata(self):
+        wrapper = build_channels_update_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "channels.update")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/channels")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "body"))
+        self.assertIn("brandingSettings", wrapper.metadata.notes)
+        self.assertIn("localizations", wrapper.metadata.notes)
+
+    def test_channels_update_wrapper_requires_body_field(self):
+        wrapper = build_channels_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: body"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "brandingSettings"})
+
+    def test_channels_update_wrapper_rejects_unsupported_part(self):
+        wrapper = build_channels_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unsupported writable part: statistics"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "statistics", "body": {"id": "UC123", "statistics": {"viewCount": "1"}}}
+            )
+
+    def test_channels_update_wrapper_rejects_part_body_mismatch(self):
+        wrapper = build_channels_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.brandingSettings is required for selected part"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "brandingSettings", "body": {"id": "UC123", "localizations": {"en": {"title": "Title"}}}}
+            )
+
+    def test_channels_update_wrapper_rejects_read_only_fields(self):
+        wrapper = build_channels_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.statistics is read-only or unsupported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "brandingSettings",
+                    "body": {
+                        "id": "UC123",
+                        "brandingSettings": {"image": {"bannerExternalUrl": "https://yt.example/banner"}},
+                        "statistics": {"viewCount": "1"},
+                    },
+                }
+            )
+
+    def test_channels_update_wrapper_requires_oauth_mode(self):
+        wrapper = build_channels_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "UC123", "kind": "youtube#channel"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "channels.update requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "brandingSettings",
+                    "body": {
+                        "id": "UC123",
+                        "brandingSettings": {"image": {"bannerExternalUrl": "https://yt.example/banner"}},
+                    },
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
 
     def test_captions_list_wrapper_exposes_expected_metadata(self):
         wrapper = build_captions_list_wrapper()

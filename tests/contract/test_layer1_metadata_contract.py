@@ -9,6 +9,7 @@ from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestS
 from mcp_server.integrations.wrappers import (
     build_channel_banners_insert_wrapper,
     build_channels_list_wrapper,
+    build_channels_update_wrapper,
 )
 
 
@@ -105,6 +106,18 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("forUsername", review_surface["optionalFields"])
         self.assertIn("mine", review_surface["exclusiveSelectors"])
         self.assertIn("owner-scoped", review_surface["authConditionNote"])
+
+    def test_channels_update_review_surface_exposes_quota_auth_and_write_notes(self):
+        review_surface = build_channels_update_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "channels")
+        self.assertEqual(review_surface["operationName"], "update")
+        self.assertEqual(review_surface["operationKey"], "channels.update")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body"))
+        self.assertIn("brandingSettings", review_surface["notes"])
+        self.assertIn("bannerExternalUrl", review_surface["notes"])
 
 
 if __name__ == "__main__":

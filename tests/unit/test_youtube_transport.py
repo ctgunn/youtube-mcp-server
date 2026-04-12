@@ -18,6 +18,7 @@ from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
     build_channels_list_wrapper,
+    build_channels_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -59,6 +60,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_captions_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _channels_update_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_channels_update_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -225,6 +238,32 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertIn("mine=true", request.full_url)
         self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+
+    def test_builds_oauth_put_request_for_channels_update(self):
+        execution = self._channels_update_execution(
+            arguments={
+                "part": "brandingSettings,localizations",
+                "body": {
+                    "id": "UC123",
+                    "brandingSettings": {"image": {"bannerExternalUrl": "https://yt.example/banner"}},
+                    "localizations": {"en": {"title": "Updated Channel"}},
+                },
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "PUT")
+        self.assertIn("https://www.googleapis.com/youtube/v3/channels?", request.full_url)
+        self.assertIn("part=brandingSettings%2Clocalizations", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertIn(b'"id": "UC123"', request.data)
+        self.assertIn(b'"bannerExternalUrl": "https://yt.example/banner"', request.data)
 
     def test_builds_oauth_request_for_captions_video_lookup(self):
         execution = self._captions_execution(
@@ -489,6 +528,64 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "target_channel")
+
+    def test_transport_normalizes_channels_update_invalid_write_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/channels",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Read-only field specified in channel update"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Read-only field specified in channel update") as context:
+            transport(
+                self._channels_update_execution(
+                    arguments={
+                        "part": "brandingSettings",
+                        "body": {
+                            "id": "UC123",
+                            "brandingSettings": {"image": {"bannerExternalUrl": "https://yt.example/banner"}},
+                        },
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_channels_update_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/channels",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Channel update denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Channel update denied") as context:
+            transport(
+                self._channels_update_execution(
+                    arguments={
+                        "part": "brandingSettings",
+                        "body": {
+                            "id": "UC123",
+                            "brandingSettings": {"image": {"bannerExternalUrl": "https://yt.example/banner"}},
+                        },
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
 
     def test_transport_parses_successful_youtube_payload(self):
         transport = build_youtube_data_api_transport(
