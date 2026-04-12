@@ -14,6 +14,7 @@ from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channel_sections_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_captions_delete_wrapper,
@@ -155,6 +156,59 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["channelCount"], 0)
         self.assertTrue(result["isEmpty"])
         self.assertEqual(result["selectorUsed"], "forUsername")
+
+    def test_consumer_can_summarize_channel_sections_results_for_higher_layers(self):
+        wrapper = build_channel_sections_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "section-123",
+                        "snippet": {"type": "singlePlaylist"},
+                        "channelId": execution.arguments.get("channelId"),
+                    }
+                ]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_channel_sections_summary(
+            arguments={"part": "snippet", "channelId": "UC123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelSectionCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "channelId")
+        self.assertEqual(result["sourceOperation"], "channelSections.list")
+        self.assertEqual(result["sourceAuthMode"], "mixed/conditional")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("owner-scoped", result["sourceAuthConditionNote"])
+        self.assertIn("lifecycle", result["sourceNotes"])
+
+    def test_consumer_can_summarize_empty_channel_sections_results_for_higher_layers(self):
+        wrapper = build_channel_sections_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_channel_sections_summary(
+            arguments={"part": "snippet", "mine": True},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelSectionCount"], 0)
+        self.assertTrue(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "mine")
 
     def test_consumer_can_summarize_channel_updates_for_higher_layers(self):
         wrapper = build_channels_update_wrapper()
