@@ -16,6 +16,7 @@ from mcp_server.integrations.executor import IntegrationExecutor, RequestExecuti
 
 _CHANNEL_BANNER_ALLOWED_MIME_TYPES = frozenset({"image/jpeg", "image/png", "application/octet-stream"})
 _CHANNEL_BANNER_MAX_BYTES = 6 * 1024 * 1024
+_CHANNELS_UPDATE_SUPPORTED_PARTS = frozenset({"brandingSettings", "localizations"})
 
 
 @dataclass(frozen=True)
@@ -152,6 +153,35 @@ class ChannelsListWrapper(RepresentativeEndpointWrapper):
             if value is True:
                 return field
         raise ValueError("channels.list requires a supported selector")
+
+
+@dataclass(frozen=True)
+class ChannelsUpdateWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `channels.update`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a channel
+    resource ``body`` payload aligned to supported writable parts on an
+    authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `channels.update` with OAuth and write-shape validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("channels.update requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 
 @dataclass(frozen=True)
@@ -396,6 +426,81 @@ def build_channels_list_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return ChannelsListWrapper(metadata=metadata)
+
+
+def _channels_update_parts(arguments: dict[str, object]) -> tuple[str, ...]:
+    """Return normalized writable parts for one `channels.update` request.
+
+    :param arguments: Wrapper arguments to inspect.
+    :return: Ordered supported writable parts without duplicates.
+    :raises ValueError: If no writable part is declared.
+    """
+    raw_part = arguments.get("part")
+    if not isinstance(raw_part, str):
+        raise ValueError("part must identify at least one supported writable part")
+    parts: list[str] = []
+    for part_name in raw_part.split(","):
+        normalized = part_name.strip()
+        if normalized and normalized not in parts:
+            parts.append(normalized)
+    if not parts:
+        raise ValueError("part must identify at least one supported writable part")
+    return tuple(parts)
+
+
+def _require_channels_update_body(arguments: dict[str, object]) -> None:
+    """Validate the supported `channels.update` request body.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request body does not match supported writable parts.
+    """
+    require_mapping_fields("body", required_keys=("id",))(arguments)
+    body = arguments.get("body")
+    assert isinstance(body, dict)  # Narrowed by validator above.
+    parts = _channels_update_parts(arguments)
+    unsupported_parts = [part for part in parts if part not in _CHANNELS_UPDATE_SUPPORTED_PARTS]
+    if unsupported_parts:
+        raise ValueError(f"unsupported writable part: {unsupported_parts[0]}")
+    for part_name in parts:
+        if part_name not in body:
+            raise ValueError(f"body.{part_name} is required for selected part")
+    allowed_keys = {"id", *parts}
+    unsupported_fields = [field for field in body if field not in allowed_keys]
+    if unsupported_fields:
+        raise ValueError(f"body.{unsupported_fields[0]} is read-only or unsupported")
+
+
+def build_channels_update_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `channels.update`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a channel
+    resource `body`, supports writable updates through ``brandingSettings`` and
+    ``localizations``, and keeps OAuth-required and banner-URL reuse guidance
+    visible for higher-layer reuse.
+
+    :return: Representative wrapper configured for `channels.update`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="channels",
+        operation_name="update",
+        http_method="PUT",
+        path_shape="/youtube/v3/channels",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body"),
+            validators=(
+                _require_channels_update_body,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `body` for the channel resource "
+            "being updated, support writable updates through `brandingSettings` "
+            "and `localizations`, reject read-only channel fields, and preserve "
+            "`brandingSettings.image.bannerExternalUrl` for banner-update reuse."
+        ),
+    )
+    return ChannelsUpdateWrapper(metadata=metadata)
 
 
 def build_captions_list_wrapper() -> RepresentativeEndpointWrapper:

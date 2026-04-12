@@ -14,6 +14,7 @@ from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
     build_channels_list_wrapper,
+    build_channels_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -328,6 +329,89 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         self.assertEqual(result["id"], "caption-678")
         self.assertEqual(result["delegatedOwner"], "owner-123")
         self.assertTrue(result["hasMedia"])
+
+    def test_channels_update_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_channels_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": execution.arguments["body"]["id"],
+                "brandingSettings": execution.arguments["body"].get("brandingSettings"),
+                "localizations": execution.arguments["body"].get("localizations"),
+                "kind": "youtube#channel",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "brandingSettings,localizations",
+                "body": {
+                    "id": "UC123",
+                    "brandingSettings": {"image": {"bannerExternalUrl": "https://yt.example/banner"}},
+                    "localizations": {"en": {"title": "Updated Channel"}},
+                },
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "UC123")
+        self.assertIn("brandingSettings", result)
+        self.assertIn("localizations", result)
+
+    def test_channels_update_wrapper_rejects_unsupported_write_shapes_before_executor(self):
+        wrapper = build_channels_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "should-not-run"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "body.brandingSettings is required for selected part"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "brandingSettings",
+                    "body": {"id": "UC123", "localizations": {"en": {"title": "Updated Channel"}}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_channels_update_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_channels_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Channel update denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Channel update denied") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "brandingSettings",
+                    "body": {
+                        "id": "UC123",
+                        "brandingSettings": {"image": {"bannerExternalUrl": "https://yt.example/banner"}},
+                    },
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
 
     def test_captions_download_wrapper_executes_authorized_requests_through_shared_executor(self):
         wrapper = build_captions_download_wrapper()
