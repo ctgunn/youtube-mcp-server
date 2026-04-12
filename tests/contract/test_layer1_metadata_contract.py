@@ -8,6 +8,7 @@ from mcp_server.integrations.auth import AuthMode
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
 from mcp_server.integrations.wrappers import (
     build_channel_banners_insert_wrapper,
+    build_channel_sections_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
 )
@@ -118,6 +119,18 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["requiredFields"], ("part", "body"))
         self.assertIn("brandingSettings", review_surface["notes"])
         self.assertIn("bannerExternalUrl", review_surface["notes"])
+
+    def test_channel_sections_list_review_surface_exposes_quota_auth_and_caveat_notes(self):
+        review_surface = build_channel_sections_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "channelSections")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "channelSections.list")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "mixed/conditional")
+        self.assertEqual(review_surface["exclusiveSelectors"], ("channelId", "id", "mine"))
+        self.assertIn("owner-scoped", review_surface["authConditionNote"])
+        self.assertIn("lifecycle", review_surface["notes"])
 
 
 if __name__ == "__main__":

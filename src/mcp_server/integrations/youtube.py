@@ -74,6 +74,8 @@ def build_youtube_data_api_transport(
             return _delete_payload(execution)
         if execution.metadata.operation_key == "channelBanners.insert":
             return _channel_banners_insert_payload(execution, payload)
+        if execution.metadata.operation_key == "channelSections.list":
+            return _channel_sections_list_payload(payload)
         if execution.metadata.operation_key == "channels.update":
             return _channels_update_payload(payload)
 
@@ -452,6 +454,19 @@ def _channel_banners_insert_payload(
         "isUploaded": bool(parsed.get("url")),
         "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
     }
+
+
+def _channel_sections_list_payload(payload: str) -> dict[str, Any]:
+    """Return the internal result shape for a `channelSections.list` response.
+
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed channel-sections list payload for retrieval consumers.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    return parsed
 
 
 def _channels_update_payload(payload: str) -> dict[str, Any]:

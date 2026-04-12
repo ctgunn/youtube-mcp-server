@@ -13,6 +13,7 @@ from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channel_sections_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_captions_delete_wrapper,
@@ -230,6 +231,74 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_channel_sections_list_wrapper_exposes_expected_metadata(self):
+        wrapper = build_channel_sections_list_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "channelSections.list")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/channelSections")
+        self.assertEqual(wrapper.metadata.quota_cost, 1)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "mixed/conditional")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part",))
+        self.assertEqual(wrapper.metadata.request_shape.exactly_one_of, ("channelId", "id", "mine"))
+        self.assertIn("channelId", wrapper.metadata.auth_condition_note)
+        self.assertIn("lifecycle", wrapper.metadata.notes)
+
+    def test_channel_sections_list_wrapper_requires_one_selector_field(self):
+        wrapper = build_channel_sections_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+    def test_channel_sections_list_wrapper_rejects_multiple_selector_fields(self):
+        wrapper = build_channel_sections_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "channelId": "UC123", "mine": True}
+            )
+
+    def test_channel_sections_list_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = build_channel_sections_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: forHandle"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "channelId": "UC123", "forHandle": "@channel"}
+            )
+
+    def test_channel_sections_list_wrapper_requires_oauth_mode_for_mine_selector(self):
+        wrapper = build_channel_sections_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "mine requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "mine": True},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_channel_sections_list_wrapper_requires_api_key_mode_for_public_selectors(self):
+        wrapper = build_channel_sections_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "channelId requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "channelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
                 ),
             )
 

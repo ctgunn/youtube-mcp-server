@@ -17,6 +17,7 @@ from mcp_server.integrations.youtube import (
 from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channel_sections_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_captions_delete_wrapper,
@@ -84,6 +85,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_channels_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _channel_sections_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_channel_sections_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -239,6 +252,52 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("mine=true", request.full_url)
         self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
 
+    def test_builds_api_key_request_for_channel_sections_channel_selector(self):
+        execution = self._channel_sections_execution(
+            arguments={"part": "snippet", "channelId": "UC123", "maxResults": 5},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "GET")
+        self.assertIn("https://www.googleapis.com/youtube/v3/channelSections?", request.full_url)
+        self.assertIn("channelId=UC123", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("maxResults=5", request.full_url)
+        self.assertIn("key=yt-key", request.full_url)
+
+    def test_builds_api_key_request_for_channel_sections_id_selector(self):
+        execution = self._channel_sections_execution(
+            arguments={"part": "snippet", "id": "section-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("id=section-123", request.full_url)
+
+    def test_builds_oauth_request_for_channel_sections_mine_selector(self):
+        execution = self._channel_sections_execution(
+            arguments={"part": "snippet", "mine": True, "pageToken": "cursor-1"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("mine=true", request.full_url)
+        self.assertIn("pageToken=cursor-1", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+
     def test_builds_oauth_put_request_for_channels_update(self):
         execution = self._channels_update_execution(
             arguments={
@@ -264,6 +323,29 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
         self.assertIn(b'"id": "UC123"', request.data)
         self.assertIn(b'"bannerExternalUrl": "https://yt.example/banner"', request.data)
+
+    def test_transport_returns_parsed_channel_sections_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {
+                    "items": [{"id": "section-123", "snippet": {"type": "singlePlaylist"}}],
+                    "nextPageToken": "cursor-2",
+                }
+            )
+        )
+
+        result = transport(
+            self._channel_sections_execution(
+                arguments={"part": "snippet", "channelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="yt-key"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["items"][0]["id"], "section-123")
+        self.assertEqual(result["nextPageToken"], "cursor-2")
 
     def test_builds_oauth_request_for_captions_video_lookup(self):
         execution = self._captions_execution(

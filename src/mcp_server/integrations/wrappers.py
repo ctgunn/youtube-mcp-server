@@ -156,6 +156,53 @@ class ChannelsListWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class ChannelSectionsListWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `channelSections.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports public selector
+    paths through ``channelId`` and ``id`` and owner-scoped retrieval through
+    ``mine`` with lifecycle-note guidance kept visible for maintainers.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `channelSections.list` with selector-aware auth validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the selector requires a different auth mode.
+        """
+        selector = self._selected_selector(arguments)
+        if selector == "mine" and auth_context.mode is not AuthMode.OAUTH_REQUIRED:
+            raise ValueError("mine requires oauth_required auth")
+        if selector in {"channelId", "id"} and auth_context.mode is not AuthMode.API_KEY:
+            raise ValueError(f"{selector} requires api_key auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+    def _selected_selector(self, arguments: dict[str, Any]) -> str:
+        """Return the active selector field for one channel-sections request.
+
+        :param arguments: Wrapper arguments to inspect.
+        :return: One of ``channelId``, ``id``, or ``mine``.
+        :raises ValueError: If no selector is present.
+        """
+        for field in ("channelId", "id", "mine"):
+            value = arguments.get(field)
+            if isinstance(value, str) and value.strip():
+                return field
+            if value is True:
+                return field
+        raise ValueError("channelSections.list requires a supported selector")
+
+
+@dataclass(frozen=True)
 class ChannelsUpdateWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `channels.update`.
 
@@ -426,6 +473,41 @@ def build_channels_list_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return ChannelsListWrapper(metadata=metadata)
+
+
+def build_channel_sections_list_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `channelSections.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports public selector
+    paths through ``channelId`` and ``id`` and owner-scoped retrieval through
+    ``mine`` while keeping lifecycle-note readiness visible for later caveats.
+
+    :return: Representative wrapper configured for `channelSections.list`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="channelSections",
+        operation_name="list",
+        http_method="GET",
+        path_shape="/youtube/v3/channelSections",
+        request_shape=EndpointRequestShape(
+            required_fields=("part",),
+            optional_fields=("channelId", "id", "mine", "pageToken", "maxResults"),
+            exactly_one_of=("channelId", "id", "mine"),
+        ),
+        auth_mode=AuthMode.CONDITIONAL,
+        quota_cost=1,
+        auth_condition_note=(
+            "Use `channelId` or `id` for public selector paths. Use `mine` for "
+            "owner-scoped retrieval with oauth_required auth."
+        ),
+        notes=(
+            "Supports selector paths through `channelId`, `id`, and `mine`. "
+            "Treat selector combinations as mutually exclusive, preserve empty "
+            "result sets as successful no-match outcomes, and keep lifecycle "
+            "notes visible when channel-sections availability caveats matter."
+        ),
+    )
+    return ChannelSectionsListWrapper(metadata=metadata)
 
 
 def _channels_update_parts(arguments: dict[str, object]) -> tuple[str, ...]:
