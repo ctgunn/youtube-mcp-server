@@ -14,6 +14,7 @@ from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
@@ -209,6 +210,46 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["channelSectionCount"], 0)
         self.assertTrue(result["isEmpty"])
         self.assertEqual(result["selectorUsed"], "mine")
+
+    def test_consumer_can_summarize_channel_section_creates_for_higher_layers(self):
+        wrapper = build_channel_sections_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {
+                "id": "section-123",
+                "snippet": {"type": "multipleChannels", "title": "Featured channels"},
+                "delegatedOwner": "owner-123",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.create_channel_section_summary(
+            arguments={
+                "part": "snippet,contentDetails",
+                "body": {
+                    "snippet": {
+                        "type": "multipleChannels",
+                        "channelId": "UC123",
+                        "title": "Featured channels",
+                    },
+                    "contentDetails": {"channels": ["UC777", "UC888"]},
+                },
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelSectionId"], "section-123")
+        self.assertTrue(result["isCreated"])
+        self.assertEqual(result["createdType"], "multipleChannels")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+        self.assertEqual(result["sourceOperation"], "channelSections.insert")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("snippet.type", result["sourceNotes"])
 
     def test_consumer_can_summarize_channel_updates_for_higher_layers(self):
         wrapper = build_channels_update_wrapper()

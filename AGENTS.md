@@ -88,9 +88,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 113-channel-sections-insert: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
 - 112-channel-sections-list-wrapper: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
 - 112-channel-sections-list-wrapper: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
-- 111-channels-update-wrapper: Added Python 3.11 + Python standard library dataclasses and enums, existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`, pytest, Ruff
 
 
 <!-- MANUAL ADDITIONS START -->
