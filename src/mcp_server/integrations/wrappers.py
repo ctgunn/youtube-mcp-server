@@ -17,6 +17,9 @@ from mcp_server.integrations.executor import IntegrationExecutor, RequestExecuti
 _CHANNEL_BANNER_ALLOWED_MIME_TYPES = frozenset({"image/jpeg", "image/png", "application/octet-stream"})
 _CHANNEL_BANNER_MAX_BYTES = 6 * 1024 * 1024
 _CHANNELS_UPDATE_SUPPORTED_PARTS = frozenset({"brandingSettings", "localizations"})
+_CHANNEL_SECTIONS_PLAYLIST_TYPES = frozenset({"singlePlaylist", "multiplePlaylists"})
+_CHANNEL_SECTIONS_CHANNEL_TYPES = frozenset({"multipleChannels"})
+_CHANNEL_SECTIONS_TITLE_REQUIRED_TYPES = frozenset({"multiplePlaylists", "multipleChannels"})
 
 
 @dataclass(frozen=True)
@@ -228,6 +231,35 @@ class ChannelsUpdateWrapper(RepresentativeEndpointWrapper):
         """
         if not auth_context.requires_oauth_access():
             raise ValueError("channels.update requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
+class ChannelSectionsInsertWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `channelSections.insert`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a channel
+    section resource ``body`` aligned to the selected ``snippet.type`` on an
+    authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `channelSections.insert` with OAuth and create-shape validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("channelSections.insert requires oauth_required auth")
         return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 
@@ -510,6 +542,106 @@ def build_channel_sections_list_wrapper() -> RepresentativeEndpointWrapper:
     return ChannelSectionsListWrapper(metadata=metadata)
 
 
+def _validated_reference_values(
+    raw_values: object,
+    *,
+    reference_label: str,
+    required_message: str,
+    duplicate_message: str,
+) -> tuple[str, ...]:
+    """Return validated channel or playlist references from one request body.
+
+    :param raw_values: Candidate list-like value from ``contentDetails``.
+    :param reference_label: Human-readable label for one reference type.
+    :param required_message: Validation message used when no usable values exist.
+    :param duplicate_message: Validation message used when duplicates appear.
+    :return: Normalized ordered references without duplicates.
+    :raises ValueError: If the list is missing, empty, malformed, or duplicated.
+    """
+    if not isinstance(raw_values, list):
+        raise ValueError(required_message)
+    values: list[str] = []
+    for raw_value in raw_values:
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            raise ValueError(required_message)
+        normalized = raw_value.strip()
+        if normalized in values:
+            raise ValueError(duplicate_message)
+        values.append(normalized)
+    if not values:
+        raise ValueError(required_message)
+    return tuple(values)
+
+
+def _require_channel_sections_insert_body(arguments: dict[str, object]) -> None:
+    """Validate the supported `channelSections.insert` request body.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request body does not match supported section rules.
+    """
+    require_mapping_fields("body", required_keys=("snippet",))(arguments)
+    body = arguments.get("body")
+    assert isinstance(body, dict)  # Narrowed by validator above.
+    supported_body_fields = {"snippet", "contentDetails"}
+    unsupported_fields = [field for field in body if field not in supported_body_fields]
+    if unsupported_fields:
+        raise ValueError(f"body.{unsupported_fields[0]} is read-only or unsupported")
+
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict) or not snippet:
+        raise ValueError("body.snippet is required")
+
+    raw_type = snippet.get("type")
+    if not isinstance(raw_type, str) or not raw_type.strip():
+        raise ValueError("body.snippet.type is required")
+    section_type = raw_type.strip()
+
+    raw_channel_id = snippet.get("channelId")
+    if not isinstance(raw_channel_id, str) or not raw_channel_id.strip():
+        raise ValueError("body.snippet.channelId is required")
+
+    title = snippet.get("title")
+    if section_type in _CHANNEL_SECTIONS_TITLE_REQUIRED_TYPES:
+        if not isinstance(title, str) or not title.strip():
+            raise ValueError(f"{section_type} requires body.snippet.title")
+
+    content_details = body.get("contentDetails")
+    if section_type in _CHANNEL_SECTIONS_PLAYLIST_TYPES:
+        if not isinstance(content_details, dict):
+            raise ValueError("body.contentDetails.playlists is required")
+        if content_details.get("channels") not in (None, [], ()):
+            raise ValueError(f"{section_type} does not accept body.contentDetails.channels")
+        playlist_ids = _validated_reference_values(
+            content_details.get("playlists"),
+            reference_label="playlist",
+            required_message="body.contentDetails.playlists is required",
+            duplicate_message="duplicate playlist references are unsupported",
+        )
+        if section_type == "singlePlaylist" and len(playlist_ids) != 1:
+            raise ValueError("singlePlaylist requires exactly one playlist id")
+        return
+
+    if section_type in _CHANNEL_SECTIONS_CHANNEL_TYPES:
+        if not isinstance(content_details, dict):
+            raise ValueError("body.contentDetails.channels is required")
+        if content_details.get("playlists") not in (None, [], ()):
+            raise ValueError(f"{section_type} does not accept body.contentDetails.playlists")
+        _validated_reference_values(
+            content_details.get("channels"),
+            reference_label="channel",
+            required_message="body.contentDetails.channels is required",
+            duplicate_message="duplicate channel references are unsupported",
+        )
+        return
+
+    if not isinstance(content_details, dict):
+        return
+    if content_details.get("playlists") not in (None, [], ()):
+        raise ValueError(f"{section_type} does not accept body.contentDetails.playlists")
+    if content_details.get("channels") not in (None, [], ()):
+        raise ValueError(f"{section_type} does not accept body.contentDetails.channels")
+
+
 def _channels_update_parts(arguments: dict[str, object]) -> tuple[str, ...]:
     """Return normalized writable parts for one `channels.update` request.
 
@@ -583,6 +715,42 @@ def build_channels_update_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return ChannelsUpdateWrapper(metadata=metadata)
+
+
+def build_channel_sections_insert_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `channelSections.insert`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a `body`
+    channel-section resource, validates `snippet.type`-specific content rules,
+    and keeps OAuth-required, title, and optional delegation guidance visible
+    for higher-layer reuse.
+
+    :return: Representative wrapper configured for `channelSections.insert`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="channelSections",
+        operation_name="insert",
+        http_method="POST",
+        path_shape="/youtube/v3/channelSections",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body"),
+            optional_fields=("onBehalfOfContentOwner", "onBehalfOfContentOwnerChannel"),
+            validators=(
+                _require_channel_sections_insert_body,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `body` for the channel section "
+            "resource being created, use `snippet.type` to select playlist, "
+            "channel, or other section rules, require `body.snippet.title` for "
+            "`multiplePlaylists` and `multipleChannels`, reject duplicated "
+            "playlist or channel references, and treat `onBehalfOfContentOwner` "
+            "and `onBehalfOfContentOwnerChannel` as optional delegation context."
+        ),
+    )
+    return ChannelSectionsInsertWrapper(metadata=metadata)
 
 
 def build_captions_list_wrapper() -> RepresentativeEndpointWrapper:

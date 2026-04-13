@@ -17,6 +17,7 @@ from mcp_server.integrations.youtube import (
 from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
@@ -97,6 +98,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_channel_sections_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _channel_sections_insert_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_channel_sections_insert_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -346,6 +359,136 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertEqual(result["items"][0]["id"], "section-123")
         self.assertEqual(result["nextPageToken"], "cursor-2")
+
+    def test_builds_oauth_post_request_for_channel_sections_insert(self):
+        execution = self._channel_sections_insert_execution(
+            arguments={
+                "part": "snippet,contentDetails",
+                "body": {
+                    "snippet": {
+                        "type": "multiplePlaylists",
+                        "channelId": "UC123",
+                        "title": "Featured playlists",
+                    },
+                    "contentDetails": {"playlists": ["PL123", "PL456"]},
+                },
+                "onBehalfOfContentOwner": "owner-123",
+                "onBehalfOfContentOwnerChannel": "UC123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "POST")
+        self.assertIn("https://www.googleapis.com/youtube/v3/channelSections?", request.full_url)
+        self.assertIn("part=snippet%2CcontentDetails", request.full_url)
+        self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
+        self.assertIn("onBehalfOfContentOwnerChannel=UC123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertIn(b'"type": "multiplePlaylists"', request.data)
+        self.assertIn(b'"title": "Featured playlists"', request.data)
+
+    def test_transport_normalizes_successful_channel_sections_insert_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {
+                    "id": "section-123",
+                    "snippet": {"type": "multipleChannels", "title": "Featured channels"},
+                }
+            )
+        )
+
+        result = transport(
+            self._channel_sections_insert_execution(
+                arguments={
+                    "part": "snippet,contentDetails",
+                    "body": {
+                        "snippet": {
+                            "type": "multipleChannels",
+                            "channelId": "UC123",
+                            "title": "Featured channels",
+                        },
+                        "contentDetails": {"channels": ["UC777", "UC888"]},
+                    },
+                    "onBehalfOfContentOwner": "owner-123",
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["id"], "section-123")
+        self.assertEqual(result["snippet"]["type"], "multipleChannels")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+
+    def test_transport_preserves_channel_sections_insert_create_limit_failures_as_upstream_service(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/channelSections",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"The channel already has the maximum number of sections"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "maximum number of sections") as context:
+            transport(
+                self._channel_sections_insert_execution(
+                    arguments={
+                        "part": "snippet,contentDetails",
+                        "body": {
+                            "snippet": {
+                                "type": "multiplePlaylists",
+                                "channelId": "UC123",
+                                "title": "Featured playlists",
+                            },
+                            "contentDetails": {"playlists": ["PL123", "PL456"]},
+                        },
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "upstream_service")
+
+    def test_transport_normalizes_channel_sections_insert_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/channelSections",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Channel section create denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Channel section create denied") as context:
+            transport(
+                self._channel_sections_insert_execution(
+                    arguments={
+                        "part": "snippet,contentDetails",
+                        "body": {
+                            "snippet": {"type": "singlePlaylist", "channelId": "UC123"},
+                            "contentDetails": {"playlists": ["PL123"]},
+                        },
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
 
     def test_builds_oauth_request_for_captions_video_lookup(self):
         execution = self._captions_execution(
