@@ -264,6 +264,35 @@ class ChannelSectionsInsertWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class ChannelSectionsUpdateWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `channelSections.update`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a channel
+    section resource ``body`` that identifies the existing section and stays
+    aligned to the selected ``snippet.type`` on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `channelSections.update` with OAuth and update-shape validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("channelSections.update requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class CaptionsListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `captions.list`.
 
@@ -573,19 +602,31 @@ def _validated_reference_values(
     return tuple(values)
 
 
-def _require_channel_sections_insert_body(arguments: dict[str, object]) -> None:
-    """Validate the supported `channelSections.insert` request body.
+def _validate_channel_sections_body(
+    arguments: dict[str, object],
+    *,
+    require_existing_id: bool,
+) -> None:
+    """Validate the supported channel-sections write request body.
 
     :param arguments: Wrapper arguments to validate.
+    :param require_existing_id: Whether the request body must identify an existing section.
     :raises ValueError: If the request body does not match supported section rules.
     """
     require_mapping_fields("body", required_keys=("snippet",))(arguments)
     body = arguments.get("body")
     assert isinstance(body, dict)  # Narrowed by validator above.
     supported_body_fields = {"snippet", "contentDetails"}
+    if require_existing_id:
+        supported_body_fields = {"id", *supported_body_fields}
     unsupported_fields = [field for field in body if field not in supported_body_fields]
     if unsupported_fields:
         raise ValueError(f"body.{unsupported_fields[0]} is read-only or unsupported")
+
+    if require_existing_id:
+        raw_id = body.get("id")
+        if not isinstance(raw_id, str) or not raw_id.strip():
+            raise ValueError("body.id is required")
 
     snippet = body.get("snippet")
     if not isinstance(snippet, dict) or not snippet:
@@ -640,6 +681,24 @@ def _require_channel_sections_insert_body(arguments: dict[str, object]) -> None:
         raise ValueError(f"{section_type} does not accept body.contentDetails.playlists")
     if content_details.get("channels") not in (None, [], ()):
         raise ValueError(f"{section_type} does not accept body.contentDetails.channels")
+
+
+def _require_channel_sections_insert_body(arguments: dict[str, object]) -> None:
+    """Validate the supported `channelSections.insert` request body.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request body does not match supported section rules.
+    """
+    _validate_channel_sections_body(arguments, require_existing_id=False)
+
+
+def _require_channel_sections_update_body(arguments: dict[str, object]) -> None:
+    """Validate the supported `channelSections.update` request body.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request body does not match supported update rules.
+    """
+    _validate_channel_sections_body(arguments, require_existing_id=True)
 
 
 def _channels_update_parts(arguments: dict[str, object]) -> tuple[str, ...]:
@@ -751,6 +810,43 @@ def build_channel_sections_insert_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return ChannelSectionsInsertWrapper(metadata=metadata)
+
+
+def build_channel_sections_update_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `channelSections.update`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a `body`
+    channel-section resource that includes `body.id`, validates
+    `snippet.type`-specific content rules, and keeps OAuth-required, title,
+    and optional delegation guidance visible for higher-layer reuse.
+
+    :return: Representative wrapper configured for `channelSections.update`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="channelSections",
+        operation_name="update",
+        http_method="PUT",
+        path_shape="/youtube/v3/channelSections",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body"),
+            optional_fields=("onBehalfOfContentOwner", "onBehalfOfContentOwnerChannel"),
+            validators=(
+                _require_channel_sections_update_body,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `body` for the existing channel "
+            "section resource being updated, require `body.id` to identify the "
+            "target section, use `snippet.type` to select playlist, channel, "
+            "or other section rules, require `body.snippet.title` for "
+            "`multiplePlaylists` and `multipleChannels`, reject duplicated "
+            "playlist or channel references, and treat `onBehalfOfContentOwner` "
+            "and `onBehalfOfContentOwnerChannel` as optional delegation context."
+        ),
+    )
+    return ChannelSectionsUpdateWrapper(metadata=metadata)
 
 
 def build_captions_list_wrapper() -> RepresentativeEndpointWrapper:

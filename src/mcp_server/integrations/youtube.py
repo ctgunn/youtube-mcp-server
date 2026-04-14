@@ -78,6 +78,8 @@ def build_youtube_data_api_transport(
             return _channel_sections_list_payload(payload)
         if execution.metadata.operation_key == "channelSections.insert":
             return _channel_sections_insert_payload(execution, payload)
+        if execution.metadata.operation_key == "channelSections.update":
+            return _channel_sections_update_payload(execution, payload)
         if execution.metadata.operation_key == "channels.update":
             return _channels_update_payload(payload)
 
@@ -388,7 +390,7 @@ def _normalized_category_for_execution(
     :return: Explicit normalized category override when one is needed.
     """
     if execution.metadata.operation_key != "channelBanners.insert":
-        if execution.metadata.operation_key != "channels.update":
+        if execution.metadata.operation_key not in {"channels.update", "channelSections.update"}:
             return None
         message = str(details.get("message", "")).lower()
         reason = str(details.get("reason", "")).lower()
@@ -480,6 +482,25 @@ def _channel_sections_insert_payload(
     :param execution: Shared request execution details.
     :param payload: Raw JSON payload returned by the upstream response.
     :return: Parsed channel-section create payload with stable metadata fields.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    parsed["delegatedOwner"] = execution.arguments.get("onBehalfOfContentOwner")
+    parsed["delegatedOwnerChannel"] = execution.arguments.get("onBehalfOfContentOwnerChannel")
+    return parsed
+
+
+def _channel_sections_update_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `channelSections.update` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed channel-section update payload with stable metadata fields.
     :raises ValueError: If the upstream response is not a JSON object.
     """
     parsed = json.loads(payload)

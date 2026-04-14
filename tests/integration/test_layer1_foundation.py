@@ -15,6 +15,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_banners_insert_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
+    build_channel_sections_update_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_captions_delete_wrapper,
@@ -613,6 +614,104 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "upstream_service")
+
+    def test_channel_sections_update_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_channel_sections_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": execution.arguments["body"]["id"],
+                "snippet": execution.arguments["body"].get("snippet"),
+                "contentDetails": execution.arguments["body"].get("contentDetails"),
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                "kind": "youtube#channelSection",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet,contentDetails",
+                "body": {
+                    "id": "section-123",
+                    "snippet": {
+                        "type": "multipleChannels",
+                        "channelId": "UC123",
+                        "title": "Updated featured channels",
+                    },
+                    "contentDetails": {"channels": ["UC777", "UC888"]},
+                },
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "section-123")
+        self.assertEqual(result["snippet"]["title"], "Updated featured channels")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+
+    def test_channel_sections_update_wrapper_rejects_invalid_update_shapes_before_executor(self):
+        wrapper = build_channel_sections_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "should-not-run"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "multipleChannels does not accept body.contentDetails.playlists"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet,contentDetails",
+                    "body": {
+                        "id": "section-123",
+                        "snippet": {
+                            "type": "multipleChannels",
+                            "channelId": "UC123",
+                            "title": "Updated featured channels",
+                        },
+                        "contentDetails": {"playlists": ["PL123"]},
+                    },
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_channel_sections_update_wrapper_preserves_upstream_auth_failures_from_shared_executor(self):
+        wrapper = build_channel_sections_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Channel section update denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Channel section update denied") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet,contentDetails",
+                    "body": {
+                        "id": "section-123",
+                        "snippet": {"type": "singlePlaylist", "channelId": "UC123"},
+                        "contentDetails": {"playlists": ["PL123"]},
+                    },
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
 
     def test_captions_download_wrapper_executes_authorized_requests_through_shared_executor(self):
         wrapper = build_captions_download_wrapper()

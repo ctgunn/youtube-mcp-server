@@ -183,6 +183,32 @@ class RepresentativeHigherLayerConsumer:
             "sourceNotes": self.wrapper.metadata.notes,
         }
 
+    def update_channel_section_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `channelSections.update` result.
+
+        :param arguments: Wrapper arguments needed to update one channel section.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing updated section identity and source contract details.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        snippet = result.get("snippet", {}) if isinstance(result.get("snippet"), dict) else {}
+        return {
+            "channelSectionId": result.get("id"),
+            "isUpdated": bool(result.get("id")),
+            "updatedType": snippet.get("type"),
+            "delegatedOwner": result.get("delegatedOwner"),
+            "delegatedOwnerChannel": result.get("delegatedOwnerChannel"),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
+
     def fetch_caption_summary(
         self,
         *,

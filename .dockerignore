@@ -28,6 +28,7 @@ coverage/
 
 # VCS and editor state
 .git/
+Dockerfile*
 .gitignore
 .dockerignore
 .vscode/
