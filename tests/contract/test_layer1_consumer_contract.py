@@ -16,6 +16,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_banners_insert_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
+    build_channel_sections_update_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_captions_delete_wrapper,
@@ -284,6 +285,50 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("bannerExternalUrl", result["sourceNotes"])
+
+    def test_consumer_can_summarize_channel_section_updates_for_higher_layers(self):
+        wrapper = build_channel_sections_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {
+                "id": "section-123",
+                "snippet": {"type": "multiplePlaylists", "title": "Updated featured playlists"},
+                "delegatedOwner": "owner-123",
+                "delegatedOwnerChannel": "UC123",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.update_channel_section_summary(
+            arguments={
+                "part": "snippet,contentDetails",
+                "body": {
+                    "id": "section-123",
+                    "snippet": {
+                        "type": "multiplePlaylists",
+                        "channelId": "UC123",
+                        "title": "Updated featured playlists",
+                    },
+                    "contentDetails": {"playlists": ["PL123", "PL456"]},
+                },
+                "onBehalfOfContentOwner": "owner-123",
+                "onBehalfOfContentOwnerChannel": "UC123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelSectionId"], "section-123")
+        self.assertTrue(result["isUpdated"])
+        self.assertEqual(result["updatedType"], "multiplePlaylists")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+        self.assertEqual(result["delegatedOwnerChannel"], "UC123")
+        self.assertEqual(result["sourceOperation"], "channelSections.update")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("body.id", result["sourceNotes"])
 
     def test_consumer_can_summarize_captions_results_for_higher_layers(self):
         wrapper = build_captions_list_wrapper()

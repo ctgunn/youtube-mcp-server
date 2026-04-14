@@ -19,6 +19,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_banners_insert_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
+    build_channel_sections_update_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_captions_delete_wrapper,
@@ -110,6 +111,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_channel_sections_insert_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _channel_sections_update_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_channel_sections_update_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -477,6 +490,138 @@ class YouTubeTransportUnitTests(unittest.TestCase):
                     arguments={
                         "part": "snippet,contentDetails",
                         "body": {
+                            "snippet": {"type": "singlePlaylist", "channelId": "UC123"},
+                            "contentDetails": {"playlists": ["PL123"]},
+                        },
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_builds_oauth_put_request_for_channel_sections_update(self):
+        execution = self._channel_sections_update_execution(
+            arguments={
+                "part": "snippet,contentDetails",
+                "body": {
+                    "id": "section-123",
+                    "snippet": {
+                        "type": "multipleChannels",
+                        "channelId": "UC123",
+                        "title": "Updated featured channels",
+                    },
+                    "contentDetails": {"channels": ["UC777", "UC888"]},
+                },
+                "onBehalfOfContentOwner": "owner-123",
+                "onBehalfOfContentOwnerChannel": "UC123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "PUT")
+        self.assertIn("https://www.googleapis.com/youtube/v3/channelSections?", request.full_url)
+        self.assertIn("part=snippet%2CcontentDetails", request.full_url)
+        self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
+        self.assertIn("onBehalfOfContentOwnerChannel=UC123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertIn(b'"id": "section-123"', request.data)
+        self.assertIn(b'"type": "multipleChannels"', request.data)
+
+    def test_transport_normalizes_successful_channel_sections_update_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {
+                    "id": "section-123",
+                    "snippet": {"type": "multipleChannels", "title": "Updated featured channels"},
+                }
+            )
+        )
+
+        result = transport(
+            self._channel_sections_update_execution(
+                arguments={
+                    "part": "snippet,contentDetails",
+                    "body": {
+                        "id": "section-123",
+                        "snippet": {
+                            "type": "multipleChannels",
+                            "channelId": "UC123",
+                            "title": "Updated featured channels",
+                        },
+                        "contentDetails": {"channels": ["UC777", "UC888"]},
+                    },
+                    "onBehalfOfContentOwner": "owner-123",
+                    "onBehalfOfContentOwnerChannel": "UC123",
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["id"], "section-123")
+        self.assertEqual(result["snippet"]["type"], "multipleChannels")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+        self.assertEqual(result["delegatedOwnerChannel"], "UC123")
+
+    def test_transport_normalizes_channel_sections_update_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/channelSections",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Channel section update body contains read-only fields"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "read-only fields") as context:
+            transport(
+                self._channel_sections_update_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {
+                            "id": "section-123",
+                            "snippet": {"type": "singlePlaylist", "channelId": "UC123"},
+                            "contentDetails": {"playlists": ["PL123"]},
+                        },
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_channel_sections_update_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/channelSections",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Channel section update denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Channel section update denied") as context:
+            transport(
+                self._channel_sections_update_execution(
+                    arguments={
+                        "part": "snippet,contentDetails",
+                        "body": {
+                            "id": "section-123",
                             "snippet": {"type": "singlePlaylist", "channelId": "UC123"},
                             "contentDetails": {"playlists": ["PL123"]},
                         },

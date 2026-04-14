@@ -4,6 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
+import mcp_server.integrations as integrations_package
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
 from mcp_server.integrations.errors import NormalizedUpstreamError, normalize_upstream_error
@@ -15,6 +16,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_banners_insert_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
+    build_channel_sections_update_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_captions_delete_wrapper,
@@ -386,6 +388,99 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 arguments={
                     "part": "snippet,contentDetails",
                     "body": {
+                        "snippet": {"type": "singlePlaylist", "channelId": "UC123"},
+                        "contentDetails": {"playlists": ["PL123"]},
+                    },
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_channel_sections_update_wrapper_exposes_expected_metadata(self):
+        wrapper = build_channel_sections_update_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "channelSections.update")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/channelSections")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "body"))
+        self.assertIn("onBehalfOfContentOwner", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("body.id", wrapper.metadata.notes)
+        self.assertIn("snippet.type", wrapper.metadata.notes)
+
+    def test_channel_sections_update_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_channel_sections_update_wrapper))
+
+    def test_channel_sections_update_wrapper_requires_body_field(self):
+        wrapper = build_channel_sections_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: body"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+    def test_channel_sections_update_wrapper_requires_existing_section_identity(self):
+        wrapper = build_channel_sections_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.id is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet,contentDetails",
+                    "body": {
+                        "snippet": {"type": "singlePlaylist", "channelId": "UC123"},
+                        "contentDetails": {"playlists": ["PL123"]},
+                    },
+                }
+            )
+
+    def test_channel_sections_update_wrapper_rejects_read_only_fields(self):
+        wrapper = build_channel_sections_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.kind is read-only or unsupported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {
+                        "id": "section-123",
+                        "kind": "youtube#channelSection",
+                        "snippet": {"type": "singlePlaylist", "channelId": "UC123"},
+                    },
+                }
+            )
+
+    def test_channel_sections_update_wrapper_rejects_duplicate_playlist_references(self):
+        wrapper = build_channel_sections_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "duplicate playlist references are unsupported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet,contentDetails",
+                    "body": {
+                        "id": "section-123",
+                        "snippet": {
+                            "type": "multiplePlaylists",
+                            "channelId": "UC123",
+                            "title": "Featured playlists",
+                        },
+                        "contentDetails": {"playlists": ["PL123", "PL123"]},
+                    },
+                }
+            )
+
+    def test_channel_sections_update_wrapper_requires_oauth_mode(self):
+        wrapper = build_channel_sections_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "section-123", "kind": "youtube#channelSection"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "channelSections.update requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet,contentDetails",
+                    "body": {
+                        "id": "section-123",
                         "snippet": {"type": "singlePlaylist", "channelId": "UC123"},
                         "contentDetails": {"playlists": ["PL123"]},
                     },
