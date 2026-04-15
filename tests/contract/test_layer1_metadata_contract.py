@@ -8,6 +8,7 @@ from mcp_server.integrations.auth import AuthMode
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
 from mcp_server.integrations.wrappers import (
     build_channel_banners_insert_wrapper,
+    build_channel_sections_delete_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
@@ -159,6 +160,19 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("onBehalfOfContentOwner", review_surface["optionalFields"])
         self.assertIn("body.id", review_surface["notes"])
         self.assertIn("snippet.type", review_surface["notes"])
+
+    def test_channel_sections_delete_review_surface_exposes_quota_auth_and_delete_notes(self):
+        review_surface = build_channel_sections_delete_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "channelSections")
+        self.assertEqual(review_surface["operationName"], "delete")
+        self.assertEqual(review_surface["operationKey"], "channelSections.delete")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id",))
+        self.assertIn("onBehalfOfContentOwner", review_surface["optionalFields"])
+        self.assertIn("owner-scoped", review_surface["notes"])
+        self.assertIn("one target", review_surface["notes"])
 
 
 if __name__ == "__main__":

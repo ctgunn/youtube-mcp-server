@@ -13,6 +13,7 @@ from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channel_sections_delete_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
@@ -712,6 +713,108 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "auth")
+
+    def test_channel_sections_delete_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_channel_sections_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "channelSectionId": execution.arguments["id"],
+                "isDeleted": True,
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                "delegatedOwnerChannel": execution.arguments.get("onBehalfOfContentOwnerChannel"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "section-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelSectionId"], "section-123")
+        self.assertTrue(result["isDeleted"])
+
+    def test_channel_sections_delete_wrapper_executes_delegated_requests_through_shared_executor(self):
+        wrapper = build_channel_sections_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "channelSectionId": execution.arguments["id"],
+                "isDeleted": True,
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                "delegatedOwnerChannel": execution.arguments.get("onBehalfOfContentOwnerChannel"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "id": "section-123",
+                "onBehalfOfContentOwner": "owner-123",
+                "onBehalfOfContentOwnerChannel": "UC123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+        self.assertEqual(result["delegatedOwnerChannel"], "UC123")
+
+    def test_channel_sections_delete_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_channel_sections_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Channel section delete denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Channel section delete denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "section-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_channel_sections_delete_wrapper_preserves_not_found_failures_from_shared_executor(self):
+        wrapper = build_channel_sections_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Channel section not found"),
+                    status_code=404,
+                    details={"reason": "notFound"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Channel section not found") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "section-404"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "not_found")
 
     def test_captions_download_wrapper_executes_authorized_requests_through_shared_executor(self):
         wrapper = build_captions_download_wrapper()

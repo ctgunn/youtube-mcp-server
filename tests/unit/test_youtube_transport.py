@@ -17,6 +17,7 @@ from mcp_server.integrations.youtube import (
 from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channel_sections_delete_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
@@ -123,6 +124,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_channel_sections_update_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _channel_sections_delete_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_channel_sections_delete_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -634,6 +647,121 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "auth")
+
+    def test_builds_oauth_request_for_channel_sections_delete(self):
+        execution = self._channel_sections_delete_execution(
+            arguments={
+                "id": "section-123",
+                "onBehalfOfContentOwner": "owner-123",
+                "onBehalfOfContentOwnerChannel": "UC123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "DELETE")
+        self.assertIn("https://www.googleapis.com/youtube/v3/channelSections?", request.full_url)
+        self.assertIn("id=section-123", request.full_url)
+        self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
+        self.assertIn("onBehalfOfContentOwnerChannel=UC123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+
+    def test_transport_normalizes_successful_channel_sections_delete_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse("")
+        )
+
+        result = transport(
+            self._channel_sections_delete_execution(
+                arguments={
+                    "id": "section-123",
+                    "onBehalfOfContentOwner": "owner-123",
+                    "onBehalfOfContentOwnerChannel": "UC123",
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["channelSectionId"], "section-123")
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+        self.assertEqual(result["delegatedOwnerChannel"], "UC123")
+
+    def test_transport_normalizes_channel_sections_delete_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/channelSections?id=section-123",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Channel section delete request is invalid"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Channel section delete request is invalid") as context:
+            transport(
+                self._channel_sections_delete_execution(
+                    arguments={"id": "section-123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_channel_sections_delete_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/channelSections?id=section-123",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Channel section delete denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Channel section delete denied") as context:
+            transport(
+                self._channel_sections_delete_execution(
+                    arguments={"id": "section-123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_transport_normalizes_channel_sections_delete_not_found_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/channelSections?id=section-404",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Channel section not found"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Channel section not found") as context:
+            transport(
+                self._channel_sections_delete_execution(
+                    arguments={"id": "section-404"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "not_found")
 
     def test_builds_oauth_request_for_captions_video_lookup(self):
         execution = self._captions_execution(
