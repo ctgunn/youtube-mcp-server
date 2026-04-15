@@ -251,6 +251,35 @@ class CommentsListWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class CommentsInsertWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `comments.insert`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a reply
+    comment ``body`` payload aligned to ``body.snippet.parentId`` and
+    ``body.snippet.textOriginal`` on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `comments.insert` with OAuth and reply-shape validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("comments.insert requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class ChannelsUpdateWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `channels.update`.
 
@@ -677,6 +706,40 @@ def build_comments_list_wrapper() -> RepresentativeEndpointWrapper:
     return CommentsListWrapper(metadata=metadata)
 
 
+def build_comments_insert_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `comments.insert`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a `body`
+    reply payload, keeps `body.snippet.parentId` and
+    `body.snippet.textOriginal` visible for review, and treats
+    `onBehalfOfContentOwner` as optional delegation context.
+
+    :return: Representative wrapper configured for `comments.insert`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="comments",
+        operation_name="insert",
+        http_method="POST",
+        path_shape="/youtube/v3/comments",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body"),
+            optional_fields=("onBehalfOfContentOwner",),
+            validators=(
+                _require_comments_insert_body,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `body.snippet.parentId` for the "
+            "comment being answered, use `body.snippet.textOriginal` for reply "
+            "content, reject unsupported top-level comment-create shapes, and "
+            "treat `onBehalfOfContentOwner` as optional delegation context."
+        ),
+    )
+    return CommentsInsertWrapper(metadata=metadata)
+
+
 def _validated_reference_values(
     raw_values: object,
     *,
@@ -796,6 +859,36 @@ def _require_channel_sections_insert_body(arguments: dict[str, object]) -> None:
     :raises ValueError: If the request body does not match supported section rules.
     """
     _validate_channel_sections_body(arguments, require_existing_id=False)
+
+
+def _require_comments_insert_body(arguments: dict[str, object]) -> None:
+    """Validate the supported `comments.insert` request body.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request body does not match supported reply rules.
+    """
+    require_mapping_fields("body", required_keys=("snippet",))(arguments)
+    body = arguments.get("body")
+    assert isinstance(body, dict)  # Narrowed by validator above.
+    unsupported_body_fields = [field for field in body if field not in {"kind", "snippet"}]
+    if unsupported_body_fields:
+        raise ValueError(f"body.{unsupported_body_fields[0]} is read-only or unsupported")
+
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict) or not snippet:
+        raise ValueError("body.snippet is required")
+
+    raw_parent_id = snippet.get("parentId")
+    if not isinstance(raw_parent_id, str) or not raw_parent_id.strip():
+        raise ValueError("body.snippet.parentId is required")
+
+    raw_reply_text = snippet.get("textOriginal")
+    if not isinstance(raw_reply_text, str) or not raw_reply_text.strip():
+        raise ValueError("body.snippet.textOriginal is required")
+
+    unsupported_snippet_fields = [field for field in snippet if field not in {"parentId", "textOriginal"}]
+    if unsupported_snippet_fields:
+        raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
 
 
 def _require_channel_sections_update_body(arguments: dict[str, object]) -> None:

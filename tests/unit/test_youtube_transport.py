@@ -23,6 +23,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_update_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
+    build_comments_insert_wrapper,
     build_comments_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -125,6 +126,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_channel_sections_insert_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _comments_insert_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_comments_insert_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -401,6 +414,60 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertEqual(result["items"][0]["id"], "comment-123")
         self.assertEqual(result["nextPageToken"], "cursor-2")
+
+    def test_transport_returns_comments_insert_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {
+                    "id": "comment-456",
+                    "snippet": {"parentId": "comment-123", "textOriginal": "Reply text"},
+                }
+            )
+        )
+
+        result = transport(
+            self._comments_insert_execution(
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"parentId": "comment-123", "textOriginal": "Reply text"}},
+                    "onBehalfOfContentOwner": "owner-123",
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["id"], "comment-456")
+        self.assertEqual(result["snippet"]["parentId"], "comment-123")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+
+    def test_transport_normalizes_comments_insert_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/comments",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"body.snippet.textOriginal is required"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "body.snippet.textOriginal is required") as context:
+            transport(
+                self._comments_insert_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"snippet": {"parentId": "comment-123", "textOriginal": "Reply text"}},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
 
     def test_transport_normalizes_comments_invalid_request_errors(self):
         error = HTTPError(
@@ -935,6 +1002,30 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn(b'"videoId": "video-123"', request.data)
         self.assertIn(b"caption payload", request.data)
 
+    def test_builds_oauth_request_for_comments_insert_reply(self):
+        execution = self._comments_insert_execution(
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"parentId": "comment-123", "textOriginal": "Reply text"}},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "POST")
+        self.assertIn("https://www.googleapis.com/youtube/v3/comments?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertIn(b'"parentId": "comment-123"', request.data)
+        self.assertIn(b'"textOriginal": "Reply text"', request.data)
+
     def test_builds_oauth_request_for_captions_update_body_only(self):
         execution = self._captions_update_execution(
             arguments={
@@ -1457,6 +1548,43 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("multipart/related", captured["content_type"])
         self.assertIn(b"caption payload", captured["data"])
         self.assertEqual(captured["timeout"], 11.0)
+
+    def test_executor_can_run_live_comments_insert_transport_shape(self):
+        captured = {}
+
+        def opener(request, timeout):
+            captured["url"] = request.full_url
+            captured["authorization"] = request.headers.get("Authorization")
+            captured["timeout"] = timeout
+            captured["method"] = request.method
+            captured["content_type"] = request.headers.get("Content-type")
+            captured["data"] = request.data
+            return _FakeHTTPResponse(
+                {"id": "comment-123", "snippet": {"parentId": "comment-123", "textOriginal": "Reply text"}}
+            )
+
+        executor = build_youtube_data_api_executor(opener=opener, timeout_seconds=11.5)
+        result = build_comments_insert_wrapper().call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"parentId": "comment-123", "textOriginal": "Reply text"}},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "comment-123")
+        self.assertEqual(captured["method"], "POST")
+        self.assertIn("part=snippet", captured["url"])
+        self.assertIn("onBehalfOfContentOwner=owner-123", captured["url"])
+        self.assertEqual(captured["authorization"], "Bearer oauth-token")
+        self.assertEqual(captured["content_type"], "application/json; charset=utf-8")
+        self.assertIn(b'"parentId": "comment-123"', captured["data"])
+        self.assertEqual(captured["timeout"], 11.5)
 
     def test_executor_can_run_live_captions_update_transport_shape(self):
         captured = {}

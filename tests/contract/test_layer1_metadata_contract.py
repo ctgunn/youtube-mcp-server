@@ -14,6 +14,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_update_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
+    build_comments_insert_wrapper,
     build_comments_list_wrapper,
 )
 
@@ -148,6 +149,19 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["exclusiveSelectors"], ("id", "parentId"))
         self.assertIn("textFormat", review_surface["optionalFields"])
         self.assertIn("reply lookup", review_surface["notes"])
+
+    def test_comments_insert_review_surface_exposes_identity_quota_and_auth_notes(self):
+        review_surface = build_comments_insert_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "comments")
+        self.assertEqual(review_surface["operationName"], "insert")
+        self.assertEqual(review_surface["operationKey"], "comments.insert")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body"))
+        self.assertIn("onBehalfOfContentOwner", review_surface["optionalFields"])
+        self.assertIn("parentId", review_surface["notes"])
+        self.assertIn("textOriginal", review_surface["notes"])
 
     def test_channel_sections_insert_review_surface_exposes_quota_auth_and_write_notes(self):
         review_surface = build_channel_sections_insert_wrapper().review_surface()
