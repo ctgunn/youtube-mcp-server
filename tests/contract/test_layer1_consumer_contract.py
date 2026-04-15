@@ -20,6 +20,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_update_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
+    build_comments_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -192,6 +193,52 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceQuotaCost"], 1)
         self.assertIn("owner-scoped", result["sourceAuthConditionNote"])
         self.assertIn("lifecycle", result["sourceNotes"])
+
+    def test_consumer_can_summarize_comments_results_for_higher_layers(self):
+        wrapper = build_comments_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "comment-123", "parentId": execution.arguments.get("parentId")}]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_comments_summary(
+            arguments={"part": "snippet", "parentId": "comment-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["commentCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "parentId")
+        self.assertEqual(result["sourceOperation"], "comments.list")
+        self.assertEqual(result["sourceAuthMode"], "api_key")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("reply lookup", result["sourceNotes"])
+
+    def test_consumer_can_summarize_empty_comments_results_for_higher_layers(self):
+        wrapper = build_comments_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_comments_summary(
+            arguments={"part": "snippet", "id": ["comment-123"]},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["commentCount"], 0)
+        self.assertTrue(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "id")
 
     def test_consumer_can_summarize_empty_channel_sections_results_for_higher_layers(self):
         wrapper = build_channel_sections_list_wrapper()

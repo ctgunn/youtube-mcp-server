@@ -78,6 +78,8 @@ def build_youtube_data_api_transport(
             return _channel_banners_insert_payload(execution, payload)
         if execution.metadata.operation_key == "channelSections.list":
             return _channel_sections_list_payload(payload)
+        if execution.metadata.operation_key == "comments.list":
+            return _comments_list_payload(payload)
         if execution.metadata.operation_key == "channelSections.insert":
             return _channel_sections_insert_payload(execution, payload)
         if execution.metadata.operation_key == "channelSections.update":
@@ -396,12 +398,17 @@ def _normalized_category_for_execution(
             "channels.update",
             "channelSections.update",
             "channelSections.delete",
+            "comments.list",
         }:
             return None
         message = str(details.get("message", "")).lower()
         reason = str(details.get("reason", "")).lower()
         body = str(details.get("responseBody", "")).lower()
         combined = " ".join(part for part in (message, reason, body) if part)
+        if execution.metadata.operation_key == "comments.list":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            return None
         if execution.metadata.operation_key == "channelSections.delete":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
@@ -491,6 +498,19 @@ def _channel_sections_list_payload(payload: str) -> dict[str, Any]:
 
     :param payload: Raw JSON payload returned by the upstream response.
     :return: Parsed channel-sections list payload for retrieval consumers.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    return parsed
+
+
+def _comments_list_payload(payload: str) -> dict[str, Any]:
+    """Return the internal result shape for a `comments.list` response.
+
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed comments list payload for retrieval consumers.
     :raises ValueError: If the upstream response is not a JSON object.
     """
     parsed = json.loads(payload)

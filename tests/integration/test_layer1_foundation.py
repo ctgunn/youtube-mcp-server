@@ -19,6 +19,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_update_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
+    build_comments_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -165,6 +166,74 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         result = wrapper.call(
             executor,
             arguments={"part": "snippet", "forUsername": "legacy-user"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+
+    def test_comments_list_wrapper_executes_id_selector_requests_through_shared_executor(self):
+        wrapper = build_comments_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": execution.arguments["id"][0],
+                        "kind": "youtube#comment",
+                    }
+                ]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "id": ["comment-123"]},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "comment-123")
+
+    def test_comments_list_wrapper_executes_parent_selector_requests_through_shared_executor(self):
+        wrapper = build_comments_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "reply-123",
+                        "parentId": execution.arguments["parentId"],
+                    }
+                ]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "parentId": "comment-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["parentId"], "comment-123")
+
+    def test_comments_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_comments_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "parentId": "comment-123"},
             auth_context=AuthContext(
                 mode=AuthMode.API_KEY,
                 credentials=CredentialBundle(api_key="key-123"),
