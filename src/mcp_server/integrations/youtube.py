@@ -80,6 +80,8 @@ def build_youtube_data_api_transport(
             return _channel_sections_list_payload(payload)
         if execution.metadata.operation_key == "comments.list":
             return _comments_list_payload(payload)
+        if execution.metadata.operation_key == "comments.insert":
+            return _comments_insert_payload(execution, payload)
         if execution.metadata.operation_key == "channelSections.insert":
             return _channel_sections_insert_payload(execution, payload)
         if execution.metadata.operation_key == "channelSections.update":
@@ -399,6 +401,7 @@ def _normalized_category_for_execution(
             "channelSections.update",
             "channelSections.delete",
             "comments.list",
+            "comments.insert",
         }:
             return None
         message = str(details.get("message", "")).lower()
@@ -406,6 +409,10 @@ def _normalized_category_for_execution(
         body = str(details.get("responseBody", "")).lower()
         combined = " ".join(part for part in (message, reason, body) if part)
         if execution.metadata.operation_key == "comments.list":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "comments.insert":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
             return None
@@ -516,6 +523,24 @@ def _comments_list_payload(payload: str) -> dict[str, Any]:
     parsed = json.loads(payload)
     if not isinstance(parsed, dict):
         raise ValueError("YouTube Data API responses must decode to an object")
+    return parsed
+
+
+def _comments_insert_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `comments.insert` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed comment create payload with stable metadata fields.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    parsed["delegatedOwner"] = execution.arguments.get("onBehalfOfContentOwner")
     return parsed
 
 

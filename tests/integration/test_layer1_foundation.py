@@ -19,6 +19,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_update_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
+    build_comments_insert_wrapper,
     build_comments_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -241,6 +242,38 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         )
 
         self.assertEqual(result["items"], [])
+
+    def test_comments_insert_wrapper_executes_authorized_reply_requests_through_shared_executor(self):
+        wrapper = build_comments_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "comment-456",
+                "snippet": {
+                    "parentId": execution.arguments["body"]["snippet"]["parentId"],
+                    "textOriginal": execution.arguments["body"]["snippet"]["textOriginal"],
+                },
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                "kind": "youtube#comment",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"parentId": "comment-123", "textOriginal": "Reply text"}},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "comment-456")
+        self.assertEqual(result["snippet"]["parentId"], "comment-123")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
 
     def test_captions_list_wrapper_executes_video_requests_through_shared_executor(self):
         wrapper = build_captions_list_wrapper()
