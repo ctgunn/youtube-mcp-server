@@ -72,6 +72,8 @@ def build_youtube_data_api_transport(
             return _download_payload(execution, payload)
         if execution.metadata.operation_key == "captions.delete":
             return _delete_payload(execution)
+        if execution.metadata.operation_key == "channelSections.delete":
+            return _channel_sections_delete_payload(execution)
         if execution.metadata.operation_key == "channelBanners.insert":
             return _channel_banners_insert_payload(execution, payload)
         if execution.metadata.operation_key == "channelSections.list":
@@ -390,12 +392,22 @@ def _normalized_category_for_execution(
     :return: Explicit normalized category override when one is needed.
     """
     if execution.metadata.operation_key != "channelBanners.insert":
-        if execution.metadata.operation_key not in {"channels.update", "channelSections.update"}:
+        if execution.metadata.operation_key not in {
+            "channels.update",
+            "channelSections.update",
+            "channelSections.delete",
+        }:
             return None
         message = str(details.get("message", "")).lower()
         reason = str(details.get("reason", "")).lower()
         body = str(details.get("responseBody", "")).lower()
         combined = " ".join(part for part in (message, reason, body) if part)
+        if execution.metadata.operation_key == "channelSections.delete":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 404 or "not found" in combined or "already removed" in combined:
+                return "not_found"
+            return None
         if status_code in {400, 422} or "read-only" in combined or "readonly" in combined:
             return "invalid_request"
         return None
@@ -436,6 +448,20 @@ def _delete_payload(execution: RequestExecution) -> dict[str, Any]:
         "captionId": _stringify_scalar(execution.arguments.get("id")),
         "isDeleted": True,
         "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+    }
+
+
+def _channel_sections_delete_payload(execution: RequestExecution) -> dict[str, Any]:
+    """Return the internal result shape for a `channelSections.delete` response.
+
+    :param execution: Shared request execution details.
+    :return: Lightweight delete result with stable metadata fields.
+    """
+    return {
+        "channelSectionId": _stringify_scalar(execution.arguments.get("id")),
+        "isDeleted": True,
+        "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+        "delegatedOwnerChannel": execution.arguments.get("onBehalfOfContentOwnerChannel"),
     }
 
 

@@ -293,6 +293,35 @@ class ChannelSectionsUpdateWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class ChannelSectionsDeleteWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `channelSections.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one channel
+    section ``id`` and supports optional delegated owner context on an
+    authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `channelSections.delete` with OAuth and delete validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("channelSections.delete requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class CaptionsListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `captions.list`.
 
@@ -847,6 +876,39 @@ def build_channel_sections_update_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return ChannelSectionsUpdateWrapper(metadata=metadata)
+
+
+def build_channel_sections_delete_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `channelSections.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one channel
+    section `id`, supports optional `onBehalfOfContentOwner` and
+    `onBehalfOfContentOwnerChannel` delegation, and keeps owner-scoped delete
+    guidance visible for higher-layer reuse.
+
+    :return: Representative wrapper configured for `channelSections.delete`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="channelSections",
+        operation_name="delete",
+        http_method="DELETE",
+        path_shape="/youtube/v3/channelSections",
+        request_shape=EndpointRequestShape(
+            required_fields=("id",),
+            optional_fields=("onBehalfOfContentOwner", "onBehalfOfContentOwnerChannel"),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `id` for the channel section "
+            "being deleted, keep requests scoped to one target section at a "
+            "time, note that deletion remains owner-scoped and target-state "
+            "sensitive even with authorized access, and treat "
+            "`onBehalfOfContentOwner` and `onBehalfOfContentOwnerChannel` as "
+            "optional delegation context."
+        ),
+    )
+    return ChannelSectionsDeleteWrapper(metadata=metadata)
 
 
 def build_captions_list_wrapper() -> RepresentativeEndpointWrapper:

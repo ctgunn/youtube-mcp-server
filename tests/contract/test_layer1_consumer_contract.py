@@ -14,6 +14,7 @@ from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channel_sections_delete_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
@@ -329,6 +330,40 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("body.id", result["sourceNotes"])
+
+    def test_consumer_can_summarize_channel_section_deletes_for_higher_layers(self):
+        wrapper = build_channel_sections_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "channelSectionId": execution.arguments["id"],
+                "isDeleted": True,
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                "delegatedOwnerChannel": execution.arguments.get("onBehalfOfContentOwnerChannel"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.delete_channel_section_summary(
+            arguments={
+                "id": "section-123",
+                "onBehalfOfContentOwner": "owner-123",
+                "onBehalfOfContentOwnerChannel": "UC123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelSectionId"], "section-123")
+        self.assertTrue(result["isDeleted"])
+        self.assertTrue(result["delegationApplied"])
+        self.assertEqual(result["delegatedOwnerChannel"], "UC123")
+        self.assertEqual(result["sourceOperation"], "channelSections.delete")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("owner-scoped", result["sourceNotes"])
 
     def test_consumer_can_summarize_captions_results_for_higher_layers(self):
         wrapper = build_captions_list_wrapper()

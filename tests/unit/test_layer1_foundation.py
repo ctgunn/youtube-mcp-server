@@ -14,6 +14,7 @@ from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
     build_channel_banners_insert_wrapper,
+    build_channel_sections_delete_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
@@ -485,6 +486,62 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                         "contentDetails": {"playlists": ["PL123"]},
                     },
                 },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_channel_sections_delete_wrapper_exposes_expected_metadata(self):
+        wrapper = build_channel_sections_delete_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "channelSections.delete")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/channelSections")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("id",))
+        self.assertIn("onBehalfOfContentOwner", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("onBehalfOfContentOwnerChannel", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("owner-scoped", wrapper.metadata.notes)
+        self.assertIn("one target", wrapper.metadata.notes)
+
+    def test_channel_sections_delete_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_channel_sections_delete_wrapper))
+
+    def test_channel_sections_delete_wrapper_requires_id_field(self):
+        wrapper = build_channel_sections_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: id"):
+            wrapper.metadata.request_shape.validate_arguments({})
+
+    def test_channel_sections_delete_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = build_channel_sections_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: part"):
+            wrapper.metadata.request_shape.validate_arguments({"id": "section-123", "part": "snippet"})
+
+    def test_channel_sections_delete_wrapper_allows_delegation_fields(self):
+        wrapper = build_channel_sections_delete_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {
+                "id": "section-123",
+                "onBehalfOfContentOwner": "owner-123",
+                "onBehalfOfContentOwnerChannel": "UC123",
+            }
+        )
+
+    def test_channel_sections_delete_wrapper_requires_oauth_mode(self):
+        wrapper = build_channel_sections_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"channelSectionId": "section-123", "isDeleted": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "channelSections.delete requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"id": "section-123"},
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),
