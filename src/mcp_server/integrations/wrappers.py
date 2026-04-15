@@ -206,6 +206,51 @@ class ChannelSectionsListWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class CommentsListWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `comments.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports direct comment
+    lookup through ``id`` and reply lookup through ``parentId`` on public API
+    key requests.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `comments.list` with selector-aware auth validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the selector requires a different auth mode.
+        """
+        selector = self._selected_selector(arguments)
+        if selector in {"id", "parentId"} and auth_context.mode is not AuthMode.API_KEY:
+            raise ValueError(f"{selector} requires api_key auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+    def _selected_selector(self, arguments: dict[str, Any]) -> str:
+        """Return the active selector field for one comments request.
+
+        :param arguments: Wrapper arguments to inspect.
+        :return: One of ``id`` or ``parentId``.
+        :raises ValueError: If no selector is present.
+        """
+        for field in ("id", "parentId"):
+            value = arguments.get(field)
+            if isinstance(value, str) and value.strip():
+                return field
+            if isinstance(value, (list, tuple)) and value:
+                return field
+        raise ValueError("comments.list requires a supported selector")
+
+
+@dataclass(frozen=True)
 class ChannelsUpdateWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `channels.update`.
 
@@ -598,6 +643,38 @@ def build_channel_sections_list_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return ChannelSectionsListWrapper(metadata=metadata)
+
+
+def build_comments_list_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `comments.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports direct comment
+    lookup through ``id``, reply lookup through ``parentId``, and optional
+    pagination and text-format modifiers on API-key requests.
+
+    :return: Representative wrapper configured for `comments.list`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="comments",
+        operation_name="list",
+        http_method="GET",
+        path_shape="/youtube/v3/comments",
+        request_shape=EndpointRequestShape(
+            required_fields=("part",),
+            optional_fields=("id", "parentId", "pageToken", "maxResults", "textFormat"),
+            exactly_one_of=("id", "parentId"),
+        ),
+        auth_mode=AuthMode.API_KEY,
+        quota_cost=1,
+        notes=(
+            "Use `id` for direct comment lookup, use `parentId` for reply "
+            "lookup under one parent comment, treat selector combinations as "
+            "mutually exclusive, allow `pageToken`, `maxResults`, and "
+            "`textFormat` as optional near-raw modifiers, and preserve empty "
+            "result sets as successful no-match outcomes."
+        ),
+    )
+    return CommentsListWrapper(metadata=metadata)
 
 
 def _validated_reference_values(
