@@ -16,6 +16,7 @@ from mcp_server.integrations.wrappers import (
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
+    build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
 )
 
@@ -176,6 +177,20 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("onBehalfOfContentOwner", review_surface["optionalFields"])
         self.assertIn("body.id", review_surface["notes"])
         self.assertIn("textOriginal", review_surface["notes"])
+
+    def test_comments_set_moderation_status_review_surface_exposes_identity_quota_auth_and_moderation_notes(self):
+        review_surface = build_comments_set_moderation_status_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "comments")
+        self.assertEqual(review_surface["operationName"], "setModerationStatus")
+        self.assertEqual(review_surface["operationKey"], "comments.setModerationStatus")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id", "moderationStatus"))
+        self.assertIn("banAuthor", review_surface["optionalFields"])
+        self.assertIn("published", review_surface["notes"])
+        self.assertIn("heldForReview", review_surface["notes"])
+        self.assertIn("rejected", review_surface["notes"])
 
     def test_channel_sections_insert_review_surface_exposes_quota_auth_and_write_notes(self):
         review_surface = build_channel_sections_insert_wrapper().review_surface()

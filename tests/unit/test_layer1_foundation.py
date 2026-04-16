@@ -22,6 +22,7 @@ from mcp_server.integrations.wrappers import (
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
+    build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -556,6 +557,100 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 arguments={
                     "part": "snippet",
                     "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_comments_set_moderation_status_wrapper_exposes_expected_metadata(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "comments.setModerationStatus")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/comments/setModerationStatus")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("id", "moderationStatus"))
+        self.assertIn("banAuthor", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("published", wrapper.metadata.notes)
+        self.assertIn("heldForReview", wrapper.metadata.notes)
+        self.assertIn("rejected", wrapper.metadata.notes)
+
+    def test_comments_set_moderation_status_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_comments_set_moderation_status_wrapper))
+
+    def test_comments_set_moderation_status_wrapper_requires_id_field(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: id"):
+            wrapper.metadata.request_shape.validate_arguments({"moderationStatus": "rejected"})
+
+    def test_comments_set_moderation_status_wrapper_requires_moderation_status_field(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: moderationStatus"):
+            wrapper.metadata.request_shape.validate_arguments({"id": ["comment-123"]})
+
+    def test_comments_set_moderation_status_wrapper_rejects_unsupported_status(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unsupported moderationStatus: spam"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"id": ["comment-123"], "moderationStatus": "spam"}
+            )
+
+    def test_comments_set_moderation_status_wrapper_rejects_duplicate_comment_ids(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "duplicate comment identifiers are unsupported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"id": ["comment-123", "comment-123"], "moderationStatus": "rejected"}
+            )
+
+    def test_comments_set_moderation_status_wrapper_rejects_ban_author_for_non_rejected_status(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "banAuthor is only supported when moderationStatus is rejected",
+        ):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "id": ["comment-123"],
+                    "moderationStatus": "published",
+                    "banAuthor": True,
+                }
+            )
+
+    def test_comments_set_moderation_status_wrapper_allows_supported_arguments(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {
+                "id": ["comment-123", "comment-456"],
+                "moderationStatus": "rejected",
+                "banAuthor": True,
+                "onBehalfOfContentOwner": "owner-123",
+            }
+        )
+
+    def test_comments_set_moderation_status_wrapper_requires_oauth_mode(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"isModerated": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "comments.setModerationStatus requires oauth_required auth",
+        ):
+            wrapper.call(
+                executor,
+                arguments={
+                    "id": ["comment-123"],
+                    "moderationStatus": "rejected",
                 },
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,

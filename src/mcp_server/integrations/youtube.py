@@ -84,6 +84,8 @@ def build_youtube_data_api_transport(
             return _comments_insert_payload(execution, payload)
         if execution.metadata.operation_key == "comments.update":
             return _comments_update_payload(execution, payload)
+        if execution.metadata.operation_key == "comments.setModerationStatus":
+            return _comments_set_moderation_status_payload(execution)
         if execution.metadata.operation_key == "channelSections.insert":
             return _channel_sections_insert_payload(execution, payload)
         if execution.metadata.operation_key == "channelSections.update":
@@ -405,6 +407,7 @@ def _normalized_category_for_execution(
             "comments.list",
             "comments.insert",
             "comments.update",
+            "comments.setModerationStatus",
         }:
             return None
         message = str(details.get("message", "")).lower()
@@ -420,6 +423,10 @@ def _normalized_category_for_execution(
                 return "invalid_request"
             return None
         if execution.metadata.operation_key == "comments.update":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "comments.setModerationStatus":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
             return None
@@ -567,6 +574,31 @@ def _comments_update_payload(
         raise ValueError("YouTube Data API responses must decode to an object")
     parsed["delegatedOwner"] = execution.arguments.get("onBehalfOfContentOwner")
     return parsed
+
+
+def _comments_set_moderation_status_payload(
+    execution: RequestExecution,
+) -> dict[str, Any]:
+    """Return the internal result shape for a moderation-status response.
+
+    :param execution: Shared request execution details.
+    :return: Lightweight moderation acknowledgment with stable metadata fields.
+    """
+    raw_ids = execution.arguments.get("id")
+    if isinstance(raw_ids, str):
+        comment_ids = (raw_ids,)
+    elif isinstance(raw_ids, (list, tuple)):
+        comment_ids = tuple(str(value) for value in raw_ids)
+    else:
+        comment_ids = ()
+    return {
+        "commentIds": comment_ids,
+        "isModerated": True,
+        "moderationStatus": execution.arguments.get("moderationStatus"),
+        "authorBanApplied": bool(execution.arguments.get("banAuthor")),
+        "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+        "upstreamBodyState": "empty",
+    }
 
 
 def _channel_sections_insert_payload(

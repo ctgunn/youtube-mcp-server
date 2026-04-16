@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.abspath("src"))
 from mcp_server.integrations.wrappers import (
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
+    build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
 )
 
@@ -157,6 +158,54 @@ class Layer1CommentsContractTests(unittest.TestCase):
         self.assertIn("updated comment content", auth_write_contract)
         self.assertIn("unsupported update fields", auth_write_contract)
         self.assertIn("normalized upstream update failures", auth_write_contract)
+
+    def test_set_moderation_status_contract_artifacts_define_wrapper_and_auth_guidance(self):
+        root = os.path.abspath("specs/119-comments-set-moderation-status/contracts")
+        with open(
+            os.path.join(root, "layer1-comments-set-moderation-status-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-comments-set-moderation-status-auth-write-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_write_contract = handle.read()
+
+        self.assertIn("quota cost (`50`)", wrapper_contract)
+        self.assertIn("query-only", wrapper_contract)
+        self.assertIn("OAuth-required", auth_write_contract)
+        self.assertIn("heldForReview", auth_write_contract)
+        self.assertIn("banAuthor", auth_write_contract)
+
+    def test_comments_set_moderation_status_wrapper_review_surface_exposes_identity_quota_and_auth(self):
+        review_surface = build_comments_set_moderation_status_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "comments")
+        self.assertEqual(review_surface["operationName"], "setModerationStatus")
+        self.assertEqual(review_surface["operationKey"], "comments.setModerationStatus")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id", "moderationStatus"))
+        self.assertIn("banAuthor", review_surface["optionalFields"])
+
+    def test_set_moderation_status_contract_documents_invalid_shape_and_upstream_boundary_rules(self):
+        with open(
+            os.path.join(
+                os.path.abspath("specs/119-comments-set-moderation-status/contracts"),
+                "layer1-comments-set-moderation-status-auth-write-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_write_contract = handle.read()
+
+        self.assertIn("target comment identifiers", auth_write_contract)
+        self.assertIn("supported moderation outcome", auth_write_contract)
+        self.assertIn("unsupported moderation states", auth_write_contract)
+        self.assertIn("normalized upstream moderation failures", auth_write_contract)
 
 
 if __name__ == "__main__":

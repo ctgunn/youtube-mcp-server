@@ -22,6 +22,7 @@ from mcp_server.integrations.wrappers import (
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
+    build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -307,6 +308,44 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("body.id", result["sourceNotes"])
+
+    def test_consumer_can_summarize_comment_moderation_for_higher_layers(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {
+                "commentIds": ("comment-123", "comment-456"),
+                "isModerated": True,
+                "moderationStatus": "rejected",
+                "authorBanApplied": True,
+                "delegatedOwner": "owner-123",
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.moderate_comments_summary(
+            arguments={
+                "id": ["comment-123", "comment-456"],
+                "moderationStatus": "rejected",
+                "banAuthor": True,
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["commentIds"], ("comment-123", "comment-456"))
+        self.assertTrue(result["isModerated"])
+        self.assertEqual(result["moderationStatus"], "rejected")
+        self.assertTrue(result["authorBanApplied"])
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+        self.assertEqual(result["sourceOperation"], "comments.setModerationStatus")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("heldForReview", result["sourceNotes"])
 
     def test_consumer_can_summarize_empty_channel_sections_results_for_higher_layers(self):
         wrapper = build_channel_sections_list_wrapper()
