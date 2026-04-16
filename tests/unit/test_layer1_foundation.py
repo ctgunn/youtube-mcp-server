@@ -22,6 +22,7 @@ from mcp_server.integrations.wrappers import (
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
+    build_comments_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -464,6 +465,97 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 arguments={
                     "part": "snippet",
                     "body": {"snippet": {"parentId": "comment-123", "textOriginal": "Reply text"}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_comments_update_wrapper_exposes_expected_metadata(self):
+        wrapper = build_comments_update_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "comments.update")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/comments")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "body"))
+        self.assertIn("onBehalfOfContentOwner", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("body.id", wrapper.metadata.notes)
+        self.assertIn("textOriginal", wrapper.metadata.notes)
+
+    def test_comments_update_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_comments_update_wrapper))
+
+    def test_comments_update_wrapper_requires_body_field(self):
+        wrapper = build_comments_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: body"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+    def test_comments_update_wrapper_requires_existing_comment_identity(self):
+        wrapper = build_comments_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.id is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {"snippet": {"textOriginal": "Updated comment"}},
+                }
+            )
+
+    def test_comments_update_wrapper_rejects_missing_updated_text(self):
+        wrapper = build_comments_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.snippet.textOriginal is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {"id": "comment-123", "snippet": {}},
+                }
+            )
+
+    def test_comments_update_wrapper_rejects_unsupported_read_only_fields(self):
+        wrapper = build_comments_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.snippet.authorChannelId is read-only or unsupported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {
+                        "id": "comment-123",
+                        "snippet": {
+                            "textOriginal": "Updated comment",
+                            "authorChannelId": {"value": "UC123"},
+                        },
+                    },
+                }
+            )
+
+    def test_comments_update_wrapper_allows_optional_delegation_field(self):
+        wrapper = build_comments_update_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {
+                "part": "snippet",
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}},
+                "onBehalfOfContentOwner": "owner-123",
+            }
+        )
+
+    def test_comments_update_wrapper_requires_oauth_mode(self):
+        wrapper = build_comments_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "comment-456", "kind": "youtube#comment"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "comments.update requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}},
                 },
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
