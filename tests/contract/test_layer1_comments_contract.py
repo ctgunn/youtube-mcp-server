@@ -4,7 +4,11 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.integrations.wrappers import build_comments_insert_wrapper, build_comments_list_wrapper
+from mcp_server.integrations.wrappers import (
+    build_comments_insert_wrapper,
+    build_comments_list_wrapper,
+    build_comments_update_wrapper,
+)
 
 
 class Layer1CommentsContractTests(unittest.TestCase):
@@ -109,6 +113,50 @@ class Layer1CommentsContractTests(unittest.TestCase):
         self.assertIn("reply content", auth_write_contract)
         self.assertIn("unsupported create fields", auth_write_contract)
         self.assertIn("normalized upstream create failures", auth_write_contract)
+
+    def test_update_contract_artifacts_define_wrapper_and_auth_write_guidance(self):
+        root = os.path.abspath("specs/118-comments-update/contracts")
+        with open(os.path.join(root, "layer1-comments-update-wrapper-contract.md"), "r", encoding="utf-8") as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-comments-update-auth-write-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_write_contract = handle.read()
+
+        self.assertIn("quota cost (`50`)", wrapper_contract)
+        self.assertIn("`part` plus writable `body`", wrapper_contract)
+        self.assertIn("OAuth-required", auth_write_contract)
+        self.assertIn("existing-comment revision", auth_write_contract)
+        self.assertIn("read-only comment fields", auth_write_contract)
+
+    def test_comments_update_wrapper_review_surface_exposes_identity_quota_and_auth(self):
+        review_surface = build_comments_update_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "comments")
+        self.assertEqual(review_surface["operationName"], "update")
+        self.assertEqual(review_surface["operationKey"], "comments.update")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body"))
+        self.assertIn("onBehalfOfContentOwner", review_surface["optionalFields"])
+
+    def test_update_contract_documents_invalid_shape_and_upstream_boundary_rules(self):
+        with open(
+            os.path.join(
+                os.path.abspath("specs/118-comments-update/contracts"),
+                "layer1-comments-update-auth-write-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_write_contract = handle.read()
+
+        self.assertIn("target comment identifier", auth_write_contract)
+        self.assertIn("updated comment content", auth_write_contract)
+        self.assertIn("unsupported update fields", auth_write_contract)
+        self.assertIn("normalized upstream update failures", auth_write_contract)
 
 
 if __name__ == "__main__":

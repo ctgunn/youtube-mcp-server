@@ -21,6 +21,7 @@ from mcp_server.integrations.wrappers import (
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
+    build_comments_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -274,6 +275,85 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         self.assertEqual(result["id"], "comment-456")
         self.assertEqual(result["snippet"]["parentId"], "comment-123")
         self.assertEqual(result["delegatedOwner"], "owner-123")
+
+    def test_comments_update_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_comments_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": execution.arguments["body"]["id"],
+                "snippet": {
+                    "textOriginal": execution.arguments["body"]["snippet"]["textOriginal"],
+                },
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                "kind": "youtube#comment",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "comment-123")
+        self.assertEqual(result["snippet"]["textOriginal"], "Updated comment")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+
+    def test_comments_update_wrapper_rejects_unsupported_write_shapes_before_executor(self):
+        wrapper = build_comments_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "should-not-run"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "body.snippet.textOriginal is required"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"id": "comment-123", "snippet": {}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_comments_update_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_comments_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Comment update denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Comment update denied") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
 
     def test_captions_list_wrapper_executes_video_requests_through_shared_executor(self):
         wrapper = build_captions_list_wrapper()

@@ -25,6 +25,7 @@ from mcp_server.integrations.wrappers import (
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
+    build_comments_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -138,6 +139,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_comments_insert_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _comments_update_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_comments_update_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -540,6 +553,30 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
         self.assertIn(b'"id": "UC123"', request.data)
         self.assertIn(b'"bannerExternalUrl": "https://yt.example/banner"', request.data)
+
+    def test_builds_oauth_put_request_for_comments_update(self):
+        execution = self._comments_update_execution(
+            arguments={
+                "part": "snippet",
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "PUT")
+        self.assertIn("https://www.googleapis.com/youtube/v3/comments?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertIn(b'"id": "comment-123"', request.data)
+        self.assertIn(b'"textOriginal": "Updated comment"', request.data)
 
     def test_transport_returns_parsed_channel_sections_payload(self):
         transport = build_youtube_data_api_transport(
@@ -1287,6 +1324,58 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertEqual(context.exception.category, "auth")
 
+    def test_transport_normalizes_comments_update_invalid_write_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/comments",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Read-only field specified in comment update"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Read-only field specified in comment update") as context:
+            transport(
+                self._comments_update_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_comments_update_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/comments",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Comment update denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Comment update denied") as context:
+            transport(
+                self._comments_update_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
     def test_transport_parses_successful_youtube_payload(self):
         transport = build_youtube_data_api_transport(
             opener=lambda request, timeout: _FakeHTTPResponse(
@@ -1585,6 +1674,44 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertEqual(captured["content_type"], "application/json; charset=utf-8")
         self.assertIn(b'"parentId": "comment-123"', captured["data"])
         self.assertEqual(captured["timeout"], 11.5)
+
+    def test_executor_can_run_live_comments_update_transport_shape(self):
+        captured = {}
+
+        def opener(request, timeout):
+            captured["url"] = request.full_url
+            captured["authorization"] = request.headers.get("Authorization")
+            captured["timeout"] = timeout
+            captured["method"] = request.method
+            captured["content_type"] = request.headers.get("Content-type")
+            captured["data"] = request.data
+            return _FakeHTTPResponse(
+                {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}, "kind": "youtube#comment"}
+            )
+
+        executor = build_youtube_data_api_executor(opener=opener, timeout_seconds=10.5)
+        result = build_comments_update_wrapper().call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}},
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "comment-123")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+        self.assertEqual(captured["method"], "PUT")
+        self.assertIn("part=snippet", captured["url"])
+        self.assertIn("onBehalfOfContentOwner=owner-123", captured["url"])
+        self.assertEqual(captured["authorization"], "Bearer oauth-token")
+        self.assertEqual(captured["content_type"], "application/json; charset=utf-8")
+        self.assertIn(b'"textOriginal": "Updated comment"', captured["data"])
+        self.assertEqual(captured["timeout"], 10.5)
 
     def test_executor_can_run_live_captions_update_transport_shape(self):
         captured = {}
