@@ -21,6 +21,7 @@ from mcp_server.integrations.wrappers import (
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
+    build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -346,6 +347,88 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
                 arguments={
                     "part": "snippet",
                     "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_comments_set_moderation_status_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "commentIds": tuple(execution.arguments["id"]),
+                "isModerated": True,
+                "moderationStatus": execution.arguments["moderationStatus"],
+                "authorBanApplied": bool(execution.arguments.get("banAuthor")),
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "id": ["comment-123", "comment-456"],
+                "moderationStatus": "rejected",
+                "banAuthor": True,
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["commentIds"], ("comment-123", "comment-456"))
+        self.assertTrue(result["isModerated"])
+        self.assertEqual(result["moderationStatus"], "rejected")
+        self.assertTrue(result["authorBanApplied"])
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+
+    def test_comments_set_moderation_status_wrapper_rejects_unsupported_states_before_executor(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"isModerated": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "unsupported moderationStatus: spam"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "id": ["comment-123"],
+                    "moderationStatus": "spam",
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_comments_set_moderation_status_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_comments_set_moderation_status_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Comment moderation denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Comment moderation denied") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "id": ["comment-123"],
+                    "moderationStatus": "rejected",
                 },
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,

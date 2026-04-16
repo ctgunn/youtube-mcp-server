@@ -309,6 +309,37 @@ class CommentsUpdateWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class CommentsSetModerationStatusWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `comments.setModerationStatus`.
+
+    Official quota cost: ``50`` quota units. The wrapper uses query-only
+    arguments with one or more comment ``id`` values, one
+    ``moderationStatus`` value, optional ``banAuthor`` support when the
+    moderation status is ``rejected``, and optional
+    ``onBehalfOfContentOwner`` delegation on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `comments.setModerationStatus` with OAuth and state validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("comments.setModerationStatus requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class ChannelsUpdateWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `channels.update`.
 
@@ -804,6 +835,42 @@ def build_comments_update_wrapper() -> RepresentativeEndpointWrapper:
     return CommentsUpdateWrapper(metadata=metadata)
 
 
+def build_comments_set_moderation_status_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `comments.setModerationStatus`.
+
+    Official quota cost: ``50`` quota units. The wrapper uses query-only
+    moderation arguments through `id` and `moderationStatus`, supports
+    `published`, `heldForReview`, and `rejected`, allows `banAuthor` only
+    when `moderationStatus` is `rejected`, and treats
+    `onBehalfOfContentOwner` as optional delegation context.
+
+    :return: Representative wrapper configured for `comments.setModerationStatus`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="comments",
+        operation_name="setModerationStatus",
+        http_method="POST",
+        path_shape="/youtube/v3/comments/setModerationStatus",
+        request_shape=EndpointRequestShape(
+            required_fields=("id", "moderationStatus"),
+            optional_fields=("banAuthor", "onBehalfOfContentOwner"),
+            validators=(
+                _require_comments_set_moderation_status_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use query-only `id` values for one "
+            "or more target comments, use `moderationStatus` with supported "
+            "`published`, `heldForReview`, or `rejected` outcomes, allow "
+            "`banAuthor` only when moderationStatus is `rejected`, and treat "
+            "`onBehalfOfContentOwner` as optional delegation context."
+        ),
+    )
+    return CommentsSetModerationStatusWrapper(metadata=metadata)
+
+
 def _validated_reference_values(
     raw_values: object,
     *,
@@ -983,6 +1050,56 @@ def _require_comments_update_body(arguments: dict[str, object]) -> None:
     unsupported_snippet_fields = [field for field in snippet if field not in {"textOriginal"}]
     if unsupported_snippet_fields:
         raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
+
+
+def _validated_comment_ids(raw_values: object) -> tuple[str, ...]:
+    """Return validated comment identifiers for moderation requests.
+
+    :param raw_values: Candidate comment identifier value or collection.
+    :return: Normalized ordered comment identifiers without duplicates.
+    :raises ValueError: If no usable identifiers are present or duplicates appear.
+    """
+    if isinstance(raw_values, str):
+        values = [raw_values]
+    elif isinstance(raw_values, (list, tuple)):
+        values = list(raw_values)
+    else:
+        raise ValueError("id must contain at least one comment identifier")
+
+    normalized_ids: list[str] = []
+    for raw_value in values:
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            raise ValueError("id must contain at least one comment identifier")
+        normalized = raw_value.strip()
+        if normalized in normalized_ids:
+            raise ValueError("duplicate comment identifiers are unsupported")
+        normalized_ids.append(normalized)
+    if not normalized_ids:
+        raise ValueError("id must contain at least one comment identifier")
+    return tuple(normalized_ids)
+
+
+def _require_comments_set_moderation_status_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `comments.setModerationStatus` request arguments.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the moderation request is incomplete or unsupported.
+    """
+    _validated_comment_ids(arguments.get("id"))
+
+    raw_status = arguments.get("moderationStatus")
+    if not isinstance(raw_status, str) or not raw_status.strip():
+        raise ValueError("moderationStatus is required")
+    moderation_status = raw_status.strip()
+    supported_statuses = {"published", "heldForReview", "rejected"}
+    if moderation_status not in supported_statuses:
+        raise ValueError(f"unsupported moderationStatus: {moderation_status}")
+
+    ban_author = arguments.get("banAuthor")
+    if ban_author is not None and not isinstance(ban_author, bool):
+        raise ValueError("banAuthor must be a boolean when provided")
+    if ban_author and moderation_status != "rejected":
+        raise ValueError("banAuthor is only supported when moderationStatus is rejected")
 
 
 def _require_channel_sections_update_body(arguments: dict[str, object]) -> None:

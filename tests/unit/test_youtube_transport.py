@@ -25,6 +25,7 @@ from mcp_server.integrations.wrappers import (
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
+    build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -151,6 +152,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_comments_update_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _comments_set_moderation_status_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_comments_set_moderation_status_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -577,6 +590,32 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
         self.assertIn(b'"id": "comment-123"', request.data)
         self.assertIn(b'"textOriginal": "Updated comment"', request.data)
+
+    def test_builds_oauth_post_request_for_comments_set_moderation_status(self):
+        execution = self._comments_set_moderation_status_execution(
+            arguments={
+                "id": ["comment-123", "comment-456"],
+                "moderationStatus": "rejected",
+                "banAuthor": True,
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "POST")
+        self.assertIn("https://www.googleapis.com/youtube/v3/comments/setModerationStatus?", request.full_url)
+        self.assertIn("id=comment-123", request.full_url)
+        self.assertIn("id=comment-456", request.full_url)
+        self.assertIn("moderationStatus=rejected", request.full_url)
+        self.assertIn("banAuthor=true", request.full_url)
+        self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertIsNone(request.data)
 
     def test_transport_returns_parsed_channel_sections_payload(self):
         transport = build_youtube_data_api_transport(
@@ -1366,6 +1405,85 @@ class YouTubeTransportUnitTests(unittest.TestCase):
                     arguments={
                         "part": "snippet",
                         "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment"}},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_transport_returns_comments_set_moderation_status_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse("")
+        )
+
+        result = transport(
+            self._comments_set_moderation_status_execution(
+                arguments={
+                    "id": ["comment-123", "comment-456"],
+                    "moderationStatus": "rejected",
+                    "banAuthor": True,
+                    "onBehalfOfContentOwner": "owner-123",
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["commentIds"], ("comment-123", "comment-456"))
+        self.assertTrue(result["isModerated"])
+        self.assertEqual(result["moderationStatus"], "rejected")
+        self.assertTrue(result["authorBanApplied"])
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+        self.assertEqual(result["upstreamBodyState"], "empty")
+
+    def test_transport_normalizes_comments_set_moderation_status_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/comments/setModerationStatus",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"moderationStatus is required"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "moderationStatus is required") as context:
+            transport(
+                self._comments_set_moderation_status_execution(
+                    arguments={
+                        "id": ["comment-123"],
+                        "moderationStatus": "rejected",
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_comments_set_moderation_status_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/comments/setModerationStatus",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Comment moderation denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Comment moderation denied") as context:
+            transport(
+                self._comments_set_moderation_status_execution(
+                    arguments={
+                        "id": ["comment-123"],
+                        "moderationStatus": "rejected",
                     },
                     auth_context=AuthContext(
                         mode=AuthMode.OAUTH_REQUIRED,
