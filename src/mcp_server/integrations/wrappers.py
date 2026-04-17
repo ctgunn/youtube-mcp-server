@@ -340,6 +340,35 @@ class CommentsSetModerationStatusWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class CommentsDeleteWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `comments.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one comment
+    ``id`` and supports optional ``onBehalfOfContentOwner`` delegation on an
+    authorized request with target-state-sensitive behavior.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `comments.delete` with OAuth and delete validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("comments.delete requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class ChannelsUpdateWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `channels.update`.
 
@@ -871,6 +900,40 @@ def build_comments_set_moderation_status_wrapper() -> RepresentativeEndpointWrap
     return CommentsSetModerationStatusWrapper(metadata=metadata)
 
 
+def build_comments_delete_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `comments.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one comment
+    `id`, supports optional `onBehalfOfContentOwner` delegation, and keeps
+    destructive delete guidance visible for higher-layer reuse.
+
+    :return: Representative wrapper configured for `comments.delete`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="comments",
+        operation_name="delete",
+        http_method="DELETE",
+        path_shape="/youtube/v3/comments",
+        request_shape=EndpointRequestShape(
+            required_fields=("id",),
+            optional_fields=("onBehalfOfContentOwner",),
+            validators=(
+                _require_comments_delete_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `id` for the comment being "
+            "deleted, keep requests scoped to one target comment at a time, "
+            "note that deletion remains target-state sensitive even with "
+            "authorized access, and treat `onBehalfOfContentOwner` as "
+            "optional delegation context."
+        ),
+    )
+    return CommentsDeleteWrapper(metadata=metadata)
+
+
 def _validated_reference_values(
     raw_values: object,
     *,
@@ -1100,6 +1163,17 @@ def _require_comments_set_moderation_status_arguments(arguments: dict[str, objec
         raise ValueError("banAuthor must be a boolean when provided")
     if ban_author and moderation_status != "rejected":
         raise ValueError("banAuthor is only supported when moderationStatus is rejected")
+
+
+def _require_comments_delete_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `comments.delete` request arguments.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the delete request is incomplete or unsupported.
+    """
+    raw_comment_id = arguments.get("id")
+    if not isinstance(raw_comment_id, str) or not raw_comment_id.strip():
+        raise ValueError("id must identify one comment")
 
 
 def _require_channel_sections_update_body(arguments: dict[str, object]) -> None:

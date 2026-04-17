@@ -20,6 +20,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_update_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
+    build_comments_delete_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
     build_comments_set_moderation_status_wrapper,
@@ -346,6 +347,35 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("heldForReview", result["sourceNotes"])
+
+    def test_consumer_can_summarize_comment_deletes_for_higher_layers(self):
+        wrapper = build_comments_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "commentId": execution.arguments["id"],
+                "isDeleted": True,
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.delete_comment_summary(
+            arguments={"id": "comment-888", "onBehalfOfContentOwner": "owner-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["commentId"], "comment-888")
+        self.assertTrue(result["isDeleted"])
+        self.assertTrue(result["delegationApplied"])
+        self.assertEqual(result["sourceOperation"], "comments.delete")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("target-state", result["sourceNotes"])
 
     def test_consumer_can_summarize_empty_channel_sections_results_for_higher_layers(self):
         wrapper = build_channel_sections_list_wrapper()

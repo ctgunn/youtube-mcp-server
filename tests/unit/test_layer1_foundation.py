@@ -21,6 +21,7 @@ from mcp_server.integrations.wrappers import (
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
+    build_comments_delete_wrapper,
     build_comments_list_wrapper,
     build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
@@ -652,6 +653,66 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                     "id": ["comment-123"],
                     "moderationStatus": "rejected",
                 },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_comments_delete_wrapper_exposes_expected_metadata(self):
+        wrapper = build_comments_delete_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "comments.delete")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/comments")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("id",))
+        self.assertIn("onBehalfOfContentOwner", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("target comment", wrapper.metadata.notes)
+        self.assertIn("target-state", wrapper.metadata.notes)
+
+    def test_comments_delete_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_comments_delete_wrapper))
+
+    def test_comments_delete_wrapper_requires_id_field(self):
+        wrapper = build_comments_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: id"):
+            wrapper.metadata.request_shape.validate_arguments({})
+
+    def test_comments_delete_wrapper_rejects_invalid_id_shape(self):
+        wrapper = build_comments_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "id must identify one comment"):
+            wrapper.metadata.request_shape.validate_arguments({"id": ["comment-123"]})
+
+    def test_comments_delete_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = build_comments_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: commentId"):
+            wrapper.metadata.request_shape.validate_arguments({"id": "comment-123", "commentId": "comment-456"})
+
+    def test_comments_delete_wrapper_allows_optional_delegation_field(self):
+        wrapper = build_comments_delete_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {
+                "id": "comment-123",
+                "onBehalfOfContentOwner": "owner-123",
+            }
+        )
+
+    def test_comments_delete_wrapper_requires_oauth_mode(self):
+        wrapper = build_comments_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"commentId": "comment-123", "isDeleted": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "comments.delete requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"id": "comment-123"},
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),

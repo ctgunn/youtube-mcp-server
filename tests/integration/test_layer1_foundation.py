@@ -20,6 +20,7 @@ from mcp_server.integrations.wrappers import (
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
+    build_comments_delete_wrapper,
     build_comments_list_wrapper,
     build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
@@ -409,6 +410,77 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
                     credentials=CredentialBundle(oauth_token="oauth-123"),
                 ),
             )
+
+    def test_comments_delete_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_comments_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "commentId": execution.arguments["id"],
+                "isDeleted": True,
+                "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "id": "comment-123",
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["commentId"], "comment-123")
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+        self.assertEqual(result["upstreamBodyState"], "empty")
+
+    def test_comments_delete_wrapper_rejects_invalid_identifier_shapes_before_executor(self):
+        wrapper = build_comments_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"commentId": "should-not-run"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "id must identify one comment"):
+            wrapper.call(
+                executor,
+                arguments={"id": ["comment-123"]},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_comments_delete_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_comments_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Comment delete denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Comment delete denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "comment-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
 
     def test_comments_set_moderation_status_wrapper_preserves_auth_failures_from_shared_executor(self):
         wrapper = build_comments_set_moderation_status_wrapper()
