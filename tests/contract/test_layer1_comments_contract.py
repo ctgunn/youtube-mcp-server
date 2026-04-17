@@ -5,6 +5,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.integrations.wrappers import (
+    build_comments_delete_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
     build_comments_set_moderation_status_wrapper,
@@ -206,6 +207,49 @@ class Layer1CommentsContractTests(unittest.TestCase):
         self.assertIn("supported moderation outcome", auth_write_contract)
         self.assertIn("unsupported moderation states", auth_write_contract)
         self.assertIn("normalized upstream moderation failures", auth_write_contract)
+
+    def test_comments_delete_contract_artifacts_define_wrapper_and_auth_delete_guidance(self):
+        root = os.path.abspath("specs/120-comments-delete/contracts")
+        with open(os.path.join(root, "layer1-comments-delete-wrapper-contract.md"), "r", encoding="utf-8") as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-comments-delete-auth-delete-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_delete_contract = handle.read()
+
+        self.assertIn("quota cost (`50`)", wrapper_contract)
+        self.assertIn("one comment identifier", wrapper_contract)
+        self.assertIn("OAuth-required", auth_delete_contract)
+        self.assertIn("one existing comment", auth_delete_contract)
+        self.assertIn("unavailable", auth_delete_contract)
+
+    def test_comments_delete_wrapper_review_surface_exposes_identity_quota_and_auth(self):
+        review_surface = build_comments_delete_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "comments")
+        self.assertEqual(review_surface["operationName"], "delete")
+        self.assertEqual(review_surface["operationKey"], "comments.delete")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id",))
+        self.assertIn("onBehalfOfContentOwner", review_surface["optionalFields"])
+
+    def test_comments_delete_contract_documents_invalid_shape_and_upstream_boundary_rules(self):
+        with open(
+            os.path.join(
+                os.path.abspath("specs/120-comments-delete/contracts"),
+                "layer1-comments-delete-auth-delete-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_delete_contract = handle.read()
+
+        self.assertIn("target comment identifier", auth_delete_contract)
+        self.assertIn("unsupported delete shapes", auth_delete_contract)
+        self.assertIn("normalized upstream or target-state delete failures", auth_delete_contract)
 
 
 if __name__ == "__main__":

@@ -86,6 +86,8 @@ def build_youtube_data_api_transport(
             return _comments_update_payload(execution, payload)
         if execution.metadata.operation_key == "comments.setModerationStatus":
             return _comments_set_moderation_status_payload(execution)
+        if execution.metadata.operation_key == "comments.delete":
+            return _comments_delete_payload(execution)
         if execution.metadata.operation_key == "channelSections.insert":
             return _channel_sections_insert_payload(execution, payload)
         if execution.metadata.operation_key == "channelSections.update":
@@ -408,6 +410,7 @@ def _normalized_category_for_execution(
             "comments.insert",
             "comments.update",
             "comments.setModerationStatus",
+            "comments.delete",
         }:
             return None
         message = str(details.get("message", "")).lower()
@@ -429,6 +432,12 @@ def _normalized_category_for_execution(
         if execution.metadata.operation_key == "comments.setModerationStatus":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "comments.delete":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 404 or "not found" in combined or "already removed" in combined:
+                return "not_found"
             return None
         if execution.metadata.operation_key == "channelSections.delete":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
@@ -596,6 +605,20 @@ def _comments_set_moderation_status_payload(
         "isModerated": True,
         "moderationStatus": execution.arguments.get("moderationStatus"),
         "authorBanApplied": bool(execution.arguments.get("banAuthor")),
+        "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
+        "upstreamBodyState": "empty",
+    }
+
+
+def _comments_delete_payload(execution: RequestExecution) -> dict[str, Any]:
+    """Return the internal result shape for a `comments.delete` response.
+
+    :param execution: Shared request execution details.
+    :return: Lightweight delete result with stable metadata fields.
+    """
+    return {
+        "commentId": _stringify_scalar(execution.arguments.get("id")),
+        "isDeleted": True,
         "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
         "upstreamBodyState": "empty",
     }
