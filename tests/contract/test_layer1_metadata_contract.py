@@ -12,6 +12,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
+    build_comment_threads_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_comments_delete_wrapper,
@@ -152,6 +153,22 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["exclusiveSelectors"], ("id", "parentId"))
         self.assertIn("textFormat", review_surface["optionalFields"])
         self.assertIn("reply lookup", review_surface["notes"])
+
+    def test_comment_threads_list_review_surface_exposes_identity_quota_and_selector_notes(self):
+        review_surface = build_comment_threads_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "commentThreads")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "commentThreads.list")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "api_key")
+        self.assertEqual(review_surface["requiredFields"], ("part",))
+        self.assertEqual(
+            review_surface["exclusiveSelectors"],
+            ("videoId", "allThreadsRelatedToChannelId", "id"),
+        )
+        self.assertIn("searchTerms", review_surface["optionalFields"])
+        self.assertIn("channel-related", review_surface["notes"])
 
     def test_comments_insert_review_surface_exposes_identity_quota_and_auth_notes(self):
         review_surface = build_comments_insert_wrapper().review_surface()

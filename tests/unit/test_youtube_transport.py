@@ -21,6 +21,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
+    build_comment_threads_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
@@ -117,6 +118,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_comments_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _comment_threads_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_comment_threads_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -453,6 +466,94 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertEqual(result["items"][0]["id"], "comment-123")
         self.assertEqual(result["nextPageToken"], "cursor-2")
+
+    def test_builds_api_key_request_for_comment_threads_video_selector(self):
+        execution = self._comment_threads_execution(
+            arguments={
+                "part": "snippet",
+                "videoId": "video-123",
+                "order": "time",
+                "searchTerms": "launch",
+                "textFormat": "plainText",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("/youtube/v3/commentThreads?", request.full_url)
+        self.assertIn("videoId=video-123", request.full_url)
+        self.assertIn("order=time", request.full_url)
+        self.assertIn("searchTerms=launch", request.full_url)
+        self.assertIn("textFormat=plainText", request.full_url)
+        self.assertIn("key=yt-key", request.full_url)
+        self.assertIsNone(request.headers.get("Authorization"))
+
+    def test_builds_api_key_request_for_comment_threads_channel_selector(self):
+        execution = self._comment_threads_execution(
+            arguments={
+                "part": "snippet",
+                "allThreadsRelatedToChannelId": "UC123",
+                "pageToken": "cursor-1",
+                "maxResults": 5,
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("allThreadsRelatedToChannelId=UC123", request.full_url)
+        self.assertIn("pageToken=cursor-1", request.full_url)
+        self.assertIn("maxResults=5", request.full_url)
+
+    def test_transport_returns_comment_threads_list_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"items": [{"id": "thread-123"}], "nextPageToken": "cursor-2"}
+            )
+        )
+
+        result = transport(
+            self._comment_threads_execution(
+                arguments={"part": "snippet", "id": ["thread-123"]},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="yt-key"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["items"][0]["id"], "thread-123")
+        self.assertEqual(result["nextPageToken"], "cursor-2")
+
+    def test_transport_normalizes_comment_threads_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/commentThreads",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"part is required"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "part is required") as context:
+            transport(
+                self._comment_threads_execution(
+                    arguments={"part": "snippet", "videoId": "video-123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.API_KEY,
+                        credentials=CredentialBundle(api_key="yt-key"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
 
     def test_transport_returns_comments_insert_payload(self):
         transport = build_youtube_data_api_transport(
@@ -1843,6 +1944,51 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("parentId=comment-123", captured["url"])
         self.assertIsNone(captured["authorization"])
         self.assertEqual(captured["timeout"], 7.5)
+
+    def test_executor_can_run_live_comment_threads_transport_shape(self):
+        captured = {}
+
+        def opener(request, timeout):
+            captured["url"] = request.full_url
+            captured["authorization"] = request.headers.get("Authorization")
+            captured["timeout"] = timeout
+            return _FakeHTTPResponse({"items": []})
+
+        executor = build_youtube_data_api_executor(opener=opener, timeout_seconds=8.5)
+        result = build_comment_threads_list_wrapper().call(
+            executor,
+            arguments={"part": "snippet", "allThreadsRelatedToChannelId": "UC123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertIn("allThreadsRelatedToChannelId=UC123", captured["url"])
+        self.assertIsNone(captured["authorization"])
+        self.assertEqual(captured["timeout"], 8.5)
+
+    def test_executor_rejects_comment_threads_transport_shape_with_oauth_mode(self):
+        captured = {"called": False}
+
+        def opener(request, timeout):
+            captured["called"] = True
+            return _FakeHTTPResponse({"items": []})
+
+        executor = build_youtube_data_api_executor(opener=opener, timeout_seconds=8.5)
+
+        with self.assertRaisesRegex(ValueError, "videoId requires api_key auth"):
+            build_comment_threads_list_wrapper().call(
+                executor,
+                arguments={"part": "snippet", "videoId": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+
+        self.assertFalse(captured["called"])
 
     def test_executor_can_run_live_captions_insert_transport_shape(self):
         captured = {}

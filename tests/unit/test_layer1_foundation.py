@@ -18,6 +18,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
+    build_comment_threads_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
@@ -392,6 +393,116 @@ class Layer1FoundationUnitTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"part": "snippet", "parentId": "comment-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_comment_threads_list_wrapper_exposes_expected_metadata(self):
+        wrapper = build_comment_threads_list_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "commentThreads.list")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/commentThreads")
+        self.assertEqual(wrapper.metadata.quota_cost, 1)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "api_key")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part",))
+        self.assertEqual(
+            wrapper.metadata.request_shape.exactly_one_of,
+            ("videoId", "allThreadsRelatedToChannelId", "id"),
+        )
+        self.assertIn("searchTerms", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("no-match", wrapper.metadata.notes)
+
+    def test_comment_threads_list_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_comment_threads_list_wrapper))
+
+    def test_comment_threads_list_wrapper_requires_one_selector_field(self):
+        wrapper = build_comment_threads_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+    def test_comment_threads_list_wrapper_rejects_multiple_selector_fields(self):
+        wrapper = build_comment_threads_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "videoId": "video-123",
+                    "id": ["thread-456"],
+                }
+            )
+
+    def test_comment_threads_list_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = build_comment_threads_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: parentId"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "videoId": "video-123", "parentId": "comment-123"}
+            )
+
+    def test_comment_threads_list_wrapper_allows_selector_specific_optional_fields(self):
+        wrapper = build_comment_threads_list_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {
+                "part": "snippet",
+                "allThreadsRelatedToChannelId": "UC123",
+                "pageToken": "cursor-1",
+                "maxResults": 5,
+                "order": "time",
+                "searchTerms": "release",
+                "textFormat": "plainText",
+            }
+        )
+
+    def test_comment_threads_list_wrapper_requires_api_key_mode_for_video_selector(self):
+        wrapper = build_comment_threads_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "videoId requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "videoId": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_comment_threads_list_wrapper_requires_api_key_mode_for_channel_selector(self):
+        wrapper = build_comment_threads_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "allThreadsRelatedToChannelId requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "allThreadsRelatedToChannelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_comment_threads_list_wrapper_requires_api_key_mode_for_id_selector(self):
+        wrapper = build_comment_threads_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "id requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "id": ["thread-123"]},
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,
                     credentials=CredentialBundle(oauth_token="oauth-123"),

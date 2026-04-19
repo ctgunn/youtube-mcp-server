@@ -17,6 +17,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
+    build_comment_threads_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_comments_insert_wrapper,
@@ -245,6 +246,133 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         )
 
         self.assertEqual(result["items"], [])
+
+    def test_comment_threads_list_wrapper_executes_video_selector_requests_through_shared_executor(self):
+        wrapper = build_comment_threads_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "thread-123",
+                        "videoId": execution.arguments["videoId"],
+                    }
+                ]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "videoId": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["videoId"], "video-123")
+
+    def test_comment_threads_list_wrapper_executes_channel_selector_requests_through_shared_executor(self):
+        wrapper = build_comment_threads_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "thread-123",
+                        "channelId": execution.arguments["allThreadsRelatedToChannelId"],
+                    }
+                ]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "allThreadsRelatedToChannelId": "UC123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["channelId"], "UC123")
+
+    def test_comment_threads_list_wrapper_executes_id_selector_requests_through_shared_executor(self):
+        wrapper = build_comment_threads_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": execution.arguments["id"][0],
+                        "kind": "youtube#commentThread",
+                    }
+                ]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "id": ["thread-123"]},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "thread-123")
+
+    def test_comment_threads_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_comment_threads_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "videoId": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+
+    def test_comment_threads_list_wrapper_rejects_missing_selector_requests(self):
+        wrapper = build_comment_threads_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "commentThreads.list requires a supported selector"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_comment_threads_list_wrapper_rejects_oauth_requests_for_public_selectors(self):
+        wrapper = build_comment_threads_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "allThreadsRelatedToChannelId requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "allThreadsRelatedToChannelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
 
     def test_comments_insert_wrapper_executes_authorized_reply_requests_through_shared_executor(self):
         wrapper = build_comments_insert_wrapper()
