@@ -251,6 +251,51 @@ class CommentsListWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class CommentThreadsListWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `commentThreads.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports thread lookup
+    through ``videoId``, ``allThreadsRelatedToChannelId``, and ``id`` on
+    public API-key requests.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `commentThreads.list` with selector-aware auth validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the selector requires a different auth mode.
+        """
+        selector = self._selected_selector(arguments)
+        if selector in {"videoId", "allThreadsRelatedToChannelId", "id"} and auth_context.mode is not AuthMode.API_KEY:
+            raise ValueError(f"{selector} requires api_key auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+    def _selected_selector(self, arguments: dict[str, Any]) -> str:
+        """Return the active selector field for one comment-threads request.
+
+        :param arguments: Wrapper arguments to inspect.
+        :return: One of ``videoId``, ``allThreadsRelatedToChannelId``, or ``id``.
+        :raises ValueError: If no selector is present.
+        """
+        for field in ("videoId", "allThreadsRelatedToChannelId", "id"):
+            value = arguments.get(field)
+            if isinstance(value, str) and value.strip():
+                return field
+            if isinstance(value, (list, tuple)) and value:
+                return field
+        raise ValueError("commentThreads.list requires a supported selector")
+
+
+@dataclass(frozen=True)
 class CommentsInsertWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `comments.insert`.
 
@@ -793,6 +838,49 @@ def build_comments_list_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return CommentsListWrapper(metadata=metadata)
+
+
+def build_comment_threads_list_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `commentThreads.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports thread lookup
+    through ``videoId``, ``allThreadsRelatedToChannelId``, and ``id`` with
+    optional pagination, ordering, search-term, and text-format modifiers on
+    API-key requests.
+
+    :return: Representative wrapper configured for `commentThreads.list`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="commentThreads",
+        operation_name="list",
+        http_method="GET",
+        path_shape="/youtube/v3/commentThreads",
+        request_shape=EndpointRequestShape(
+            required_fields=("part",),
+            optional_fields=(
+                "videoId",
+                "allThreadsRelatedToChannelId",
+                "id",
+                "pageToken",
+                "maxResults",
+                "order",
+                "searchTerms",
+                "textFormat",
+            ),
+            exactly_one_of=("videoId", "allThreadsRelatedToChannelId", "id"),
+        ),
+        auth_mode=AuthMode.API_KEY,
+        quota_cost=1,
+        notes=(
+            "Use `videoId` for video-based thread lookup, use "
+            "`allThreadsRelatedToChannelId` for channel-related thread lookup, "
+            "use `id` for direct thread lookup, treat selector combinations as "
+            "mutually exclusive, allow `pageToken`, `maxResults`, `order`, "
+            "`searchTerms`, and `textFormat` as optional near-raw modifiers, "
+            "and preserve empty result sets as successful no-match outcomes."
+        ),
+    )
+    return CommentThreadsListWrapper(metadata=metadata)
 
 
 def build_comments_insert_wrapper() -> RepresentativeEndpointWrapper:

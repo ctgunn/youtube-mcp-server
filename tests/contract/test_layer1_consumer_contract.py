@@ -18,6 +18,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
+    build_comment_threads_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
     build_comments_delete_wrapper,
@@ -241,6 +242,52 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         )
 
         self.assertEqual(result["commentCount"], 0)
+        self.assertTrue(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "id")
+
+    def test_consumer_can_summarize_comment_threads_results_for_higher_layers(self):
+        wrapper = build_comment_threads_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "thread-123", "videoId": execution.arguments.get("videoId")}]
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_comment_threads_summary(
+            arguments={"part": "snippet", "videoId": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["commentThreadCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "videoId")
+        self.assertEqual(result["sourceOperation"], "commentThreads.list")
+        self.assertEqual(result["sourceAuthMode"], "api_key")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("channel-related", result["sourceNotes"])
+
+    def test_consumer_can_summarize_empty_comment_threads_results_for_higher_layers(self):
+        wrapper = build_comment_threads_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_comment_threads_summary(
+            arguments={"part": "snippet", "id": ["thread-123"]},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["commentThreadCount"], 0)
         self.assertTrue(result["isEmpty"])
         self.assertEqual(result["selectorUsed"], "id")
 
