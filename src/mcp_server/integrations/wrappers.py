@@ -325,6 +325,36 @@ class CommentsInsertWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class CommentThreadsInsertWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `commentThreads.insert`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a top-level
+    comment-thread ``body`` payload aligned to ``body.snippet.videoId`` and
+    ``body.snippet.topLevelComment.snippet.textOriginal`` on an authorized
+    request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `commentThreads.insert` with OAuth and top-level validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("commentThreads.insert requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class CommentsUpdateWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `comments.update`.
 
@@ -917,6 +947,42 @@ def build_comments_insert_wrapper() -> RepresentativeEndpointWrapper:
     return CommentsInsertWrapper(metadata=metadata)
 
 
+def build_comment_threads_insert_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `commentThreads.insert`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a video-
+    targeted top-level thread ``body``, keeps ``body.snippet.videoId`` and
+    ``body.snippet.topLevelComment.snippet.textOriginal`` visible for review,
+    and treats ``onBehalfOfContentOwner`` as optional delegation context.
+
+    :return: Representative wrapper configured for `commentThreads.insert`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="commentThreads",
+        operation_name="insert",
+        http_method="POST",
+        path_shape="/youtube/v3/commentThreads",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body"),
+            optional_fields=("onBehalfOfContentOwner",),
+            validators=(
+                _require_comment_threads_insert_body,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `body.snippet.videoId` for the "
+            "supported discussion target, use "
+            "`body.snippet.topLevelComment.snippet.textOriginal` for top-level "
+            "comment content, reject reply-style or mixed comment-thread "
+            "create shapes, and treat `onBehalfOfContentOwner` as optional "
+            "delegation context."
+        ),
+    )
+    return CommentThreadsInsertWrapper(metadata=metadata)
+
+
 def build_comments_update_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `comments.update`.
 
@@ -1169,6 +1235,61 @@ def _require_comments_insert_body(arguments: dict[str, object]) -> None:
         raise ValueError("body.snippet.textOriginal is required")
 
     unsupported_snippet_fields = [field for field in snippet if field not in {"parentId", "textOriginal"}]
+    if unsupported_snippet_fields:
+        raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
+
+
+def _require_comment_threads_insert_body(arguments: dict[str, object]) -> None:
+    """Validate the supported `commentThreads.insert` request body.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request body does not match supported top-level rules.
+    """
+    require_mapping_fields("body", required_keys=("snippet",))(arguments)
+    body = arguments.get("body")
+    assert isinstance(body, dict)  # Narrowed by validator above.
+    unsupported_body_fields = [field for field in body if field not in {"kind", "snippet"}]
+    if unsupported_body_fields:
+        raise ValueError(f"body.{unsupported_body_fields[0]} is read-only or unsupported")
+
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        raise ValueError("body.snippet is required")
+
+    raw_video_id = snippet.get("videoId")
+    if not isinstance(raw_video_id, str) or not raw_video_id.strip():
+        raise ValueError("body.snippet.videoId is required")
+
+    top_level_comment = snippet.get("topLevelComment")
+    if not isinstance(top_level_comment, dict):
+        raise ValueError("body.snippet.topLevelComment is required")
+
+    top_level_snippet = top_level_comment.get("snippet")
+    if not isinstance(top_level_snippet, dict):
+        raise ValueError("body.snippet.topLevelComment.snippet is required")
+
+    raw_comment_text = top_level_snippet.get("textOriginal")
+    if not isinstance(raw_comment_text, str) or not raw_comment_text.strip():
+        raise ValueError("body.snippet.topLevelComment.snippet.textOriginal is required")
+
+    unsupported_top_level_fields = [
+        field for field in top_level_comment if field not in {"kind", "snippet"}
+    ]
+    if unsupported_top_level_fields:
+        raise ValueError(
+            f"body.snippet.topLevelComment.{unsupported_top_level_fields[0]} is read-only or unsupported"
+        )
+
+    unsupported_top_level_snippet_fields = [
+        field for field in top_level_snippet if field not in {"textOriginal"}
+    ]
+    if unsupported_top_level_snippet_fields:
+        raise ValueError(
+            "body.snippet.topLevelComment.snippet."
+            f"{unsupported_top_level_snippet_fields[0]} is read-only or unsupported"
+        )
+
+    unsupported_snippet_fields = [field for field in snippet if field not in {"videoId", "topLevelComment"}]
     if unsupported_snippet_fields:
         raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
 

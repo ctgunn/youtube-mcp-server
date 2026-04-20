@@ -21,6 +21,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
+    build_comment_threads_insert_wrapper,
     build_comment_threads_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
@@ -154,6 +155,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_comments_insert_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _comment_threads_insert_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_comment_threads_insert_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -554,6 +567,113 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_returns_comment_threads_insert_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {
+                    "id": "thread-456",
+                    "snippet": {
+                        "videoId": "video-123",
+                        "topLevelComment": {
+                            "id": "comment-999",
+                            "snippet": {"textOriginal": "Top-level text"},
+                        },
+                    },
+                }
+            )
+        )
+
+        result = transport(
+            self._comment_threads_insert_execution(
+                arguments={
+                    "part": "snippet",
+                    "body": {
+                        "snippet": {
+                            "videoId": "video-123",
+                            "topLevelComment": {"snippet": {"textOriginal": "Top-level text"}},
+                        }
+                    },
+                    "onBehalfOfContentOwner": "owner-123",
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["id"], "thread-456")
+        self.assertEqual(result["snippet"]["videoId"], "video-123")
+        self.assertEqual(result["snippet"]["topLevelComment"]["id"], "comment-999")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+
+    def test_transport_normalizes_comment_threads_insert_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/commentThreads",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(
+                b'{"error":{"message":"body.snippet.topLevelComment.snippet.textOriginal is required"}}'
+            ),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "body.snippet.topLevelComment.snippet.textOriginal is required",
+        ) as context:
+            transport(
+                self._comment_threads_insert_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {
+                            "snippet": {
+                                "videoId": "video-123",
+                                "topLevelComment": {"snippet": {"textOriginal": "Top-level text"}},
+                            }
+                        },
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_comment_threads_insert_target_eligibility_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/commentThreads",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Comments disabled for this discussion target"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Comments disabled for this discussion target") as context:
+            transport(
+                self._comment_threads_insert_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {
+                            "snippet": {
+                                "videoId": "video-123",
+                                "topLevelComment": {"snippet": {"textOriginal": "Top-level text"}},
+                            }
+                        },
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "target_eligibility")
 
     def test_transport_returns_comments_insert_payload(self):
         transport = build_youtube_data_api_transport(
@@ -1215,6 +1335,35 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
         self.assertIn(b'"parentId": "comment-123"', request.data)
         self.assertIn(b'"textOriginal": "Reply text"', request.data)
+
+    def test_builds_oauth_request_for_comment_threads_insert(self):
+        execution = self._comment_threads_insert_execution(
+            arguments={
+                "part": "snippet",
+                "body": {
+                    "snippet": {
+                        "videoId": "video-123",
+                        "topLevelComment": {"snippet": {"textOriginal": "Top-level text"}},
+                    }
+                },
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "POST")
+        self.assertIn("https://www.googleapis.com/youtube/v3/commentThreads?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertIn(b'"videoId": "video-123"', request.data)
+        self.assertIn(b'"textOriginal": "Top-level text"', request.data)
 
     def test_builds_oauth_request_for_captions_update_body_only(self):
         execution = self._captions_update_execution(
@@ -2060,6 +2209,54 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertEqual(captured["content_type"], "application/json; charset=utf-8")
         self.assertIn(b'"parentId": "comment-123"', captured["data"])
         self.assertEqual(captured["timeout"], 11.5)
+
+    def test_executor_can_run_live_comment_threads_insert_transport_shape(self):
+        captured = {}
+
+        def opener(request, timeout):
+            captured["url"] = request.full_url
+            captured["authorization"] = request.headers.get("Authorization")
+            captured["timeout"] = timeout
+            captured["method"] = request.method
+            captured["content_type"] = request.headers.get("Content-type")
+            captured["data"] = request.data
+            return _FakeHTTPResponse(
+                {
+                    "id": "thread-123",
+                    "snippet": {
+                        "videoId": "video-123",
+                        "topLevelComment": {"id": "comment-123", "snippet": {"textOriginal": "Top-level text"}},
+                    },
+                }
+            )
+
+        executor = build_youtube_data_api_executor(opener=opener, timeout_seconds=12.0)
+        result = build_comment_threads_insert_wrapper().call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {
+                    "snippet": {
+                        "videoId": "video-123",
+                        "topLevelComment": {"snippet": {"textOriginal": "Top-level text"}},
+                    }
+                },
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "thread-123")
+        self.assertEqual(captured["method"], "POST")
+        self.assertIn("part=snippet", captured["url"])
+        self.assertIn("onBehalfOfContentOwner=owner-123", captured["url"])
+        self.assertEqual(captured["authorization"], "Bearer oauth-token")
+        self.assertEqual(captured["content_type"], "application/json; charset=utf-8")
+        self.assertIn(b'"videoId": "video-123"', captured["data"])
+        self.assertEqual(captured["timeout"], 12.0)
 
     def test_executor_can_run_live_comments_update_transport_shape(self):
         captured = {}
