@@ -18,6 +18,7 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
+    build_comment_threads_insert_wrapper,
     build_comment_threads_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
@@ -323,6 +324,51 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("textOriginal", result["sourceNotes"])
+
+    def test_consumer_can_summarize_comment_thread_creation_for_higher_layers(self):
+        wrapper = build_comment_threads_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {
+                "id": "thread-999",
+                "snippet": {
+                    "videoId": "video-123",
+                    "topLevelComment": {
+                        "id": "comment-999",
+                        "snippet": {"textOriginal": "Top-level text"},
+                    },
+                },
+                "delegatedOwner": "owner-123",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.create_comment_thread_summary(
+            arguments={
+                "part": "snippet",
+                "body": {
+                    "snippet": {
+                        "videoId": "video-123",
+                        "topLevelComment": {"snippet": {"textOriginal": "Top-level text"}},
+                    }
+                },
+                "onBehalfOfContentOwner": "owner-123",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["commentThreadId"], "thread-999")
+        self.assertTrue(result["isCreated"])
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["topLevelCommentId"], "comment-999")
+        self.assertEqual(result["delegatedOwner"], "owner-123")
+        self.assertEqual(result["sourceOperation"], "commentThreads.insert")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("topLevelComment", result["sourceNotes"])
 
     def test_consumer_can_summarize_comment_updates_for_higher_layers(self):
         wrapper = build_comments_update_wrapper()
