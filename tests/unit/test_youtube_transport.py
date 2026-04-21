@@ -30,6 +30,7 @@ from mcp_server.integrations.wrappers import (
     build_comments_list_wrapper,
     build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
+    build_guide_categories_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -131,6 +132,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_comment_threads_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _guide_categories_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_guide_categories_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -368,6 +381,23 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertIn("forUsername=legacy-user", request.full_url)
 
+    def test_builds_api_key_request_for_guide_categories_region_lookup(self):
+        execution = self._guide_categories_execution(
+            arguments={"part": "snippet", "regionCode": "US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "GET")
+        self.assertIn("https://www.googleapis.com/youtube/v3/guideCategories?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("regionCode=US", request.full_url)
+        self.assertIn("key=yt-key", request.full_url)
+
     def test_builds_oauth_request_for_channels_mine_selector(self):
         execution = self._channels_execution(
             arguments={"part": "snippet", "mine": True},
@@ -544,6 +574,49 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertEqual(result["items"][0]["id"], "thread-123")
         self.assertEqual(result["nextPageToken"], "cursor-2")
+
+    def test_transport_returns_guide_categories_list_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"items": [{"id": "GC1"}], "regionCode": "US"}
+            )
+        )
+
+        result = transport(
+            self._guide_categories_execution(
+                arguments={"part": "snippet", "regionCode": "US"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="yt-key"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["regionCode"], "US")
+        self.assertEqual(result["items"][0]["id"], "GC1")
+
+    def test_transport_normalizes_guide_categories_lifecycle_unavailable_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/guideCategories",
+            code=410,
+            msg="Gone",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"guideCategories is deprecated and unavailable"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "guideCategories is deprecated and unavailable") as context:
+            transport(
+                self._guide_categories_execution(
+                    arguments={"part": "snippet", "regionCode": "US"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.API_KEY,
+                        credentials=CredentialBundle(api_key="yt-key"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "lifecycle_unavailable")
 
     def test_transport_normalizes_comment_threads_invalid_request_errors(self):
         error = HTTPError(

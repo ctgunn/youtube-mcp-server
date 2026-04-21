@@ -26,6 +26,7 @@ from mcp_server.integrations.wrappers import (
     build_comments_list_wrapper,
     build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
+    build_guide_categories_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -374,6 +375,96 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
                     credentials=CredentialBundle(oauth_token="oauth-123"),
                 ),
             )
+
+    def test_guide_categories_list_wrapper_executes_region_requests_through_shared_executor(self):
+        wrapper = build_guide_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "GC1",
+                        "regionCode": execution.arguments["regionCode"],
+                        "kind": "youtube#guideCategory",
+                    }
+                ],
+                "regionCode": execution.arguments["regionCode"],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "regionCode": "US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "GC1")
+        self.assertEqual(result["regionCode"], "US")
+
+    def test_guide_categories_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_guide_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {"items": [], "regionCode": execution.arguments["regionCode"]},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "regionCode": "US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["regionCode"], "US")
+
+    def test_guide_categories_list_wrapper_rejects_missing_region_requests(self):
+        wrapper = build_guide_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "missing required field: regionCode"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_guide_categories_list_wrapper_surfaces_lifecycle_unavailable_failures(self):
+        wrapper = build_guide_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("guideCategories is deprecated and unavailable"),
+                    category="lifecycle_unavailable",
+                    status_code=410,
+                    details={"reason": "deprecated"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaises(NormalizedUpstreamError) as context:
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "regionCode": "US"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "lifecycle_unavailable")
 
     def test_comments_insert_wrapper_executes_authorized_reply_requests_through_shared_executor(self):
         wrapper = build_comments_insert_wrapper()

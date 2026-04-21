@@ -21,6 +21,7 @@ from mcp_server.integrations.wrappers import (
     build_comments_list_wrapper,
     build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
+    build_guide_categories_list_wrapper,
 )
 
 
@@ -170,6 +171,20 @@ class Layer1MetadataContractTests(unittest.TestCase):
         )
         self.assertIn("searchTerms", review_surface["optionalFields"])
         self.assertIn("channel-related", review_surface["notes"])
+
+    def test_guide_categories_list_review_surface_exposes_identity_quota_and_lifecycle_notes(self):
+        review_surface = build_guide_categories_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "guideCategories")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "guideCategories.list")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "api_key")
+        self.assertEqual(review_surface["requiredFields"], ("part", "regionCode"))
+        self.assertEqual(review_surface["optionalFields"], ())
+        self.assertEqual(review_surface["lifecycleState"], "deprecated")
+        self.assertIn("deprecated", review_surface["caveatNote"])
+        self.assertIn("regionCode", review_surface["notes"])
 
     def test_comments_insert_review_surface_exposes_identity_quota_and_auth_notes(self):
         review_surface = build_comments_insert_wrapper().review_surface()
