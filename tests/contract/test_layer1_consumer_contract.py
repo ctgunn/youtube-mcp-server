@@ -27,6 +27,7 @@ from mcp_server.integrations.wrappers import (
     build_comments_list_wrapper,
     build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
+    build_guide_categories_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -291,6 +292,32 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["commentThreadCount"], 0)
         self.assertTrue(result["isEmpty"])
         self.assertEqual(result["selectorUsed"], "id")
+
+    def test_consumer_can_summarize_guide_categories_results_for_higher_layers(self):
+        wrapper = build_guide_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "GC1", "regionCode": execution.arguments["regionCode"]}],
+                "regionCode": execution.arguments["regionCode"],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_guide_categories_summary(
+            arguments={"part": "snippet", "regionCode": "US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["guideCategoryCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["regionCode"], "US")
+        self.assertEqual(result["sourceOperation"], "guideCategories.list")
+        self.assertEqual(result["sourceAuthMode"], "api_key")
+        self.assertEqual(result["sourceQuotaCost"], 1)
 
     def test_consumer_can_summarize_comment_creation_for_higher_layers(self):
         wrapper = build_comments_insert_wrapper()

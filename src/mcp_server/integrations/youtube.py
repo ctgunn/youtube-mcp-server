@@ -82,6 +82,8 @@ def build_youtube_data_api_transport(
             return _comments_list_payload(payload)
         if execution.metadata.operation_key == "commentThreads.list":
             return _comment_threads_list_payload(payload)
+        if execution.metadata.operation_key == "guideCategories.list":
+            return _guide_categories_list_payload(payload)
         if execution.metadata.operation_key == "commentThreads.insert":
             return _comment_threads_insert_payload(execution, payload)
         if execution.metadata.operation_key == "comments.insert":
@@ -410,6 +412,7 @@ def _normalized_category_for_execution(
             "channels.update",
             "channelSections.update",
             "channelSections.delete",
+            "guideCategories.list",
             "commentThreads.list",
             "commentThreads.insert",
             "comments.list",
@@ -444,6 +447,12 @@ def _normalized_category_for_execution(
         if execution.metadata.operation_key == "comments.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "guideCategories.list":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if "deprecated" in combined or "unavailable" in combined or "legacy" in combined:
+                return "lifecycle_unavailable"
             return None
         if execution.metadata.operation_key == "comments.insert":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
@@ -578,6 +587,19 @@ def _comment_threads_list_payload(payload: str) -> dict[str, Any]:
 
     :param payload: Raw JSON payload returned by the upstream response.
     :return: Parsed comment-threads list payload for retrieval consumers.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    return parsed
+
+
+def _guide_categories_list_payload(payload: str) -> dict[str, Any]:
+    """Return the internal result shape for a `guideCategories.list` response.
+
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed guide-categories list payload for retrieval consumers.
     :raises ValueError: If the upstream response is not a JSON object.
     """
     parsed = json.loads(payload)
