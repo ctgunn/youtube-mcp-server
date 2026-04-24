@@ -29,6 +29,7 @@ from mcp_server.integrations.wrappers import (
     build_guide_categories_list_wrapper,
     build_i18n_languages_list_wrapper,
     build_i18n_regions_list_wrapper,
+    build_members_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -595,6 +596,95 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
                     credentials=CredentialBundle(api_key="key-123"),
                 ),
             )
+
+    def test_members_list_wrapper_executes_owner_scoped_requests_through_shared_executor(self):
+        wrapper = build_members_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "member-123",
+                        "mode": execution.arguments["mode"],
+                        "kind": "youtube#member",
+                    }
+                ],
+                "mode": execution.arguments["mode"],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "mode": "updates"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "member-123")
+        self.assertEqual(result["mode"], "updates")
+
+    def test_members_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_members_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {"items": [], "mode": execution.arguments["mode"]},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "mode": "updates"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["mode"], "updates")
+
+    def test_members_list_wrapper_rejects_missing_mode_requests(self):
+        wrapper = build_members_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "missing required field: mode"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_members_list_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_members_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Membership access denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Membership access denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "mode": "updates"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
 
     def test_comments_insert_wrapper_executes_authorized_reply_requests_through_shared_executor(self):
         wrapper = build_comments_insert_wrapper()

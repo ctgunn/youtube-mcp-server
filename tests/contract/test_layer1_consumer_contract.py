@@ -30,6 +30,7 @@ from mcp_server.integrations.wrappers import (
     build_guide_categories_list_wrapper,
     build_i18n_languages_list_wrapper,
     build_i18n_regions_list_wrapper,
+    build_members_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -374,6 +375,33 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceQuotaCost"], 1)
         self.assertIn("region", result["sourceNotes"])
         self.assertIn("hl", result["sourceNotes"])
+
+    def test_consumer_can_summarize_members_results_for_higher_layers(self):
+        wrapper = build_members_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "member-123", "mode": execution.arguments["mode"]}],
+                "mode": execution.arguments["mode"],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_members_summary(
+            arguments={"part": "snippet", "mode": "updates"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["memberCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["mode"], "updates")
+        self.assertEqual(result["sourceOperation"], "members.list")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("owner-only", result["sourceNotes"])
 
     def test_consumer_can_summarize_comment_creation_for_higher_layers(self):
         wrapper = build_comments_insert_wrapper()

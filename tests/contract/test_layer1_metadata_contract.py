@@ -24,6 +24,7 @@ from mcp_server.integrations.wrappers import (
     build_guide_categories_list_wrapper,
     build_i18n_languages_list_wrapper,
     build_i18n_regions_list_wrapper,
+    build_members_list_wrapper,
 )
 
 
@@ -218,6 +219,21 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("hl", review_surface["notes"])
         self.assertIn("region", review_surface["notes"])
         self.assertIn("successful outcomes", review_surface["notes"])
+
+    def test_members_list_review_surface_exposes_identity_quota_and_owner_notes(self):
+        review_surface = build_members_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "members")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "members.list")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "mode"))
+        self.assertEqual(review_surface["optionalFields"], ("pageToken", "maxResults"))
+        self.assertEqual(review_surface["lifecycleState"], "active")
+        self.assertIsNone(review_surface["caveatNote"])
+        self.assertIn("owner-only", review_surface["notes"])
+        self.assertIn("delegation", review_surface["notes"])
 
     def test_comments_insert_review_surface_exposes_identity_quota_and_auth_notes(self):
         review_surface = build_comments_insert_wrapper().review_surface()
