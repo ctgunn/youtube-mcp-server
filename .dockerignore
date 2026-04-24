@@ -30,7 +30,6 @@ coverage/
 .git/
 .gitignore
 .dockerignore
-Dockerfile*
 .vscode/
 .idea/
 .DS_Store
