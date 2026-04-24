@@ -88,6 +88,8 @@ def build_youtube_data_api_transport(
             return _i18n_languages_list_payload(payload)
         if execution.metadata.operation_key == "i18nRegions.list":
             return _i18n_regions_list_payload(payload)
+        if execution.metadata.operation_key == "members.list":
+            return _members_list_payload(payload)
         if execution.metadata.operation_key == "commentThreads.insert":
             return _comment_threads_insert_payload(execution, payload)
         if execution.metadata.operation_key == "comments.insert":
@@ -419,6 +421,7 @@ def _normalized_category_for_execution(
             "guideCategories.list",
             "i18nLanguages.list",
             "i18nRegions.list",
+            "members.list",
             "commentThreads.list",
             "commentThreads.insert",
             "comments.list",
@@ -465,6 +468,10 @@ def _normalized_category_for_execution(
                 return "invalid_request"
             return None
         if execution.metadata.operation_key == "i18nRegions.list":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "members.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
             return None
@@ -640,6 +647,19 @@ def _i18n_regions_list_payload(payload: str) -> dict[str, Any]:
 
     :param payload: Raw JSON payload returned by the upstream response.
     :return: Parsed i18n-regions list payload for retrieval consumers.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    return parsed
+
+
+def _members_list_payload(payload: str) -> dict[str, Any]:
+    """Return the internal result shape for a `members.list` response.
+
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed members list payload for retrieval consumers.
     :raises ValueError: If the upstream response is not a JSON object.
     """
     parsed = json.loads(payload)

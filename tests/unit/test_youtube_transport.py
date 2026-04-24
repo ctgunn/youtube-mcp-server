@@ -33,6 +33,7 @@ from mcp_server.integrations.wrappers import (
     build_guide_categories_list_wrapper,
     build_i18n_languages_list_wrapper,
     build_i18n_regions_list_wrapper,
+    build_members_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -170,6 +171,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_i18n_regions_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _members_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_members_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -457,6 +470,25 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("hl=en_US", request.full_url)
         self.assertIn("key=yt-key", request.full_url)
 
+    def test_builds_oauth_request_for_members_mode_lookup(self):
+        execution = self._members_execution(
+            arguments={"part": "snippet", "mode": "updates", "pageToken": "cursor-1", "maxResults": 25},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "GET")
+        self.assertIn("https://www.googleapis.com/youtube/v3/members?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("mode=updates", request.full_url)
+        self.assertIn("pageToken=cursor-1", request.full_url)
+        self.assertIn("maxResults=25", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+
     def test_builds_oauth_request_for_channels_mine_selector(self):
         execution = self._channels_execution(
             arguments={"part": "snippet", "mine": True},
@@ -716,6 +748,72 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_returns_members_list_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"items": [{"id": "member-123"}], "mode": "updates"}
+            )
+        )
+
+        result = transport(
+            self._members_execution(
+                arguments={"part": "snippet", "mode": "updates"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["mode"], "updates")
+        self.assertEqual(result["items"][0]["id"], "member-123")
+
+    def test_transport_normalizes_members_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/members",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"mode is required"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "mode is required") as context:
+            transport(
+                self._members_execution(
+                    arguments={"part": "snippet", "mode": "updates"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_members_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/members",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Membership access denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Membership access denied") as context:
+            transport(
+                self._members_execution(
+                    arguments={"part": "snippet", "mode": "updates"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
 
     def test_transport_normalizes_guide_categories_lifecycle_unavailable_errors(self):
         error = HTTPError(

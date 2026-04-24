@@ -383,6 +383,35 @@ class I18nRegionsListWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class MembersListWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `members.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports one
+    owner-only membership lookup using ``part`` plus ``mode`` on OAuth-backed
+    requests and keeps owner-visibility guidance visible for reviewers.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `members.list` with OAuth-required validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("members.list requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class CommentsInsertWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `comments.insert`.
 
@@ -1091,6 +1120,37 @@ def build_i18n_regions_list_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return I18nRegionsListWrapper(metadata=metadata)
+
+
+def build_members_list_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `members.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports one
+    owner-only membership lookup through ``part`` plus ``mode`` on
+    OAuth-required requests and keeps delegation boundaries visible.
+
+    :return: Representative wrapper configured for `members.list`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="members",
+        operation_name="list",
+        http_method="GET",
+        path_shape="/youtube/v3/members",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "mode"),
+            optional_fields=("pageToken", "maxResults"),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=1,
+        notes=(
+            "Requires `part` plus `mode` for one deterministic owner-only "
+            "membership lookup, allows optional `pageToken` and `maxResults` "
+            "within the documented boundary, rejects undocumented modifiers, "
+            "treats delegation-related inputs as unsupported in this slice, "
+            "and preserves empty result sets as successful outcomes."
+        ),
+    )
+    return MembersListWrapper(metadata=metadata)
 
 
 def build_comments_insert_wrapper() -> RepresentativeEndpointWrapper:
