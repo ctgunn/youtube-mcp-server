@@ -31,6 +31,7 @@ from mcp_server.integrations.wrappers import (
     build_i18n_languages_list_wrapper,
     build_i18n_regions_list_wrapper,
     build_members_list_wrapper,
+    build_memberships_levels_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -399,6 +400,33 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertFalse(result["isEmpty"])
         self.assertEqual(result["mode"], "updates")
         self.assertEqual(result["sourceOperation"], "members.list")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("owner-only", result["sourceNotes"])
+
+    def test_consumer_can_summarize_memberships_levels_results_for_higher_layers(self):
+        wrapper = build_memberships_levels_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "level-123", "part": execution.arguments["part"]}],
+                "part": execution.arguments["part"],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_memberships_levels_summary(
+            arguments={"part": "snippet"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["membershipLevelCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["part"], "snippet")
+        self.assertEqual(result["sourceOperation"], "membershipsLevels.list")
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 1)
         self.assertIn("owner-only", result["sourceNotes"])
