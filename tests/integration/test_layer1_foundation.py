@@ -30,6 +30,7 @@ from mcp_server.integrations.wrappers import (
     build_i18n_languages_list_wrapper,
     build_i18n_regions_list_wrapper,
     build_members_list_wrapper,
+    build_memberships_levels_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -678,6 +679,95 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"part": "snippet", "mode": "updates"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_memberships_levels_list_wrapper_executes_owner_scoped_requests_through_shared_executor(self):
+        wrapper = build_memberships_levels_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "level-123",
+                        "part": execution.arguments["part"],
+                        "kind": "youtube#membershipsLevel",
+                    }
+                ],
+                "part": execution.arguments["part"],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "level-123")
+        self.assertEqual(result["part"], "snippet")
+
+    def test_memberships_levels_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_memberships_levels_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {"items": [], "part": execution.arguments["part"]},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["part"], "snippet")
+
+    def test_memberships_levels_list_wrapper_rejects_missing_part_requests(self):
+        wrapper = build_memberships_levels_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "missing required field: part"):
+            wrapper.call(
+                executor,
+                arguments={},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_memberships_levels_list_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_memberships_levels_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Membership level access denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Membership level access denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet"},
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,
                     credentials=CredentialBundle(oauth_token="oauth-123"),
