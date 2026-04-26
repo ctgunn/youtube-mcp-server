@@ -32,6 +32,7 @@ from mcp_server.integrations.wrappers import (
     build_i18n_regions_list_wrapper,
     build_members_list_wrapper,
     build_memberships_levels_list_wrapper,
+    build_playlist_images_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -430,6 +431,32 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 1)
         self.assertIn("owner-only", result["sourceNotes"])
+
+    def test_consumer_can_summarize_playlist_images_results_for_higher_layers(self):
+        wrapper = build_playlist_images_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "image-123", "selector": execution.arguments.get("playlistId")}],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_playlist_images_summary(
+            arguments={"part": "snippet", "playlistId": "PL123", "pageToken": "cursor-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["playlistImageCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "playlistId")
+        self.assertEqual(result["sourceOperation"], "playlistImages.list")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("pageToken", result["sourceNotes"])
 
     def test_consumer_can_summarize_comment_creation_for_higher_layers(self):
         wrapper = build_comments_insert_wrapper()

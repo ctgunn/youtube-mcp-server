@@ -31,6 +31,7 @@ from mcp_server.integrations.wrappers import (
     build_i18n_regions_list_wrapper,
     build_members_list_wrapper,
     build_memberships_levels_list_wrapper,
+    build_playlist_images_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -768,6 +769,97 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"part": "snippet"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_playlist_images_list_wrapper_executes_playlist_requests_through_shared_executor(self):
+        wrapper = build_playlist_images_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "image-123",
+                        "playlistId": execution.arguments.get("playlistId"),
+                        "kind": "youtube#playlistImage",
+                    }
+                ],
+                "selector": "playlistId",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "playlistId": "PL123", "pageToken": "cursor-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["playlistId"], "PL123")
+        self.assertEqual(result["selector"], "playlistId")
+
+    def test_playlist_images_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_playlist_images_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": [], "selector": "id"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "id": "image-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["selector"], "id")
+
+    def test_playlist_images_list_wrapper_rejects_missing_selector_requests(self):
+        wrapper = build_playlist_images_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(
+            ValueError, "exactly one selector is required from: playlistId, id"
+        ):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_playlist_images_list_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_playlist_images_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Playlist image access denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Playlist image access denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "id": "image-123"},
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,
                     credentials=CredentialBundle(oauth_token="oauth-123"),

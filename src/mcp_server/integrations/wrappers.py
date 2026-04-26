@@ -442,6 +442,36 @@ class MembershipsLevelsListWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class PlaylistImagesListWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `playlistImages.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports one
+    playlist-image lookup using required ``part`` plus exactly one selector
+    from ``playlistId`` or ``id`` on OAuth-backed requests, and only allows
+    paging arguments for playlist-scoped lookups.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `playlistImages.list` with OAuth-required validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("playlistImages.list requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class CommentsInsertWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `comments.insert`.
 
@@ -1212,6 +1242,40 @@ def build_memberships_levels_list_wrapper() -> RepresentativeEndpointWrapper:
     return MembershipsLevelsListWrapper(metadata=metadata)
 
 
+def build_playlist_images_list_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `playlistImages.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports one
+    OAuth-required playlist-image lookup through required ``part`` plus
+    exactly one selector from ``playlistId`` or ``id`` and limits paging
+    inputs to playlist-scoped retrieval.
+
+    :return: Representative wrapper configured for `playlistImages.list`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="playlistImages",
+        operation_name="list",
+        http_method="GET",
+        path_shape="/youtube/v3/playlistImages",
+        request_shape=EndpointRequestShape(
+            required_fields=("part",),
+            optional_fields=("playlistId", "id", "pageToken", "maxResults"),
+            exactly_one_of=("playlistId", "id"),
+            validators=(_require_playlist_images_list_arguments,),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=1,
+        notes=(
+            "Requires required `part` plus exactly one selector from "
+            "`playlistId` or `id` for one deterministic OAuth-required "
+            "playlist-image lookup, allows `pageToken` and `maxResults` only "
+            "for `playlistId` requests, rejects undocumented modifiers, and "
+            "preserves empty result sets as successful outcomes."
+        ),
+    )
+    return PlaylistImagesListWrapper(metadata=metadata)
+
+
 def build_comments_insert_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `comments.insert`.
 
@@ -1621,6 +1685,23 @@ def _require_comments_update_body(arguments: dict[str, object]) -> None:
     unsupported_snippet_fields = [field for field in snippet if field not in {"textOriginal"}]
     if unsupported_snippet_fields:
         raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
+
+
+def _require_playlist_images_list_arguments(arguments: dict[str, object]) -> None:
+    """Validate selector-specific arguments for `playlistImages.list`.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If paging fields are supplied for non-playlist lookups.
+    """
+    has_playlist_selector = isinstance(arguments.get("playlistId"), str) and bool(
+        str(arguments.get("playlistId")).strip()
+    )
+    has_id_selector = isinstance(arguments.get("id"), str) and bool(str(arguments.get("id")).strip())
+    has_paging = any(arguments.get(field) not in (None, "") for field in ("pageToken", "maxResults"))
+    if has_paging and not has_playlist_selector:
+        raise ValueError("paging fields are only supported for playlistId lookups")
+    if has_id_selector and has_paging:
+        raise ValueError("paging fields are only supported for playlistId lookups")
 
 
 def _validated_comment_ids(raw_values: object) -> tuple[str, ...]:

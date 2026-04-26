@@ -35,6 +35,7 @@ from mcp_server.integrations.wrappers import (
     build_i18n_regions_list_wrapper,
     build_members_list_wrapper,
     build_memberships_levels_list_wrapper,
+    build_playlist_images_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -196,6 +197,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_memberships_levels_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _playlist_images_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_playlist_images_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -855,6 +868,118 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             transport(
                 self._memberships_levels_execution(
                     arguments={"part": "snippet"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_builds_oauth_request_for_playlist_images_list(self):
+        execution = self._playlist_images_execution(
+            arguments={
+                "part": "snippet",
+                "playlistId": "PL123",
+                "pageToken": "cursor-123",
+                "maxResults": 10,
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("https://www.googleapis.com/youtube/v3/playlistImages?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("playlistId=PL123", request.full_url)
+        self.assertIn("pageToken=cursor-123", request.full_url)
+        self.assertIn("maxResults=10", request.full_url)
+        self.assertNotIn("key=", request.full_url)
+        self.assertEqual(request.headers.get("Authorization"), "Bearer oauth-token")
+
+    def test_transport_returns_playlist_images_list_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"items": [{"id": "image-123"}]}
+            )
+        )
+
+        result = transport(
+            self._playlist_images_execution(
+                arguments={"part": "snippet", "playlistId": "PL123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["part"], "snippet")
+        self.assertEqual(result["selectorName"], "playlistId")
+        self.assertEqual(result["selectorValue"], "PL123")
+        self.assertEqual(result["items"][0]["id"], "image-123")
+
+    def test_transport_returns_empty_playlist_images_payload_as_success(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse({"items": []})
+        )
+
+        result = transport(
+            self._playlist_images_execution(
+                arguments={"part": "snippet", "id": "image-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["part"], "snippet")
+        self.assertEqual(result["selectorName"], "id")
+        self.assertEqual(result["selectorValue"], "image-123")
+
+    def test_transport_normalizes_playlist_images_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/playlistImages",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"playlistId or id is required"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "playlistId or id is required") as context:
+            transport(
+                self._playlist_images_execution(
+                    arguments={"part": "snippet", "playlistId": "PL123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_preserves_playlist_images_auth_failures(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/playlistImages",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Playlist image access denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Playlist image access denied") as context:
+            transport(
+                self._playlist_images_execution(
+                    arguments={"part": "snippet", "id": "image-123"},
                     auth_context=AuthContext(
                         mode=AuthMode.OAUTH_REQUIRED,
                         credentials=CredentialBundle(oauth_token="oauth-token"),
