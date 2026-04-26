@@ -92,6 +92,8 @@ def build_youtube_data_api_transport(
             return _members_list_payload(payload)
         if execution.metadata.operation_key == "membershipsLevels.list":
             return _memberships_levels_list_payload(payload)
+        if execution.metadata.operation_key == "playlistImages.list":
+            return _playlist_images_list_payload(execution, payload)
         if execution.metadata.operation_key == "commentThreads.insert":
             return _comment_threads_insert_payload(execution, payload)
         if execution.metadata.operation_key == "comments.insert":
@@ -425,6 +427,7 @@ def _normalized_category_for_execution(
             "i18nRegions.list",
             "members.list",
             "membershipsLevels.list",
+            "playlistImages.list",
             "commentThreads.list",
             "commentThreads.insert",
             "comments.list",
@@ -479,6 +482,10 @@ def _normalized_category_for_execution(
                 return "invalid_request"
             return None
         if execution.metadata.operation_key == "membershipsLevels.list":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "playlistImages.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
             return None
@@ -685,6 +692,34 @@ def _memberships_levels_list_payload(payload: str) -> dict[str, Any]:
     parsed = json.loads(payload)
     if not isinstance(parsed, dict):
         raise ValueError("YouTube Data API responses must decode to an object")
+    return parsed
+
+
+def _playlist_images_list_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `playlistImages.list` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed playlist-images list payload with stable selector context.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    selector_name = next(
+        (
+            selector
+            for selector in ("playlistId", "id")
+            if selector in execution.arguments and execution.arguments.get(selector) not in (None, "")
+        ),
+        None,
+    )
+    parsed["part"] = execution.arguments.get("part")
+    parsed["selectorName"] = selector_name
+    parsed["selectorValue"] = execution.arguments.get(selector_name) if selector_name else None
     return parsed
 
 
