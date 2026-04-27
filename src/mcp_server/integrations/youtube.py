@@ -76,6 +76,8 @@ def build_youtube_data_api_transport(
             return _channel_sections_delete_payload(execution)
         if execution.metadata.operation_key == "channelBanners.insert":
             return _channel_banners_insert_payload(execution, payload)
+        if execution.metadata.operation_key == "playlistImages.insert":
+            return _playlist_images_insert_payload(execution, payload)
         if execution.metadata.operation_key == "channelSections.list":
             return _channel_sections_list_payload(payload)
         if execution.metadata.operation_key == "comments.list":
@@ -428,6 +430,7 @@ def _normalized_category_for_execution(
             "members.list",
             "membershipsLevels.list",
             "playlistImages.list",
+            "playlistImages.insert",
             "commentThreads.list",
             "commentThreads.insert",
             "comments.list",
@@ -486,6 +489,10 @@ def _normalized_category_for_execution(
                 return "invalid_request"
             return None
         if execution.metadata.operation_key == "playlistImages.list":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "playlistImages.insert":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
             return None
@@ -589,6 +596,27 @@ def _channel_banners_insert_payload(
         "isUploaded": bool(parsed.get("url")),
         "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
     }
+
+
+def _playlist_images_insert_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `playlistImages.insert` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed playlist-image create payload with stable metadata fields.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    body = execution.arguments.get("body")
+    snippet = body.get("snippet", {}) if isinstance(body, dict) else {}
+    parsed["part"] = execution.arguments.get("part")
+    parsed["playlistId"] = parsed.get("playlistId") or snippet.get("playlistId")
+    return parsed
 
 
 def _channel_sections_list_payload(payload: str) -> dict[str, Any]:

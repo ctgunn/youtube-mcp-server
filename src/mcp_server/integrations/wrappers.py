@@ -907,6 +907,34 @@ class ChannelBannersInsertWrapper(RepresentativeEndpointWrapper):
         return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 
+@dataclass(frozen=True)
+class PlaylistImagesInsertWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `playlistImages.insert`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a `body`
+    metadata payload plus a `media` upload payload on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `playlistImages.insert` with OAuth and upload validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("playlistImages.insert requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
 def build_activities_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `activities.list`.
 
@@ -2171,3 +2199,35 @@ def build_channel_banners_insert_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return ChannelBannersInsertWrapper(metadata=metadata)
+
+
+def build_playlist_images_insert_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `playlistImages.insert`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a `body`
+    metadata payload and a `media` upload payload on authorized requests, and
+    keeps the upload-sensitive contract visible for higher-layer reuse.
+
+    :return: Representative wrapper configured for `playlistImages.insert`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="playlistImages",
+        operation_name="insert",
+        http_method="POST",
+        path_shape="/youtube/v3/playlistImages",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body", "media"),
+            validators=(
+                require_mapping_fields("body", required_keys=("snippet",)),
+                require_mapping_fields("media", required_keys=("mimeType", "content")),
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `body` for playlist-image metadata, "
+            "use `media` for playlist-image upload content, and keep the required "
+            "creation boundary visible for review."
+        ),
+    )
+    return PlaylistImagesInsertWrapper(metadata=metadata)

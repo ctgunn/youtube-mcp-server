@@ -70,6 +70,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff (112-channel-sections-list-wrapper)
 - N/A for feature-specific persistence; wrapper metadata, request validation state, moderation execution state, and feature artifacts remain in-memory or file-based only (119-comments-set-moderation-status)
 - N/A for feature-specific persistence; wrapper metadata, request validation state, delete execution state, and feature artifacts remain in-memory or file-based only (120-comments-delete)
+- N/A for feature-specific persistence; wrapper metadata, request validation state, upload execution state, and feature artifacts remain in-memory or file-based only (129-playlist-images-insert)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -90,9 +91,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 129-playlist-images-insert: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
+- 129-playlist-images-insert: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
 - 128-playlist-images-list: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
-- 127-memberships-levels-list: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
-- 127-memberships-levels-list: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
 
 
 <!-- MANUAL ADDITIONS START -->

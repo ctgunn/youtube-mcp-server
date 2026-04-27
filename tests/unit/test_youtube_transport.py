@@ -35,6 +35,7 @@ from mcp_server.integrations.wrappers import (
     build_i18n_regions_list_wrapper,
     build_members_list_wrapper,
     build_memberships_levels_list_wrapper,
+    build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -101,6 +102,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_channels_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _playlist_images_insert_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_playlist_images_insert_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -2057,6 +2070,135 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertEqual(result["bannerUrl"], "https://yt.example/banner")
         self.assertTrue(result["isUploaded"])
+
+    def test_builds_oauth_request_for_playlist_images_insert_upload(self):
+        execution = self._playlist_images_insert_execution(
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"playlistId": "PL123", "type": "featured"}},
+                "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "POST")
+        self.assertIn("https://www.googleapis.com/youtube/v3/playlistImages?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertIn("multipart/related", request.headers["Content-type"])
+        self.assertIn(b'"playlistId": "PL123"', request.data)
+        self.assertIn(b"playlist-image-bytes", request.data)
+
+    def test_transport_normalizes_successful_playlist_images_insert_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"id": "playlist-image-123", "kind": "youtube#playlistImage"}
+            )
+        )
+
+        result = transport(
+            self._playlist_images_insert_execution(
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"playlistId": "PL123", "type": "featured"}},
+                    "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["id"], "playlist-image-123")
+        self.assertEqual(result["part"], "snippet")
+        self.assertEqual(result["playlistId"], "PL123")
+
+    def test_transport_normalizes_playlist_images_insert_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/playlistImages",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Required body metadata missing"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Required body metadata missing") as context:
+            transport(
+                self._playlist_images_insert_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"snippet": {"playlistId": "PL123"}},
+                        "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_playlist_images_insert_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/playlistImages",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Playlist image create denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Playlist image create denied") as context:
+            transport(
+                self._playlist_images_insert_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"snippet": {"playlistId": "PL123"}},
+                        "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_transport_normalizes_playlist_images_insert_upstream_create_failures(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/playlistImages",
+            code=409,
+            msg="Conflict",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Playlist image create rejected"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Playlist image create rejected") as context:
+            transport(
+                self._playlist_images_insert_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"snippet": {"playlistId": "PL123"}},
+                        "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "upstream_service")
 
     def test_transport_normalizes_channel_banners_invalid_upload_errors(self):
         error = HTTPError(

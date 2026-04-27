@@ -32,6 +32,7 @@ from mcp_server.integrations.wrappers import (
     build_i18n_regions_list_wrapper,
     build_members_list_wrapper,
     build_memberships_levels_list_wrapper,
+    build_playlist_images_insert_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -1922,6 +1923,93 @@ class Layer1FoundationUnitTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"media": {"mimeType": "image/png", "content": b"banner-bytes"}},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_playlist_images_insert_wrapper_exposes_expected_metadata(self):
+        wrapper = build_playlist_images_insert_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "playlistImages.insert")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/playlistImages")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "body", "media"))
+        self.assertIn("body", wrapper.metadata.notes)
+        self.assertIn("media", wrapper.metadata.notes)
+
+    def test_playlist_images_insert_wrapper_requires_media_field(self):
+        wrapper = build_playlist_images_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: media"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "body": {"snippet": {"playlistId": "PL123"}}}
+            )
+
+    def test_playlist_images_insert_wrapper_executes_authorized_create_requests(self):
+        wrapper = build_playlist_images_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "playlist-image-123",
+                "playlistId": execution.arguments["body"]["snippet"]["playlistId"],
+                "kind": "youtube#playlistImage",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"playlistId": "PL123", "type": "featured"}},
+                "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "playlist-image-123")
+        self.assertEqual(result["playlistId"], "PL123")
+
+    def test_playlist_images_insert_wrapper_requires_body_field(self):
+        wrapper = build_playlist_images_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: body"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"}}
+            )
+
+    def test_playlist_images_insert_wrapper_rejects_incomplete_media_payload(self):
+        wrapper = build_playlist_images_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "media.content is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {"snippet": {"playlistId": "PL123"}},
+                    "media": {"mimeType": "image/png"},
+                }
+            )
+
+    def test_playlist_images_insert_wrapper_requires_oauth_mode(self):
+        wrapper = build_playlist_images_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "playlist-image-123", "kind": "youtube#playlistImage"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "playlistImages.insert requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"playlistId": "PL123", "type": "featured"}},
+                    "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"},
+                },
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),
