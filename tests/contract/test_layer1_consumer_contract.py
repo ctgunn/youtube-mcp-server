@@ -34,6 +34,7 @@ from mcp_server.integrations.wrappers import (
     build_memberships_levels_list_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
+    build_playlist_images_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -1007,6 +1008,39 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertTrue(result["isCreated"])
         self.assertEqual(result["playlistId"], "PL123")
         self.assertEqual(result["sourceOperation"], "playlistImages.insert")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("body", result["sourceNotes"])
+        self.assertIn("media", result["sourceNotes"])
+
+    def test_consumer_can_summarize_playlist_image_updates_for_higher_layers(self):
+        wrapper = build_playlist_images_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": execution.arguments["body"]["id"],
+                "snippet": execution.arguments["body"]["snippet"],
+                "kind": "youtube#playlistImage",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.update_playlist_image_summary(
+            arguments={
+                "part": "snippet",
+                "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123", "type": "featured"}},
+                "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["playlistImageId"], "playlist-image-123")
+        self.assertTrue(result["isUpdated"])
+        self.assertEqual(result["playlistId"], "PL123")
+        self.assertEqual(result["sourceOperation"], "playlistImages.update")
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("body", result["sourceNotes"])

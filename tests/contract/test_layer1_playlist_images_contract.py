@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.abspath("src"))
 from mcp_server.integrations.wrappers import (
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
+    build_playlist_images_update_wrapper,
 )
 
 
@@ -16,6 +17,9 @@ class Layer1PlaylistImagesContractTests(unittest.TestCase):
 
     def _insert_feature_contract_root(self) -> str:
         return os.path.abspath("specs/129-playlist-images-insert/contracts")
+
+    def _update_feature_contract_root(self) -> str:
+        return os.path.abspath("specs/130-playlist-images-update/contracts")
 
     def test_contract_artifacts_define_wrapper_and_filter_mode_guidance(self):
         root = self._feature_contract_root()
@@ -126,6 +130,68 @@ class Layer1PlaylistImagesContractTests(unittest.TestCase):
         self.assertIn("OAuth-only", auth_upload_contract)
         self.assertIn("quota cost of `50`", auth_upload_contract)
         self.assertIn("playlist-image metadata plus media-upload input is required", auth_upload_contract)
+
+    def test_update_contract_artifacts_define_wrapper_and_auth_media_guidance(self):
+        root = self._update_feature_contract_root()
+        with open(
+            os.path.join(root, "layer1-playlist-images-update-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-playlist-images-update-auth-media-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_media_contract = handle.read()
+
+        self.assertIn("quota cost of `50`", wrapper_contract)
+        self.assertIn("body` plus `media` update input", wrapper_contract)
+        self.assertIn("OAuth-required", auth_media_contract)
+        self.assertIn("metadata-only", auth_media_contract)
+        self.assertIn("media-only", auth_media_contract)
+
+    def test_playlist_images_update_wrapper_review_surface_exposes_identity_quota_and_auth(self):
+        review_surface = build_playlist_images_update_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "playlistImages")
+        self.assertEqual(review_surface["operationName"], "update")
+        self.assertEqual(review_surface["operationKey"], "playlistImages.update")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body", "media"))
+
+    def test_update_contract_documents_invalid_shape_and_failure_boundary(self):
+        with open(
+            os.path.join(
+                self._update_feature_contract_root(),
+                "layer1-playlist-images-update-auth-media-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_media_contract = handle.read()
+
+        self.assertIn("invalid request shape", auth_media_contract)
+        self.assertIn("invalid_request", auth_media_contract)
+        self.assertIn("unauthorized access", auth_media_contract)
+        self.assertIn("upstream update failures", auth_media_contract)
+
+    def test_update_contract_documents_higher_layer_review_expectations(self):
+        with open(
+            os.path.join(
+                self._update_feature_contract_root(),
+                "layer1-playlist-images-update-auth-media-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_media_contract = handle.read()
+
+        self.assertIn("OAuth-only", auth_media_contract)
+        self.assertIn("quota cost of `50`", auth_media_contract)
+        self.assertIn("playlist-image identifying metadata plus media-update input is required", auth_media_contract)
 
 
 if __name__ == "__main__":

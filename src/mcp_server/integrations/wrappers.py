@@ -935,6 +935,35 @@ class PlaylistImagesInsertWrapper(RepresentativeEndpointWrapper):
         return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 
+@dataclass(frozen=True)
+class PlaylistImagesUpdateWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `playlistImages.update`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a `body`
+    payload that identifies the existing playlist image plus a `media` update
+    payload on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `playlistImages.update` with OAuth and update validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("playlistImages.update requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
 def build_activities_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `activities.list`.
 
@@ -1732,6 +1761,36 @@ def _require_playlist_images_list_arguments(arguments: dict[str, object]) -> Non
         raise ValueError("paging fields are only supported for playlistId lookups")
 
 
+def _require_playlist_images_update_body(arguments: dict[str, object]) -> None:
+    """Validate the supported `playlistImages.update` request body.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request body does not match supported update rules.
+    """
+    require_mapping_fields("body", required_keys=("id", "snippet"))(arguments)
+    body = arguments.get("body")
+    assert isinstance(body, dict)  # Narrowed by validator above.
+    unsupported_body_fields = [field for field in body if field not in {"id", "kind", "snippet"}]
+    if unsupported_body_fields:
+        raise ValueError(f"body.{unsupported_body_fields[0]} is read-only or unsupported")
+
+    raw_playlist_image_id = body.get("id")
+    if not isinstance(raw_playlist_image_id, str) or not raw_playlist_image_id.strip():
+        raise ValueError("body.id is required")
+
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        raise ValueError("body.snippet is required")
+
+    raw_playlist_id = snippet.get("playlistId")
+    if not isinstance(raw_playlist_id, str) or not raw_playlist_id.strip():
+        raise ValueError("body.snippet.playlistId is required")
+
+    unsupported_snippet_fields = [field for field in snippet if field not in {"playlistId", "type"}]
+    if unsupported_snippet_fields:
+        raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
+
+
 def _validated_comment_ids(raw_values: object) -> tuple[str, ...]:
     """Return validated comment identifiers for moderation requests.
 
@@ -2231,3 +2290,36 @@ def build_playlist_images_insert_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return PlaylistImagesInsertWrapper(metadata=metadata)
+
+
+def build_playlist_images_update_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `playlistImages.update`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires identifying
+    `body` metadata plus a `media` update payload on authorized requests, and
+    keeps the media-sensitive update contract visible for higher-layer reuse.
+
+    :return: Representative wrapper configured for `playlistImages.update`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="playlistImages",
+        operation_name="update",
+        http_method="PUT",
+        path_shape="/youtube/v3/playlistImages",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body", "media"),
+            validators=(
+                _require_playlist_images_update_body,
+                require_mapping_fields("media", required_keys=("mimeType", "content")),
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `body.id` to identify the existing "
+            "playlist image, use `body.snippet.playlistId` for the owning playlist "
+            "context, use `media` for playlist-image update content, and keep the "
+            "required update boundary visible for review."
+        ),
+    )
+    return PlaylistImagesUpdateWrapper(metadata=metadata)
