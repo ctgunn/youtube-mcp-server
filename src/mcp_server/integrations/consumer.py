@@ -715,3 +715,33 @@ class RepresentativeHigherLayerConsumer:
             "sourceQuotaCost": self.wrapper.metadata.quota_cost,
             "sourceNotes": self.wrapper.metadata.notes,
         }
+
+    def create_playlist_image_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `playlistImages.insert` result.
+
+        :param arguments: Wrapper arguments needed to create a playlist image.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing source contract details and create outcome.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        snippet = result.get("snippet")
+        body = arguments.get("body")
+        body_snippet = body.get("snippet", {}) if isinstance(body, dict) else {}
+        return {
+            "playlistImageId": result.get("id"),
+            "isCreated": bool(result.get("id")),
+            "playlistId": (
+                result.get("playlistId")
+                or (snippet.get("playlistId") if isinstance(snippet, dict) else None)
+                or body_snippet.get("playlistId")
+            ),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
