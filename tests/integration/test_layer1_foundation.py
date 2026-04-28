@@ -31,6 +31,7 @@ from mcp_server.integrations.wrappers import (
     build_i18n_regions_list_wrapper,
     build_members_list_wrapper,
     build_memberships_levels_list_wrapper,
+    build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
     build_playlist_images_update_wrapper,
@@ -1143,6 +1144,72 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"id": "comment-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_playlist_images_delete_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_playlist_images_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "playlistImageId": execution.arguments["id"],
+                "isDeleted": True,
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "playlist-image-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["playlistImageId"], "playlist-image-123")
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["upstreamBodyState"], "empty")
+
+    def test_playlist_images_delete_wrapper_rejects_invalid_identifier_shapes_before_executor(self):
+        wrapper = build_playlist_images_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"playlistImageId": "should-not-run"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "id must identify one playlist image"):
+            wrapper.call(
+                executor,
+                arguments={"id": ["playlist-image-123"]},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_playlist_images_delete_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_playlist_images_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Playlist image delete denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Playlist image delete denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "playlist-image-123"},
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,
                     credentials=CredentialBundle(oauth_token="oauth-123"),

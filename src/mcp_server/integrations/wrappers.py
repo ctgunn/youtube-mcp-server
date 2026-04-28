@@ -964,6 +964,35 @@ class PlaylistImagesUpdateWrapper(RepresentativeEndpointWrapper):
         return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 
+@dataclass(frozen=True)
+class PlaylistImagesDeleteWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `playlistImages.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one
+    playlist-image ``id`` on an authorized request and keeps target-state-
+    sensitive delete guidance visible for higher-layer reuse.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `playlistImages.delete` with OAuth and delete validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("playlistImages.delete requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
 def build_activities_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `activities.list`.
 
@@ -1852,6 +1881,17 @@ def _require_comments_delete_arguments(arguments: dict[str, object]) -> None:
         raise ValueError("id must identify one comment")
 
 
+def _require_playlist_images_delete_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `playlistImages.delete` request arguments.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the delete request is incomplete or unsupported.
+    """
+    raw_playlist_image_id = arguments.get("id")
+    if not isinstance(raw_playlist_image_id, str) or not raw_playlist_image_id.strip():
+        raise ValueError("id must identify one playlist image")
+
+
 def _require_channel_sections_update_body(arguments: dict[str, object]) -> None:
     """Validate the supported `channelSections.update` request body.
 
@@ -2323,3 +2363,36 @@ def build_playlist_images_update_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return PlaylistImagesUpdateWrapper(metadata=metadata)
+
+
+def build_playlist_images_delete_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `playlistImages.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one
+    playlist-image ``id`` on authorized requests, keeps the destructive delete
+    boundary visible for review, and preserves target-state-sensitive guidance
+    for downstream reuse.
+
+    :return: Representative wrapper configured for `playlistImages.delete`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="playlistImages",
+        operation_name="delete",
+        http_method="DELETE",
+        path_shape="/youtube/v3/playlistImages",
+        request_shape=EndpointRequestShape(
+            required_fields=("id",),
+            validators=(
+                _require_playlist_images_delete_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `id` for the playlist image "
+            "being deleted, keep requests scoped to one target playlist image "
+            "at a time, and note that deletion remains target-state sensitive "
+            "even with authorized access."
+        ),
+    )
+    return PlaylistImagesDeleteWrapper(metadata=metadata)

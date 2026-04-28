@@ -26,6 +26,7 @@ from mcp_server.integrations.wrappers import (
     build_i18n_regions_list_wrapper,
     build_members_list_wrapper,
     build_memberships_levels_list_wrapper,
+    build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
     build_playlist_images_update_wrapper,
@@ -136,6 +137,18 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["requiredFields"], ("part", "body", "media"))
         self.assertIn("body", review_surface["notes"])
         self.assertIn("media", review_surface["notes"])
+
+    def test_playlist_images_delete_review_surface_exposes_quota_auth_and_delete_notes(self):
+        review_surface = build_playlist_images_delete_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "playlistImages")
+        self.assertEqual(review_surface["operationName"], "delete")
+        self.assertEqual(review_surface["operationKey"], "playlistImages.delete")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id",))
+        self.assertIn("id", review_surface["notes"])
+        self.assertIn("target-state", review_surface["notes"])
 
     def test_channels_list_review_surface_exposes_quota_auth_and_selector_notes(self):
         review_surface = build_channels_list_wrapper().review_surface()

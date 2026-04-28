@@ -32,6 +32,7 @@ from mcp_server.integrations.wrappers import (
     build_i18n_regions_list_wrapper,
     build_members_list_wrapper,
     build_memberships_levels_list_wrapper,
+    build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_update_wrapper,
     build_captions_delete_wrapper,
@@ -2113,6 +2114,80 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                     "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123", "type": "featured"}},
                     "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"},
                 },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_playlist_images_delete_wrapper_exposes_expected_metadata(self):
+        wrapper = build_playlist_images_delete_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "playlistImages.delete")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/playlistImages")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("id",))
+        self.assertEqual(wrapper.metadata.request_shape.optional_fields, ())
+        self.assertIn("id", wrapper.metadata.notes)
+        self.assertIn("target-state", wrapper.metadata.notes)
+
+    def test_playlist_images_delete_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_playlist_images_delete_wrapper))
+
+    def test_playlist_images_delete_wrapper_requires_id_field(self):
+        wrapper = build_playlist_images_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: id"):
+            wrapper.metadata.request_shape.validate_arguments({})
+
+    def test_playlist_images_delete_wrapper_rejects_invalid_id_shape(self):
+        wrapper = build_playlist_images_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "id must identify one playlist image"):
+            wrapper.metadata.request_shape.validate_arguments({"id": ["playlist-image-123"]})
+
+    def test_playlist_images_delete_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = build_playlist_images_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: playlistId"):
+            wrapper.metadata.request_shape.validate_arguments({"id": "playlist-image-123", "playlistId": "PL123"})
+
+    def test_playlist_images_delete_wrapper_executes_authorized_delete_requests(self):
+        wrapper = build_playlist_images_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "playlistImageId": execution.arguments["id"],
+                "isDeleted": True,
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "playlist-image-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["playlistImageId"], "playlist-image-123")
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["upstreamBodyState"], "empty")
+
+    def test_playlist_images_delete_wrapper_requires_oauth_mode(self):
+        wrapper = build_playlist_images_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"playlistImageId": "playlist-image-123", "isDeleted": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "playlistImages.delete requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"id": "playlist-image-123"},
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),
