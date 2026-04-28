@@ -32,6 +32,7 @@ from mcp_server.integrations.wrappers import (
     build_i18n_regions_list_wrapper,
     build_members_list_wrapper,
     build_memberships_levels_list_wrapper,
+    build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
     build_playlist_images_update_wrapper,
@@ -1045,6 +1046,34 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("body", result["sourceNotes"])
         self.assertIn("media", result["sourceNotes"])
+
+    def test_consumer_can_summarize_playlist_image_deletes_for_higher_layers(self):
+        wrapper = build_playlist_images_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "playlistImageId": execution.arguments["id"],
+                "isDeleted": True,
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.delete_playlist_image_summary(
+            arguments={"id": "playlist-image-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["playlistImageId"], "playlist-image-123")
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["sourceOperation"], "playlistImages.delete")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("id", result["sourceNotes"])
+        self.assertIn("target-state", result["sourceNotes"])
 
 
 if __name__ == "__main__":

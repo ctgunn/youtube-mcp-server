@@ -80,6 +80,8 @@ def build_youtube_data_api_transport(
             return _playlist_images_insert_payload(execution, payload)
         if execution.metadata.operation_key == "playlistImages.update":
             return _playlist_images_update_payload(execution, payload)
+        if execution.metadata.operation_key == "playlistImages.delete":
+            return _playlist_images_delete_payload(execution)
         if execution.metadata.operation_key == "channelSections.list":
             return _channel_sections_list_payload(payload)
         if execution.metadata.operation_key == "comments.list":
@@ -434,6 +436,7 @@ def _normalized_category_for_execution(
             "playlistImages.list",
             "playlistImages.insert",
             "playlistImages.update",
+            "playlistImages.delete",
             "commentThreads.list",
             "commentThreads.insert",
             "comments.list",
@@ -502,6 +505,14 @@ def _normalized_category_for_execution(
         if execution.metadata.operation_key == "playlistImages.update":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
+            if status_code == 404 and ("playlist image" in combined or "playlistimage" in combined or "target" in combined):
+                return "not_found"
+            return None
+        if execution.metadata.operation_key == "playlistImages.delete":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 404 and ("playlist image" in combined or "playlistimage" in combined or "target" in combined):
+                return "not_found"
             return None
         if execution.metadata.operation_key == "comments.insert":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
@@ -645,6 +656,19 @@ def _playlist_images_update_payload(
     parsed["part"] = execution.arguments.get("part")
     parsed["playlistId"] = parsed.get("playlistId") or snippet.get("playlistId")
     return parsed
+
+
+def _playlist_images_delete_payload(execution: RequestExecution) -> dict[str, Any]:
+    """Return the internal result shape for a `playlistImages.delete` response.
+
+    :param execution: Shared request execution details.
+    :return: Lightweight delete result with stable metadata fields.
+    """
+    return {
+        "playlistImageId": _stringify_scalar(execution.arguments.get("id")),
+        "isDeleted": True,
+        "upstreamBodyState": "empty",
+    }
 
 
 def _channel_sections_list_payload(payload: str) -> dict[str, Any]:

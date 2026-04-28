@@ -5,6 +5,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.integrations.wrappers import (
+    build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
     build_playlist_images_update_wrapper,
@@ -20,6 +21,9 @@ class Layer1PlaylistImagesContractTests(unittest.TestCase):
 
     def _update_feature_contract_root(self) -> str:
         return os.path.abspath("specs/130-playlist-images-update/contracts")
+
+    def _delete_feature_contract_root(self) -> str:
+        return os.path.abspath("specs/131-playlist-images-delete/contracts")
 
     def test_contract_artifacts_define_wrapper_and_filter_mode_guidance(self):
         root = self._feature_contract_root()
@@ -192,6 +196,68 @@ class Layer1PlaylistImagesContractTests(unittest.TestCase):
         self.assertIn("OAuth-only", auth_media_contract)
         self.assertIn("quota cost of `50`", auth_media_contract)
         self.assertIn("playlist-image identifying metadata plus media-update input is required", auth_media_contract)
+
+    def test_delete_contract_artifacts_define_wrapper_and_auth_delete_guidance(self):
+        root = self._delete_feature_contract_root()
+        with open(
+            os.path.join(root, "layer1-playlist-images-delete-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-playlist-images-delete-auth-delete-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_delete_contract = handle.read()
+
+        self.assertIn("quota cost of `50`", wrapper_contract)
+        self.assertIn("one playlist-image identifier", wrapper_contract)
+        self.assertIn("OAuth-only", auth_delete_contract)
+        self.assertIn("invalid request shape", auth_delete_contract)
+        self.assertIn("unauthorized access", auth_delete_contract)
+
+    def test_playlist_images_delete_wrapper_review_surface_exposes_identity_quota_and_auth(self):
+        review_surface = build_playlist_images_delete_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "playlistImages")
+        self.assertEqual(review_surface["operationName"], "delete")
+        self.assertEqual(review_surface["operationKey"], "playlistImages.delete")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id",))
+
+    def test_delete_contract_documents_invalid_shape_and_failure_boundary(self):
+        with open(
+            os.path.join(
+                self._delete_feature_contract_root(),
+                "layer1-playlist-images-delete-auth-delete-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_delete_contract = handle.read()
+
+        self.assertIn("invalid request shape", auth_delete_contract)
+        self.assertIn("invalid_request", auth_delete_contract)
+        self.assertIn("unauthorized access", auth_delete_contract)
+        self.assertIn("upstream delete failures", auth_delete_contract)
+
+    def test_delete_contract_documents_higher_layer_review_expectations(self):
+        with open(
+            os.path.join(
+                self._delete_feature_contract_root(),
+                "layer1-playlist-images-delete-auth-delete-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_delete_contract = handle.read()
+
+        self.assertIn("OAuth-only", auth_delete_contract)
+        self.assertIn("quota cost of `50`", auth_delete_contract)
+        self.assertIn("one playlist-image identifier is required", auth_delete_contract)
 
 
 if __name__ == "__main__":

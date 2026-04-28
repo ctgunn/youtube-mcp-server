@@ -503,6 +503,28 @@ class RepresentativeHigherLayerConsumer:
             "sourceNotes": self.wrapper.metadata.notes,
         }
 
+    def delete_playlist_image_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `playlistImages.delete` wrapper result.
+
+        :param arguments: Wrapper arguments needed to delete one playlist image.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing deleted playlist-image identity and source contract details.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        return {
+            "playlistImageId": result.get("playlistImageId"),
+            "isDeleted": bool(result.get("isDeleted")),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
+
     def create_channel_section_summary(
         self,
         *,
