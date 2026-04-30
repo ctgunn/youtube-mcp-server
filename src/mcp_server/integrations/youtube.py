@@ -82,6 +82,8 @@ def build_youtube_data_api_transport(
             return _playlist_items_insert_payload(execution, payload)
         if execution.metadata.operation_key == "playlistItems.update":
             return _playlist_items_update_payload(execution, payload)
+        if execution.metadata.operation_key == "playlistItems.delete":
+            return _playlist_items_delete_payload(execution)
         if execution.metadata.operation_key == "playlistImages.update":
             return _playlist_images_update_payload(execution, payload)
         if execution.metadata.operation_key == "playlistImages.delete":
@@ -443,6 +445,7 @@ def _normalized_category_for_execution(
             "playlistItems.list",
             "playlistItems.insert",
             "playlistItems.update",
+            "playlistItems.delete",
             "playlistImages.insert",
             "playlistImages.update",
             "playlistImages.delete",
@@ -525,6 +528,12 @@ def _normalized_category_for_execution(
             if status_code == 404 and (
                 "playlist" in combined or "video" in combined or "resource" in combined or "target" in combined
             ):
+                return "not_found"
+            return None
+        if execution.metadata.operation_key == "playlistItems.delete":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 404 and ("playlist item" in combined or "playlistitem" in combined or "target" in combined):
                 return "not_found"
             return None
         if execution.metadata.operation_key == "playlistImages.insert":
@@ -758,6 +767,19 @@ def _playlist_images_delete_payload(execution: RequestExecution) -> dict[str, An
     """
     return {
         "playlistImageId": _stringify_scalar(execution.arguments.get("id")),
+        "isDeleted": True,
+        "upstreamBodyState": "empty",
+    }
+
+
+def _playlist_items_delete_payload(execution: RequestExecution) -> dict[str, Any]:
+    """Return the internal result shape for a `playlistItems.delete` response.
+
+    :param execution: Shared request execution details.
+    :return: Lightweight delete result with stable metadata fields.
+    """
+    return {
+        "playlistItemId": _stringify_scalar(execution.arguments.get("id")),
         "isDeleted": True,
         "upstreamBodyState": "empty",
     }
