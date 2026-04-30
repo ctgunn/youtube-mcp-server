@@ -35,6 +35,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
+    build_playlist_items_list_wrapper,
     build_playlist_images_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -458,6 +459,32 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["selectorUsed"], "playlistId")
         self.assertEqual(result["sourceOperation"], "playlistImages.list")
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("pageToken", result["sourceNotes"])
+
+    def test_consumer_can_summarize_playlist_items_results_for_higher_layers(self):
+        wrapper = build_playlist_items_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "item-123", "selector": execution.arguments.get("playlistId")}],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_playlist_items_summary(
+            arguments={"part": "snippet", "playlistId": "PL123", "pageToken": "cursor-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["playlistItemCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "playlistId")
+        self.assertEqual(result["sourceOperation"], "playlistItems.list")
+        self.assertEqual(result["sourceAuthMode"], "api_key")
         self.assertEqual(result["sourceQuotaCost"], 1)
         self.assertIn("pageToken", result["sourceNotes"])
 

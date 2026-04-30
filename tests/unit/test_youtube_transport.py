@@ -38,6 +38,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
+    build_playlist_items_list_wrapper,
     build_playlist_images_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -236,6 +237,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_playlist_images_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _playlist_items_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_playlist_items_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -2352,6 +2365,71 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "upstream_service")
+
+    def test_builds_api_key_request_for_playlist_items_list_playlist_lookup(self):
+        execution = self._playlist_items_execution(
+            arguments={"part": "snippet", "playlistId": "PL123", "pageToken": "cursor-123", "maxResults": 10},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "GET")
+        self.assertIn("https://www.googleapis.com/youtube/v3/playlistItems?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("playlistId=PL123", request.full_url)
+        self.assertIn("pageToken=cursor-123", request.full_url)
+        self.assertIn("maxResults=10", request.full_url)
+        self.assertIn("key=key-123", request.full_url)
+        self.assertNotIn("Authorization", request.headers)
+
+    def test_transport_normalizes_successful_playlist_items_list_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"items": [{"id": "item-123", "kind": "youtube#playlistItem"}], "nextPageToken": "cursor-456"}
+            )
+        )
+
+        result = transport(
+            self._playlist_items_execution(
+                arguments={"part": "snippet", "playlistId": "PL123", "pageToken": "cursor-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["items"][0]["id"], "item-123")
+        self.assertEqual(result["part"], "snippet")
+        self.assertEqual(result["selectorName"], "playlistId")
+        self.assertEqual(result["selectorValue"], "PL123")
+
+    def test_transport_normalizes_playlist_items_list_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/playlistItems",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"playlist item request is invalid"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "playlist item request is invalid") as context:
+            transport(
+                self._playlist_items_execution(
+                    arguments={"part": "snippet", "playlistId": "PL123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.API_KEY,
+                        credentials=CredentialBundle(api_key="key-123"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
 
     def test_transport_normalizes_channel_banners_invalid_upload_errors(self):
         error = HTTPError(

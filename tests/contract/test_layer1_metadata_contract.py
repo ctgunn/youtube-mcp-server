@@ -29,6 +29,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
+    build_playlist_items_list_wrapper,
     build_playlist_images_update_wrapper,
 )
 
@@ -308,6 +309,24 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIsNone(review_surface["caveatNote"])
         self.assertIn("pageToken", review_surface["notes"])
         self.assertIn("OAuth-required", review_surface["notes"])
+
+    def test_playlist_items_list_review_surface_exposes_identity_quota_and_selector_notes(self):
+        review_surface = build_playlist_items_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "playlistItems")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "playlistItems.list")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "api_key")
+        self.assertEqual(review_surface["requiredFields"], ("part",))
+        self.assertEqual(
+            review_surface["optionalFields"], ("playlistId", "id", "pageToken", "maxResults")
+        )
+        self.assertEqual(review_surface["exclusiveSelectors"], ("playlistId", "id"))
+        self.assertEqual(review_surface["lifecycleState"], "active")
+        self.assertIsNone(review_surface["caveatNote"])
+        self.assertIn("pageToken", review_surface["notes"])
+        self.assertIn("API-key", review_surface["notes"])
 
     def test_comments_insert_review_surface_exposes_identity_quota_and_auth_notes(self):
         review_surface = build_comments_insert_wrapper().review_surface()

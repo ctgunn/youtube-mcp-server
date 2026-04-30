@@ -943,6 +943,116 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 {"part": "snippet", "playlistId": "PL123", "textFormat": "plainText"}
             )
 
+    def test_playlist_items_list_wrapper_exposes_expected_metadata(self):
+        wrapper = integrations_package.build_playlist_items_list_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "playlistItems.list")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/playlistItems")
+        self.assertEqual(wrapper.metadata.quota_cost, 1)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "api_key")
+        self.assertEqual(wrapper.metadata.lifecycle_state, "active")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part",))
+        self.assertEqual(
+            wrapper.metadata.request_shape.optional_fields,
+            ("playlistId", "id", "pageToken", "maxResults"),
+        )
+        self.assertEqual(wrapper.metadata.request_shape.exactly_one_of, ("playlistId", "id"))
+        self.assertIn("API-key", wrapper.metadata.notes)
+        self.assertIn("pageToken", wrapper.metadata.notes)
+
+    def test_playlist_items_list_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_playlist_items_list_wrapper))
+
+    def test_playlist_items_list_wrapper_requires_part(self):
+        wrapper = integrations_package.build_playlist_items_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: part"):
+            wrapper.metadata.request_shape.validate_arguments({"playlistId": "PL123"})
+
+    def test_playlist_items_list_wrapper_requires_exactly_one_selector(self):
+        wrapper = integrations_package.build_playlist_items_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required from: playlistId, id"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required from: playlistId, id"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "playlistId": "PL123", "id": "item-123"}
+            )
+
+    def test_playlist_items_list_wrapper_allows_playlist_paging_fields(self):
+        wrapper = integrations_package.build_playlist_items_list_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {
+                "part": "snippet",
+                "playlistId": "PL123",
+                "pageToken": "cursor-123",
+                "maxResults": 10,
+            }
+        )
+
+    def test_playlist_items_list_wrapper_rejects_paging_fields_for_id_selector(self):
+        wrapper = integrations_package.build_playlist_items_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "paging fields are only supported for playlistId lookups"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "id": "item-123",
+                    "pageToken": "cursor-123",
+                }
+            )
+
+    def test_playlist_items_list_wrapper_executes_successful_calls(self):
+        wrapper = integrations_package.build_playlist_items_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "item-123", "selector": "playlistId"}],
+                "selector": next(
+                    selector for selector in ("playlistId", "id") if selector in execution.arguments
+                ),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "playlistId": "PL123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "item-123")
+        self.assertEqual(result["selector"], "playlistId")
+
+    def test_playlist_items_list_wrapper_requires_api_key_mode(self):
+        wrapper = integrations_package.build_playlist_items_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "playlistItems.list requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "playlistId": "PL123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_playlist_items_list_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = integrations_package.build_playlist_items_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: textFormat"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "playlistId": "PL123", "textFormat": "plainText"}
+            )
+
     def test_comments_insert_wrapper_exposes_expected_metadata(self):
         wrapper = build_comments_insert_wrapper()
 
