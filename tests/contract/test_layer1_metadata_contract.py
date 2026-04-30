@@ -29,6 +29,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
+    build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
     build_playlist_images_update_wrapper,
 )
@@ -126,6 +127,18 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["requiredFields"], ("part", "body", "media"))
         self.assertIn("body", review_surface["notes"])
         self.assertIn("media", review_surface["notes"])
+
+    def test_playlist_items_insert_review_surface_exposes_quota_auth_and_write_notes(self):
+        review_surface = build_playlist_items_insert_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "playlistItems")
+        self.assertEqual(review_surface["operationName"], "insert")
+        self.assertEqual(review_surface["operationKey"], "playlistItems.insert")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body"))
+        self.assertIn("playlistId", review_surface["notes"])
+        self.assertIn("videoId", review_surface["notes"])
 
     def test_playlist_images_update_review_surface_exposes_quota_auth_and_update_notes(self):
         review_surface = build_playlist_images_update_wrapper().review_surface()
