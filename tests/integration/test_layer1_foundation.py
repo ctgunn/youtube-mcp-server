@@ -34,6 +34,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
+    build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
     build_playlist_images_update_wrapper,
     build_captions_delete_wrapper,
@@ -2387,6 +2388,89 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
                     "part": "snippet",
                     "body": {"snippet": {"playlistId": "PL123", "type": "featured"}},
                     "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_playlist_items_insert_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_playlist_items_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "playlist-item-123",
+                "playlistId": execution.arguments["body"]["snippet"]["playlistId"],
+                "videoId": execution.arguments["body"]["snippet"]["resourceId"]["videoId"],
+                "kind": "youtube#playlistItem",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "playlist-item-123")
+        self.assertEqual(result["playlistId"], "PL123")
+        self.assertEqual(result["videoId"], "video-123")
+
+    def test_playlist_items_insert_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_playlist_items_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Playlist item create denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Playlist item create denied") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_playlist_items_insert_wrapper_preserves_upstream_create_failures_from_shared_executor(self):
+        wrapper = build_playlist_items_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Playlist item create rejected"),
+                    category="upstream_service",
+                    status_code=409,
+                    details={"reason": "conflict"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Playlist item create rejected"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
                 },
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,

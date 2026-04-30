@@ -4,15 +4,21 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.integrations.wrappers import build_playlist_items_list_wrapper
+from mcp_server.integrations.wrappers import (
+    build_playlist_items_insert_wrapper,
+    build_playlist_items_list_wrapper,
+)
 
 
 class Layer1PlaylistItemsContractTests(unittest.TestCase):
-    def _feature_contract_root(self) -> str:
+    def _list_contract_root(self) -> str:
         return os.path.abspath("specs/132-playlist-items-list/contracts")
 
+    def _insert_contract_root(self) -> str:
+        return os.path.abspath("specs/133-playlist-items-insert/contracts")
+
     def test_contract_artifacts_define_wrapper_and_selector_mode_guidance(self):
-        root = self._feature_contract_root()
+        root = self._list_contract_root()
         with open(
             os.path.join(root, "layer1-playlist-items-list-wrapper-contract.md"),
             "r",
@@ -46,7 +52,7 @@ class Layer1PlaylistItemsContractTests(unittest.TestCase):
     def test_contract_documents_selector_boundaries_and_empty_result_rules(self):
         with open(
             os.path.join(
-                self._feature_contract_root(),
+                self._list_contract_root(),
                 "layer1-playlist-items-list-selector-modes-contract.md",
             ),
             "r",
@@ -58,3 +64,50 @@ class Layer1PlaylistItemsContractTests(unittest.TestCase):
         self.assertIn("conflicting selectors", selector_modes_contract)
         self.assertIn("empty playlist-item results", selector_modes_contract)
         self.assertIn("unsupported paging", selector_modes_contract)
+
+    def test_contract_artifacts_define_wrapper_and_auth_write_guidance_for_insert(self):
+        root = self._insert_contract_root()
+        with open(
+            os.path.join(root, "layer1-playlist-items-insert-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-playlist-items-insert-auth-write-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_write_contract = handle.read()
+
+        self.assertIn("quota cost of `50`", wrapper_contract)
+        self.assertIn("authorized access", wrapper_contract)
+        self.assertIn("OAuth-backed access", auth_write_contract)
+        self.assertIn("optional placement", auth_write_contract)
+        self.assertIn("invalid_request", auth_write_contract)
+
+    def test_playlist_items_insert_wrapper_review_surface_exposes_identity_quota_and_auth(self):
+        review_surface = build_playlist_items_insert_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "playlistItems")
+        self.assertEqual(review_surface["operationName"], "insert")
+        self.assertEqual(review_surface["operationKey"], "playlistItems.insert")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body"))
+
+    def test_contract_documents_write_boundaries_and_failure_rules(self):
+        with open(
+            os.path.join(
+                self._insert_contract_root(),
+                "layer1-playlist-items-insert-auth-write-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_write_contract = handle.read()
+
+        self.assertIn("unsupported writable parts", auth_write_contract)
+        self.assertIn("target playlist identifier", auth_write_contract)
+        self.assertIn("referenced resource identifier", auth_write_contract)
+        self.assertIn("upstream create failures", auth_write_contract)

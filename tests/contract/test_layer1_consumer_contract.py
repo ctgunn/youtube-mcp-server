@@ -35,6 +35,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
+    build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
     build_playlist_images_update_wrapper,
     build_captions_delete_wrapper,
@@ -1040,6 +1041,39 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("body", result["sourceNotes"])
         self.assertIn("media", result["sourceNotes"])
+
+    def test_consumer_can_summarize_playlist_item_creation_for_higher_layers(self):
+        wrapper = build_playlist_items_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "playlist-item-123",
+                "snippet": execution.arguments["body"]["snippet"],
+                "kind": "youtube#playlistItem",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.create_playlist_item_summary(
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["playlistItemId"], "playlist-item-123")
+        self.assertTrue(result["isCreated"])
+        self.assertEqual(result["playlistId"], "PL123")
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["sourceOperation"], "playlistItems.insert")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("playlistId", result["sourceNotes"])
+        self.assertIn("videoId", result["sourceNotes"])
 
     def test_consumer_can_summarize_playlist_image_updates_for_higher_layers(self):
         wrapper = build_playlist_images_update_wrapper()

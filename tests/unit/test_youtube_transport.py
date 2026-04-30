@@ -38,6 +38,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
+    build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
     build_playlist_images_update_wrapper,
     build_captions_delete_wrapper,
@@ -249,6 +250,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_playlist_items_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _playlist_items_insert_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_playlist_items_insert_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -2430,6 +2443,106 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_builds_oauth_post_request_for_playlist_items_insert(self):
+        execution = self._playlist_items_insert_execution(
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "POST")
+        self.assertIn("https://www.googleapis.com/youtube/v3/playlistItems?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("Authorization", request.headers)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertIn(b'"playlistId": "PL123"', request.data)
+        self.assertIn(b'"videoId": "video-123"', request.data)
+
+    def test_transport_normalizes_successful_playlist_items_insert_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"id": "playlist-item-123", "snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}}
+            )
+        )
+
+        result = transport(
+            self._playlist_items_insert_execution(
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["id"], "playlist-item-123")
+        self.assertEqual(result["part"], "snippet")
+        self.assertEqual(result["playlistId"], "PL123")
+        self.assertEqual(result["videoId"], "video-123")
+
+    def test_transport_normalizes_playlist_items_insert_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/playlistItems",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"playlist item create request is invalid"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "playlist item create request is invalid") as context:
+            transport(
+                self._playlist_items_insert_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_playlist_items_insert_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/playlistItems",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Playlist item create denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Playlist item create denied") as context:
+            transport(
+                self._playlist_items_insert_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
 
     def test_transport_normalizes_channel_banners_invalid_upload_errors(self):
         error = HTTPError(
