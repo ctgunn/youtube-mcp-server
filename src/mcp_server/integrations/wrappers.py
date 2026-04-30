@@ -995,6 +995,35 @@ class PlaylistItemsInsertWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class PlaylistItemsUpdateWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `playlistItems.update`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a target
+    `body.id` plus a writable `body.snippet` payload carrying playlist and
+    referenced video details on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `playlistItems.update` with OAuth and write validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("playlistItems.update requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class PlaylistImagesUpdateWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `playlistImages.update`.
 
@@ -1490,6 +1519,41 @@ def build_playlist_items_insert_wrapper() -> RepresentativeEndpointWrapper:
     return PlaylistItemsInsertWrapper(metadata=metadata)
 
 
+def build_playlist_items_update_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `playlistItems.update`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a target
+    `body.id` plus a writable `body.snippet` payload with playlist and
+    referenced video details on authorized requests and keeps unsupported
+    optional write fields visible for higher-layer reuse.
+
+    :return: Representative wrapper configured for `playlistItems.update`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="playlistItems",
+        operation_name="update",
+        http_method="PUT",
+        path_shape="/youtube/v3/playlistItems",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body"),
+            validators=(
+                _require_playlist_items_update_body,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `body.id` to identify the "
+            "existing playlist item being updated, use `body.snippet.playlistId` "
+            "for the target playlist, use `body.snippet.resourceId.videoId` for "
+            "the referenced video, keep the minimum writable `snippet` boundary "
+            "visible for review, and reject unsupported optional placement or "
+            "content-details fields unless explicitly added to the contract."
+        ),
+    )
+    return PlaylistItemsUpdateWrapper(metadata=metadata)
+
+
 def build_comments_insert_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `comments.insert`.
 
@@ -1951,6 +2015,58 @@ def _require_playlist_items_insert_body(arguments: dict[str, object]) -> None:
     unsupported_body_fields = [field for field in body if field not in {"kind", "snippet"}]
     if unsupported_body_fields:
         raise ValueError(f"body.{unsupported_body_fields[0]} is read-only or unsupported")
+
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        raise ValueError("body.snippet is required")
+
+    raw_playlist_id = snippet.get("playlistId")
+    if not isinstance(raw_playlist_id, str) or not raw_playlist_id.strip():
+        raise ValueError("body.snippet.playlistId is required")
+
+    resource_id = snippet.get("resourceId")
+    if not isinstance(resource_id, dict):
+        raise ValueError("body.snippet.resourceId is required")
+
+    raw_video_id = resource_id.get("videoId")
+    if not isinstance(raw_video_id, str) or not raw_video_id.strip():
+        raise ValueError("body.snippet.resourceId.videoId is required")
+
+    resource_kind = resource_id.get("kind")
+    if resource_kind not in (None, "", "youtube#video"):
+        raise ValueError("body.snippet.resourceId.kind must be youtube#video when provided")
+
+    unsupported_snippet_fields = [field for field in snippet if field not in {"playlistId", "resourceId"}]
+    if unsupported_snippet_fields:
+        raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
+
+    unsupported_resource_fields = [field for field in resource_id if field not in {"kind", "videoId"}]
+    if unsupported_resource_fields:
+        raise ValueError(
+            f"body.snippet.resourceId.{unsupported_resource_fields[0]} is read-only or unsupported"
+        )
+
+
+def _require_playlist_items_update_body(arguments: dict[str, object]) -> None:
+    """Validate the supported `playlistItems.update` request body.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request body does not match supported update rules.
+    """
+    part = str(arguments.get("part", "")).strip()
+    if part != "snippet":
+        raise ValueError("unsupported writable part: only snippet is supported")
+
+    require_mapping_fields("body", required_keys=("id", "snippet"))(arguments)
+    body = arguments.get("body")
+    assert isinstance(body, dict)  # Narrowed by validator above.
+    unsupported_body_fields = [field for field in body if field not in {"id", "kind", "snippet"}]
+    if unsupported_body_fields:
+        raise ValueError(f"body.{unsupported_body_fields[0]} is read-only or unsupported")
+
+    raw_playlist_item_id = body.get("id")
+    if not isinstance(raw_playlist_item_id, str) or not raw_playlist_item_id.strip():
+        raise ValueError("body.id is required")
 
     snippet = body.get("snippet")
     if not isinstance(snippet, dict):
