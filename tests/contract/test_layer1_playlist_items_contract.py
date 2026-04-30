@@ -5,6 +5,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.integrations.wrappers import (
+    build_playlist_items_delete_wrapper,
     build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
     build_playlist_items_update_wrapper,
@@ -20,6 +21,9 @@ class Layer1PlaylistItemsContractTests(unittest.TestCase):
 
     def _update_contract_root(self) -> str:
         return os.path.abspath("specs/134-playlist-items-update/contracts")
+
+    def _delete_contract_root(self) -> str:
+        return os.path.abspath("specs/135-playlist-items-delete/contracts")
 
     def test_contract_artifacts_define_wrapper_and_selector_mode_guidance(self):
         root = self._list_contract_root()
@@ -163,3 +167,50 @@ class Layer1PlaylistItemsContractTests(unittest.TestCase):
         self.assertIn("referenced video identifier", auth_write_contract)
         self.assertIn("unsupported writable parts", auth_write_contract)
         self.assertIn("upstream update failures", auth_write_contract)
+
+    def test_contract_artifacts_define_wrapper_and_auth_delete_guidance_for_delete(self):
+        root = self._delete_contract_root()
+        with open(
+            os.path.join(root, "layer1-playlist-items-delete-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-playlist-items-delete-auth-delete-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_delete_contract = handle.read()
+
+        self.assertIn("quota cost of `50`", wrapper_contract)
+        self.assertIn("authorized access", wrapper_contract)
+        self.assertIn("OAuth-only", auth_delete_contract)
+        self.assertIn("invalid_request", auth_delete_contract)
+        self.assertIn("upstream delete failures", auth_delete_contract)
+
+    def test_playlist_items_delete_wrapper_review_surface_exposes_identity_quota_and_auth(self):
+        review_surface = build_playlist_items_delete_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "playlistItems")
+        self.assertEqual(review_surface["operationName"], "delete")
+        self.assertEqual(review_surface["operationKey"], "playlistItems.delete")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id",))
+
+    def test_contract_documents_delete_boundaries_and_failure_rules(self):
+        with open(
+            os.path.join(
+                self._delete_contract_root(),
+                "layer1-playlist-items-delete-auth-delete-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_delete_contract = handle.read()
+
+        self.assertIn("target playlist-item identifier", auth_delete_contract)
+        self.assertIn("unsupported delete fields", auth_delete_contract)
+        self.assertIn("bulk deletion", auth_delete_contract)
+        self.assertIn("upstream delete failures", auth_delete_contract)

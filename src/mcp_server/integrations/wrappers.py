@@ -1024,6 +1024,35 @@ class PlaylistItemsUpdateWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class PlaylistItemsDeleteWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `playlistItems.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one
+    playlist-item ``id`` on an authorized request with target-state-sensitive
+    behavior.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `playlistItems.delete` with OAuth and delete validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("playlistItems.delete requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class PlaylistImagesUpdateWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `playlistImages.update`.
 
@@ -1552,6 +1581,39 @@ def build_playlist_items_update_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return PlaylistItemsUpdateWrapper(metadata=metadata)
+
+
+def build_playlist_items_delete_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `playlistItems.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one
+    playlist-item ``id`` on authorized requests, keeps the destructive delete
+    boundary visible for review, and preserves target-state-sensitive guidance
+    for downstream reuse.
+
+    :return: Representative wrapper configured for `playlistItems.delete`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="playlistItems",
+        operation_name="delete",
+        http_method="DELETE",
+        path_shape="/youtube/v3/playlistItems",
+        request_shape=EndpointRequestShape(
+            required_fields=("id",),
+            validators=(
+                _require_playlist_items_delete_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `id` for the playlist item "
+            "being deleted, keep requests scoped to one target playlist item "
+            "at a time, and note that deletion remains target-state sensitive "
+            "even with authorized access."
+        ),
+    )
+    return PlaylistItemsDeleteWrapper(metadata=metadata)
 
 
 def build_comments_insert_wrapper() -> RepresentativeEndpointWrapper:
@@ -2097,6 +2159,17 @@ def _require_playlist_items_update_body(arguments: dict[str, object]) -> None:
         raise ValueError(
             f"body.snippet.resourceId.{unsupported_resource_fields[0]} is read-only or unsupported"
         )
+
+
+def _require_playlist_items_delete_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `playlistItems.delete` request arguments.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the delete request is incomplete or unsupported.
+    """
+    raw_playlist_item_id = arguments.get("id")
+    if not isinstance(raw_playlist_item_id, str) or not raw_playlist_item_id.strip():
+        raise ValueError("id must identify one playlist item")
 
 
 def _require_playlist_images_update_body(arguments: dict[str, object]) -> None:
