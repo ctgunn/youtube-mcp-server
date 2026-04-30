@@ -36,6 +36,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_list_wrapper,
     build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
+    build_playlist_items_update_wrapper,
     build_playlist_images_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -2471,6 +2472,127 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
                 arguments={
                     "part": "snippet",
                     "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_playlist_items_update_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_playlist_items_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": execution.arguments["body"]["id"],
+                "playlistId": execution.arguments["body"]["snippet"]["playlistId"],
+                "videoId": execution.arguments["body"]["snippet"]["resourceId"]["videoId"],
+                "kind": "youtube#playlistItem",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {
+                    "id": "playlist-item-123",
+                    "snippet": {
+                        "playlistId": "PL123",
+                        "resourceId": {"videoId": "video-123"},
+                    },
+                },
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "playlist-item-123")
+        self.assertEqual(result["playlistId"], "PL123")
+        self.assertEqual(result["videoId"], "video-123")
+
+    def test_playlist_items_update_wrapper_rejects_unsupported_write_shapes_before_executor(self):
+        wrapper = build_playlist_items_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "should-not-run"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "body.snippet.resourceId.videoId is required"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"id": "playlist-item-123", "snippet": {"playlistId": "PL123", "resourceId": {}}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_playlist_items_update_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_playlist_items_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Playlist item update denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Playlist item update denied") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {
+                        "id": "playlist-item-123",
+                        "snippet": {
+                            "playlistId": "PL123",
+                            "resourceId": {"videoId": "video-123"},
+                        },
+                    },
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_playlist_items_update_wrapper_preserves_upstream_update_failures_from_shared_executor(self):
+        wrapper = build_playlist_items_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Playlist item update rejected"),
+                    category="upstream_service",
+                    status_code=409,
+                    details={"reason": "conflict"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Playlist item update rejected"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {
+                        "id": "playlist-item-123",
+                        "snippet": {
+                            "playlistId": "PL123",
+                            "resourceId": {"videoId": "video-123"},
+                        },
+                    },
                 },
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,

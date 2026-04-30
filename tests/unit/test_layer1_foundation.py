@@ -36,6 +36,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_insert_wrapper,
     build_playlist_images_update_wrapper,
     build_playlist_items_insert_wrapper,
+    build_playlist_items_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -2230,6 +2231,138 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 arguments={
                     "part": "snippet",
                     "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_playlist_items_update_wrapper_exposes_expected_metadata(self):
+        wrapper = integrations_package.build_playlist_items_update_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "playlistItems.update")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/playlistItems")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "body"))
+        self.assertIn("body.id", wrapper.metadata.notes)
+        self.assertIn("playlistId", wrapper.metadata.notes)
+        self.assertIn("videoId", wrapper.metadata.notes)
+
+    def test_playlist_items_update_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_playlist_items_update_wrapper))
+
+    def test_playlist_items_update_wrapper_requires_body_field(self):
+        wrapper = build_playlist_items_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: body"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+    def test_playlist_items_update_wrapper_rejects_unsupported_part(self):
+        wrapper = build_playlist_items_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unsupported writable part: only snippet is supported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "contentDetails",
+                    "body": {
+                        "id": "playlist-item-123",
+                        "snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}},
+                    },
+                }
+            )
+
+    def test_playlist_items_update_wrapper_requires_identifier_playlist_and_video_fields(self):
+        wrapper = build_playlist_items_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.id is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
+                }
+            )
+        with self.assertRaisesRegex(ValueError, "body.snippet.playlistId is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {"id": "playlist-item-123", "snippet": {"resourceId": {"videoId": "video-123"}}},
+                }
+            )
+        with self.assertRaisesRegex(ValueError, "body.snippet.resourceId.videoId is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {"id": "playlist-item-123", "snippet": {"playlistId": "PL123", "resourceId": {}}},
+                }
+            )
+
+    def test_playlist_items_update_wrapper_rejects_unsupported_optional_fields(self):
+        wrapper = build_playlist_items_update_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.snippet.position is read-only or unsupported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {
+                        "id": "playlist-item-123",
+                        "snippet": {
+                            "playlistId": "PL123",
+                            "resourceId": {"videoId": "video-123"},
+                            "position": 0,
+                        },
+                    },
+                }
+            )
+
+    def test_playlist_items_update_wrapper_executes_authorized_update_requests(self):
+        wrapper = build_playlist_items_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": execution.arguments["body"]["id"],
+                "playlistId": execution.arguments["body"]["snippet"]["playlistId"],
+                "videoId": execution.arguments["body"]["snippet"]["resourceId"]["videoId"],
+                "kind": "youtube#playlistItem",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {
+                    "id": "playlist-item-123",
+                    "snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}},
+                },
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "playlist-item-123")
+        self.assertEqual(result["playlistId"], "PL123")
+        self.assertEqual(result["videoId"], "video-123")
+
+    def test_playlist_items_update_wrapper_requires_oauth_mode(self):
+        wrapper = build_playlist_items_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "playlist-item-123", "kind": "youtube#playlistItem"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "playlistItems.update requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {
+                        "id": "playlist-item-123",
+                        "snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}},
+                    },
                 },
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,

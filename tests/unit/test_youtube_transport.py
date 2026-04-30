@@ -40,6 +40,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_list_wrapper,
     build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
+    build_playlist_items_update_wrapper,
     build_playlist_images_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -262,6 +263,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_playlist_items_insert_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _playlist_items_update_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_playlist_items_update_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -1425,6 +1438,35 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
         self.assertIn(b'"id": "comment-123"', request.data)
         self.assertIn(b'"textOriginal": "Updated comment"', request.data)
+
+    def test_builds_oauth_put_request_for_playlist_items_update(self):
+        execution = self._playlist_items_update_execution(
+            arguments={
+                "part": "snippet",
+                "body": {
+                    "id": "playlist-item-123",
+                    "snippet": {
+                        "playlistId": "PL123",
+                        "resourceId": {"videoId": "video-123"},
+                    },
+                },
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "PUT")
+        self.assertIn("https://www.googleapis.com/youtube/v3/playlistItems?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertIn(b'"id": "playlist-item-123"', request.data)
+        self.assertIn(b'"playlistId": "PL123"', request.data)
+        self.assertIn(b'"videoId": "video-123"', request.data)
 
     def test_builds_oauth_post_request_for_comments_set_moderation_status(self):
         execution = self._comments_set_moderation_status_execution(
@@ -2700,6 +2742,102 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertEqual(context.exception.category, "auth")
 
+    def test_transport_normalizes_playlist_items_update_invalid_write_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/playlistItems",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Read-only field specified in playlist item update"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Read-only field specified in playlist item update") as context:
+            transport(
+                self._playlist_items_update_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {
+                            "id": "playlist-item-123",
+                            "snippet": {
+                                "playlistId": "PL123",
+                                "resourceId": {"videoId": "video-123"},
+                            },
+                        },
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_playlist_items_update_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/playlistItems",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Playlist item update denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Playlist item update denied") as context:
+            transport(
+                self._playlist_items_update_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {
+                            "id": "playlist-item-123",
+                            "snippet": {
+                                "playlistId": "PL123",
+                                "resourceId": {"videoId": "video-123"},
+                            },
+                        },
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_transport_normalizes_playlist_items_update_missing_target_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/playlistItems",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Playlist item target not found"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Playlist item target not found") as context:
+            transport(
+                self._playlist_items_update_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {
+                            "id": "playlist-item-123",
+                            "snippet": {
+                                "playlistId": "PL123",
+                                "resourceId": {"videoId": "video-123"},
+                            },
+                        },
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "not_found")
+
     def test_transport_returns_comments_set_moderation_status_payload(self):
         transport = build_youtube_data_api_transport(
             opener=lambda request, timeout: _FakeHTTPResponse("")
@@ -3418,8 +3556,57 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("part=snippet", captured["url"])
         self.assertIn("onBehalfOfContentOwner=owner-123", captured["url"])
         self.assertEqual(captured["authorization"], "Bearer oauth-token")
+
+    def test_executor_can_run_live_playlist_items_update_transport_shape(self):
+        captured = {}
+
+        def opener(request, timeout):
+            captured["url"] = request.full_url
+            captured["authorization"] = request.headers.get("Authorization")
+            captured["timeout"] = timeout
+            captured["method"] = request.method
+            captured["content_type"] = request.headers.get("Content-type")
+            captured["data"] = request.data
+            return _FakeHTTPResponse(
+                {
+                    "id": "playlist-item-123",
+                    "snippet": {
+                        "playlistId": "PL123",
+                        "resourceId": {"videoId": "video-123"},
+                    },
+                    "kind": "youtube#playlistItem",
+                }
+            )
+
+        executor = build_youtube_data_api_executor(opener=opener, timeout_seconds=10.5)
+        result = build_playlist_items_update_wrapper().call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {
+                    "id": "playlist-item-123",
+                    "snippet": {
+                        "playlistId": "PL123",
+                        "resourceId": {"videoId": "video-123"},
+                    },
+                },
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "playlist-item-123")
+        self.assertEqual(result["playlistId"], "PL123")
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(captured["method"], "PUT")
+        self.assertIn("part=snippet", captured["url"])
+        self.assertEqual(captured["authorization"], "Bearer oauth-token")
         self.assertEqual(captured["content_type"], "application/json; charset=utf-8")
-        self.assertIn(b'"textOriginal": "Updated comment"', captured["data"])
+        self.assertIn(b'"id": "playlist-item-123"', captured["data"])
+        self.assertIn(b'"playlistId": "PL123"', captured["data"])
+        self.assertIn(b'"videoId": "video-123"', captured["data"])
         self.assertEqual(captured["timeout"], 10.5)
 
     def test_executor_can_run_live_captions_update_transport_shape(self):
