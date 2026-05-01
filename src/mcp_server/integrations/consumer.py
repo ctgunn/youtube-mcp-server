@@ -158,6 +158,39 @@ class RepresentativeHigherLayerConsumer:
             "sourceNotes": self.wrapper.metadata.notes,
         }
 
+    def fetch_playlists_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `playlists.list` wrapper result.
+
+        :param arguments: Wrapper arguments needed to fetch playlists.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing selector use and source contract details.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        items = result.get("items", [])
+        selector_used = next(
+            (
+                selector
+                for selector in ("channelId", "id", "mine")
+                if selector in arguments and arguments.get(selector) not in (None, "")
+            ),
+            None,
+        )
+        return {
+            "playlistCount": len(items),
+            "isEmpty": not items,
+            "selectorUsed": selector_used,
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceAuthConditionNote": self.wrapper.metadata.auth_condition_note,
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
+
     def fetch_comments_summary(
         self,
         *,

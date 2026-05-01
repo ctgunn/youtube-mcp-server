@@ -206,6 +206,53 @@ class ChannelSectionsListWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class PlaylistsListWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `playlists.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports public selector
+    paths through ``channelId`` and ``id`` and owner-scoped retrieval through
+    ``mine`` with selector-aware paging rules kept visible for maintainers.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `playlists.list` with selector-aware auth validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the selector requires a different auth mode.
+        """
+        selector = self._selected_selector(arguments)
+        if selector == "mine" and auth_context.mode is not AuthMode.OAUTH_REQUIRED:
+            raise ValueError("mine requires oauth_required auth")
+        if selector in {"channelId", "id"} and auth_context.mode is not AuthMode.API_KEY:
+            raise ValueError(f"{selector} requires api_key auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+    def _selected_selector(self, arguments: dict[str, Any]) -> str:
+        """Return the active selector field for one playlists request.
+
+        :param arguments: Wrapper arguments to inspect.
+        :return: One of ``channelId``, ``id``, or ``mine``.
+        :raises ValueError: If no selector is present.
+        """
+        for field in ("channelId", "id", "mine"):
+            value = arguments.get(field)
+            if isinstance(value, str) and value.strip():
+                return field
+            if value is True:
+                return field
+        raise ValueError("exactly one selector is required from: channelId, id, mine")
+
+
+@dataclass(frozen=True)
 class CommentsListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `comments.list`.
 
@@ -1217,6 +1264,44 @@ def build_channel_sections_list_wrapper() -> RepresentativeEndpointWrapper:
     return ChannelSectionsListWrapper(metadata=metadata)
 
 
+def build_playlists_list_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `playlists.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports public
+    playlist lookup through ``channelId`` and ``id`` and owner-scoped
+    retrieval through ``mine``, while limiting paging inputs to collection
+    lookups.
+
+    :return: Representative wrapper configured for `playlists.list`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="playlists",
+        operation_name="list",
+        http_method="GET",
+        path_shape="/youtube/v3/playlists",
+        request_shape=EndpointRequestShape(
+            required_fields=("part",),
+            optional_fields=("channelId", "id", "mine", "pageToken", "maxResults"),
+            exactly_one_of=("channelId", "id", "mine"),
+            validators=(_require_playlists_list_arguments,),
+        ),
+        auth_mode=AuthMode.CONDITIONAL,
+        quota_cost=1,
+        auth_condition_note=(
+            "Use `channelId` or `id` for public playlist lookup paths. "
+            "Use `mine` for owner-scoped retrieval with oauth_required auth."
+        ),
+        notes=(
+            "Requires required `part` plus exactly one selector from "
+            "`channelId`, `id`, or `mine` for one deterministic playlist "
+            "lookup, allows `pageToken` and `maxResults` only for `channelId` "
+            "or `mine` requests, rejects undocumented modifiers, and preserves "
+            "empty result sets as successful outcomes."
+        ),
+    )
+    return PlaylistsListWrapper(metadata=metadata)
+
+
 def build_comments_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `comments.list`.
 
@@ -2059,6 +2144,26 @@ def _require_playlist_items_list_arguments(arguments: dict[str, object]) -> None
         raise ValueError("paging fields are only supported for playlistId lookups")
     if has_id_selector and has_paging:
         raise ValueError("paging fields are only supported for playlistId lookups")
+
+
+def _require_playlists_list_arguments(arguments: dict[str, object]) -> None:
+    """Validate selector-specific arguments for `playlists.list`.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If paging fields are supplied for direct ID lookups.
+    """
+    has_collection_selector = any(
+        (
+            isinstance(arguments.get("channelId"), str) and bool(str(arguments.get("channelId")).strip()),
+            arguments.get("mine") is True,
+        )
+    )
+    has_id_selector = isinstance(arguments.get("id"), str) and bool(str(arguments.get("id")).strip())
+    has_paging = any(arguments.get(field) not in (None, "") for field in ("pageToken", "maxResults"))
+    if has_paging and not has_collection_selector:
+        raise ValueError("paging fields are only supported for channelId or mine lookups")
+    if has_id_selector and has_paging:
+        raise ValueError("paging fields are only supported for channelId or mine lookups")
 
 
 def _require_playlist_items_insert_body(arguments: dict[str, object]) -> None:

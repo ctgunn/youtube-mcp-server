@@ -1056,6 +1056,131 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 {"part": "snippet", "playlistId": "PL123", "textFormat": "plainText"}
             )
 
+    def test_playlists_list_wrapper_exposes_expected_metadata(self):
+        wrapper = integrations_package.build_playlists_list_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "playlists.list")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/playlists")
+        self.assertEqual(wrapper.metadata.quota_cost, 1)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "mixed/conditional")
+        self.assertEqual(wrapper.metadata.lifecycle_state, "active")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part",))
+        self.assertEqual(
+            wrapper.metadata.request_shape.optional_fields,
+            ("channelId", "id", "mine", "pageToken", "maxResults"),
+        )
+        self.assertEqual(wrapper.metadata.request_shape.exactly_one_of, ("channelId", "id", "mine"))
+        self.assertIn("owner-scoped", wrapper.metadata.auth_condition_note)
+        self.assertIn("pageToken", wrapper.metadata.notes)
+
+    def test_playlists_list_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_playlists_list_wrapper))
+
+    def test_playlists_list_wrapper_requires_part(self):
+        wrapper = integrations_package.build_playlists_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: part"):
+            wrapper.metadata.request_shape.validate_arguments({"channelId": "UC123"})
+
+    def test_playlists_list_wrapper_requires_exactly_one_selector(self):
+        wrapper = integrations_package.build_playlists_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required from: channelId, id, mine"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required from: channelId, id, mine"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "channelId": "UC123", "id": "PL123"}
+            )
+
+    def test_playlists_list_wrapper_allows_channel_paging_fields(self):
+        wrapper = integrations_package.build_playlists_list_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {"part": "snippet", "channelId": "UC123", "pageToken": "cursor-123", "maxResults": 10}
+        )
+
+    def test_playlists_list_wrapper_allows_mine_paging_fields(self):
+        wrapper = integrations_package.build_playlists_list_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {"part": "snippet", "mine": True, "pageToken": "cursor-123", "maxResults": 10}
+        )
+
+    def test_playlists_list_wrapper_rejects_paging_fields_for_id_selector(self):
+        wrapper = integrations_package.build_playlists_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "paging fields are only supported for channelId or mine lookups"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "id": "PL123", "pageToken": "cursor-123"}
+            )
+
+    def test_playlists_list_wrapper_executes_successful_channel_calls(self):
+        wrapper = integrations_package.build_playlists_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "PL123", "selector": "channelId"}],
+                "selector": next(
+                    selector for selector in ("channelId", "id", "mine") if selector in execution.arguments
+                ),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "channelId": "UC123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "PL123")
+        self.assertEqual(result["selector"], "channelId")
+
+    def test_playlists_list_wrapper_requires_oauth_for_mine_selector(self):
+        wrapper = integrations_package.build_playlists_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "mine requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "mine": True},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_playlists_list_wrapper_requires_api_key_for_public_selectors(self):
+        wrapper = integrations_package.build_playlists_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "channelId requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "channelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_playlists_list_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = integrations_package.build_playlists_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: textFormat"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "channelId": "UC123", "textFormat": "plainText"}
+            )
+
     def test_comments_insert_wrapper_exposes_expected_metadata(self):
         wrapper = build_comments_insert_wrapper()
 

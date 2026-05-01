@@ -43,6 +43,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_items_list_wrapper,
     build_playlist_items_update_wrapper,
     build_playlist_images_update_wrapper,
+    build_playlists_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -108,6 +109,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_channels_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _playlists_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_playlists_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -536,6 +549,54 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         request = build_youtube_data_api_request(execution)
 
         self.assertIn("forUsername=legacy-user", request.full_url)
+
+    def test_builds_api_key_request_for_playlists_channel_selector(self):
+        execution = self._playlists_execution(
+            arguments={"part": "snippet", "channelId": "UC123", "maxResults": 5},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "GET")
+        self.assertIn("https://www.googleapis.com/youtube/v3/playlists?", request.full_url)
+        self.assertIn("channelId=UC123", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("maxResults=5", request.full_url)
+        self.assertIn("key=yt-key", request.full_url)
+        self.assertIsNone(request.headers.get("Authorization"))
+
+    def test_builds_api_key_request_for_playlists_id_selector(self):
+        execution = self._playlists_execution(
+            arguments={"part": "snippet", "id": "PL123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("id=PL123", request.full_url)
+        self.assertIn("key=yt-key", request.full_url)
+
+    def test_builds_oauth_request_for_playlists_mine_selector(self):
+        execution = self._playlists_execution(
+            arguments={"part": "snippet", "mine": True, "pageToken": "cursor-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("mine=true", request.full_url)
+        self.assertIn("pageToken=cursor-123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
 
     def test_builds_api_key_request_for_guide_categories_region_lookup(self):
         execution = self._guide_categories_execution(
