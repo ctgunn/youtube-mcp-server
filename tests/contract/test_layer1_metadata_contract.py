@@ -4,6 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
+import mcp_server.integrations as integrations_package
 from mcp_server.integrations.auth import AuthMode
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
 from mcp_server.integrations.wrappers import (
@@ -367,6 +368,22 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIsNone(review_surface["caveatNote"])
         self.assertIn("pageToken", review_surface["notes"])
         self.assertIn("API-key", review_surface["notes"])
+
+    def test_playlists_list_review_surface_exposes_identity_quota_and_selector_notes(self):
+        review_surface = integrations_package.build_playlists_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "playlists")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "playlists.list")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "mixed/conditional")
+        self.assertEqual(review_surface["requiredFields"], ("part",))
+        self.assertEqual(
+            review_surface["optionalFields"], ("channelId", "id", "mine", "pageToken", "maxResults")
+        )
+        self.assertEqual(review_surface["exclusiveSelectors"], ("channelId", "id", "mine"))
+        self.assertIn("owner-scoped", review_surface["authConditionNote"])
+        self.assertIn("pageToken", review_surface["notes"])
 
     def test_comments_insert_review_surface_exposes_identity_quota_and_auth_notes(self):
         review_surface = build_comments_insert_wrapper().review_surface()

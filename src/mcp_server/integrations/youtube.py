@@ -108,6 +108,8 @@ def build_youtube_data_api_transport(
             return _playlist_images_list_payload(execution, payload)
         if execution.metadata.operation_key == "playlistItems.list":
             return _playlist_items_list_payload(execution, payload)
+        if execution.metadata.operation_key == "playlists.list":
+            return _playlists_list_payload(execution, payload)
         if execution.metadata.operation_key == "commentThreads.insert":
             return _comment_threads_insert_payload(execution, payload)
         if execution.metadata.operation_key == "comments.insert":
@@ -443,6 +445,7 @@ def _normalized_category_for_execution(
             "membershipsLevels.list",
             "playlistImages.list",
             "playlistItems.list",
+            "playlists.list",
             "playlistItems.insert",
             "playlistItems.update",
             "playlistItems.delete",
@@ -511,6 +514,10 @@ def _normalized_category_for_execution(
                 return "invalid_request"
             return None
         if execution.metadata.operation_key == "playlistItems.list":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "playlists.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
             return None
@@ -935,6 +942,34 @@ def _playlist_items_list_payload(
         (
             selector
             for selector in ("playlistId", "id")
+            if selector in execution.arguments and execution.arguments.get(selector) not in (None, "")
+        ),
+        None,
+    )
+    parsed["part"] = execution.arguments.get("part")
+    parsed["selectorName"] = selector_name
+    parsed["selectorValue"] = execution.arguments.get(selector_name) if selector_name else None
+    return parsed
+
+
+def _playlists_list_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `playlists.list` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed playlists list payload with stable selector context.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    selector_name = next(
+        (
+            selector
+            for selector in ("channelId", "id", "mine")
             if selector in execution.arguments and execution.arguments.get(selector) not in (None, "")
         ),
         None,

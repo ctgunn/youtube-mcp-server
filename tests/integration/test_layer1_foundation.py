@@ -39,6 +39,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_items_list_wrapper,
     build_playlist_items_update_wrapper,
     build_playlist_images_update_wrapper,
+    build_playlists_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -867,6 +868,141 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"part": "snippet", "id": "image-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_playlists_list_wrapper_executes_channel_requests_through_shared_executor(self):
+        wrapper = build_playlists_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "PL123",
+                        "channelId": execution.arguments.get("channelId"),
+                        "kind": "youtube#playlist",
+                    }
+                ],
+                "selector": "channelId",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "channelId": "UC123", "pageToken": "cursor-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["channelId"], "UC123")
+        self.assertEqual(result["selector"], "channelId")
+
+    def test_playlists_list_wrapper_executes_id_requests_through_shared_executor(self):
+        wrapper = build_playlists_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": execution.arguments.get("id"), "kind": "youtube#playlist"}],
+                "selector": "id",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "id": "PL123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "PL123")
+        self.assertEqual(result["selector"], "id")
+
+    def test_playlists_list_wrapper_executes_mine_requests_through_shared_executor(self):
+        wrapper = build_playlists_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "PL234", "mine": bool(execution.arguments.get("mine"))}],
+                "selector": "mine",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "mine": True, "pageToken": "cursor-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertTrue(result["items"][0]["mine"])
+        self.assertEqual(result["selector"], "mine")
+
+    def test_playlists_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_playlists_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": [], "selector": "id"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "id": "PL123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["selector"], "id")
+
+    def test_playlists_list_wrapper_rejects_missing_selector_requests(self):
+        wrapper = build_playlists_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(
+            ValueError, "exactly one selector is required from: channelId, id, mine"
+        ):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_playlists_list_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_playlists_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Playlist access denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Playlist access denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "mine": True},
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,
                     credentials=CredentialBundle(oauth_token="oauth-123"),
