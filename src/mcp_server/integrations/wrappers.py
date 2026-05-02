@@ -1071,6 +1071,35 @@ class PlaylistsInsertWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class PlaylistsUpdateWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `playlists.update`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a target
+    `body.id` plus a writable `body.snippet` payload carrying the minimum
+    playlist title details on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `playlists.update` with OAuth and write validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("playlists.update requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class PlaylistItemsUpdateWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `playlistItems.update`.
 
@@ -1697,6 +1726,43 @@ def build_playlists_insert_wrapper() -> RepresentativeEndpointWrapper:
     return PlaylistsInsertWrapper(metadata=metadata)
 
 
+def build_playlists_update_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `playlists.update`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires `body.id`
+    for the existing playlist, keeps `part=snippet` explicit for maintainers,
+    requires `body.snippet.title` for the minimum supported update path, and
+    rejects unsupported optional write fields such as `description`, `status`,
+    or `localizations` unless the contract is deliberately expanded.
+
+    :return: Representative wrapper configured for `playlists.update`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="playlists",
+        operation_name="update",
+        http_method="PUT",
+        path_shape="/youtube/v3/playlists",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body"),
+            validators=(
+                _require_playlists_update_body,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `body.id` for the existing "
+            "playlist identifier, keep `part=snippet` explicit, use "
+            "`body.snippet.title` for the minimum writable playlist field, "
+            "and reject unsupported optional fields such as "
+            "`body.snippet.description`, `body.status`, or "
+            "`body.localizations` unless they are explicitly added to the "
+            "contract."
+        ),
+    )
+    return PlaylistsUpdateWrapper(metadata=metadata)
+
+
 def build_playlist_items_update_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `playlistItems.update`.
 
@@ -2294,6 +2360,40 @@ def _require_playlists_insert_body(arguments: dict[str, object]) -> None:
     unsupported_body_fields = [field for field in body if field not in {"kind", "snippet"}]
     if unsupported_body_fields:
         raise ValueError(f"body.{unsupported_body_fields[0]} is read-only or unsupported")
+
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        raise ValueError("body.snippet is required")
+
+    raw_title = snippet.get("title")
+    if not isinstance(raw_title, str) or not raw_title.strip():
+        raise ValueError("body.snippet.title is required")
+
+    unsupported_snippet_fields = [field for field in snippet if field not in {"title"}]
+    if unsupported_snippet_fields:
+        raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
+
+
+def _require_playlists_update_body(arguments: dict[str, object]) -> None:
+    """Validate the supported `playlists.update` request body.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request body does not match supported update rules.
+    """
+    part = str(arguments.get("part", "")).strip()
+    if part != "snippet":
+        raise ValueError("unsupported writable part: only snippet is supported")
+
+    require_mapping_fields("body", required_keys=("id", "snippet"))(arguments)
+    body = arguments.get("body")
+    assert isinstance(body, dict)  # Narrowed by validator above.
+    unsupported_body_fields = [field for field in body if field not in {"id", "kind", "snippet"}]
+    if unsupported_body_fields:
+        raise ValueError(f"body.{unsupported_body_fields[0]} is read-only or unsupported")
+
+    raw_playlist_id = body.get("id")
+    if not isinstance(raw_playlist_id, str) or not raw_playlist_id.strip():
+        raise ValueError("body.id is required")
 
     snippet = body.get("snippet")
     if not isinstance(snippet, dict):
