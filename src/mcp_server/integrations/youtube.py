@@ -80,6 +80,8 @@ def build_youtube_data_api_transport(
             return _playlist_images_insert_payload(execution, payload)
         if execution.metadata.operation_key == "playlistItems.insert":
             return _playlist_items_insert_payload(execution, payload)
+        if execution.metadata.operation_key == "playlists.insert":
+            return _playlists_insert_payload(execution, payload)
         if execution.metadata.operation_key == "playlistItems.update":
             return _playlist_items_update_payload(execution, payload)
         if execution.metadata.operation_key == "playlistItems.delete":
@@ -447,6 +449,7 @@ def _normalized_category_for_execution(
             "playlistItems.list",
             "playlists.list",
             "playlistItems.insert",
+            "playlists.insert",
             "playlistItems.update",
             "playlistItems.delete",
             "playlistImages.insert",
@@ -527,6 +530,12 @@ def _normalized_category_for_execution(
             if status_code == 404 and (
                 "playlist" in combined or "video" in combined or "resource" in combined
             ):
+                return "not_found"
+            return None
+        if execution.metadata.operation_key == "playlists.insert":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 404 and ("channel" in combined or "playlist" in combined or "target" in combined):
                 return "not_found"
             return None
         if execution.metadata.operation_key == "playlistItems.update":
@@ -731,6 +740,28 @@ def _playlist_items_insert_payload(
         or parsed_resource_id.get("videoId")
         or resource_id.get("videoId")
     )
+    return parsed
+
+
+def _playlists_insert_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `playlists.insert` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed playlist create payload with stable metadata fields.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    body = execution.arguments.get("body")
+    snippet = body.get("snippet", {}) if isinstance(body, dict) else {}
+    parsed_snippet = parsed.get("snippet", {}) if isinstance(parsed.get("snippet"), dict) else {}
+    parsed["part"] = execution.arguments.get("part")
+    parsed["title"] = parsed.get("title") or parsed_snippet.get("title") or snippet.get("title")
     return parsed
 
 

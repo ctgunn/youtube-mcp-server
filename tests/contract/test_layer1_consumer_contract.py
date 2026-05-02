@@ -40,6 +40,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_items_list_wrapper,
     build_playlist_items_update_wrapper,
     build_playlist_images_update_wrapper,
+    build_playlists_insert_wrapper,
     build_playlists_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -1124,6 +1125,42 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("playlistId", result["sourceNotes"])
         self.assertIn("videoId", result["sourceNotes"])
+
+    def test_consumer_can_summarize_playlist_creation_for_higher_layers(self):
+        wrapper = build_playlists_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "playlist-123",
+                "snippet": execution.arguments["body"]["snippet"],
+                "kind": "youtube#playlist",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.create_playlist_summary(
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"title": "Layer 1 Playlist"}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["playlistId"], "playlist-123")
+        self.assertTrue(result["isCreated"])
+        self.assertEqual(result["title"], "Layer 1 Playlist")
+        self.assertEqual(result["sourceOperation"], "playlists.insert")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertEqual(result["sourceRequiredFields"], ("part", "body"))
+        self.assertEqual(result["sourceWritablePart"], "snippet")
+        self.assertEqual(result["sourceRequiredTitleField"], "body.snippet.title")
+        self.assertIn("title", result["sourceNotes"])
+        self.assertIn("snippet", result["sourceNotes"])
+        self.assertIn("body.status", result["sourceNotes"])
 
     def test_consumer_can_summarize_playlist_item_updates_for_higher_layers(self):
         wrapper = build_playlist_items_update_wrapper()
