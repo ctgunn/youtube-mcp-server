@@ -38,6 +38,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_items_delete_wrapper,
     build_playlist_items_insert_wrapper,
     build_playlist_items_update_wrapper,
+    build_playlists_insert_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -2489,6 +2490,132 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                         "id": "playlist-item-123",
                         "snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}},
                     },
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_playlists_insert_wrapper_exposes_expected_metadata(self):
+        wrapper = build_playlists_insert_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "playlists.insert")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/playlists")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "body"))
+        self.assertIn("title", wrapper.metadata.notes)
+        self.assertIn("snippet", wrapper.metadata.notes)
+
+    def test_playlists_insert_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_playlists_insert_wrapper))
+
+    def test_playlists_insert_wrapper_requires_body_field(self):
+        wrapper = build_playlists_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: body"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+    def test_playlists_insert_wrapper_requires_part_field(self):
+        wrapper = build_playlists_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: part"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"body": {"snippet": {"title": "Layer 1 Playlist"}}}
+            )
+
+    def test_playlists_insert_wrapper_rejects_unsupported_writable_part(self):
+        wrapper = build_playlists_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unsupported writable part: only snippet is supported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "status",
+                    "body": {"snippet": {"title": "Layer 1 Playlist"}},
+                }
+            )
+
+    def test_playlists_insert_wrapper_requires_playlist_title(self):
+        wrapper = build_playlists_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.snippet.title is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "body": {"snippet": {}}}
+            )
+
+    def test_playlists_insert_wrapper_rejects_unsupported_top_level_body_fields(self):
+        wrapper = build_playlists_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.status is read-only or unsupported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {
+                        "snippet": {"title": "Layer 1 Playlist"},
+                        "status": {"privacyStatus": "private"},
+                    },
+                }
+            )
+
+    def test_playlists_insert_wrapper_rejects_unsupported_snippet_fields(self):
+        wrapper = build_playlists_insert_wrapper()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "body.snippet.description is read-only or unsupported",
+        ):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {
+                        "snippet": {
+                            "title": "Layer 1 Playlist",
+                            "description": "Not supported in this slice",
+                        }
+                    },
+                }
+            )
+
+    def test_playlists_insert_wrapper_executes_authorized_create_requests(self):
+        wrapper = build_playlists_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "playlist-123",
+                "title": execution.arguments["body"]["snippet"]["title"],
+                "kind": "youtube#playlist",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"title": "Layer 1 Playlist"}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "playlist-123")
+        self.assertEqual(result["title"], "Layer 1 Playlist")
+
+    def test_playlists_insert_wrapper_requires_oauth_mode(self):
+        wrapper = build_playlists_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "playlist-123", "kind": "youtube#playlist"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "playlists.insert requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"title": "Layer 1 Playlist"}},
                 },
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,

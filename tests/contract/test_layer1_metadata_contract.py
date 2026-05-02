@@ -34,6 +34,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
     build_playlist_items_update_wrapper,
+    build_playlists_insert_wrapper,
     build_playlist_images_update_wrapper,
 )
 
@@ -142,6 +143,22 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["requiredFields"], ("part", "body"))
         self.assertIn("playlistId", review_surface["notes"])
         self.assertIn("videoId", review_surface["notes"])
+
+    def test_playlists_insert_review_surface_exposes_quota_auth_and_write_notes(self):
+        review_surface = build_playlists_insert_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "playlists")
+        self.assertEqual(review_surface["operationName"], "insert")
+        self.assertEqual(review_surface["operationKey"], "playlists.insert")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body"))
+        self.assertEqual(review_surface["httpMethod"], "POST")
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/playlists")
+        self.assertIn("title", review_surface["notes"])
+        self.assertIn("snippet", review_surface["notes"])
+        self.assertIn("part=snippet", review_surface["notes"])
+        self.assertIn("body.status", review_surface["notes"])
 
     def test_playlist_images_update_review_surface_exposes_quota_auth_and_update_notes(self):
         review_surface = build_playlist_images_update_wrapper().review_surface()
