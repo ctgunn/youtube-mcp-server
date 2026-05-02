@@ -512,6 +512,41 @@ class RepresentativeHigherLayerConsumer:
             "sourceNotes": self.wrapper.metadata.notes,
         }
 
+    def update_playlist_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `playlists.update` result.
+
+        :param arguments: Wrapper arguments needed to update a playlist.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing source contract details, required update
+            inputs, and update outcome.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        body = arguments.get("body")
+        body_snippet = body.get("snippet", {}) if isinstance(body, dict) else {}
+        snippet = result.get("snippet")
+        return {
+            "playlistId": result.get("id") or (body.get("id") if isinstance(body, dict) else None),
+            "isUpdated": bool(result.get("id") or (body.get("id") if isinstance(body, dict) else None)),
+            "title": (
+                result.get("title")
+                or (snippet.get("title") if isinstance(snippet, dict) else None)
+                or body_snippet.get("title")
+            ),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceRequiredFields": self.wrapper.metadata.request_shape.required_fields,
+            "sourceWritablePart": arguments.get("part"),
+            "sourceRequiredIdentifierField": "body.id",
+            "sourceRequiredTitleField": "body.snippet.title",
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
+
     def update_playlist_item_summary(
         self,
         *,
