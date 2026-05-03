@@ -39,6 +39,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_items_list_wrapper,
     build_playlist_items_update_wrapper,
     build_playlist_images_update_wrapper,
+    build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
@@ -1517,6 +1518,72 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
 
         self.assertEqual(context.exception.category, "auth")
 
+    def test_playlists_delete_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_playlists_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "playlistId": execution.arguments["id"],
+                "isDeleted": True,
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "playlist-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["playlistId"], "playlist-123")
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["upstreamBodyState"], "empty")
+
+    def test_playlists_delete_wrapper_rejects_invalid_identifier_shapes_before_executor(self):
+        wrapper = build_playlists_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"playlistId": "should-not-run"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "id must identify one playlist"):
+            wrapper.call(
+                executor,
+                arguments={"id": ["playlist-123"]},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_playlists_delete_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_playlists_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Playlist delete denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Playlist delete denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "playlist-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
     def test_comments_set_moderation_status_wrapper_preserves_auth_failures_from_shared_executor(self):
         wrapper = build_comments_set_moderation_status_wrapper()
         executor = IntegrationExecutor(
@@ -2935,6 +3002,60 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "auth")
+
+    def test_playlists_delete_wrapper_preserves_invalid_request_failures_from_shared_executor(self):
+        wrapper = build_playlists_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Playlist delete payload invalid"),
+                    category="invalid_request",
+                    status_code=400,
+                    details={"reason": "required"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Playlist delete payload invalid") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "playlist-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_playlists_delete_wrapper_preserves_upstream_delete_failures_from_shared_executor(self):
+        wrapper = build_playlists_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Playlist delete rejected by policy"),
+                    status_code=409,
+                    details={"reason": "conflict"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(
+            NormalizedUpstreamError,
+            "Playlist delete rejected by policy",
+        ) as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "playlist-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "upstream_service")
 
     def test_playlists_update_wrapper_preserves_upstream_update_failures_from_shared_executor(self):
         wrapper = build_playlists_update_wrapper()

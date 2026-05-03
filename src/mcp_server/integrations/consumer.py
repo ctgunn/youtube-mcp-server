@@ -584,6 +584,28 @@ class RepresentativeHigherLayerConsumer:
             "sourceNotes": self.wrapper.metadata.notes,
         }
 
+    def delete_playlist_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `playlists.delete` result.
+
+        :param arguments: Wrapper arguments needed to delete a playlist.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing deleted playlist identity and source contract details.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        return {
+            "playlistId": result.get("playlistId"),
+            "isDeleted": bool(result.get("isDeleted")),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
+
     def delete_playlist_item_summary(
         self,
         *,

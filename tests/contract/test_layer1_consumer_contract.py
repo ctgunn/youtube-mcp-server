@@ -40,6 +40,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_items_list_wrapper,
     build_playlist_items_update_wrapper,
     build_playlist_images_update_wrapper,
+    build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
@@ -1322,6 +1323,34 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["playlistItemId"], "playlist-item-123")
         self.assertTrue(result["isDeleted"])
         self.assertEqual(result["sourceOperation"], "playlistItems.delete")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("id", result["sourceNotes"])
+        self.assertIn("target-state", result["sourceNotes"])
+
+    def test_consumer_can_summarize_playlist_deletes_for_higher_layers(self):
+        wrapper = build_playlists_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "playlistId": execution.arguments["id"],
+                "isDeleted": True,
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.delete_playlist_summary(
+            arguments={"id": "playlist-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["playlistId"], "playlist-123")
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["sourceOperation"], "playlists.delete")
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("id", result["sourceNotes"])

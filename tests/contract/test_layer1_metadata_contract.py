@@ -34,6 +34,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
     build_playlist_items_update_wrapper,
+    build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_playlists_update_wrapper,
     build_playlist_images_update_wrapper,
@@ -222,6 +223,20 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["quotaCost"], 50)
         self.assertEqual(review_surface["authMode"], "oauth_required")
         self.assertEqual(review_surface["requiredFields"], ("id",))
+        self.assertIn("id", review_surface["notes"])
+        self.assertIn("target-state", review_surface["notes"])
+
+    def test_playlists_delete_review_surface_exposes_quota_auth_and_delete_notes(self):
+        review_surface = build_playlists_delete_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "playlists")
+        self.assertEqual(review_surface["operationName"], "delete")
+        self.assertEqual(review_surface["operationKey"], "playlists.delete")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id",))
+        self.assertEqual(review_surface["httpMethod"], "DELETE")
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/playlists")
         self.assertIn("id", review_surface["notes"])
         self.assertIn("target-state", review_surface["notes"])
 
