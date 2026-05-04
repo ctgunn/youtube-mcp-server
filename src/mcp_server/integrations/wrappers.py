@@ -266,6 +266,56 @@ class PlaylistsListWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class SubscriptionsListWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `subscriptions.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports public selector
+    paths through ``channelId`` and ``id`` and OAuth-backed retrieval through
+    ``mine``, ``myRecentSubscribers``, and ``mySubscribers`` with selector-aware
+    paging and ordering rules kept visible for maintainers.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `subscriptions.list` with selector-aware auth validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the selector requires a different auth mode.
+        """
+        selector = self._selected_selector(arguments)
+        if selector in {"mine", "myRecentSubscribers", "mySubscribers"} and auth_context.mode is not AuthMode.OAUTH_REQUIRED:
+            raise ValueError(f"{selector} requires oauth_required auth")
+        if selector in {"channelId", "id"} and auth_context.mode is not AuthMode.API_KEY:
+            raise ValueError(f"{selector} requires api_key auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+    def _selected_selector(self, arguments: dict[str, Any]) -> str:
+        """Return the active selector field for one subscriptions request.
+
+        :param arguments: Wrapper arguments to inspect.
+        :return: One of ``channelId``, ``id``, ``mine``, ``myRecentSubscribers``, or ``mySubscribers``.
+        :raises ValueError: If no selector is present.
+        """
+        for field in ("channelId", "id", "mine", "myRecentSubscribers", "mySubscribers"):
+            value = arguments.get(field)
+            if isinstance(value, str) and value.strip():
+                return field
+            if value is True:
+                return field
+        raise ValueError(
+            "exactly one selector is required from: channelId, id, mine, myRecentSubscribers, mySubscribers"
+        )
+
+
+@dataclass(frozen=True)
 class SearchListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `search.list`.
 
@@ -1543,6 +1593,57 @@ def build_search_list_wrapper() -> RepresentativeEndpointWrapper:
     return SearchListWrapper(metadata=metadata)
 
 
+def build_subscriptions_list_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `subscriptions.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports public
+    subscription lookup through ``channelId`` and ``id`` and OAuth-backed
+    retrieval through ``mine``, ``myRecentSubscribers``, and
+    ``mySubscribers``, while limiting paging and ordering inputs to
+    collection lookups.
+
+    :return: Representative wrapper configured for `subscriptions.list`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="subscriptions",
+        operation_name="list",
+        http_method="GET",
+        path_shape="/youtube/v3/subscriptions",
+        request_shape=EndpointRequestShape(
+            required_fields=("part",),
+            optional_fields=(
+                "channelId",
+                "id",
+                "mine",
+                "myRecentSubscribers",
+                "mySubscribers",
+                "pageToken",
+                "maxResults",
+                "order",
+            ),
+            exactly_one_of=("channelId", "id", "mine", "myRecentSubscribers", "mySubscribers"),
+            validators=(_require_subscriptions_list_arguments,),
+        ),
+        auth_mode=AuthMode.CONDITIONAL,
+        quota_cost=1,
+        auth_condition_note=(
+            "Use `channelId` or `id` for public-compatible subscription lookup "
+            "paths. Use `mine`, `myRecentSubscribers`, or `mySubscribers` for "
+            "owner-scoped or subscriber-management retrieval with "
+            "oauth_required auth."
+        ),
+        notes=(
+            "Requires required `part` plus exactly one selector from "
+            "`channelId`, `id`, `mine`, `myRecentSubscribers`, or "
+            "`mySubscribers` for one deterministic subscription lookup, "
+            "allows `pageToken`, `maxResults`, and `order` only for "
+            "collection-style lookups, rejects undocumented modifiers, and "
+            "preserves empty result sets as successful outcomes."
+        ),
+    )
+    return SubscriptionsListWrapper(metadata=metadata)
+
+
 def build_comment_threads_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `commentThreads.list`.
 
@@ -2502,6 +2603,41 @@ def _require_search_list_arguments(arguments: dict[str, object]) -> None:
     search_type = str(arguments.get("type", "")).strip()
     if uses_video_only_filters and search_type != "video":
         raise ValueError("video-specific refinements require type=video")
+
+
+def _require_subscriptions_list_arguments(arguments: dict[str, object]) -> None:
+    """Validate selector-specific arguments for `subscriptions.list`.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If paging or ordering fields are supplied for direct ID lookups.
+    """
+    has_collection_selector = any(
+        (
+            isinstance(arguments.get("channelId"), str) and bool(str(arguments.get("channelId")).strip()),
+            arguments.get("mine") is True,
+            arguments.get("myRecentSubscribers") is True,
+            arguments.get("mySubscribers") is True,
+        )
+    )
+    has_id_selector = isinstance(arguments.get("id"), str) and bool(str(arguments.get("id")).strip())
+    has_paging = any(arguments.get(field) not in (None, "") for field in ("pageToken", "maxResults"))
+    has_order = arguments.get("order") not in (None, "")
+    if has_paging and not has_collection_selector:
+        raise ValueError(
+            "paging fields are only supported for channelId, mine, myRecentSubscribers, or mySubscribers lookups"
+        )
+    if has_id_selector and has_paging:
+        raise ValueError(
+            "paging fields are only supported for channelId, mine, myRecentSubscribers, or mySubscribers lookups"
+        )
+    if has_order and not has_collection_selector:
+        raise ValueError(
+            "order is only supported for channelId, mine, myRecentSubscribers, or mySubscribers lookups"
+        )
+    if has_id_selector and has_order:
+        raise ValueError(
+            "order is only supported for channelId, mine, myRecentSubscribers, or mySubscribers lookups"
+        )
 
 
 def _require_playlist_items_insert_body(arguments: dict[str, object]) -> None:

@@ -42,6 +42,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -1283,6 +1284,196 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),
                 ),
+            )
+
+    def test_subscriptions_list_wrapper_exposes_expected_metadata(self):
+        wrapper = build_subscriptions_list_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "subscriptions.list")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/subscriptions")
+        self.assertEqual(wrapper.metadata.quota_cost, 1)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "mixed/conditional")
+        self.assertEqual(wrapper.metadata.lifecycle_state, "active")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part",))
+        self.assertEqual(
+            wrapper.metadata.request_shape.optional_fields,
+            (
+                "channelId",
+                "id",
+                "mine",
+                "myRecentSubscribers",
+                "mySubscribers",
+                "pageToken",
+                "maxResults",
+                "order",
+            ),
+        )
+        self.assertEqual(
+            wrapper.metadata.request_shape.exactly_one_of,
+            ("channelId", "id", "mine", "myRecentSubscribers", "mySubscribers"),
+        )
+        self.assertIn("oauth_required", wrapper.metadata.auth_condition_note)
+        self.assertIn("order", wrapper.metadata.notes)
+
+    def test_subscriptions_list_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_subscriptions_list_wrapper))
+
+    def test_subscriptions_list_wrapper_requires_part(self):
+        wrapper = build_subscriptions_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: part"):
+            wrapper.metadata.request_shape.validate_arguments({"channelId": "UC123"})
+
+    def test_subscriptions_list_wrapper_requires_exactly_one_selector(self):
+        wrapper = build_subscriptions_list_wrapper()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "exactly one selector is required from: channelId, id, mine, myRecentSubscribers, mySubscribers",
+        ):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "exactly one selector is required from: channelId, id, mine, myRecentSubscribers, mySubscribers",
+        ):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "channelId": "UC123", "id": "sub-123"}
+            )
+
+    def test_subscriptions_list_wrapper_allows_collection_paging_and_order_fields(self):
+        wrapper = build_subscriptions_list_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {
+                "part": "snippet",
+                "channelId": "UC123",
+                "pageToken": "cursor-123",
+                "maxResults": 10,
+                "order": "alphabetical",
+            }
+        )
+        wrapper.metadata.request_shape.validate_arguments(
+            {
+                "part": "snippet",
+                "mySubscribers": True,
+                "pageToken": "cursor-123",
+                "maxResults": 10,
+                "order": "relevance",
+            }
+        )
+
+    def test_subscriptions_list_wrapper_rejects_paging_and_order_for_id_selector(self):
+        wrapper = build_subscriptions_list_wrapper()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "paging fields are only supported for channelId, mine, myRecentSubscribers, or mySubscribers lookups",
+        ):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "id": "sub-123", "pageToken": "cursor-123"}
+            )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "order is only supported for channelId, mine, myRecentSubscribers, or mySubscribers lookups",
+        ):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "id": "sub-123", "order": "alphabetical"}
+            )
+
+    def test_subscriptions_list_wrapper_executes_successful_channel_calls(self):
+        wrapper = build_subscriptions_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "sub-123", "selector": "channelId"}],
+                "selector": next(
+                    selector
+                    for selector in ("channelId", "id", "mine", "myRecentSubscribers", "mySubscribers")
+                    if selector in execution.arguments
+                ),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "channelId": "UC123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "sub-123")
+        self.assertEqual(result["selector"], "channelId")
+
+    def test_subscriptions_list_wrapper_executes_successful_mine_calls(self):
+        wrapper = build_subscriptions_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "sub-234", "selector": "mine"}],
+                "selector": next(
+                    selector
+                    for selector in ("channelId", "id", "mine", "myRecentSubscribers", "mySubscribers")
+                    if selector in execution.arguments
+                ),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "mine": True, "pageToken": "cursor-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "sub-234")
+        self.assertEqual(result["selector"], "mine")
+
+    def test_subscriptions_list_wrapper_requires_oauth_for_private_selectors(self):
+        wrapper = build_subscriptions_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "mySubscribers requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "mySubscribers": True},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_subscriptions_list_wrapper_requires_api_key_for_public_selectors(self):
+        wrapper = build_subscriptions_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "channelId requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "channelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_subscriptions_list_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = build_subscriptions_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: textFormat"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "channelId": "UC123", "textFormat": "plainText"}
             )
 
     def test_comments_insert_wrapper_exposes_expected_metadata(self):

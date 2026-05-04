@@ -46,6 +46,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
     build_captions_delete_wrapper,
@@ -137,6 +138,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_search_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _subscriptions_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_subscriptions_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -718,6 +731,95 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         )
         self.assertEqual(result["authPath"], "public")
         self.assertEqual(result["nextPageToken"], "cursor-2")
+
+    def test_builds_api_key_request_for_subscriptions_channel_selector(self):
+        execution = self._subscriptions_execution(
+            arguments={"part": "snippet", "channelId": "UC123", "maxResults": 5, "order": "alphabetical"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "GET")
+        self.assertIn("https://www.googleapis.com/youtube/v3/subscriptions?", request.full_url)
+        self.assertIn("channelId=UC123", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("maxResults=5", request.full_url)
+        self.assertIn("order=alphabetical", request.full_url)
+        self.assertIn("key=yt-key", request.full_url)
+        self.assertIsNone(request.headers.get("Authorization"))
+
+    def test_builds_oauth_request_for_subscriptions_private_selector(self):
+        execution = self._subscriptions_execution(
+            arguments={"part": "snippet", "mySubscribers": True, "pageToken": "cursor-1"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertIn("mySubscribers=true", request.full_url)
+        self.assertIn("pageToken=cursor-1", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+
+    def test_subscriptions_list_transport_returns_normalized_selector_context(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"items": [{"id": "sub-123"}], "nextPageToken": "cursor-2"}
+            )
+        )
+        execution = self._subscriptions_execution(
+            arguments={"part": "snippet", "mySubscribers": True, "maxResults": 5},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        result = transport(execution)
+
+        self.assertEqual(result["selectorName"], "mySubscribers")
+        self.assertTrue(result["selectorValue"])
+        self.assertEqual(result["authPath"], "oauth")
+        self.assertEqual(
+            result["requestContext"],
+            {
+                "part": "snippet",
+                "selectorName": "mySubscribers",
+                "selectorValue": True,
+                "maxResults": 5,
+            },
+        )
+
+    def test_transport_normalizes_subscriptions_list_invalid_request_errors(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: (_ for _ in ()).throw(
+                HTTPError(
+                    request.full_url,
+                    400,
+                    "Bad Request",
+                    hdrs=None,
+                    fp=io.BytesIO(b'{"error":{"message":"Missing selector","errors":[{"reason":"required"}]}}'),
+                )
+            )
+        )
+        execution = self._subscriptions_execution(
+            arguments={"part": "snippet", "channelId": "UC123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        with self.assertRaisesRegex(Exception, "Missing selector") as context:
+            transport(execution)
+
+        self.assertEqual(context.exception.category, "invalid_request")
 
     def test_transport_normalizes_search_list_invalid_request_errors(self):
         error = HTTPError(
