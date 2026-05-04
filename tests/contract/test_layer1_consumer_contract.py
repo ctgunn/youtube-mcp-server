@@ -43,6 +43,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
     build_captions_delete_wrapper,
@@ -279,6 +280,72 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertIn("oauth_required", result["sourceAuthConditionNote"])
         self.assertIn("quota guidance differs", result["sourceCaveatNote"])
         self.assertIn("empty result sets", result["sourceNotes"])
+
+    def test_consumer_can_summarize_subscriptions_results_for_higher_layers(self):
+        wrapper = build_subscriptions_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "sub-123", "channelId": execution.arguments.get("channelId")}],
+                "nextPageToken": "cursor-2",
+                "authPath": "public",
+                "requestContext": {
+                    "part": "snippet",
+                    "selectorName": "channelId",
+                    "selectorValue": "UC123",
+                    "maxResults": 5,
+                },
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_subscriptions_summary(
+            arguments={"part": "snippet", "channelId": "UC123", "maxResults": 5},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["subscriptionCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "channelId")
+        self.assertEqual(result["nextPageToken"], "cursor-2")
+        self.assertEqual(result["authPathUsed"], "public")
+        self.assertEqual(
+            result["requestContext"],
+            {
+                "part": "snippet",
+                "selectorName": "channelId",
+                "selectorValue": "UC123",
+                "maxResults": 5,
+            },
+        )
+        self.assertEqual(result["sourceOperation"], "subscriptions.list")
+        self.assertEqual(result["sourceAuthMode"], "mixed/conditional")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("oauth_required", result["sourceAuthConditionNote"])
+        self.assertIn("order", result["sourceNotes"])
+
+    def test_consumer_can_summarize_empty_subscriptions_results_for_higher_layers(self):
+        wrapper = build_subscriptions_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_subscriptions_summary(
+            arguments={"part": "snippet", "mySubscribers": True},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["subscriptionCount"], 0)
+        self.assertTrue(result["isEmpty"])
+        self.assertEqual(result["selectorUsed"], "mySubscribers")
 
     def test_consumer_can_summarize_channel_sections_results_for_higher_layers(self):
         wrapper = build_channel_sections_list_wrapper()

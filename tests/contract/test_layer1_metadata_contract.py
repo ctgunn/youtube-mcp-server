@@ -37,6 +37,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_playlist_images_update_wrapper,
 )
@@ -450,6 +451,26 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["exclusiveSelectors"], ("channelId", "id", "mine"))
         self.assertIn("owner-scoped", review_surface["authConditionNote"])
         self.assertIn("pageToken", review_surface["notes"])
+
+    def test_subscriptions_list_review_surface_exposes_identity_quota_and_selector_notes(self):
+        review_surface = build_subscriptions_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "subscriptions")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "subscriptions.list")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "mixed/conditional")
+        self.assertEqual(review_surface["requiredFields"], ("part",))
+        self.assertEqual(
+            review_surface["optionalFields"],
+            ("channelId", "id", "mine", "myRecentSubscribers", "mySubscribers", "pageToken", "maxResults", "order"),
+        )
+        self.assertEqual(
+            review_surface["exclusiveSelectors"],
+            ("channelId", "id", "mine", "myRecentSubscribers", "mySubscribers"),
+        )
+        self.assertIn("oauth_required", review_surface["authConditionNote"])
+        self.assertIn("order", review_surface["notes"])
 
     def test_comments_insert_review_surface_exposes_identity_quota_and_auth_notes(self):
         review_surface = build_comments_insert_wrapper().review_surface()

@@ -116,6 +116,8 @@ def build_youtube_data_api_transport(
             return _playlist_items_list_payload(execution, payload)
         if execution.metadata.operation_key == "playlists.list":
             return _playlists_list_payload(execution, payload)
+        if execution.metadata.operation_key == "subscriptions.list":
+            return _subscriptions_list_payload(execution, payload)
         if execution.metadata.operation_key == "search.list":
             return _search_list_payload(execution, payload)
         if execution.metadata.operation_key == "commentThreads.insert":
@@ -454,6 +456,7 @@ def _normalized_category_for_execution(
             "playlistImages.list",
             "playlistItems.list",
             "playlists.list",
+            "subscriptions.list",
             "search.list",
             "playlistItems.insert",
             "playlists.insert",
@@ -530,6 +533,10 @@ def _normalized_category_for_execution(
                 return "invalid_request"
             return None
         if execution.metadata.operation_key == "playlists.list":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "subscriptions.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
             return None
@@ -1117,6 +1124,53 @@ def _search_list_payload(
         )
         else "public"
     )
+    return parsed
+
+
+def _subscriptions_list_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `subscriptions.list` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed subscriptions list payload with stable selector context.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    selector_name = next(
+        (
+            selector
+            for selector in ("channelId", "id", "mine", "myRecentSubscribers", "mySubscribers")
+            if (isinstance(execution.arguments.get(selector), str) and bool(str(execution.arguments.get(selector)).strip()))
+            or execution.arguments.get(selector) is True
+        ),
+        None,
+    )
+    selector_value = execution.arguments.get(selector_name) if selector_name else None
+    parsed["part"] = execution.arguments.get("part")
+    parsed["selectorName"] = selector_name
+    parsed["selectorValue"] = selector_value
+    parsed["authPath"] = (
+        "oauth"
+        if selector_name in {"mine", "myRecentSubscribers", "mySubscribers"}
+        else "public"
+    )
+    parsed["requestContext"] = {
+        key: value
+        for key, value in {
+            "part": execution.arguments.get("part"),
+            "selectorName": selector_name,
+            "selectorValue": selector_value,
+            "pageToken": execution.arguments.get("pageToken"),
+            "maxResults": execution.arguments.get("maxResults"),
+            "order": execution.arguments.get("order"),
+        }.items()
+        if value not in (None, "", False)
+    }
     return parsed
 
 
