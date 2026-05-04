@@ -10,6 +10,7 @@ from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestS
 from mcp_server.integrations.errors import NormalizedUpstreamError, normalize_upstream_error
 from mcp_server.integrations.executor import IntegrationExecutor, IntegrationHooks, RequestExecution, timed_execution
 from mcp_server.integrations.retry import RetryPolicy
+from mcp_server.integrations.youtube import build_youtube_data_api_transport
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
@@ -40,6 +41,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_items_update_wrapper,
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
+    build_search_list_wrapper,
     build_playlists_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -47,6 +49,22 @@ from mcp_server.integrations.wrappers import (
     build_captions_list_wrapper,
     build_captions_update_wrapper,
 )
+
+
+class _FakeHTTPResponse:
+    def __init__(self, payload: dict[str, object]):
+        import json
+
+        self._payload = json.dumps(payload).encode("utf-8")
+
+    def read(self) -> bytes:
+        return self._payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
 
 
 class Layer1FoundationUnitTests(unittest.TestCase):
@@ -1182,6 +1200,89 @@ class Layer1FoundationUnitTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unexpected field: textFormat"):
             wrapper.metadata.request_shape.validate_arguments(
                 {"part": "snippet", "channelId": "UC123", "textFormat": "plainText"}
+            )
+
+    def test_search_list_wrapper_exposes_expected_metadata(self):
+        wrapper = build_search_list_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "search.list")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/search")
+        self.assertEqual(wrapper.metadata.quota_cost, 100)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "mixed/conditional")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "q"))
+        self.assertIn("type", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("publishedAfter", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("relevanceLanguage", wrapper.metadata.request_shape.optional_fields)
+        self.assertIn("quota guidance differs", wrapper.metadata.caveat_note)
+
+    def test_search_list_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_search_list_wrapper))
+
+    def test_search_list_wrapper_executes_public_queries_with_normalized_context(self):
+        wrapper = build_search_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda _request, timeout: _FakeHTTPResponse(
+                    {"items": [{"id": {"videoId": "video-123"}}], "nextPageToken": "cursor-2"}
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "q": "mcp server", "type": "video", "maxResults": 5},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(
+            result["queryContext"],
+            {
+                "part": "snippet",
+                "q": "mcp server",
+                "type": "video",
+                "maxResults": 5,
+            },
+        )
+        self.assertEqual(result["authPath"], "public")
+        self.assertEqual(result["nextPageToken"], "cursor-2")
+
+    def test_search_list_wrapper_rejects_missing_required_query(self):
+        wrapper = build_search_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: q"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+    def test_search_list_wrapper_rejects_video_refinements_without_video_type(self):
+        wrapper = build_search_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "video-specific refinements require type=video"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "q": "mcp server",
+                    "videoDuration": "long",
+                }
+            )
+
+    def test_search_list_wrapper_requires_oauth_for_restricted_filters(self):
+        wrapper = build_search_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "restricted search filters require oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "q": "mcp server", "forMine": True},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
             )
 
     def test_comments_insert_wrapper_exposes_expected_metadata(self):

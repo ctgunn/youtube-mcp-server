@@ -45,6 +45,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_update_wrapper,
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
+    build_search_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
     build_captions_delete_wrapper,
@@ -124,6 +125,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_playlists_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _search_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_search_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -636,6 +649,121 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("mine=true", request.full_url)
         self.assertIn("pageToken=cursor-123", request.full_url)
         self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+
+    def test_builds_api_key_request_for_search_list_public_query(self):
+        execution = self._search_execution(
+            arguments={
+                "part": "snippet",
+                "q": "mcp server",
+                "type": "video",
+                "publishedAfter": "2026-01-01T00:00:00Z",
+                "relevanceLanguage": "en",
+                "regionCode": "US",
+                "pageToken": "cursor-1",
+                "maxResults": 5,
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "GET")
+        self.assertIn("https://www.googleapis.com/youtube/v3/search?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("q=mcp+server", request.full_url)
+        self.assertIn("type=video", request.full_url)
+        self.assertIn("publishedAfter=2026-01-01T00%3A00%3A00Z", request.full_url)
+        self.assertIn("relevanceLanguage=en", request.full_url)
+        self.assertIn("regionCode=US", request.full_url)
+        self.assertIn("pageToken=cursor-1", request.full_url)
+        self.assertIn("maxResults=5", request.full_url)
+        self.assertIn("key=yt-key", request.full_url)
+        self.assertIsNone(request.headers.get("Authorization"))
+
+    def test_search_list_transport_returns_normalized_query_context(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"items": [{"id": {"videoId": "video-123"}}], "nextPageToken": "cursor-2"}
+            )
+        )
+
+        result = transport(
+            self._search_execution(
+                arguments={
+                    "part": "snippet",
+                    "q": "mcp server",
+                    "type": "video",
+                    "publishedAfter": "2026-01-01T00:00:00Z",
+                    "maxResults": 5,
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="yt-key"),
+                ),
+            )
+        )
+
+        self.assertEqual(
+            result["queryContext"],
+            {
+                "part": "snippet",
+                "q": "mcp server",
+                "type": "video",
+                "publishedAfter": "2026-01-01T00:00:00Z",
+                "maxResults": 5,
+            },
+        )
+        self.assertEqual(result["authPath"], "public")
+        self.assertEqual(result["nextPageToken"], "cursor-2")
+
+    def test_transport_normalizes_search_list_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/search",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"videoDuration requires type=video"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "videoDuration requires type=video") as context:
+            transport(
+                self._search_execution(
+                    arguments={"part": "snippet", "q": "mcp server", "videoDuration": "long"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.API_KEY,
+                        credentials=CredentialBundle(api_key="yt-key"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_search_list_upstream_failures(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/search",
+            code=503,
+            msg="Service Unavailable",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Search backend unavailable"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Search backend unavailable") as context:
+            transport(
+                self._search_execution(
+                    arguments={"part": "snippet", "q": "mcp server"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.API_KEY,
+                        credentials=CredentialBundle(api_key="yt-key"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "transient")
 
     def test_builds_api_key_request_for_guide_categories_region_lookup(self):
         execution = self._guide_categories_execution(
