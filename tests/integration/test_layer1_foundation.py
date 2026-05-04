@@ -1,6 +1,8 @@
+import io
 import os
 import sys
 import unittest
+from urllib.error import HTTPError
 
 sys.path.insert(0, os.path.abspath("src"))
 
@@ -9,6 +11,7 @@ from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestS
 from mcp_server.integrations.errors import NormalizedUpstreamError, normalize_upstream_error
 from mcp_server.integrations.executor import IntegrationExecutor, build_observability_hooks
 from mcp_server.integrations.retry import RetryPolicy
+from mcp_server.integrations.youtube import build_youtube_data_api_transport
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
@@ -41,6 +44,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_update_wrapper,
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
+    build_search_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
     build_captions_delete_wrapper,
@@ -50,6 +54,22 @@ from mcp_server.integrations.wrappers import (
     build_captions_update_wrapper,
 )
 from mcp_server.observability import InMemoryObservability
+
+
+class _FakeHTTPResponse:
+    def __init__(self, payload: dict[str, object]):
+        import json
+
+        self._payload = json.dumps(payload).encode("utf-8")
+
+    def read(self) -> bytes:
+        return self._payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
 
 
 class Layer1FoundationIntegrationTests(unittest.TestCase):
@@ -3437,6 +3457,100 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         self.assertEqual(restricted_surface["authMode"], "mixed/conditional")
         self.assertLess(public_surface["quotaCost"], restricted_surface["quotaCost"])
         self.assertIn("Restricted filters", restricted_surface["caveatNote"])
+
+    def test_search_list_wrapper_executes_supported_search_requests_through_shared_executor(self):
+        wrapper = build_search_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda _request, timeout: _FakeHTTPResponse(
+                    {"items": [{"id": {"videoId": "video-123"}}], "nextPageToken": "cursor-2"}
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "q": "mcp server",
+                "type": "video",
+                "publishedAfter": "2026-01-01T00:00:00Z",
+                "maxResults": 5,
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(
+            result["queryContext"],
+            {
+                "part": "snippet",
+                "q": "mcp server",
+                "type": "video",
+                "publishedAfter": "2026-01-01T00:00:00Z",
+                "maxResults": 5,
+            },
+        )
+        self.assertEqual(result["authPath"], "public")
+        self.assertEqual(result["nextPageToken"], "cursor-2")
+
+    def test_search_list_wrapper_preserves_invalid_request_failures_from_shared_executor(self):
+        wrapper = build_search_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda _request, timeout: (_ for _ in ()).throw(
+                    HTTPError(
+                        url="https://www.googleapis.com/youtube/v3/search",
+                        code=400,
+                        msg="Bad Request",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":{"message":"videoDuration requires type=video"}}'),
+                    )
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "videoDuration requires type=video") as context:
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "q": "mcp server"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_search_list_wrapper_preserves_upstream_search_failures_from_shared_executor(self):
+        wrapper = build_search_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Search backend unavailable"),
+                    category="upstream_service",
+                    status_code=503,
+                    details={"reason": "backend_unavailable"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Search backend unavailable") as context:
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "q": "mcp server"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "upstream_service")
 
 
 if __name__ == "__main__":

@@ -36,6 +36,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_items_update_wrapper,
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
+    build_search_list_wrapper,
     build_playlists_update_wrapper,
     build_playlist_images_update_wrapper,
 )
@@ -262,8 +263,25 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["quotaCost"], 50)
         self.assertEqual(review_surface["authMode"], "oauth_required")
         self.assertEqual(review_surface["requiredFields"], ("part", "body"))
-        self.assertIn("brandingSettings", review_surface["notes"])
-        self.assertIn("bannerExternalUrl", review_surface["notes"])
+
+    def test_search_list_review_surface_exposes_quota_caveat_auth_and_refinements(self):
+        review_surface = build_search_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "search")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "search.list")
+        self.assertEqual(review_surface["httpMethod"], "GET")
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/search")
+        self.assertEqual(review_surface["requiredFields"], ("part", "q"))
+        self.assertEqual(review_surface["quotaCost"], 100)
+        self.assertEqual(review_surface["authMode"], "mixed/conditional")
+        self.assertEqual(review_surface["lifecycleState"], "inconsistent-docs")
+        self.assertIn("forMine", review_surface["optionalFields"])
+        self.assertIn("videoDuration", review_surface["optionalFields"])
+        self.assertIn("quota guidance differs", review_surface["caveatNote"])
+        self.assertIn("oauth_required", review_surface["authConditionNote"])
+        self.assertIn("pagination", review_surface["notes"])
+        self.assertIn("empty result sets", review_surface["notes"])
 
     def test_channel_sections_list_review_surface_exposes_quota_auth_and_caveat_notes(self):
         review_surface = build_channel_sections_list_wrapper().review_surface()

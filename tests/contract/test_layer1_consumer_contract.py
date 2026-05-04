@@ -42,6 +42,7 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_update_wrapper,
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
+    build_search_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
     build_captions_delete_wrapper,
@@ -230,6 +231,54 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["playlistCount"], 0)
         self.assertTrue(result["isEmpty"])
         self.assertEqual(result["selectorUsed"], "mine")
+
+    def test_consumer_can_summarize_search_results_for_higher_layers(self):
+        wrapper = build_search_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {
+                "items": [{"id": {"videoId": "video-123"}}],
+                "nextPageToken": "cursor-2",
+                "authPath": "public",
+                "queryContext": {
+                    "part": "snippet",
+                    "q": "mcp server",
+                    "type": "video",
+                    "maxResults": 5,
+                },
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_search_summary(
+            arguments={"part": "snippet", "q": "mcp server", "type": "video", "maxResults": 5},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["query"], "mcp server")
+        self.assertEqual(result["resultCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["searchType"], "video")
+        self.assertEqual(result["nextPageToken"], "cursor-2")
+        self.assertEqual(result["authPathUsed"], "public")
+        self.assertEqual(
+            result["queryContext"],
+            {
+                "part": "snippet",
+                "q": "mcp server",
+                "type": "video",
+                "maxResults": 5,
+            },
+        )
+        self.assertEqual(result["sourceOperation"], "search.list")
+        self.assertEqual(result["sourceAuthMode"], "mixed/conditional")
+        self.assertEqual(result["sourceQuotaCost"], 100)
+        self.assertIn("oauth_required", result["sourceAuthConditionNote"])
+        self.assertIn("quota guidance differs", result["sourceCaveatNote"])
+        self.assertIn("empty result sets", result["sourceNotes"])
 
     def test_consumer_can_summarize_channel_sections_results_for_higher_layers(self):
         wrapper = build_channel_sections_list_wrapper()
