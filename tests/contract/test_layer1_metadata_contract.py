@@ -37,6 +37,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_playlist_images_update_wrapper,
@@ -162,6 +163,22 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("title", review_surface["notes"])
         self.assertIn("snippet", review_surface["notes"])
         self.assertIn("part=snippet", review_surface["notes"])
+        self.assertIn("body.status", review_surface["notes"])
+
+    def test_subscriptions_insert_review_surface_exposes_quota_auth_and_write_notes(self):
+        review_surface = build_subscriptions_insert_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "subscriptions")
+        self.assertEqual(review_surface["operationName"], "insert")
+        self.assertEqual(review_surface["operationKey"], "subscriptions.insert")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body"))
+        self.assertEqual(review_surface["httpMethod"], "POST")
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/subscriptions")
+        self.assertIn("resourceId.channelId", review_surface["notes"])
+        self.assertIn("part=snippet", review_surface["notes"])
+        self.assertIn("youtube#channel", review_surface["notes"])
         self.assertIn("body.status", review_surface["notes"])
 
     def test_playlist_images_update_review_surface_exposes_quota_auth_and_update_notes(self):

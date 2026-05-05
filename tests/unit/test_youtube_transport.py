@@ -46,6 +46,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
@@ -150,6 +151,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_subscriptions_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _subscriptions_insert_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_subscriptions_insert_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -820,6 +833,110 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             transport(execution)
 
         self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_builds_oauth_request_for_subscriptions_insert_create(self):
+        execution = self._subscriptions_insert_execution(
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "POST")
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertIn("https://www.googleapis.com/youtube/v3/subscriptions?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertEqual(json.loads(request.data.decode("utf-8")), {"snippet": {"resourceId": {"channelId": "UC123"}}})
+
+    def test_subscriptions_insert_transport_returns_normalized_target_context(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"id": "subscription-123", "snippet": {"resourceId": {"channelId": "UC123"}}}
+            )
+        )
+        execution = self._subscriptions_insert_execution(
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        result = transport(execution)
+
+        self.assertEqual(result["subscriptionId"], "subscription-123")
+        self.assertEqual(result["targetChannelId"], "UC123")
+        self.assertEqual(result["targetResourceKind"], "youtube#channel")
+        self.assertEqual(result["part"], "snippet")
+
+    def test_transport_normalizes_subscriptions_insert_invalid_request_errors(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: (_ for _ in ()).throw(
+                HTTPError(
+                    request.full_url,
+                    400,
+                    "Bad Request",
+                    hdrs=None,
+                    fp=io.BytesIO(
+                        b'{"error":{"message":"Missing target channel","errors":[{"reason":"required"}]}}'
+                    ),
+                )
+            )
+        )
+        execution = self._subscriptions_insert_execution(
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        with self.assertRaisesRegex(Exception, "Missing target channel") as context:
+            transport(execution)
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_subscriptions_insert_duplicate_target_errors(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: (_ for _ in ()).throw(
+                HTTPError(
+                    request.full_url,
+                    409,
+                    "Conflict",
+                    hdrs=None,
+                    fp=io.BytesIO(
+                        b'{"error":{"message":"Subscription already exists","errors":[{"reason":"conflict"}]}}'
+                    ),
+                )
+            )
+        )
+        execution = self._subscriptions_insert_execution(
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        with self.assertRaisesRegex(Exception, "Subscription already exists") as context:
+            transport(execution)
+
+        self.assertEqual(context.exception.category, "duplicate_or_ineligible_target")
 
     def test_transport_normalizes_search_list_invalid_request_errors(self):
         error = HTTPError(

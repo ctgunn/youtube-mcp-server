@@ -45,6 +45,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
@@ -3018,6 +3019,178 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
                 arguments={
                     "part": "snippet",
                     "body": {"snippet": {"title": "Layer 1 Playlist"}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "upstream_service")
+
+    def test_subscriptions_insert_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_subscriptions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "subscription-123",
+                "targetChannelId": execution.arguments["body"]["snippet"]["resourceId"]["channelId"],
+                "kind": "youtube#subscription",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "subscription-123")
+        self.assertEqual(result["targetChannelId"], "UC123")
+
+    def test_subscriptions_insert_wrapper_preserves_part_and_target_channel_in_successful_results(self):
+        wrapper = build_subscriptions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {
+                "id": "subscription-123",
+                "snippet": {"resourceId": {"channelId": "UC123"}},
+                "kind": "youtube#subscription",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["part"], "snippet")
+        self.assertEqual(result["targetChannelId"], "UC123")
+
+    def test_subscriptions_insert_wrapper_preserves_invalid_request_failures_from_shared_executor(self):
+        wrapper = build_subscriptions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Subscription create payload invalid"),
+                    category="invalid_request",
+                    status_code=400,
+                    details={"reason": "required"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(
+            NormalizedUpstreamError,
+            "Subscription create payload invalid",
+        ) as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_subscriptions_insert_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_subscriptions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Subscription create denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Subscription create denied") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_subscriptions_insert_wrapper_preserves_duplicate_target_failures_from_shared_executor(self):
+        wrapper = build_subscriptions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Subscription already exists"),
+                    category="duplicate_or_ineligible_target",
+                    status_code=409,
+                    details={"reason": "conflict"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Subscription already exists") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "duplicate_or_ineligible_target")
+
+    def test_subscriptions_insert_wrapper_preserves_upstream_create_failures_from_shared_executor(self):
+        wrapper = build_subscriptions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Subscription create rejected by policy"),
+                    status_code=409,
+                    details={"reason": "conflict"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(
+            NormalizedUpstreamError,
+            "Subscription create rejected by policy",
+        ) as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
                 },
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,

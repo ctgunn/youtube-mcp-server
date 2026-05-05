@@ -82,6 +82,8 @@ def build_youtube_data_api_transport(
             return _playlist_items_insert_payload(execution, payload)
         if execution.metadata.operation_key == "playlists.insert":
             return _playlists_insert_payload(execution, payload)
+        if execution.metadata.operation_key == "subscriptions.insert":
+            return _subscriptions_insert_payload(execution, payload)
         if execution.metadata.operation_key == "playlists.update":
             return _playlists_update_payload(execution, payload)
         if execution.metadata.operation_key == "playlists.delete":
@@ -457,6 +459,7 @@ def _normalized_category_for_execution(
             "playlistItems.list",
             "playlists.list",
             "subscriptions.list",
+            "subscriptions.insert",
             "search.list",
             "playlistItems.insert",
             "playlists.insert",
@@ -539,6 +542,22 @@ def _normalized_category_for_execution(
         if execution.metadata.operation_key == "subscriptions.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "subscriptions.insert":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if (
+                status_code == 409
+                or "duplicate" in combined
+                or "already subscribed" in combined
+                or "already exists" in combined
+                or "ineligible" in combined
+                or ("cannot subscribe" in combined)
+                or ("subscribe to yourself" in combined)
+            ):
+                return "duplicate_or_ineligible_target"
+            if status_code == 404 and ("channel" in combined or "subscription" in combined or "target" in combined):
+                return "not_found"
             return None
         if execution.metadata.operation_key == "search.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
@@ -794,6 +813,43 @@ def _playlists_insert_payload(
     parsed_snippet = parsed.get("snippet", {}) if isinstance(parsed.get("snippet"), dict) else {}
     parsed["part"] = execution.arguments.get("part")
     parsed["title"] = parsed.get("title") or parsed_snippet.get("title") or snippet.get("title")
+    return parsed
+
+
+def _subscriptions_insert_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `subscriptions.insert` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed subscription create payload with stable metadata fields.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    body = execution.arguments.get("body")
+    snippet = body.get("snippet", {}) if isinstance(body, dict) else {}
+    resource_id = snippet.get("resourceId", {}) if isinstance(snippet, dict) else {}
+    parsed_snippet = parsed.get("snippet", {}) if isinstance(parsed.get("snippet"), dict) else {}
+    parsed_resource_id = (
+        parsed_snippet.get("resourceId", {}) if isinstance(parsed_snippet.get("resourceId"), dict) else {}
+    )
+    parsed["part"] = execution.arguments.get("part")
+    parsed["subscriptionId"] = parsed.get("subscriptionId") or parsed.get("id")
+    parsed["targetChannelId"] = (
+        parsed.get("targetChannelId")
+        or parsed_resource_id.get("channelId")
+        or resource_id.get("channelId")
+    )
+    parsed["targetResourceKind"] = (
+        parsed.get("targetResourceKind")
+        or parsed_resource_id.get("kind")
+        or resource_id.get("kind")
+        or "youtube#channel"
+    )
     return parsed
 
 
