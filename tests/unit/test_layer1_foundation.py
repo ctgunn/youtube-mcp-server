@@ -42,6 +42,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_captions_delete_wrapper,
@@ -2910,6 +2911,147 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 arguments={
                     "part": "snippet",
                     "body": {"snippet": {"title": "Layer 1 Playlist"}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_subscriptions_insert_wrapper_exposes_expected_metadata(self):
+        wrapper = build_subscriptions_insert_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "subscriptions.insert")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/subscriptions")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "body"))
+        self.assertIn("resourceId.channelId", wrapper.metadata.notes)
+        self.assertIn("part=snippet", wrapper.metadata.notes)
+
+    def test_subscriptions_insert_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_subscriptions_insert_wrapper))
+
+    def test_subscriptions_insert_wrapper_requires_body_field(self):
+        wrapper = build_subscriptions_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: body"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+    def test_subscriptions_insert_wrapper_requires_part_field(self):
+        wrapper = build_subscriptions_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: part"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"body": {"snippet": {"resourceId": {"channelId": "UC123"}}}}
+            )
+
+    def test_subscriptions_insert_wrapper_rejects_unsupported_writable_part(self):
+        wrapper = build_subscriptions_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unsupported writable part: only snippet is supported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "status",
+                    "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+                }
+            )
+
+    def test_subscriptions_insert_wrapper_requires_target_channel_id(self):
+        wrapper = build_subscriptions_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.snippet.resourceId.channelId is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "body": {"snippet": {"resourceId": {}}}}
+            )
+
+    def test_subscriptions_insert_wrapper_rejects_invalid_resource_kind(self):
+        wrapper = build_subscriptions_insert_wrapper()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "body.snippet.resourceId.kind must be youtube#channel when provided",
+        ):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {
+                        "snippet": {
+                            "resourceId": {"channelId": "UC123", "kind": "youtube#video"}
+                        }
+                    },
+                }
+            )
+
+    def test_subscriptions_insert_wrapper_rejects_unsupported_top_level_body_fields(self):
+        wrapper = build_subscriptions_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.status is read-only or unsupported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {
+                        "snippet": {"resourceId": {"channelId": "UC123"}},
+                        "status": {"privacyStatus": "private"},
+                    },
+                }
+            )
+
+    def test_subscriptions_insert_wrapper_rejects_unsupported_snippet_fields(self):
+        wrapper = build_subscriptions_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.snippet.title is read-only or unsupported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet",
+                    "body": {
+                        "snippet": {
+                            "resourceId": {"channelId": "UC123"},
+                            "title": "Not supported",
+                        }
+                    },
+                }
+            )
+
+    def test_subscriptions_insert_wrapper_executes_authorized_create_requests(self):
+        wrapper = build_subscriptions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "subscription-123",
+                "targetChannelId": execution.arguments["body"]["snippet"]["resourceId"]["channelId"],
+                "kind": "youtube#subscription",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "subscription-123")
+        self.assertEqual(result["targetChannelId"], "UC123")
+
+    def test_subscriptions_insert_wrapper_requires_oauth_mode(self):
+        wrapper = build_subscriptions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "subscription-123", "kind": "youtube#subscription"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "subscriptions.insert requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet",
+                    "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
                 },
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,

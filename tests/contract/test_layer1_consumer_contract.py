@@ -43,6 +43,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
@@ -1278,6 +1279,42 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceRequiredTitleField"], "body.snippet.title")
         self.assertIn("title", result["sourceNotes"])
         self.assertIn("snippet", result["sourceNotes"])
+        self.assertIn("body.status", result["sourceNotes"])
+
+    def test_consumer_can_summarize_subscription_creation_for_higher_layers(self):
+        wrapper = build_subscriptions_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "subscription-123",
+                "snippet": execution.arguments["body"]["snippet"],
+                "kind": "youtube#subscription",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.create_subscription_summary(
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["subscriptionId"], "subscription-123")
+        self.assertTrue(result["isCreated"])
+        self.assertEqual(result["targetChannelId"], "UC123")
+        self.assertEqual(result["sourceOperation"], "subscriptions.insert")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertEqual(result["sourceRequiredFields"], ("part", "body"))
+        self.assertEqual(result["sourceWritablePart"], "snippet")
+        self.assertEqual(result["sourceRequiredTargetField"], "body.snippet.resourceId.channelId")
+        self.assertIn("resourceId.channelId", result["sourceNotes"])
+        self.assertIn("part=snippet", result["sourceNotes"])
         self.assertIn("body.status", result["sourceNotes"])
 
     def test_consumer_can_summarize_playlist_item_updates_for_higher_layers(self):

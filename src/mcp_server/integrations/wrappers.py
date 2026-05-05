@@ -1178,6 +1178,45 @@ class PlaylistsInsertWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class SubscriptionsInsertWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `subscriptions.insert`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a writable
+    `body.snippet.resourceId.channelId` target on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `subscriptions.insert` with OAuth and write validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("subscriptions.insert requires oauth_required auth")
+        response = super().call(executor, arguments=arguments, auth_context=auth_context)
+        response.setdefault("part", arguments.get("part"))
+        response.setdefault("subscriptionId", response.get("id"))
+        response.setdefault(
+            "targetChannelId",
+            _subscriptions_insert_target_channel_id(arguments, response),
+        )
+        response.setdefault(
+            "targetResourceKind",
+            _subscriptions_insert_target_resource_kind(arguments, response),
+        )
+        return response
+
+
+@dataclass(frozen=True)
 class PlaylistsUpdateWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `playlists.update`.
 
@@ -1642,6 +1681,41 @@ def build_subscriptions_list_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return SubscriptionsListWrapper(metadata=metadata)
+
+
+def build_subscriptions_insert_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `subscriptions.insert`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a writable
+    `body.snippet.resourceId.channelId` target on authorized requests, keeps
+    `part=snippet` explicit for maintainers, and rejects unsupported optional
+    write fields unless the contract is deliberately expanded.
+
+    :return: Representative wrapper configured for `subscriptions.insert`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="subscriptions",
+        operation_name="insert",
+        http_method="POST",
+        path_shape="/youtube/v3/subscriptions",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body"),
+            validators=(
+                _require_subscriptions_insert_body,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Keep `part=snippet` explicit, use "
+            "`body.snippet.resourceId.channelId` for the required target "
+            "channel, allow `body.snippet.resourceId.kind` only when it is "
+            "`youtube#channel`, and reject unsupported optional fields such as "
+            "`body.title`, `body.status`, or extra `body.snippet` mappings "
+            "unless they are explicitly added to the contract."
+        ),
+    )
+    return SubscriptionsInsertWrapper(metadata=metadata)
 
 
 def build_comment_threads_list_wrapper() -> RepresentativeEndpointWrapper:
@@ -2638,6 +2712,110 @@ def _require_subscriptions_list_arguments(arguments: dict[str, object]) -> None:
         raise ValueError(
             "order is only supported for channelId, mine, myRecentSubscribers, or mySubscribers lookups"
         )
+
+
+def _require_subscriptions_insert_body(arguments: dict[str, object]) -> None:
+    """Validate the supported `subscriptions.insert` request body.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request body does not match supported create rules.
+    """
+    part = str(arguments.get("part", "")).strip()
+    if part != "snippet":
+        raise ValueError("unsupported writable part: only snippet is supported")
+
+    require_mapping_fields("body", required_keys=("snippet",))(arguments)
+    body = arguments.get("body")
+    assert isinstance(body, dict)  # Narrowed by validator above.
+    unsupported_body_fields = [field for field in body if field not in {"kind", "snippet"}]
+    if unsupported_body_fields:
+        raise ValueError(f"body.{unsupported_body_fields[0]} is read-only or unsupported")
+
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        raise ValueError("body.snippet is required")
+
+    resource_id = snippet.get("resourceId")
+    if not isinstance(resource_id, dict):
+        raise ValueError("body.snippet.resourceId is required")
+
+    raw_channel_id = resource_id.get("channelId")
+    if not isinstance(raw_channel_id, str) or not raw_channel_id.strip():
+        raise ValueError("body.snippet.resourceId.channelId is required")
+
+    resource_kind = resource_id.get("kind")
+    if resource_kind not in (None, "", "youtube#channel"):
+        raise ValueError("body.snippet.resourceId.kind must be youtube#channel when provided")
+
+    unsupported_snippet_fields = [field for field in snippet if field not in {"resourceId"}]
+    if unsupported_snippet_fields:
+        raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
+
+    unsupported_resource_fields = [field for field in resource_id if field not in {"kind", "channelId"}]
+    if unsupported_resource_fields:
+        raise ValueError(
+            f"body.snippet.resourceId.{unsupported_resource_fields[0]} is read-only or unsupported"
+        )
+
+
+def _subscriptions_insert_target_channel_id(
+    arguments: dict[str, object],
+    response: dict[str, Any],
+) -> str | None:
+    """Return the stable target channel identifier for one create response.
+
+    :param arguments: Wrapper arguments used for the request.
+    :param response: Successful response payload to normalize.
+    :return: Target channel identifier when one is available.
+    """
+    response_snippet = response.get("snippet")
+    if isinstance(response_snippet, dict):
+        response_resource_id = response_snippet.get("resourceId")
+        if isinstance(response_resource_id, dict):
+            channel_id = response_resource_id.get("channelId")
+            if isinstance(channel_id, str) and channel_id.strip():
+                return channel_id
+
+    body = arguments.get("body")
+    if isinstance(body, dict):
+        snippet = body.get("snippet")
+        if isinstance(snippet, dict):
+            resource_id = snippet.get("resourceId")
+            if isinstance(resource_id, dict):
+                channel_id = resource_id.get("channelId")
+                if isinstance(channel_id, str) and channel_id.strip():
+                    return channel_id
+    return None
+
+
+def _subscriptions_insert_target_resource_kind(
+    arguments: dict[str, object],
+    response: dict[str, Any],
+) -> str:
+    """Return the stable target resource kind for one create response.
+
+    :param arguments: Wrapper arguments used for the request.
+    :param response: Successful response payload to normalize.
+    :return: Target resource kind with the channel default preserved.
+    """
+    response_snippet = response.get("snippet")
+    if isinstance(response_snippet, dict):
+        response_resource_id = response_snippet.get("resourceId")
+        if isinstance(response_resource_id, dict):
+            resource_kind = response_resource_id.get("kind")
+            if isinstance(resource_kind, str) and resource_kind.strip():
+                return resource_kind
+
+    body = arguments.get("body")
+    if isinstance(body, dict):
+        snippet = body.get("snippet")
+        if isinstance(snippet, dict):
+            resource_id = snippet.get("resourceId")
+            if isinstance(resource_id, dict):
+                resource_kind = resource_id.get("kind")
+                if isinstance(resource_kind, str) and resource_kind.strip():
+                    return resource_kind
+    return "youtube#channel"
 
 
 def _require_playlist_items_insert_body(arguments: dict[str, object]) -> None:
