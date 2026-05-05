@@ -30,7 +30,6 @@ coverage/
 .git/
 .git
 .gitmodules
-Dockerfile*
 .gitignore
 .dockerignore
 .vscode/
