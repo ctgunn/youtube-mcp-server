@@ -45,6 +45,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
@@ -3199,6 +3200,97 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "upstream_service")
+
+    def test_subscriptions_delete_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_subscriptions_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "subscriptionId": execution.arguments["id"],
+                "isDeleted": True,
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "subscription-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["subscriptionId"], "subscription-123")
+        self.assertTrue(result["isDeleted"])
+
+    def test_subscriptions_delete_wrapper_rejects_invalid_identifier_shapes_before_executor(self):
+        wrapper = build_subscriptions_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"subscriptionId": "subscription-123", "isDeleted": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "id must identify one subscription"):
+            wrapper.call(
+                executor,
+                arguments={"id": ["subscription-123"]},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_subscriptions_delete_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_subscriptions_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Subscription delete denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Subscription delete denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "subscription-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_subscriptions_delete_wrapper_preserves_not_found_failures_from_shared_executor(self):
+        wrapper = build_subscriptions_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Subscription not found"),
+                    category="not_found",
+                    status_code=404,
+                    details={"reason": "notFound"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Subscription not found") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "subscription-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "not_found")
 
     def test_playlists_update_wrapper_executes_authorized_requests_through_shared_executor(self):
         wrapper = build_playlists_update_wrapper()

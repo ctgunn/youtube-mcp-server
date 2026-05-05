@@ -43,6 +43,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
@@ -1316,6 +1317,34 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertIn("resourceId.channelId", result["sourceNotes"])
         self.assertIn("part=snippet", result["sourceNotes"])
         self.assertIn("body.status", result["sourceNotes"])
+
+    def test_consumer_can_summarize_subscription_deletes_for_higher_layers(self):
+        wrapper = build_subscriptions_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "subscriptionId": execution.arguments["id"],
+                "isDeleted": True,
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.delete_subscription_summary(
+            arguments={"id": "subscription-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["subscriptionId"], "subscription-123")
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["sourceOperation"], "subscriptions.delete")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertIn("id", result["sourceNotes"])
+        self.assertIn("target-state", result["sourceNotes"])
 
     def test_consumer_can_summarize_playlist_item_updates_for_higher_layers(self):
         wrapper = build_playlist_items_update_wrapper()
