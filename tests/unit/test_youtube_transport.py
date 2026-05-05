@@ -46,6 +46,7 @@ from mcp_server.integrations.wrappers import (
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
     build_search_list_wrapper,
+    build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
@@ -163,6 +164,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_subscriptions_insert_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _subscriptions_delete_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_subscriptions_delete_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -937,6 +950,110 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             transport(execution)
 
         self.assertEqual(context.exception.category, "duplicate_or_ineligible_target")
+
+    def test_builds_oauth_delete_request_for_subscriptions_delete(self):
+        execution = self._subscriptions_delete_execution(
+            arguments={"id": "subscription-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "DELETE")
+        self.assertIn("https://www.googleapis.com/youtube/v3/subscriptions?", request.full_url)
+        self.assertIn("id=subscription-123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+
+    def test_transport_normalizes_successful_subscriptions_delete_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse("")
+        )
+
+        result = transport(
+            self._subscriptions_delete_execution(
+                arguments={"id": "subscription-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["subscriptionId"], "subscription-123")
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["upstreamBodyState"], "empty")
+
+    def test_transport_normalizes_subscriptions_delete_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/subscriptions?id=subscription-123",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"subscription delete request is invalid"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "subscription delete request is invalid") as context:
+            transport(
+                self._subscriptions_delete_execution(
+                    arguments={"id": "subscription-123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_subscriptions_delete_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/subscriptions?id=subscription-123",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Subscription delete denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Subscription delete denied") as context:
+            transport(
+                self._subscriptions_delete_execution(
+                    arguments={"id": "subscription-123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_transport_normalizes_subscriptions_delete_not_found_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/subscriptions?id=subscription-123",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Subscription not found"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Subscription not found") as context:
+            transport(
+                self._subscriptions_delete_execution(
+                    arguments={"id": "subscription-123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "not_found")
 
     def test_transport_normalizes_search_list_invalid_request_errors(self):
         error = HTTPError(

@@ -84,6 +84,8 @@ def build_youtube_data_api_transport(
             return _playlists_insert_payload(execution, payload)
         if execution.metadata.operation_key == "subscriptions.insert":
             return _subscriptions_insert_payload(execution, payload)
+        if execution.metadata.operation_key == "subscriptions.delete":
+            return _subscriptions_delete_payload(execution)
         if execution.metadata.operation_key == "playlists.update":
             return _playlists_update_payload(execution, payload)
         if execution.metadata.operation_key == "playlists.delete":
@@ -460,6 +462,7 @@ def _normalized_category_for_execution(
             "playlists.list",
             "subscriptions.list",
             "subscriptions.insert",
+            "subscriptions.delete",
             "search.list",
             "playlistItems.insert",
             "playlists.insert",
@@ -557,6 +560,12 @@ def _normalized_category_for_execution(
             ):
                 return "duplicate_or_ineligible_target"
             if status_code == 404 and ("channel" in combined or "subscription" in combined or "target" in combined):
+                return "not_found"
+            return None
+        if execution.metadata.operation_key == "subscriptions.delete":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 404 and ("subscription" in combined or "target" in combined):
                 return "not_found"
             return None
         if execution.metadata.operation_key == "search.list":
@@ -851,6 +860,19 @@ def _subscriptions_insert_payload(
         or "youtube#channel"
     )
     return parsed
+
+
+def _subscriptions_delete_payload(execution: RequestExecution) -> dict[str, Any]:
+    """Return the internal result shape for a `subscriptions.delete` response.
+
+    :param execution: Shared request execution details.
+    :return: Lightweight delete result with stable metadata fields.
+    """
+    return {
+        "subscriptionId": _stringify_scalar(execution.arguments.get("id")),
+        "isDeleted": True,
+        "upstreamBodyState": "empty",
+    }
 
 
 def _playlist_items_update_payload(
