@@ -5,6 +5,7 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 import mcp_server.integrations as integrations_package
+import mcp_server.integrations.wrappers as wrappers_module
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
 from mcp_server.integrations.errors import NormalizedUpstreamError, normalize_upstream_error
@@ -3439,6 +3440,92 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                     "part": "snippet",
                     "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123", "type": "featured"}},
                     "media": {"mimeType": "image/png", "content": b"playlist-image-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_thumbnails_set_wrapper_exposes_expected_metadata(self):
+        wrapper = wrappers_module.build_thumbnails_set_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "thumbnails.set")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/thumbnails/set")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("videoId", "media"))
+        self.assertIn("videoId", wrapper.metadata.notes)
+        self.assertIn("media", wrapper.metadata.notes)
+
+    def test_thumbnails_set_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_thumbnails_set_wrapper))
+
+    def test_thumbnails_set_wrapper_requires_video_id_field(self):
+        wrapper = wrappers_module.build_thumbnails_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: videoId"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"media": {"mimeType": "image/png", "content": b"thumbnail-bytes"}}
+            )
+
+    def test_thumbnails_set_wrapper_requires_media_field(self):
+        wrapper = wrappers_module.build_thumbnails_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: media"):
+            wrapper.metadata.request_shape.validate_arguments({"videoId": "video-123"})
+
+    def test_thumbnails_set_wrapper_executes_authorized_update_requests(self):
+        wrapper = wrappers_module.build_thumbnails_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "videoId": execution.arguments["videoId"],
+                "thumbnailUrl": "https://yt.example/thumb.jpg",
+                "isUpdated": True,
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "videoId": "video-123",
+                "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["thumbnailUrl"], "https://yt.example/thumb.jpg")
+        self.assertTrue(result["isUpdated"])
+
+    def test_thumbnails_set_wrapper_rejects_incomplete_media_payload(self):
+        wrapper = wrappers_module.build_thumbnails_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "media.content is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "videoId": "video-123",
+                    "media": {"mimeType": "image/png", "content": b""},
+                }
+            )
+
+    def test_thumbnails_set_wrapper_requires_oauth_mode(self):
+        wrapper = wrappers_module.build_thumbnails_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"videoId": "video-123", "isUpdated": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "thumbnails.set requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "videoId": "video-123",
+                    "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
                 },
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,

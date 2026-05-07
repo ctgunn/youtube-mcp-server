@@ -7,6 +7,7 @@ from urllib.error import HTTPError
 
 sys.path.insert(0, os.path.abspath("src"))
 
+import mcp_server.integrations.wrappers as wrappers_module
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.executor import RequestExecution
 from mcp_server.integrations.youtube import (
@@ -200,6 +201,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_playlist_images_update_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _thumbnails_set_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=wrappers_module.build_thumbnails_set_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -2741,6 +2754,127 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertEqual(result["bannerUrl"], "https://yt.example/banner")
         self.assertTrue(result["isUploaded"])
+
+    def test_builds_oauth_request_for_thumbnails_set_upload(self):
+        execution = self._thumbnails_set_execution(
+            arguments={
+                "videoId": "video-123",
+                "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "POST")
+        self.assertIn("https://www.googleapis.com/youtube/v3/thumbnails/set?", request.full_url)
+        self.assertIn("videoId=video-123", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "image/png")
+        self.assertEqual(request.data, b"thumbnail-bytes")
+
+    def test_transport_normalizes_successful_thumbnails_set_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse({"url": "https://yt.example/thumb.jpg"})
+        )
+
+        result = transport(
+            self._thumbnails_set_execution(
+                arguments={
+                    "videoId": "video-123",
+                    "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["thumbnailUrl"], "https://yt.example/thumb.jpg")
+        self.assertTrue(result["isUpdated"])
+
+    def test_transport_normalizes_thumbnails_set_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/thumbnails/set",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Thumbnail upload payload invalid"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Thumbnail upload payload invalid") as context:
+            transport(
+                self._thumbnails_set_execution(
+                    arguments={
+                        "videoId": "video-123",
+                        "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_thumbnails_set_target_video_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/thumbnails/set",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Target video cannot accept thumbnail update"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Target video cannot accept thumbnail update") as context:
+            transport(
+                self._thumbnails_set_execution(
+                    arguments={
+                        "videoId": "video-123",
+                        "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "target_video")
+
+    def test_transport_normalizes_thumbnails_set_upstream_update_failures(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/thumbnails/set",
+            code=409,
+            msg="Conflict",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Thumbnail update rejected"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Thumbnail update rejected") as context:
+            transport(
+                self._thumbnails_set_execution(
+                    arguments={
+                        "videoId": "video-123",
+                        "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "upstream_service")
 
     def test_builds_oauth_request_for_playlist_images_insert_upload(self):
         execution = self._playlist_images_insert_execution(

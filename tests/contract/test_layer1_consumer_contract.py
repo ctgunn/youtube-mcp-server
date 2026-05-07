@@ -4,6 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
+import mcp_server.integrations.wrappers as wrappers_module
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.consumer import RepresentativeHigherLayerConsumer
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
@@ -1179,6 +1180,41 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 50)
         self.assertIn("response URL", result["sourceNotes"])
+
+    def test_consumer_can_summarize_thumbnail_updates_for_higher_layers(self):
+        wrapper = wrappers_module.build_thumbnails_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "videoId": execution.arguments["videoId"],
+                "thumbnailUrl": "https://yt.example/thumb.jpg",
+                "isUpdated": True,
+                "kind": "youtube#thumbnailSetResponse",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.set_thumbnail_summary(
+            arguments={
+                "videoId": "video-123",
+                "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["thumbnailUrl"], "https://yt.example/thumb.jpg")
+        self.assertTrue(result["isUpdated"])
+        self.assertEqual(result["sourceOperation"], "thumbnails.set")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertEqual(result["sourceRequiredFields"], ("videoId", "media"))
+        self.assertEqual(result["sourcePathShape"], "/youtube/v3/thumbnails/set")
+        self.assertIn("videoId", result["sourceNotes"])
+        self.assertIn("media", result["sourceNotes"])
 
     def test_consumer_can_summarize_playlist_image_creation_for_higher_layers(self):
         wrapper = build_playlist_images_insert_wrapper()

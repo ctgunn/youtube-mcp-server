@@ -76,6 +76,8 @@ def build_youtube_data_api_transport(
             return _channel_sections_delete_payload(execution)
         if execution.metadata.operation_key == "channelBanners.insert":
             return _channel_banners_insert_payload(execution, payload)
+        if execution.metadata.operation_key == "thumbnails.set":
+            return _thumbnails_set_payload(execution, payload)
         if execution.metadata.operation_key == "playlistImages.insert":
             return _playlist_images_insert_payload(execution, payload)
         if execution.metadata.operation_key == "playlistItems.insert":
@@ -471,6 +473,7 @@ def _normalized_category_for_execution(
             "playlistItems.update",
             "playlistItems.delete",
             "playlistImages.insert",
+            "thumbnails.set",
             "playlistImages.update",
             "playlistImages.delete",
             "commentThreads.list",
@@ -616,6 +619,12 @@ def _normalized_category_for_execution(
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
             return None
+        if execution.metadata.operation_key == "thumbnails.set":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 404 and ("thumbnail" in combined or "video" in combined or "target" in combined):
+                return "target_video"
+            return None
         if execution.metadata.operation_key == "playlistImages.update":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
@@ -728,6 +737,26 @@ def _channel_banners_insert_payload(
         "isUploaded": bool(parsed.get("url")),
         "delegatedOwner": execution.arguments.get("onBehalfOfContentOwner"),
     }
+
+
+def _thumbnails_set_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `thumbnails.set` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed thumbnail-update payload with stable metadata fields.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    parsed["videoId"] = parsed.get("videoId") or execution.arguments.get("videoId")
+    parsed["thumbnailUrl"] = parsed.get("thumbnailUrl") or parsed.get("url")
+    parsed["isUpdated"] = bool(parsed.get("videoId"))
+    return parsed
 
 
 def _playlist_images_insert_payload(

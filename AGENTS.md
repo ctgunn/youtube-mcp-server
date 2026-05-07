@@ -78,6 +78,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - N/A for feature-specific persistence; wrapper metadata, request validation state, and subscription-list execution state remain in-memory or file-based only (141-subscriptions-list)
 - N/A for feature-specific persistence; wrapper metadata, request validation state, and subscription-create execution state remain in-memory or file-based only (142-subscriptions-insert)
 - N/A for feature-specific persistence; wrapper metadata, request validation state, and subscription-delete execution state remain in-memory or file-based only (143-subscriptions-delete)
+- N/A for feature-specific persistence; wrapper metadata, request validation state, thumbnail-upload execution state, and feature artifacts remain in-memory or file-based only (144-thumbnails-set)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -98,9 +99,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
-- 143-subscriptions-delete: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
-- 143-subscriptions-delete: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
-- 143-subscriptions-delete: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
+- 144-thumbnails-set: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
+- 144-thumbnails-set: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
+- 144-thumbnails-set: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
 
 
 <!-- MANUAL ADDITIONS START -->
