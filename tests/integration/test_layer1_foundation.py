@@ -48,6 +48,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_thumbnails_set_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
     build_captions_delete_wrapper,
@@ -2804,6 +2805,147 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
                     credentials=CredentialBundle(oauth_token="oauth-123"),
                 ),
             )
+
+    def test_thumbnails_set_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_thumbnails_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: _FakeHTTPResponse({"url": "https://yt.example/thumb.jpg"})
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "videoId": "video-123",
+                "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["thumbnailUrl"], "https://yt.example/thumb.jpg")
+        self.assertTrue(result["isUpdated"])
+
+    def test_thumbnails_set_wrapper_rejects_invalid_upload_requests_before_executor(self):
+        wrapper = build_thumbnails_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"videoId": "video-123", "isUpdated": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "media.content is required"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "videoId": "video-123",
+                    "media": {"mimeType": "image/png", "content": b""},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_thumbnails_set_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_thumbnails_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: (_ for _ in ()).throw(
+                    HTTPError(
+                        url="https://www.googleapis.com/youtube/v3/thumbnails/set",
+                        code=403,
+                        msg="Forbidden",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":{"message":"Thumbnail update denied"}}'),
+                    )
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Thumbnail update denied") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "videoId": "video-123",
+                    "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_thumbnails_set_wrapper_preserves_target_video_failures_from_shared_executor(self):
+        wrapper = build_thumbnails_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: (_ for _ in ()).throw(
+                    HTTPError(
+                        url="https://www.googleapis.com/youtube/v3/thumbnails/set",
+                        code=404,
+                        msg="Not Found",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":{"message":"Target video cannot accept thumbnail update"}}'),
+                    )
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Target video cannot accept thumbnail update") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "videoId": "video-123",
+                    "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "target_video")
+
+    def test_thumbnails_set_wrapper_preserves_upstream_update_failures_from_shared_executor(self):
+        wrapper = build_thumbnails_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: (_ for _ in ()).throw(
+                    HTTPError(
+                        url="https://www.googleapis.com/youtube/v3/thumbnails/set",
+                        code=409,
+                        msg="Conflict",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":{"message":"Thumbnail update rejected"}}'),
+                    )
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Thumbnail update rejected") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "videoId": "video-123",
+                    "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "upstream_service")
 
     def test_playlist_items_insert_wrapper_executes_authorized_requests_through_shared_executor(self):
         wrapper = build_playlist_items_insert_wrapper()

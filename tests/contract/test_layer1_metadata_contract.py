@@ -196,6 +196,23 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("id", review_surface["notes"])
         self.assertIn("target-state", review_surface["notes"])
 
+    def test_thumbnails_set_review_surface_exposes_quota_auth_and_upload_notes(self):
+        review_surface = integrations_package.build_thumbnails_set_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "thumbnails")
+        self.assertEqual(review_surface["operationName"], "set")
+        self.assertEqual(review_surface["operationKey"], "thumbnails.set")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("videoId", "media"))
+        self.assertEqual(review_surface["optionalFields"], ())
+        self.assertEqual(review_surface["httpMethod"], "POST")
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/thumbnails/set")
+        self.assertIn("videoId", review_surface["notes"])
+        self.assertIn("media", review_surface["notes"])
+        self.assertIn("upload-only", review_surface["notes"])
+        self.assertIn("target-only", review_surface["notes"])
+
     def test_playlist_images_update_review_surface_exposes_quota_auth_and_update_notes(self):
         review_surface = build_playlist_images_update_wrapper().review_surface()
 

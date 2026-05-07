@@ -1092,6 +1092,34 @@ class ChannelBannersInsertWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class ThumbnailsSetWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `thumbnails.set`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one target
+    ``videoId`` plus one ``media`` upload payload on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `thumbnails.set` with OAuth and upload validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("thumbnails.set requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class PlaylistImagesInsertWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `playlistImages.insert`.
 
@@ -3552,6 +3580,27 @@ def _require_channel_banner_media(arguments: dict[str, object]) -> None:
         raise ValueError("media.content exceeds the 6 MB channel banner limit")
 
 
+def _require_thumbnails_set_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `thumbnails.set` request arguments.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the target or upload payload is incomplete.
+    """
+    raw_video_id = arguments.get("videoId")
+    if not isinstance(raw_video_id, str) or not raw_video_id.strip():
+        raise ValueError("videoId is required")
+    require_mapping_fields("media", required_keys=("mimeType", "content"))(arguments)
+    media = arguments.get("media")
+    assert isinstance(media, dict)  # Narrowed by validator above.
+    mime_type = media.get("mimeType")
+    if not isinstance(mime_type, str) or not mime_type.strip():
+        raise ValueError("media.mimeType is required")
+    content = media.get("content")
+    content_bytes = content if isinstance(content, bytes) else str(content).encode("utf-8")
+    if not content_bytes:
+        raise ValueError("media.content is required")
+
+
 def build_channel_banners_insert_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `channelBanners.insert`.
 
@@ -3585,6 +3634,38 @@ def build_channel_banners_insert_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return ChannelBannersInsertWrapper(metadata=metadata)
+
+
+def build_thumbnails_set_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `thumbnails.set`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one target
+    `videoId` plus one `media` upload payload on authorized requests and keeps
+    the upload-sensitive update boundary visible for higher-layer reuse.
+
+    :return: Representative wrapper configured for `thumbnails.set`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="thumbnails",
+        operation_name="set",
+        http_method="POST",
+        path_shape="/youtube/v3/thumbnails/set",
+        request_shape=EndpointRequestShape(
+            required_fields=("videoId", "media"),
+            validators=(
+                _require_thumbnails_set_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `videoId` for the single target "
+            "video, use `media` for thumbnail upload content, reject upload-only "
+            "or target-only request shapes, and keep the update boundary visible "
+            "for review."
+        ),
+    )
+    return ThumbnailsSetWrapper(metadata=metadata)
 
 
 def build_playlist_images_insert_wrapper() -> RepresentativeEndpointWrapper:
