@@ -49,6 +49,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
+    build_video_abuse_report_reasons_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
@@ -553,6 +554,34 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "api_key")
         self.assertEqual(result["sourceQuotaCost"], 1)
         self.assertIn("region", result["sourceNotes"])
+        self.assertIn("hl", result["sourceNotes"])
+
+    def test_consumer_can_summarize_video_abuse_report_reasons_results_for_higher_layers(self):
+        wrapper = build_video_abuse_report_reasons_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "reason-1", "hl": execution.arguments["hl"]}],
+                "hl": execution.arguments["hl"],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_video_abuse_report_reasons_summary(
+            arguments={"part": "snippet", "hl": "en_US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["abuseReasonCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["hl"], "en_US")
+        self.assertEqual(result["sourceOperation"], "videoAbuseReportReasons.list")
+        self.assertEqual(result["sourceAuthMode"], "api_key")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("localization", result["sourceNotes"])
         self.assertIn("hl", result["sourceNotes"])
 
     def test_consumer_can_summarize_members_results_for_higher_layers(self):

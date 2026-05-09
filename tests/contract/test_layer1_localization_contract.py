@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.abspath("src"))
 from mcp_server.integrations.wrappers import (
     build_i18n_languages_list_wrapper,
     build_i18n_regions_list_wrapper,
+    build_video_abuse_report_reasons_list_wrapper,
 )
 
 
@@ -16,6 +17,9 @@ class Layer1LocalizationContractTests(unittest.TestCase):
 
     def _region_feature_contract_root(self) -> str:
         return os.path.abspath("specs/125-i18n-regions-list/contracts")
+
+    def _video_abuse_feature_contract_root(self) -> str:
+        return os.path.abspath("specs/145-video-abuse-report-reasons/contracts")
 
     def test_contract_artifacts_define_wrapper_and_localization_guidance(self):
         root = self._feature_contract_root()
@@ -135,3 +139,64 @@ class Layer1LocalizationContractTests(unittest.TestCase):
         self.assertIn("api-key access", region_contract.lower())
         self.assertIn("`part` plus `hl`", region_contract)
         self.assertIn("downstream callers", region_contract.lower())
+
+    def test_video_abuse_report_reasons_contract_artifacts_define_wrapper_and_localization_guidance(self):
+        root = self._video_abuse_feature_contract_root()
+        with open(
+            os.path.join(root, "layer1-video-abuse-report-reasons-list-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-video-abuse-report-reasons-list-localization-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            localization_contract = handle.read()
+
+        self.assertIn("quota cost (`1`)", wrapper_contract)
+        self.assertIn("`part` plus `hl`", wrapper_contract)
+        self.assertIn("localized abuse-reason lookup", wrapper_contract.lower())
+        self.assertIn("empty-result", localization_contract.lower())
+
+    def test_video_abuse_report_reasons_list_wrapper_review_surface_exposes_identity_quota_and_lookup_notes(self):
+        review_surface = build_video_abuse_report_reasons_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videoAbuseReportReasons")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "videoAbuseReportReasons.list")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "api_key")
+        self.assertEqual(review_surface["requiredFields"], ("part", "hl"))
+        self.assertEqual(review_surface["lifecycleState"], "active")
+
+    def test_video_abuse_report_reasons_contract_documents_request_boundaries_and_invalid_request_rules(self):
+        with open(
+            os.path.join(
+                self._video_abuse_feature_contract_root(),
+                "layer1-video-abuse-report-reasons-list-wrapper-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+
+        self.assertIn("`part` and `hl` are required", wrapper_contract)
+        self.assertIn("undocumented modifiers", wrapper_contract)
+        self.assertIn("silently rewritten", wrapper_contract)
+
+    def test_video_abuse_report_reasons_contract_documents_empty_result_and_invalid_request_rules(self):
+        with open(
+            os.path.join(
+                self._video_abuse_feature_contract_root(),
+                "layer1-video-abuse-report-reasons-list-localization-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            localization_contract = handle.read()
+
+        self.assertIn("successful empty results", localization_contract.lower())
+        self.assertIn("invalid requests", localization_contract.lower())
+        self.assertIn("missing `part` or `hl`", localization_contract)

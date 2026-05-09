@@ -50,6 +50,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_video_abuse_report_reasons_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
     build_captions_delete_wrapper,
@@ -285,6 +286,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_i18n_regions_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _video_abuse_report_reasons_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_video_abuse_report_reasons_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -1164,6 +1177,23 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("hl=en_US", request.full_url)
         self.assertIn("key=yt-key", request.full_url)
 
+    def test_builds_api_key_request_for_video_abuse_report_reasons_display_language_lookup(self):
+        execution = self._video_abuse_report_reasons_execution(
+            arguments={"part": "snippet", "hl": "en_US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "GET")
+        self.assertIn("https://www.googleapis.com/youtube/v3/videoAbuseReportReasons?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("hl=en_US", request.full_url)
+        self.assertIn("key=yt-key", request.full_url)
+
     def test_builds_oauth_request_for_members_mode_lookup(self):
         execution = self._members_execution(
             arguments={"part": "snippet", "mode": "updates", "pageToken": "cursor-1", "maxResults": 25},
@@ -1433,6 +1463,49 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "hl is required") as context:
             transport(
                 self._i18n_regions_execution(
+                    arguments={"part": "snippet", "hl": "en_US"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.API_KEY,
+                        credentials=CredentialBundle(api_key="yt-key"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_returns_video_abuse_report_reasons_list_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"items": [{"id": "reason-1"}], "hl": "en_US"}
+            )
+        )
+
+        result = transport(
+            self._video_abuse_report_reasons_execution(
+                arguments={"part": "snippet", "hl": "en_US"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="yt-key"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["hl"], "en_US")
+        self.assertEqual(result["items"][0]["id"], "reason-1")
+
+    def test_transport_normalizes_video_abuse_report_reasons_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videoAbuseReportReasons",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"hl is required"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "hl is required") as context:
+            transport(
+                self._video_abuse_report_reasons_execution(
                     arguments={"part": "snippet", "hl": "en_US"},
                     auth_context=AuthContext(
                         mode=AuthMode.API_KEY,
