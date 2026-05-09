@@ -704,6 +704,78 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 {"part": "snippet", "hl": "en_US", "pageToken": "cursor-1"}
             )
 
+    def test_video_abuse_report_reasons_list_wrapper_exposes_expected_metadata(self):
+        wrapper = wrappers_module.build_video_abuse_report_reasons_list_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "videoAbuseReportReasons.list")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/videoAbuseReportReasons")
+        self.assertEqual(wrapper.metadata.quota_cost, 1)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "api_key")
+        self.assertEqual(wrapper.metadata.lifecycle_state, "active")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "hl"))
+        self.assertEqual(wrapper.metadata.request_shape.optional_fields, ())
+        self.assertIn("hl", wrapper.metadata.notes)
+        self.assertIn("localization", wrapper.metadata.notes)
+
+    def test_video_abuse_report_reasons_list_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_video_abuse_report_reasons_list_wrapper))
+
+    def test_video_abuse_report_reasons_list_wrapper_requires_part_and_hl(self):
+        wrapper = wrappers_module.build_video_abuse_report_reasons_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: part"):
+            wrapper.metadata.request_shape.validate_arguments({"hl": "en_US"})
+
+        with self.assertRaisesRegex(ValueError, "missing required field: hl"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+    def test_video_abuse_report_reasons_list_wrapper_executes_successful_calls(self):
+        wrapper = wrappers_module.build_video_abuse_report_reasons_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "reason-1", "hl": execution.arguments["hl"]}],
+                "hl": execution.arguments["hl"],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "hl": "en_US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "reason-1")
+        self.assertEqual(result["hl"], "en_US")
+
+    def test_video_abuse_report_reasons_list_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = wrappers_module.build_video_abuse_report_reasons_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: pageToken"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "hl": "en_US", "pageToken": "cursor-1"}
+            )
+
+    def test_video_abuse_report_reasons_list_wrapper_requires_api_key_mode(self):
+        wrapper = wrappers_module.build_video_abuse_report_reasons_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "videoAbuseReportReasons.list requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "hl": "en_US"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
     def test_members_list_wrapper_exposes_expected_metadata(self):
         wrapper = build_members_list_wrapper()
 
