@@ -49,6 +49,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
+    build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -582,6 +583,38 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "api_key")
         self.assertEqual(result["sourceQuotaCost"], 1)
         self.assertIn("localization", result["sourceNotes"])
+        self.assertIn("hl", result["sourceNotes"])
+
+    def test_consumer_can_summarize_video_categories_results_for_higher_layers(self):
+        wrapper = build_video_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "cat-1", "regionCode": execution.arguments["regionCode"]}],
+                "selectedSelector": "regionCode",
+                "regionCode": execution.arguments["regionCode"],
+                "hl": execution.arguments.get("hl"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_video_categories_summary(
+            arguments={"part": "snippet", "regionCode": "US", "hl": "en_US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["categoryCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["selectedSelector"], "regionCode")
+        self.assertEqual(result["regionCode"], "US")
+        self.assertEqual(result["hl"], "en_US")
+        self.assertEqual(result["sourceOperation"], "videoCategories.list")
+        self.assertEqual(result["sourceAuthMode"], "api_key")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("region", result["sourceNotes"])
         self.assertIn("hl", result["sourceNotes"])
 
     def test_consumer_can_summarize_members_results_for_higher_layers(self):

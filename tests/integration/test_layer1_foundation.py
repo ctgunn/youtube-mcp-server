@@ -49,6 +49,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_thumbnails_set_wrapper,
+    build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
@@ -693,6 +694,95 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"part": "snippet"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_video_categories_list_wrapper_executes_region_requests_through_shared_executor(self):
+        wrapper = build_video_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "cat-1",
+                        "regionCode": execution.arguments["regionCode"],
+                        "kind": "youtube#videoCategory",
+                    }
+                ],
+                "selectedSelector": "regionCode",
+                "regionCode": execution.arguments["regionCode"],
+                "hl": execution.arguments.get("hl"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "regionCode": "US", "hl": "en_US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "cat-1")
+        self.assertEqual(result["regionCode"], "US")
+        self.assertEqual(result["selectedSelector"], "regionCode")
+
+    def test_video_categories_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_video_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [],
+                "selectedSelector": "regionCode",
+                "regionCode": execution.arguments["regionCode"],
+                "hl": execution.arguments.get("hl"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "regionCode": "US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["regionCode"], "US")
+
+    def test_video_categories_list_wrapper_rejects_missing_selector_requests(self):
+        wrapper = build_video_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_video_categories_list_wrapper_rejects_conflicting_selector_requests(self):
+        wrapper = build_video_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "id": "cat-1", "regionCode": "US"},
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),

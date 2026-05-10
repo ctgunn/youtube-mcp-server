@@ -29,6 +29,7 @@ coverage/
 # VCS and editor state
 .git/
 .git
+.git/**
 .gitmodules
 .gitignore
 .dockerignore
@@ -45,4 +46,5 @@ infrastructure/gcp/*.tfvars
 .terraform/
 *.tfstate
 *.tfstate.*
+Dockerfile*
 specs/
