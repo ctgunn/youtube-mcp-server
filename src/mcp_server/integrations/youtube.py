@@ -116,6 +116,8 @@ def build_youtube_data_api_transport(
             return _video_abuse_report_reasons_list_payload(payload)
         if execution.metadata.operation_key == "videoCategories.list":
             return _video_categories_list_payload(execution, payload)
+        if execution.metadata.operation_key == "videos.list":
+            return _videos_list_payload(execution, payload)
         if execution.metadata.operation_key == "members.list":
             return _members_list_payload(payload)
         if execution.metadata.operation_key == "membershipsLevels.list":
@@ -463,6 +465,7 @@ def _normalized_category_for_execution(
             "i18nRegions.list",
             "videoAbuseReportReasons.list",
             "videoCategories.list",
+            "videos.list",
             "members.list",
             "membershipsLevels.list",
             "playlistImages.list",
@@ -536,6 +539,10 @@ def _normalized_category_for_execution(
                 return "invalid_request"
             return None
         if execution.metadata.operation_key == "videoCategories.list":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "videos.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
             return None
@@ -1132,6 +1139,39 @@ def _video_categories_list_payload(
         parsed["regionCode"] = execution.arguments.get("regionCode")
     if execution.arguments.get("hl") not in (None, ""):
         parsed["hl"] = execution.arguments.get("hl")
+    return parsed
+
+
+def _videos_list_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `videos.list` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed videos payload with stable selector and auth context.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    selector_name = next(
+        (
+            selector
+            for selector in ("id", "chart", "myRating")
+            if selector in execution.arguments and execution.arguments.get(selector) not in (None, "")
+        ),
+        None,
+    )
+    parsed["part"] = execution.arguments.get("part")
+    parsed["selectedSelector"] = selector_name
+    parsed["authPath"] = "oauth_required" if selector_name == "myRating" else "api_key"
+    if selector_name:
+        parsed[selector_name] = execution.arguments.get(selector_name)
+    for field in ("regionCode", "videoCategoryId", "pageToken", "maxResults"):
+        if execution.arguments.get(field) not in (None, ""):
+            parsed[field] = execution.arguments.get(field)
     return parsed
 
 

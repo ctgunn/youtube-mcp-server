@@ -47,6 +47,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_videos_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
     build_video_categories_list_wrapper,
@@ -616,6 +617,49 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceQuotaCost"], 1)
         self.assertIn("region", result["sourceNotes"])
         self.assertIn("hl", result["sourceNotes"])
+
+    def test_consumer_can_summarize_videos_results_for_higher_layers(self):
+        wrapper = build_videos_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "video-123"}],
+                "selectedSelector": "chart",
+                "chart": execution.arguments["chart"],
+                "regionCode": execution.arguments.get("regionCode"),
+                "videoCategoryId": execution.arguments.get("videoCategoryId"),
+                "nextPageToken": "cursor-2",
+                "authPath": "api_key",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_videos_summary(
+            arguments={
+                "part": "snippet",
+                "chart": "mostPopular",
+                "regionCode": "US",
+                "videoCategoryId": "10",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["videoCount"], 1)
+        self.assertFalse(result["isEmpty"])
+        self.assertEqual(result["selectedSelector"], "chart")
+        self.assertEqual(result["chart"], "mostPopular")
+        self.assertEqual(result["regionCode"], "US")
+        self.assertEqual(result["videoCategoryId"], "10")
+        self.assertEqual(result["nextPageToken"], "cursor-2")
+        self.assertEqual(result["authPathUsed"], "api_key")
+        self.assertEqual(result["sourceOperation"], "videos.list")
+        self.assertEqual(result["sourceAuthMode"], "mixed/conditional")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertIn("myRating", result["sourceAuthConditionNote"])
+        self.assertIn("chart", result["sourceNotes"])
 
     def test_consumer_can_summarize_members_results_for_higher_layers(self):
         wrapper = build_members_list_wrapper()

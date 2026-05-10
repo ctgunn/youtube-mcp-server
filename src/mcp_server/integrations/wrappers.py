@@ -596,6 +596,55 @@ class VideoCategoriesListWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class VideosListWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `videos.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports direct video
+    lookup through ``id``, chart-oriented collection retrieval through
+    ``chart``, and caller-specific rating retrieval through ``myRating`` while
+    keeping selector-aware auth and refinement guidance visible for reviewers.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `videos.list` with selector-aware auth validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the selector requires a different auth mode.
+        """
+        selector = self._selected_selector(arguments)
+        if selector == "myRating":
+            if not auth_context.requires_oauth_access():
+                raise ValueError("myRating requires oauth_required auth")
+        elif auth_context.mode is not AuthMode.API_KEY:
+            raise ValueError(f"{selector} requires api_key auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+    def _selected_selector(self, arguments: dict[str, Any]) -> str:
+        """Return the active selector field for one videos request.
+
+        :param arguments: Wrapper arguments to inspect.
+        :return: One of ``id``, ``chart``, or ``myRating``.
+        :raises ValueError: If no selector is present.
+        """
+        for field in ("id", "chart", "myRating"):
+            value = arguments.get(field)
+            if isinstance(value, str) and value.strip():
+                return field
+            if value is True:
+                return field
+        raise ValueError("videos.list requires a supported selector")
+
+
+@dataclass(frozen=True)
 class MembersListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `members.list`.
 
@@ -2065,6 +2114,44 @@ def build_video_categories_list_wrapper() -> RepresentativeEndpointWrapper:
     return VideoCategoriesListWrapper(metadata=metadata)
 
 
+def build_videos_list_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `videos.list`.
+
+    Official quota cost: ``1`` quota unit. The wrapper supports exact lookup
+    through ``id``, chart-oriented retrieval through ``chart``, and
+    caller-specific retrieval through ``myRating`` while making selector-aware
+    auth and refinement boundaries reviewable.
+
+    :return: Representative wrapper configured for `videos.list`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="videos",
+        operation_name="list",
+        http_method="GET",
+        path_shape="/youtube/v3/videos",
+        request_shape=EndpointRequestShape(
+            required_fields=("part",),
+            optional_fields=("id", "chart", "myRating", "pageToken", "maxResults", "regionCode", "videoCategoryId"),
+            exactly_one_of=("id", "chart", "myRating"),
+            validators=(_require_videos_list_arguments,),
+        ),
+        auth_mode=AuthMode.CONDITIONAL,
+        quota_cost=1,
+        auth_condition_note=(
+            "Use `id` or `chart` for public-compatible retrieval with api_key auth. "
+            "Use `myRating` for caller-specific retrieval with oauth_required auth."
+        ),
+        notes=(
+            "Requires `part` plus exactly one selector from `id`, `chart`, or "
+            "`myRating`, allows `pageToken` and `maxResults` only for chart or "
+            "`myRating` collection lookups, treats `regionCode` and "
+            "`videoCategoryId` as chart-only refinements, rejects undocumented "
+            "modifiers, and preserves empty result sets as successful outcomes."
+        ),
+    )
+    return VideosListWrapper(metadata=metadata)
+
+
 def build_members_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `members.list`.
 
@@ -2888,6 +2975,30 @@ def _require_search_list_arguments(arguments: dict[str, object]) -> None:
     search_type = str(arguments.get("type", "")).strip()
     if uses_video_only_filters and search_type != "video":
         raise ValueError("video-specific refinements require type=video")
+
+
+def _require_videos_list_arguments(arguments: dict[str, object]) -> None:
+    """Validate selector-specific arguments for `videos.list`.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If unsupported refinements are supplied for the selector path.
+    """
+    has_id_selector = isinstance(arguments.get("id"), str) and bool(str(arguments.get("id")).strip())
+    has_chart_selector = isinstance(arguments.get("chart"), str) and bool(str(arguments.get("chart")).strip())
+    has_rating_selector = isinstance(arguments.get("myRating"), str) and bool(str(arguments.get("myRating")).strip())
+    has_collection_selector = has_chart_selector or has_rating_selector
+    has_paging = any(arguments.get(field) not in (None, "") for field in ("pageToken", "maxResults"))
+    if has_paging and not has_collection_selector:
+        raise ValueError("paging fields are only supported for chart or myRating lookups")
+    if has_id_selector and has_paging:
+        raise ValueError("paging fields are only supported for chart or myRating lookups")
+
+    has_chart_refinements = any(
+        arguments.get(field) not in (None, "")
+        for field in ("regionCode", "videoCategoryId")
+    )
+    if has_chart_refinements and not has_chart_selector:
+        raise ValueError("chart-only refinements require chart lookup")
 
 
 def _require_subscriptions_list_arguments(arguments: dict[str, object]) -> None:
