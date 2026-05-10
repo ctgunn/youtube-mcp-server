@@ -50,6 +50,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
     build_playlists_update_wrapper,
     build_playlists_list_wrapper,
@@ -298,6 +299,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_video_abuse_report_reasons_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _video_categories_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_video_categories_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -1194,6 +1207,24 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("hl=en_US", request.full_url)
         self.assertIn("key=yt-key", request.full_url)
 
+    def test_builds_api_key_request_for_video_categories_lookup(self):
+        execution = self._video_categories_execution(
+            arguments={"part": "snippet", "regionCode": "US", "hl": "en_US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="yt-key"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "GET")
+        self.assertIn("https://www.googleapis.com/youtube/v3/videoCategories?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("regionCode=US", request.full_url)
+        self.assertIn("hl=en_US", request.full_url)
+        self.assertIn("key=yt-key", request.full_url)
+
     def test_builds_oauth_request_for_members_mode_lookup(self):
         execution = self._members_execution(
             arguments={"part": "snippet", "mode": "updates", "pageToken": "cursor-1", "maxResults": 25},
@@ -1507,6 +1538,68 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             transport(
                 self._video_abuse_report_reasons_execution(
                     arguments={"part": "snippet", "hl": "en_US"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.API_KEY,
+                        credentials=CredentialBundle(api_key="yt-key"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_returns_video_categories_list_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse({"items": [{"id": "cat-1"}]})
+        )
+
+        result = transport(
+            self._video_categories_execution(
+                arguments={"part": "snippet", "regionCode": "US", "hl": "en_US"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="yt-key"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["items"][0]["id"], "cat-1")
+        self.assertEqual(result["regionCode"], "US")
+        self.assertEqual(result["selectedSelector"], "regionCode")
+        self.assertEqual(result["hl"], "en_US")
+
+    def test_transport_returns_video_categories_empty_list_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse({"items": []})
+        )
+
+        result = transport(
+            self._video_categories_execution(
+                arguments={"part": "snippet", "regionCode": "US"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="yt-key"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["regionCode"], "US")
+        self.assertEqual(result["selectedSelector"], "regionCode")
+
+    def test_transport_normalizes_video_categories_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videoCategories",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"exactly one selector is required"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "exactly one selector is required") as context:
+            transport(
+                self._video_categories_execution(
+                    arguments={"part": "snippet", "regionCode": "US"},
                     auth_context=AuthContext(
                         mode=AuthMode.API_KEY,
                         credentials=CredentialBundle(api_key="yt-key"),

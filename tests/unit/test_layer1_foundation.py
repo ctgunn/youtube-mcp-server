@@ -46,6 +46,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_video_categories_list_wrapper,
     build_playlists_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -770,6 +771,87 @@ class Layer1FoundationUnitTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"part": "snippet", "hl": "en_US"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_video_categories_list_wrapper_exposes_expected_metadata(self):
+        wrapper = build_video_categories_list_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "videoCategories.list")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/videoCategories")
+        self.assertEqual(wrapper.metadata.quota_cost, 1)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "api_key")
+        self.assertEqual(wrapper.metadata.lifecycle_state, "active")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part",))
+        self.assertEqual(wrapper.metadata.request_shape.optional_fields, ("id", "regionCode", "hl"))
+        self.assertEqual(wrapper.metadata.request_shape.exactly_one_of, ("id", "regionCode"))
+        self.assertIn("region", wrapper.metadata.notes)
+        self.assertIn("hl", wrapper.metadata.notes)
+
+    def test_video_categories_list_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_video_categories_list_wrapper))
+
+    def test_video_categories_list_wrapper_requires_part_and_exactly_one_selector(self):
+        wrapper = build_video_categories_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: part"):
+            wrapper.metadata.request_shape.validate_arguments({"regionCode": "US"})
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "id": "cat-1", "regionCode": "US"}
+            )
+
+    def test_video_categories_list_wrapper_executes_successful_calls(self):
+        wrapper = build_video_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": execution.arguments.get("id", "cat-1")}],
+                "selectedSelector": "regionCode",
+                "regionCode": execution.arguments.get("regionCode"),
+                "hl": execution.arguments.get("hl"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "regionCode": "US", "hl": "en_US"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "cat-1")
+        self.assertEqual(result["regionCode"], "US")
+        self.assertEqual(result["hl"], "en_US")
+
+    def test_video_categories_list_wrapper_rejects_unexpected_request_fields(self):
+        wrapper = build_video_categories_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: pageToken"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "regionCode": "US", "pageToken": "cursor-1"}
+            )
+
+    def test_video_categories_list_wrapper_requires_api_key_mode(self):
+        wrapper = build_video_categories_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "videoCategories.list requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "regionCode": "US"},
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,
                     credentials=CredentialBundle(oauth_token="oauth-123"),

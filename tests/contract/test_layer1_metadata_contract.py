@@ -42,6 +42,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_list_wrapper,
     build_playlists_update_wrapper,
     build_playlist_images_update_wrapper,
+    build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
 )
 
@@ -434,6 +435,23 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIsNone(review_surface["caveatNote"])
         self.assertIn("hl", review_surface["notes"])
         self.assertIn("localization", review_surface["notes"])
+        self.assertIn("successful outcomes", review_surface["notes"])
+
+    def test_video_categories_list_review_surface_exposes_identity_quota_and_selector_notes(self):
+        review_surface = build_video_categories_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videoCategories")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "videoCategories.list")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "api_key")
+        self.assertEqual(review_surface["requiredFields"], ("part",))
+        self.assertEqual(review_surface["optionalFields"], ("id", "regionCode", "hl"))
+        self.assertEqual(review_surface["exclusiveSelectors"], ("id", "regionCode"))
+        self.assertEqual(review_surface["lifecycleState"], "active")
+        self.assertIsNone(review_surface["caveatNote"])
+        self.assertIn("region", review_surface["notes"])
+        self.assertIn("hl", review_surface["notes"])
         self.assertIn("successful outcomes", review_surface["notes"])
 
     def test_members_list_review_surface_exposes_identity_quota_and_owner_notes(self):
