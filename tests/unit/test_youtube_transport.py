@@ -50,6 +50,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_videos_list_wrapper,
     build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
     build_playlists_update_wrapper,
@@ -311,6 +312,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_video_categories_list_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _videos_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_videos_list_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -1603,6 +1616,121 @@ class YouTubeTransportUnitTests(unittest.TestCase):
                     auth_context=AuthContext(
                         mode=AuthMode.API_KEY,
                         credentials=CredentialBundle(api_key="yt-key"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_builds_videos_list_chart_request(self):
+        request = build_youtube_data_api_request(
+            self._videos_execution(
+                arguments={
+                    "part": "snippet",
+                    "chart": "mostPopular",
+                    "regionCode": "US",
+                    "videoCategoryId": "10",
+                    "pageToken": "cursor-1",
+                    "maxResults": 5,
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="yt-key"),
+                ),
+            )
+        )
+
+        self.assertEqual(request.full_url, "https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&regionCode=US&videoCategoryId=10&pageToken=cursor-1&maxResults=5&key=yt-key")
+        self.assertEqual(request.method, "GET")
+
+    def test_transport_returns_videos_list_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"items": [{"id": "video-123"}], "nextPageToken": "cursor-2"}
+            )
+        )
+
+        result = transport(
+            self._videos_execution(
+                arguments={
+                    "part": "snippet",
+                    "chart": "mostPopular",
+                    "regionCode": "US",
+                    "videoCategoryId": "10",
+                    "pageToken": "cursor-1",
+                    "maxResults": 5,
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="yt-key"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["items"][0]["id"], "video-123")
+        self.assertEqual(result["selectedSelector"], "chart")
+        self.assertEqual(result["chart"], "mostPopular")
+        self.assertEqual(result["regionCode"], "US")
+        self.assertEqual(result["videoCategoryId"], "10")
+        self.assertEqual(result["pageToken"], "cursor-1")
+        self.assertEqual(result["authPath"], "api_key")
+
+    def test_transport_returns_videos_list_empty_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse({"items": []})
+        )
+
+        result = transport(
+            self._videos_execution(
+                arguments={"part": "snippet", "id": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="yt-key"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["selectedSelector"], "id")
+        self.assertEqual(result["id"], "video-123")
+
+    def test_transport_returns_videos_list_my_rating_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse({"items": [{"id": "video-345"}]})
+        )
+
+        result = transport(
+            self._videos_execution(
+                arguments={"part": "snippet", "myRating": "like"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["items"][0]["id"], "video-345")
+        self.assertEqual(result["selectedSelector"], "myRating")
+        self.assertEqual(result["myRating"], "like")
+        self.assertEqual(result["authPath"], "oauth_required")
+
+    def test_transport_normalizes_videos_list_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"chart-only refinements require chart lookup"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "chart-only refinements require chart lookup") as context:
+            transport(
+                self._videos_execution(
+                    arguments={"part": "snippet", "myRating": "like"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-123"),
                     ),
                 )
             )

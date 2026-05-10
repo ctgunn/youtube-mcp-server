@@ -40,6 +40,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_videos_list_wrapper,
     build_playlists_update_wrapper,
     build_playlist_images_update_wrapper,
     build_video_categories_list_wrapper,
@@ -452,6 +453,26 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIsNone(review_surface["caveatNote"])
         self.assertIn("region", review_surface["notes"])
         self.assertIn("hl", review_surface["notes"])
+        self.assertIn("successful outcomes", review_surface["notes"])
+
+    def test_videos_list_review_surface_exposes_identity_quota_and_selector_notes(self):
+        review_surface = build_videos_list_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videos")
+        self.assertEqual(review_surface["operationName"], "list")
+        self.assertEqual(review_surface["operationKey"], "videos.list")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "mixed/conditional")
+        self.assertEqual(review_surface["requiredFields"], ("part",))
+        self.assertEqual(
+            review_surface["optionalFields"],
+            ("id", "chart", "myRating", "pageToken", "maxResults", "regionCode", "videoCategoryId"),
+        )
+        self.assertEqual(review_surface["exclusiveSelectors"], ("id", "chart", "myRating"))
+        self.assertEqual(review_surface["lifecycleState"], "active")
+        self.assertIsNone(review_surface["caveatNote"])
+        self.assertIn("myRating", review_surface["authConditionNote"])
+        self.assertIn("chart", review_surface["notes"])
         self.assertIn("successful outcomes", review_surface["notes"])
 
     def test_members_list_review_surface_exposes_identity_quota_and_owner_notes(self):

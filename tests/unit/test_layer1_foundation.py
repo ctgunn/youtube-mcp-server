@@ -46,6 +46,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_videos_list_wrapper,
     build_video_categories_list_wrapper,
     build_playlists_update_wrapper,
     build_captions_delete_wrapper,
@@ -855,6 +856,147 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,
                     credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_videos_list_wrapper_exposes_expected_metadata(self):
+        wrapper = build_videos_list_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "videos.list")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/videos")
+        self.assertEqual(wrapper.metadata.quota_cost, 1)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "mixed/conditional")
+        self.assertEqual(wrapper.metadata.lifecycle_state, "active")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part",))
+        self.assertEqual(
+            wrapper.metadata.request_shape.optional_fields,
+            ("id", "chart", "myRating", "pageToken", "maxResults", "regionCode", "videoCategoryId"),
+        )
+        self.assertEqual(wrapper.metadata.request_shape.exactly_one_of, ("id", "chart", "myRating"))
+        self.assertIn("myRating", wrapper.metadata.auth_condition_note)
+        self.assertIn("chart", wrapper.metadata.notes)
+        self.assertIn("successful outcomes", wrapper.metadata.notes)
+
+    def test_videos_list_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_videos_list_wrapper))
+
+    def test_videos_list_wrapper_requires_part_and_exactly_one_selector(self):
+        wrapper = build_videos_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: part"):
+            wrapper.metadata.request_shape.validate_arguments({"id": "video-123"})
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "id": "video-123", "chart": "mostPopular"}
+            )
+
+    def test_videos_list_wrapper_rejects_unsupported_refinement_combinations(self):
+        wrapper = build_videos_list_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "paging fields are only supported for chart or myRating lookups"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "id": "video-123", "pageToken": "cursor-1"}
+            )
+
+        with self.assertRaisesRegex(ValueError, "chart-only refinements require chart lookup"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "myRating": "like", "regionCode": "US"}
+            )
+
+    def test_videos_list_wrapper_executes_successful_calls(self):
+        wrapper = build_videos_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": execution.arguments.get("id", "video-123")}],
+                "selectedSelector": "chart",
+                "chart": execution.arguments.get("chart"),
+                "regionCode": execution.arguments.get("regionCode"),
+                "videoCategoryId": execution.arguments.get("videoCategoryId"),
+                "authPath": "api_key",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "chart": "mostPopular",
+                "regionCode": "US",
+                "videoCategoryId": "10",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "video-123")
+        self.assertEqual(result["selectedSelector"], "chart")
+        self.assertEqual(result["regionCode"], "US")
+        self.assertEqual(result["videoCategoryId"], "10")
+
+    def test_videos_list_wrapper_executes_my_rating_calls(self):
+        wrapper = build_videos_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [{"id": "video-345", "myRating": execution.arguments.get("myRating")}],
+                "selectedSelector": "myRating",
+                "myRating": execution.arguments.get("myRating"),
+                "authPath": "oauth_required",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "myRating": "like"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "video-345")
+        self.assertEqual(result["selectedSelector"], "myRating")
+        self.assertEqual(result["myRating"], "like")
+        self.assertEqual(result["authPath"], "oauth_required")
+
+    def test_videos_list_wrapper_rejects_public_selectors_with_oauth_mode(self):
+        wrapper = build_videos_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "id requires api_key auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "id": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_videos_list_wrapper_requires_oauth_for_my_rating(self):
+        wrapper = build_videos_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "myRating requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "myRating": "like"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
                 ),
             )
 

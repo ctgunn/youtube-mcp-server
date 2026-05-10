@@ -48,6 +48,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_videos_list_wrapper,
     build_thumbnails_set_wrapper,
     build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
@@ -783,6 +784,148 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"part": "snippet", "id": "cat-1", "regionCode": "US"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_videos_list_wrapper_executes_direct_id_requests_through_shared_executor(self):
+        wrapper = build_videos_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": execution.arguments["id"],
+                        "kind": "youtube#video",
+                    }
+                ],
+                "selectedSelector": "id",
+                "id": execution.arguments["id"],
+                "authPath": "api_key",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "id": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "video-123")
+        self.assertEqual(result["selectedSelector"], "id")
+        self.assertEqual(result["authPath"], "api_key")
+
+    def test_videos_list_wrapper_executes_chart_requests_through_shared_executor(self):
+        wrapper = build_videos_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "video-234",
+                        "chart": execution.arguments["chart"],
+                        "kind": "youtube#video",
+                    }
+                ],
+                "selectedSelector": "chart",
+                "chart": execution.arguments["chart"],
+                "regionCode": execution.arguments.get("regionCode"),
+                "videoCategoryId": execution.arguments.get("videoCategoryId"),
+                "authPath": "api_key",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "chart": "mostPopular",
+                "regionCode": "US",
+                "videoCategoryId": "10",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "video-234")
+        self.assertEqual(result["selectedSelector"], "chart")
+        self.assertEqual(result["regionCode"], "US")
+        self.assertEqual(result["videoCategoryId"], "10")
+
+    def test_videos_list_wrapper_executes_my_rating_requests_through_shared_executor(self):
+        wrapper = build_videos_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [
+                    {
+                        "id": "video-345",
+                        "rating": execution.arguments["myRating"],
+                        "kind": "youtube#video",
+                    }
+                ],
+                "selectedSelector": "myRating",
+                "myRating": execution.arguments["myRating"],
+                "authPath": "oauth_required",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "myRating": "like"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "video-345")
+        self.assertEqual(result["selectedSelector"], "myRating")
+        self.assertEqual(result["authPath"], "oauth_required")
+
+    def test_videos_list_wrapper_treats_empty_results_as_success(self):
+        wrapper = build_videos_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "items": [],
+                "selectedSelector": "id",
+                "id": execution.arguments["id"],
+                "authPath": "api_key",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "id": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["selectedSelector"], "id")
+        self.assertEqual(result["id"], "video-123")
+
+    def test_videos_list_wrapper_rejects_conflicting_selector_requests(self):
+        wrapper = build_videos_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"items": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet", "id": "video-123", "chart": "mostPopular"},
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),
