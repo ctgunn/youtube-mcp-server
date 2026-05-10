@@ -46,5 +46,4 @@ infrastructure/gcp/*.tfvars
 .terraform/
 *.tfstate
 *.tfstate.*
-Dockerfile*
 specs/
