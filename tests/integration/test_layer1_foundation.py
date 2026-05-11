@@ -6,6 +6,7 @@ from urllib.error import HTTPError
 
 sys.path.insert(0, os.path.abspath("src"))
 
+import mcp_server.integrations.wrappers as wrappers_module
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
 from mcp_server.integrations.errors import NormalizedUpstreamError, normalize_upstream_error
@@ -931,6 +932,155 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
                     credentials=CredentialBundle(api_key="key-123"),
                 ),
             )
+
+    def test_videos_insert_wrapper_executes_authorized_create_requests_through_shared_executor(self):
+        wrapper = wrappers_module.build_videos_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "video-456",
+                "title": execution.arguments["body"]["snippet"]["title"],
+                "uploadMode": "multipart",
+                "kind": "youtube#video",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet,status",
+                "body": {"snippet": {"title": "Launch video"}, "status": {"privacyStatus": "private"}},
+                "media": {"mimeType": "video/mp4", "content": b"video-payload"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "video-456")
+        self.assertEqual(result["title"], "Launch video")
+        self.assertEqual(result["uploadMode"], "multipart")
+
+    def test_videos_insert_wrapper_preserves_resumable_upload_mode_through_shared_executor(self):
+        wrapper = wrappers_module.build_videos_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "video-789",
+                "uploadMode": execution.arguments.get("uploadMode"),
+                "kind": "youtube#video",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet,status",
+                "body": {"snippet": {"title": "Launch video"}, "status": {"privacyStatus": "private"}},
+                "media": {"mimeType": "video/mp4", "content": b"video-payload"},
+                "uploadMode": "resumable",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "video-789")
+        self.assertEqual(result["uploadMode"], "resumable")
+
+    def test_videos_insert_wrapper_rejects_invalid_upload_requests_before_executor(self):
+        wrapper = wrappers_module.build_videos_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "video-123"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "uploadMode must be multipart or resumable"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet,status",
+                    "body": {"snippet": {"title": "Launch video"}},
+                    "media": {"mimeType": "video/mp4", "content": b"video-payload"},
+                    "uploadMode": "streaming",
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_videos_insert_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = wrappers_module.build_videos_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: (_ for _ in ()).throw(
+                    HTTPError(
+                        url="https://www.googleapis.com/youtube/v3/videos",
+                        code=403,
+                        msg="Forbidden",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":{"message":"Video upload denied"}}'),
+                    )
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Video upload denied") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet,status",
+                    "body": {"snippet": {"title": "Launch video"}},
+                    "media": {"mimeType": "video/mp4", "content": b"video-payload"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_videos_insert_wrapper_preserves_policy_restricted_failures_from_shared_executor(self):
+        wrapper = wrappers_module.build_videos_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: (_ for _ in ()).throw(
+                    HTTPError(
+                        url="https://www.googleapis.com/youtube/v3/videos",
+                        code=403,
+                        msg="Forbidden",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":{"message":"Video remains private pending audit review"}}'),
+                    )
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(
+            NormalizedUpstreamError,
+            "Video remains private pending audit review",
+        ) as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet,status",
+                    "body": {"snippet": {"title": "Launch video"}},
+                    "media": {"mimeType": "video/mp4", "content": b"video-payload"},
+                    "uploadMode": "resumable",
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "policy_restricted")
 
     def test_members_list_wrapper_executes_owner_scoped_requests_through_shared_executor(self):
         wrapper = build_members_list_wrapper()

@@ -1000,6 +1000,80 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 ),
             )
 
+    def test_videos_insert_wrapper_exposes_expected_metadata(self):
+        wrapper = wrappers_module.build_videos_insert_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "videos.insert")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/videos")
+        self.assertEqual(wrapper.metadata.quota_cost, 1600)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "body", "media"))
+        self.assertIn("upload", wrapper.metadata.notes)
+
+    def test_videos_insert_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_videos_insert_wrapper))
+
+    def test_videos_insert_wrapper_executes_authorized_create_requests(self):
+        wrapper = wrappers_module.build_videos_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": "video-123",
+                "title": execution.arguments["body"]["snippet"]["title"],
+                "uploadMode": execution.arguments.get("uploadMode", "multipart"),
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "part": "snippet,status",
+                "body": {"snippet": {"title": "Launch video"}, "status": {"privacyStatus": "private"}},
+                "media": {"mimeType": "video/mp4", "content": b"video-payload"},
+                "uploadMode": "resumable",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "video-123")
+        self.assertEqual(result["title"], "Launch video")
+        self.assertEqual(result["uploadMode"], "resumable")
+
+    def test_videos_insert_wrapper_requires_media_field(self):
+        wrapper = wrappers_module.build_videos_insert_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: media"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "part": "snippet,status",
+                    "body": {"snippet": {"title": "Launch video"}},
+                }
+            )
+
+    def test_videos_insert_wrapper_requires_oauth_mode(self):
+        wrapper = wrappers_module.build_videos_insert_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"id": "video-123"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "videos.insert requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "part": "snippet,status",
+                    "body": {"snippet": {"title": "Launch video"}},
+                    "media": {"mimeType": "video/mp4", "content": b"video-payload"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
     def test_members_list_wrapper_exposes_expected_metadata(self):
         wrapper = build_members_list_wrapper()
 

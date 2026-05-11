@@ -78,6 +78,8 @@ def build_youtube_data_api_transport(
             return _channel_banners_insert_payload(execution, payload)
         if execution.metadata.operation_key == "thumbnails.set":
             return _thumbnails_set_payload(execution, payload)
+        if execution.metadata.operation_key == "videos.insert":
+            return _videos_insert_payload(execution, payload)
         if execution.metadata.operation_key == "playlistImages.insert":
             return _playlist_images_insert_payload(execution, payload)
         if execution.metadata.operation_key == "playlistItems.insert":
@@ -466,6 +468,7 @@ def _normalized_category_for_execution(
             "videoAbuseReportReasons.list",
             "videoCategories.list",
             "videos.list",
+            "videos.insert",
             "members.list",
             "membershipsLevels.list",
             "playlistImages.list",
@@ -545,6 +548,12 @@ def _normalized_category_for_execution(
         if execution.metadata.operation_key == "videos.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
+            return None
+        if execution.metadata.operation_key == "videos.insert":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 403 and ("private" in combined or "audit" in combined or "policy" in combined):
+                return "policy_restricted"
             return None
         if execution.metadata.operation_key == "members.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
@@ -1172,6 +1181,37 @@ def _videos_list_payload(
     for field in ("regionCode", "videoCategoryId", "pageToken", "maxResults"):
         if execution.arguments.get(field) not in (None, ""):
             parsed[field] = execution.arguments.get(field)
+    return parsed
+
+
+def _videos_insert_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `videos.insert` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed video-create payload with stable metadata fields.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    body = execution.arguments.get("body")
+    snippet = body.get("snippet", {}) if isinstance(body, dict) else {}
+    status = body.get("status", {}) if isinstance(body, dict) else {}
+    parsed_status = parsed.get("status", {}) if isinstance(parsed.get("status"), dict) else {}
+    parsed["part"] = execution.arguments.get("part")
+    parsed["uploadMode"] = execution.arguments.get("uploadMode") or "multipart"
+    parsed["authPath"] = "oauth_required"
+    parsed["title"] = parsed.get("title") or snippet.get("title")
+    parsed["privacyStatus"] = parsed.get("privacyStatus") or parsed_status.get("privacyStatus") or status.get(
+        "privacyStatus"
+    )
+    parsed["visibilityCaveat"] = (
+        "audit/private-default caveat applies until the caller completes the required review flow"
+    )
     return parsed
 
 

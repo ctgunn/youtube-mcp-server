@@ -33,6 +33,7 @@ _SEARCH_VIDEO_ONLY_FIELDS = frozenset(
         "videoType",
     }
 )
+_VIDEOS_INSERT_UPLOAD_MODES = frozenset({"multipart", "resumable"})
 
 
 @dataclass(frozen=True)
@@ -642,6 +643,35 @@ class VideosListWrapper(RepresentativeEndpointWrapper):
             if value is True:
                 return field
         raise ValueError("videos.list requires a supported selector")
+
+
+@dataclass(frozen=True)
+class VideosInsertWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `videos.insert`.
+
+    Official quota cost: ``1600`` quota units. The wrapper requires a `body`
+    metadata payload plus a `media` upload payload on an authorized request and
+    keeps upload-mode and audit/private-default caveat guidance visible.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `videos.insert` with OAuth and upload validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("videos.insert requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 
 @dataclass(frozen=True)
@@ -2152,6 +2182,46 @@ def build_videos_list_wrapper() -> RepresentativeEndpointWrapper:
     return VideosListWrapper(metadata=metadata)
 
 
+def build_videos_insert_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `videos.insert`.
+
+    Official quota cost: ``1600`` quota units. The wrapper requires a `body`
+    metadata payload and a `media` upload payload on authorized requests,
+    accepts reviewable `multipart` or `resumable` upload-mode guidance, and
+    keeps the audit/private-default caveat visible for higher-layer reuse.
+
+    :return: Representative wrapper configured for `videos.insert`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="videos",
+        operation_name="insert",
+        http_method="POST",
+        path_shape="/youtube/v3/videos",
+        request_shape=EndpointRequestShape(
+            required_fields=("part", "body", "media"),
+            optional_fields=("uploadMode", "notifySubscribers", "onBehalfOfContentOwner"),
+            validators=(
+                _require_videos_insert_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=1600,
+        lifecycle_state="limited",
+        caveat_note=(
+            "New uploads may remain private or otherwise audit-constrained until "
+            "the caller completes the required review or release workflow."
+        ),
+        notes=(
+            "Requires oauth_required auth. Use `body` for video metadata, use "
+            "`media` for upload content, keep quota cost highly visible, accept "
+            "reviewable `multipart` or `resumable` upload-mode guidance, reject "
+            "metadata-only or upload-only shapes, and keep the audit/private-default "
+            "caveat visible for downstream reuse decisions."
+        ),
+    )
+    return VideosInsertWrapper(metadata=metadata)
+
+
 def build_members_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `members.list`.
 
@@ -2999,6 +3069,21 @@ def _require_videos_list_arguments(arguments: dict[str, object]) -> None:
     )
     if has_chart_refinements and not has_chart_selector:
         raise ValueError("chart-only refinements require chart lookup")
+
+
+def _require_videos_insert_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `videos.insert` request arguments.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If metadata, media, or upload-mode details are incomplete.
+    """
+    require_mapping_fields("body", required_keys=("snippet",))(arguments)
+    require_mapping_fields("media", required_keys=("mimeType", "content"))(arguments)
+    upload_mode = arguments.get("uploadMode")
+    if upload_mode in (None, ""):
+        return
+    if not isinstance(upload_mode, str) or upload_mode not in _VIDEOS_INSERT_UPLOAD_MODES:
+        raise ValueError("uploadMode must be multipart or resumable")
 
 
 def _require_subscriptions_list_arguments(arguments: dict[str, object]) -> None:

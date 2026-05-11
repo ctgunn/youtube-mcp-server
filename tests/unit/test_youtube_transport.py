@@ -568,6 +568,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             auth_context=auth_context,
         )
 
+    def _videos_insert_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=wrappers_module.build_videos_insert_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
     def _captions_update_execution(
         self,
         *,
@@ -1736,6 +1748,147 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_builds_oauth_request_for_videos_insert_upload(self):
+        request = build_youtube_data_api_request(
+            self._videos_insert_execution(
+                arguments={
+                    "part": "snippet,status",
+                    "body": {"snippet": {"title": "Launch video"}, "status": {"privacyStatus": "private"}},
+                    "media": {"mimeType": "video/mp4", "content": b"video-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(
+            request.full_url,
+            "https://www.googleapis.com/youtube/v3/videos?part=snippet%2Cstatus",
+        )
+        self.assertEqual(request.method, "POST")
+        self.assertEqual(request.headers.get("Authorization"), "Bearer oauth-token")
+        self.assertIn("multipart/related", request.headers.get("Content-type"))
+        self.assertIn(b"Launch video", request.data)
+        self.assertIn(b"video-bytes", request.data)
+
+    def test_transport_normalizes_successful_videos_insert_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse({"id": "video-999", "kind": "youtube#video"})
+        )
+
+        result = transport(
+            self._videos_insert_execution(
+                arguments={
+                    "part": "snippet,status",
+                    "body": {"snippet": {"title": "Launch video"}, "status": {"privacyStatus": "private"}},
+                    "media": {"mimeType": "video/mp4", "content": b"video-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["id"], "video-999")
+        self.assertEqual(result["part"], "snippet,status")
+        self.assertEqual(result["uploadMode"], "multipart")
+        self.assertEqual(result["authPath"], "oauth_required")
+
+    def test_executor_can_run_live_videos_insert_transport_shape(self):
+        captured = {}
+
+        def opener(request, timeout):
+            captured["url"] = request.full_url
+            captured["authorization"] = request.headers.get("Authorization")
+            captured["timeout"] = timeout
+            captured["method"] = request.method
+            captured["content_type"] = request.headers.get("Content-type")
+            captured["data"] = request.data
+            return _FakeHTTPResponse({"id": "video-321", "kind": "youtube#video"})
+
+        executor = build_youtube_data_api_executor(opener=opener, timeout_seconds=12.0)
+        result = wrappers_module.build_videos_insert_wrapper().call(
+            executor,
+            arguments={
+                "part": "snippet,status",
+                "body": {"snippet": {"title": "Launch video"}, "status": {"privacyStatus": "private"}},
+                "media": {"mimeType": "video/mp4", "content": b"video-payload"},
+                "uploadMode": "resumable",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "video-321")
+        self.assertEqual(result["uploadMode"], "resumable")
+        self.assertEqual(captured["method"], "POST")
+        self.assertIn("part=snippet%2Cstatus", captured["url"])
+        self.assertIn("uploadMode=resumable", captured["url"])
+        self.assertEqual(captured["authorization"], "Bearer oauth-token")
+        self.assertIn("multipart/related", captured["content_type"])
+        self.assertIn(b"video-payload", captured["data"])
+        self.assertEqual(captured["timeout"], 12.0)
+
+    def test_transport_normalizes_videos_insert_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"media content is required"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "media content is required") as context:
+            transport(
+                self._videos_insert_execution(
+                    arguments={
+                        "part": "snippet,status",
+                        "body": {"snippet": {"title": "Launch video"}},
+                        "media": {"mimeType": "video/mp4", "content": b"video-payload"},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_videos_insert_policy_restricted_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Video remains private pending audit review"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Video remains private pending audit review") as context:
+            transport(
+                self._videos_insert_execution(
+                    arguments={
+                        "part": "snippet,status",
+                        "body": {"snippet": {"title": "Launch video"}},
+                        "media": {"mimeType": "video/mp4", "content": b"video-payload"},
+                        "uploadMode": "resumable",
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "policy_restricted")
 
     def test_transport_returns_members_list_payload(self):
         transport = build_youtube_data_api_transport(
