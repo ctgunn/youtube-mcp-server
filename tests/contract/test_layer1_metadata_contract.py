@@ -475,6 +475,19 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("chart", review_surface["notes"])
         self.assertIn("successful outcomes", review_surface["notes"])
 
+    def test_videos_insert_review_surface_exposes_quota_auth_and_caveat_notes(self):
+        review_surface = integrations_package.build_videos_insert_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videos")
+        self.assertEqual(review_surface["operationName"], "insert")
+        self.assertEqual(review_surface["operationKey"], "videos.insert")
+        self.assertEqual(review_surface["quotaCost"], 1600)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body", "media"))
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos")
+        self.assertIn("upload", review_surface["notes"])
+        self.assertIn("private", review_surface["caveatNote"])
+
     def test_members_list_review_surface_exposes_identity_quota_and_owner_notes(self):
         review_surface = build_members_list_wrapper().review_surface()
 

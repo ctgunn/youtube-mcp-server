@@ -1104,6 +1104,30 @@ class RepresentativeHigherLayerConsumer:
             "sourceNotes": self.wrapper.metadata.notes,
         }
 
+    def create_video_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `videos.insert` wrapper result.
+
+        :param arguments: Wrapper arguments needed to create a video.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing source contract details and created video identity.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        return {
+            "videoId": result.get("id"),
+            "isCreated": bool(result.get("id")),
+            "uploadMode": result.get("uploadMode"),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceCaveatNote": self.wrapper.metadata.caveat_note,
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
+
     def update_caption_summary(
         self,
         *,

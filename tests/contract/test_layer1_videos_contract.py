@@ -4,6 +4,7 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
+import mcp_server.integrations.wrappers as wrappers_module
 from mcp_server.integrations.wrappers import build_videos_list_wrapper
 
 
@@ -75,3 +76,34 @@ class Layer1VideosContractTests(unittest.TestCase):
         self.assertIn("chart-only refinements", selector_contract)
         self.assertIn("successful empty results", selector_contract)
         self.assertIn("invalid requests remain separate", selector_contract)
+
+    def test_videos_insert_contract_artifacts_define_upload_and_caveat_guidance(self):
+        root = os.path.abspath("specs/148-videos-insert/contracts")
+        with open(
+            os.path.join(root, "layer1-videos-insert-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-videos-insert-auth-upload-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_upload_contract = handle.read()
+
+        self.assertIn("quota cost of `1600`", wrapper_contract)
+        self.assertIn("supported upload modes", wrapper_contract)
+        self.assertIn("OAuth-only", auth_upload_contract)
+        self.assertIn("audit/private-default caveat", auth_upload_contract)
+
+    def test_videos_insert_wrapper_review_surface_exposes_identity_quota_and_upload_requirements(self):
+        review_surface = wrappers_module.build_videos_insert_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videos")
+        self.assertEqual(review_surface["operationName"], "insert")
+        self.assertEqual(review_surface["operationKey"], "videos.insert")
+        self.assertEqual(review_surface["quotaCost"], 1600)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body", "media"))
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos")
