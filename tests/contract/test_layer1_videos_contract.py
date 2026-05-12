@@ -107,3 +107,39 @@ class Layer1VideosContractTests(unittest.TestCase):
         self.assertEqual(review_surface["authMode"], "oauth_required")
         self.assertEqual(review_surface["requiredFields"], ("part", "body", "media"))
         self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos")
+
+    def test_videos_update_contract_artifacts_define_write_and_auth_guidance(self):
+        root = os.path.abspath("specs/149-videos-update/contracts")
+        with open(
+            os.path.join(root, "layer1-videos-update-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-videos-update-auth-write-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_write_contract = handle.read()
+
+        self.assertIn("quota cost of `50`", wrapper_contract)
+        self.assertIn("`part=snippet`", wrapper_contract)
+        self.assertIn("OAuth-backed access", auth_write_contract)
+        self.assertIn("body.snippet.title", auth_write_contract)
+        self.assertIn("body.id", wrapper_contract)
+        self.assertIn("body.snippet.tags", wrapper_contract)
+        self.assertIn("body.localizations", wrapper_contract)
+
+    def test_videos_update_wrapper_review_surface_exposes_identity_quota_and_write_requirements(self):
+        review_surface = wrappers_module.build_videos_update_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videos")
+        self.assertEqual(review_surface["operationName"], "update")
+        self.assertEqual(review_surface["operationKey"], "videos.update")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body"))
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos")
+        self.assertIn("body.snippet.tags", review_surface["notes"])
+        self.assertIn("body.localizations", review_surface["notes"])

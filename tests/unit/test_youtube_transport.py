@@ -412,6 +412,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             auth_context=auth_context,
         )
 
+    def _videos_update_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=wrappers_module.build_videos_update_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
     def _playlists_delete_execution(
         self,
         *,
@@ -4051,6 +4063,178 @@ class YouTubeTransportUnitTests(unittest.TestCase):
                     arguments={
                         "part": "snippet",
                         "body": {"id": "playlist-123", "snippet": {"title": "Layer 1 Playlist"}},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "upstream_service")
+
+    def test_builds_oauth_put_request_for_videos_update(self):
+        execution = self._videos_update_execution(
+            arguments={
+                "part": "snippet",
+                "body": {"id": "video-123", "snippet": {"title": "Layer 1 Video"}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "PUT")
+        self.assertIn("https://www.googleapis.com/youtube/v3/videos?", request.full_url)
+        self.assertIn("part=snippet", request.full_url)
+        self.assertIn("Authorization", request.headers)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertIn(b'"id": "video-123"', request.data)
+        self.assertIn(b'"title": "Layer 1 Video"', request.data)
+
+    def test_transport_normalizes_successful_videos_update_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {"id": "video-123", "snippet": {"title": "Layer 1 Video"}}
+            )
+        )
+
+        result = transport(
+            self._videos_update_execution(
+                arguments={
+                    "part": "snippet",
+                    "body": {"id": "video-123", "snippet": {"title": "Layer 1 Video"}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["id"], "video-123")
+        self.assertEqual(result["part"], "snippet")
+        self.assertEqual(result["title"], "Layer 1 Video")
+
+    def test_transport_falls_back_to_request_identity_and_title_for_videos_update_payload(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse({"kind": "youtube#video"})
+        )
+
+        result = transport(
+            self._videos_update_execution(
+                arguments={
+                    "part": "snippet",
+                    "body": {"id": "video-123", "snippet": {"title": "Layer 1 Video"}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["id"], "video-123")
+        self.assertEqual(result["title"], "Layer 1 Video")
+
+    def test_transport_normalizes_videos_update_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"video update request is invalid"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "video update request is invalid") as context:
+            transport(
+                self._videos_update_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"id": "video-123", "snippet": {"title": "Layer 1 Video"}},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_videos_update_auth_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Video update denied"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Video update denied") as context:
+            transport(
+                self._videos_update_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"id": "video-123", "snippet": {"title": "Layer 1 Video"}},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_transport_normalizes_videos_update_not_found_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Video not found"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Video not found") as context:
+            transport(
+                self._videos_update_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"id": "video-123", "snippet": {"title": "Layer 1 Video"}},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "not_found")
+
+    def test_transport_normalizes_videos_update_upstream_failures(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos",
+            code=409,
+            msg="Conflict",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"Video update rejected by policy"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "Video update rejected by policy") as context:
+            transport(
+                self._videos_update_execution(
+                    arguments={
+                        "part": "snippet",
+                        "body": {"id": "video-123", "snippet": {"title": "Layer 1 Video"}},
                     },
                     auth_context=AuthContext(
                         mode=AuthMode.OAUTH_REQUIRED,

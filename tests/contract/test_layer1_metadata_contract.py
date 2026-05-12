@@ -488,6 +488,23 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("upload", review_surface["notes"])
         self.assertIn("private", review_surface["caveatNote"])
 
+    def test_videos_update_review_surface_exposes_quota_auth_and_update_notes(self):
+        review_surface = integrations_package.build_videos_update_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videos")
+        self.assertEqual(review_surface["operationName"], "update")
+        self.assertEqual(review_surface["operationKey"], "videos.update")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("part", "body"))
+        self.assertEqual(review_surface["httpMethod"], "PUT")
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos")
+        self.assertIn("body.id", review_surface["notes"])
+        self.assertIn("body.snippet.title", review_surface["notes"])
+        self.assertIn("body.snippet.description", review_surface["notes"])
+        self.assertIn("body.snippet.tags", review_surface["notes"])
+        self.assertIn("body.localizations", review_surface["notes"])
+
     def test_members_list_review_surface_exposes_identity_quota_and_owner_notes(self):
         review_surface = build_members_list_wrapper().review_surface()
 
