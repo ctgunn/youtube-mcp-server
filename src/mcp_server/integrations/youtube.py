@@ -90,6 +90,8 @@ def build_youtube_data_api_transport(
             return _subscriptions_insert_payload(execution, payload)
         if execution.metadata.operation_key == "subscriptions.delete":
             return _subscriptions_delete_payload(execution)
+        if execution.metadata.operation_key == "videos.update":
+            return _videos_update_payload(execution, payload)
         if execution.metadata.operation_key == "playlists.update":
             return _playlists_update_payload(execution, payload)
         if execution.metadata.operation_key == "playlists.delete":
@@ -469,6 +471,7 @@ def _normalized_category_for_execution(
             "videoCategories.list",
             "videos.list",
             "videos.insert",
+            "videos.update",
             "members.list",
             "membershipsLevels.list",
             "playlistImages.list",
@@ -550,10 +553,16 @@ def _normalized_category_for_execution(
                 return "invalid_request"
             return None
         if execution.metadata.operation_key == "videos.insert":
-            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+            if _is_invalid_update_request(status_code=status_code, combined=combined):
                 return "invalid_request"
             if status_code == 403 and ("private" in combined or "audit" in combined or "policy" in combined):
                 return "policy_restricted"
+            return None
+        if execution.metadata.operation_key == "videos.update":
+            if _is_invalid_update_request(status_code=status_code, combined=combined):
+                return "invalid_request"
+            if _is_missing_update_target(status_code=status_code, combined=combined, target_terms=("video", "target")):
+                return "not_found"
             return None
         if execution.metadata.operation_key == "members.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
@@ -620,9 +629,13 @@ def _normalized_category_for_execution(
                 return "not_found"
             return None
         if execution.metadata.operation_key == "playlists.update":
-            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+            if _is_invalid_update_request(status_code=status_code, combined=combined):
                 return "invalid_request"
-            if status_code == 404 and ("playlist" in combined or "target" in combined):
+            if _is_missing_update_target(
+                status_code=status_code,
+                combined=combined,
+                target_terms=("playlist", "target"),
+            ):
                 return "not_found"
             return None
         if execution.metadata.operation_key == "playlists.delete":
@@ -703,6 +716,32 @@ def _normalized_category_for_execution(
     if status_code == 404 or "target channel" in combined or "channel banner target" in combined:
         return "target_channel"
     return None
+
+
+def _is_invalid_update_request(*, status_code: int | None, combined: str) -> bool:
+    """Return whether an update-style request failed due to request shape.
+
+    :param status_code: Optional upstream status code.
+    :param combined: Lower-cased combined error text.
+    :return: ``True`` when the error indicates invalid request input.
+    """
+    return status_code in {400, 422} or "invalid" in combined or "required" in combined
+
+
+def _is_missing_update_target(
+    *,
+    status_code: int | None,
+    combined: str,
+    target_terms: tuple[str, ...],
+) -> bool:
+    """Return whether an update-style request failed because the target is missing.
+
+    :param status_code: Optional upstream status code.
+    :param combined: Lower-cased combined error text.
+    :param target_terms: Terms that indicate the upstream target identity.
+    :return: ``True`` when the target is missing.
+    """
+    return status_code == 404 and any(term in combined for term in target_terms)
 
 
 def _download_payload(execution: RequestExecution, payload: str) -> dict[str, Any]:
@@ -975,6 +1014,34 @@ def _playlists_update_payload(
     :param execution: Shared request execution details.
     :param payload: Raw JSON payload returned by the upstream response.
     :return: Parsed playlist update payload with stable metadata fields.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    return _update_payload_with_request_fallbacks(execution, payload)
+
+
+def _videos_update_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `videos.update` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed video update payload with stable metadata fields.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    return _update_payload_with_request_fallbacks(execution, payload)
+
+
+def _update_payload_with_request_fallbacks(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return a parsed update payload with request-derived fallback fields.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed update payload with stable `part`, `id`, and `title` fields.
     :raises ValueError: If the upstream response is not a JSON object.
     """
     parsed = json.loads(payload)

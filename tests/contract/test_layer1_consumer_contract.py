@@ -8,7 +8,7 @@ import mcp_server.integrations.wrappers as wrappers_module
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.consumer import RepresentativeHigherLayerConsumer
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
-from mcp_server.integrations.errors import NormalizedUpstreamError
+from mcp_server.integrations.errors import NormalizedUpstreamError, normalize_upstream_error
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
@@ -1200,6 +1200,72 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceQuotaCost"], 1600)
         self.assertIn("upload", result["sourceNotes"])
         self.assertIn("private", result["sourceCaveatNote"])
+
+    def test_consumer_can_summarize_video_updates_for_higher_layers(self):
+        wrapper = wrappers_module.build_videos_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "id": execution.arguments["body"]["id"],
+                "snippet": execution.arguments["body"]["snippet"],
+                "kind": "youtube#video",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.update_video_summary(
+            arguments={
+                "part": "snippet",
+                "body": {"id": "video-123", "snippet": {"title": "Layer 1 Video"}},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertTrue(result["isUpdated"])
+        self.assertEqual(result["title"], "Layer 1 Video")
+        self.assertEqual(result["sourceOperation"], "videos.update")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertEqual(result["sourceRequiredFields"], ("part", "body"))
+        self.assertEqual(result["sourceWritablePart"], "snippet")
+        self.assertEqual(result["sourceRequiredIdentifierField"], "body.id")
+        self.assertEqual(result["sourceRequiredTitleField"], "body.snippet.title")
+        self.assertIn("body.id", result["sourceNotes"])
+        self.assertIn("body.snippet.description", result["sourceNotes"])
+        self.assertIn("body.snippet.tags", result["sourceNotes"])
+        self.assertIn("body.localizations", result["sourceNotes"])
+
+    def test_consumer_preserves_videos_update_failure_boundaries(self):
+        wrapper = wrappers_module.build_videos_update_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Video update denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Video update denied") as context:
+            consumer.update_video_summary(
+                arguments={
+                    "part": "snippet",
+                    "body": {"id": "video-123", "snippet": {"title": "Layer 1 Video"}},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
 
     def test_consumer_can_summarize_caption_updates_for_higher_layers(self):
         wrapper = build_captions_update_wrapper()
