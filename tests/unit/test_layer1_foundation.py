@@ -47,6 +47,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_videos_list_wrapper,
+    build_videos_rate_wrapper,
     build_video_categories_list_wrapper,
     build_playlists_update_wrapper,
     build_captions_delete_wrapper,
@@ -3779,6 +3780,96 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                     "part": "snippet",
                     "body": {"id": "video-123", "snippet": {"title": "Layer 1 Video"}},
                 },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_videos_rate_wrapper_exposes_expected_metadata(self):
+        wrapper = build_videos_rate_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "videos.rate")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/videos/rate")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("id", "rating"))
+        self.assertIn("like", wrapper.metadata.notes)
+        self.assertIn("dislike", wrapper.metadata.notes)
+        self.assertIn("none", wrapper.metadata.notes)
+
+    def test_videos_rate_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_videos_rate_wrapper))
+
+    def test_videos_rate_wrapper_requires_id_field(self):
+        wrapper = build_videos_rate_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: id"):
+            wrapper.metadata.request_shape.validate_arguments({"rating": "like"})
+
+    def test_videos_rate_wrapper_requires_rating_field(self):
+        wrapper = build_videos_rate_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: rating"):
+            wrapper.metadata.request_shape.validate_arguments({"id": "video-123"})
+
+    def test_videos_rate_wrapper_rejects_unsupported_rating_values(self):
+        wrapper = build_videos_rate_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unsupported rating: favorite"):
+            wrapper.metadata.request_shape.validate_arguments({"id": "video-123", "rating": "favorite"})
+
+    def test_videos_rate_wrapper_rejects_unexpected_fields(self):
+        wrapper = build_videos_rate_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: onBehalfOfContentOwner"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"id": "video-123", "rating": "like", "onBehalfOfContentOwner": "owner-123"}
+            )
+
+    def test_videos_rate_wrapper_allows_supported_arguments(self):
+        wrapper = build_videos_rate_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments({"id": "video-123", "rating": "none"})
+
+    def test_videos_rate_wrapper_executes_authorized_rating_requests(self):
+        wrapper = build_videos_rate_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "videoId": execution.arguments["id"],
+                "requestedRating": execution.arguments["rating"],
+                "isRated": execution.arguments["rating"] != "none",
+                "isCleared": execution.arguments["rating"] == "none",
+                "ratingState": "cleared" if execution.arguments["rating"] == "none" else "applied",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "video-123", "rating": "like"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["requestedRating"], "like")
+        self.assertTrue(result["isRated"])
+        self.assertFalse(result["isCleared"])
+
+    def test_videos_rate_wrapper_requires_oauth_mode(self):
+        wrapper = build_videos_rate_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"videoId": "video-123", "requestedRating": "like"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "videos.rate requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"id": "video-123", "rating": "like"},
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),

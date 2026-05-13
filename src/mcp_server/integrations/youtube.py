@@ -90,6 +90,8 @@ def build_youtube_data_api_transport(
             return _subscriptions_insert_payload(execution, payload)
         if execution.metadata.operation_key == "subscriptions.delete":
             return _subscriptions_delete_payload(execution)
+        if execution.metadata.operation_key == "videos.rate":
+            return _videos_rate_payload(execution, payload)
         if execution.metadata.operation_key == "videos.update":
             return _videos_update_payload(execution, payload)
         if execution.metadata.operation_key == "playlists.update":
@@ -471,6 +473,7 @@ def _normalized_category_for_execution(
             "videoCategories.list",
             "videos.list",
             "videos.insert",
+            "videos.rate",
             "videos.update",
             "members.list",
             "membershipsLevels.list",
@@ -609,6 +612,23 @@ def _normalized_category_for_execution(
                 return "invalid_request"
             if status_code == 404 and ("subscription" in combined or "target" in combined):
                 return "not_found"
+            return None
+        if execution.metadata.operation_key == "videos.rate":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 404 and ("video" in combined or "target" in combined):
+                return "not_found"
+            if (
+                status_code == 403
+                and (
+                    "disabled rating" in combined
+                    or "ratings disabled" in combined
+                    or "not allowed to rate" in combined
+                    or "forbidden" in combined
+                    or "policy" in combined
+                )
+            ):
+                return "policy_restricted"
             return None
         if execution.metadata.operation_key == "search.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
@@ -1031,6 +1051,35 @@ def _videos_update_payload(
     :raises ValueError: If the upstream response is not a JSON object.
     """
     return _update_payload_with_request_fallbacks(execution, payload)
+
+
+def _videos_rate_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `videos.rate` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw payload returned by the upstream response, if any.
+    :return: Lightweight rating acknowledgement with stable metadata fields.
+    :raises ValueError: If a non-empty upstream response is not a JSON object.
+    """
+    parsed: dict[str, Any] = {}
+    if payload.strip():
+        loaded = json.loads(payload)
+        if not isinstance(loaded, dict):
+            raise ValueError("YouTube Data API responses must decode to an object")
+        parsed = loaded
+
+    requested_rating = _stringify_scalar(execution.arguments.get("rating"))
+    video_id = _stringify_scalar(execution.arguments.get("id"))
+    parsed["videoId"] = parsed.get("videoId") or video_id
+    parsed["requestedRating"] = parsed.get("requestedRating") or requested_rating
+    parsed["isRated"] = parsed.get("isRated") if "isRated" in parsed else requested_rating != "none"
+    parsed["isCleared"] = parsed.get("isCleared") if "isCleared" in parsed else requested_rating == "none"
+    parsed["ratingState"] = parsed.get("ratingState") or ("cleared" if requested_rating == "none" else "applied")
+    parsed["upstreamBodyState"] = parsed.get("upstreamBodyState") or ("json" if payload.strip() else "empty")
+    return parsed
 
 
 def _update_payload_with_request_fallbacks(

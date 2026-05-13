@@ -1267,6 +1267,69 @@ class Layer1ConsumerContractTests(unittest.TestCase):
 
         self.assertEqual(context.exception.category, "auth")
 
+    def test_consumer_can_summarize_video_ratings_for_higher_layers(self):
+        wrapper = wrappers_module.build_videos_rate_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "videoId": execution.arguments["id"],
+                "requestedRating": execution.arguments["rating"],
+                "isRated": execution.arguments["rating"] != "none",
+                "isCleared": execution.arguments["rating"] == "none",
+                "ratingState": "cleared" if execution.arguments["rating"] == "none" else "applied",
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.rate_video_summary(
+            arguments={"id": "video-123", "rating": "none"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["requestedRating"], "none")
+        self.assertFalse(result["isRated"])
+        self.assertTrue(result["isCleared"])
+        self.assertEqual(result["ratingState"], "cleared")
+        self.assertEqual(result["sourceOperation"], "videos.rate")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertEqual(result["sourceRequiredFields"], ("id", "rating"))
+        self.assertEqual(result["sourceRequiredIdentifierField"], "id")
+        self.assertEqual(result["sourceRequiredRatingField"], "rating")
+        self.assertIn("like", result["sourceNotes"])
+        self.assertIn("dislike", result["sourceNotes"])
+        self.assertIn("none", result["sourceNotes"])
+
+    def test_consumer_preserves_videos_rate_failure_boundaries(self):
+        wrapper = wrappers_module.build_videos_rate_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Video rating denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Video rating denied") as context:
+            consumer.rate_video_summary(
+                arguments={"id": "video-123", "rating": "like"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
     def test_consumer_can_summarize_caption_updates_for_higher_layers(self):
         wrapper = build_captions_update_wrapper()
         executor = IntegrationExecutor(

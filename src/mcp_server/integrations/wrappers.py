@@ -705,6 +705,36 @@ class VideosUpdateWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class VideosRateWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `videos.rate`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one target
+    video ``id`` plus one supported ``rating`` action on an authorized request,
+    keeps ``like``, ``dislike``, and ``none`` visible for maintainers, and
+    rejects undocumented modifiers unless the contract is deliberately expanded.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `videos.rate` with OAuth-required validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("videos.rate requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class MembersListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `members.list`.
 
@@ -2289,6 +2319,42 @@ def build_videos_update_wrapper() -> RepresentativeEndpointWrapper:
     return VideosUpdateWrapper(metadata=metadata)
 
 
+def build_videos_rate_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `videos.rate`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one target
+    video ``id`` plus one supported ``rating`` action on authorized requests,
+    supports ``like``, ``dislike``, and ``none`` as the bounded action set,
+    and rejects undocumented modifiers unless the contract is deliberately
+    expanded.
+
+    :return: Representative wrapper configured for `videos.rate`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="videos",
+        operation_name="rate",
+        http_method="POST",
+        path_shape="/youtube/v3/videos/rate",
+        request_shape=EndpointRequestShape(
+            required_fields=("id", "rating"),
+            validators=(
+                _require_videos_rate_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `id` for the target video "
+            "identifier, use `rating` with supported `like`, `dislike`, or "
+            "`none` semantics, treat `none` as the clear-rating path, reject "
+            "undocumented modifiers, and preserve successful acknowledgement "
+            "outcomes as distinct from invalid-request, access, or upstream "
+            "rating failures."
+        ),
+    )
+    return VideosRateWrapper(metadata=metadata)
+
+
 def build_members_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `members.list`.
 
@@ -3447,6 +3513,25 @@ def _require_videos_update_body(arguments: dict[str, object]) -> None:
     unsupported_snippet_fields = [field for field in snippet if field not in {"title"}]
     if unsupported_snippet_fields:
         raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
+
+
+def _require_videos_rate_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `videos.rate` request arguments.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request arguments do not match supported rating rules.
+    """
+    raw_video_id = arguments.get("id")
+    if not isinstance(raw_video_id, str) or not raw_video_id.strip():
+        raise ValueError("id is required")
+
+    raw_rating = arguments.get("rating")
+    if not isinstance(raw_rating, str) or not raw_rating.strip():
+        raise ValueError("rating is required")
+
+    rating = raw_rating.strip()
+    if rating not in {"like", "dislike", "none"}:
+        raise ValueError(f"unsupported rating: {rating}")
 
 
 def _require_playlist_items_update_body(arguments: dict[str, object]) -> None:
