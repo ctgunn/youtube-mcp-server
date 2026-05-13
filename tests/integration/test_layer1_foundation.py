@@ -50,6 +50,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_videos_list_wrapper,
+    build_videos_rate_wrapper,
     build_videos_update_wrapper,
     build_thumbnails_set_wrapper,
     build_video_categories_list_wrapper,
@@ -4071,6 +4072,130 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
                     "part": "snippet",
                     "body": {"id": "video-123", "snippet": {"title": "Layer 1 Video"}},
                 },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "upstream_service")
+
+    def test_videos_rate_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_videos_rate_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "videoId": execution.arguments["id"],
+                "requestedRating": execution.arguments["rating"],
+                "isRated": execution.arguments["rating"] != "none",
+                "isCleared": execution.arguments["rating"] == "none",
+                "ratingState": "cleared" if execution.arguments["rating"] == "none" else "applied",
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "video-123", "rating": "dislike"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["requestedRating"], "dislike")
+        self.assertTrue(result["isRated"])
+        self.assertFalse(result["isCleared"])
+        self.assertEqual(result["ratingState"], "applied")
+
+    def test_videos_rate_wrapper_preserves_clear_rating_acknowledgements(self):
+        wrapper = build_videos_rate_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "videoId": execution.arguments["id"],
+                "requestedRating": execution.arguments["rating"],
+                "isRated": False,
+                "isCleared": True,
+                "ratingState": "cleared",
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "video-123", "rating": "none"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["requestedRating"], "none")
+        self.assertTrue(result["isCleared"])
+        self.assertEqual(result["ratingState"], "cleared")
+
+    def test_videos_rate_wrapper_rejects_unsupported_rating_values_before_executor(self):
+        wrapper = build_videos_rate_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"videoId": "video-123", "requestedRating": "favorite"},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "unsupported rating: favorite"):
+            wrapper.call(
+                executor,
+                arguments={"id": "video-123", "rating": "favorite"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_videos_rate_wrapper_preserves_auth_failures_from_shared_executor(self):
+        wrapper = build_videos_rate_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Video rating denied"),
+                    status_code=403,
+                    details={"reason": "forbidden"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Video rating denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "video-123", "rating": "like"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_videos_rate_wrapper_preserves_upstream_rating_failures_from_shared_executor(self):
+        wrapper = build_videos_rate_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Video rating blocked"),
+                    category="upstream_service",
+                    status_code=409,
+                    details={"reason": "conflict"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Video rating blocked") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "video-123", "rating": "like"},
                 auth_context=AuthContext(
                     mode=AuthMode.OAUTH_REQUIRED,
                     credentials=CredentialBundle(oauth_token="oauth-123"),

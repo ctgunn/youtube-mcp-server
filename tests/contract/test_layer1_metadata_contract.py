@@ -505,6 +505,22 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("body.snippet.tags", review_surface["notes"])
         self.assertIn("body.localizations", review_surface["notes"])
 
+    def test_videos_rate_review_surface_exposes_quota_auth_and_rating_notes(self):
+        review_surface = integrations_package.build_videos_rate_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videos")
+        self.assertEqual(review_surface["operationName"], "rate")
+        self.assertEqual(review_surface["operationKey"], "videos.rate")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id", "rating"))
+        self.assertEqual(review_surface["httpMethod"], "POST")
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos/rate")
+        self.assertIn("like", review_surface["notes"])
+        self.assertIn("dislike", review_surface["notes"])
+        self.assertIn("none", review_surface["notes"])
+        self.assertIn("acknowledgement", review_surface["notes"])
+
     def test_members_list_review_surface_exposes_identity_quota_and_owner_notes(self):
         review_surface = build_members_list_wrapper().review_surface()
 

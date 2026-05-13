@@ -789,6 +789,36 @@ class RepresentativeHigherLayerConsumer:
             "sourceNotes": self.wrapper.metadata.notes,
         }
 
+    def rate_video_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `videos.rate` result.
+
+        :param arguments: Wrapper arguments needed to rate a video.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing source contract details, required inputs,
+            requested rating action, and acknowledgement outcome.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        requested_rating = result.get("requestedRating") or arguments.get("rating")
+        return {
+            "videoId": result.get("videoId") or arguments.get("id"),
+            "requestedRating": requested_rating,
+            "isRated": bool(result.get("isRated")),
+            "isCleared": bool(result.get("isCleared")),
+            "ratingState": result.get("ratingState"),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceRequiredFields": self.wrapper.metadata.request_shape.required_fields,
+            "sourceRequiredIdentifierField": "id",
+            "sourceRequiredRatingField": "rating",
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
+
     def update_playlist_item_summary(
         self,
         *,

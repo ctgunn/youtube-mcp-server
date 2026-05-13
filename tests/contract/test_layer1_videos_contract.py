@@ -143,3 +143,39 @@ class Layer1VideosContractTests(unittest.TestCase):
         self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos")
         self.assertIn("body.snippet.tags", review_surface["notes"])
         self.assertIn("body.localizations", review_surface["notes"])
+
+    def test_videos_rate_contract_artifacts_define_rating_and_auth_guidance(self):
+        root = os.path.abspath("specs/150-videos-rate/contracts")
+        with open(
+            os.path.join(root, "layer1-videos-rate-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-videos-rate-auth-rating-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_rating_contract = handle.read()
+
+        self.assertIn("quota cost of `50`", wrapper_contract)
+        self.assertIn("`like`, `dislike`, and `none`", wrapper_contract)
+        self.assertIn("OAuth-backed access", auth_rating_contract)
+        self.assertIn("clear-rating path", auth_rating_contract)
+        self.assertIn("unsupported rating values", auth_rating_contract)
+
+    def test_videos_rate_wrapper_review_surface_exposes_identity_quota_and_rating_requirements(self):
+        review_surface = wrappers_module.build_videos_rate_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videos")
+        self.assertEqual(review_surface["operationName"], "rate")
+        self.assertEqual(review_surface["operationKey"], "videos.rate")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id", "rating"))
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos/rate")
+        self.assertIn("like", review_surface["notes"])
+        self.assertIn("dislike", review_surface["notes"])
+        self.assertIn("none", review_surface["notes"])
+        self.assertIn("invalid-request", review_surface["notes"])
