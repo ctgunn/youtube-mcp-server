@@ -735,6 +735,37 @@ class VideosRateWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class VideosGetRatingWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `videos.getRating`.
+
+    Official quota cost: ``1`` quota unit. The wrapper requires one or more
+    comma-delimited video identifiers through ``id`` on an OAuth-backed
+    request, keeps ``liked``, ``disliked``, and ``none`` visible for
+    maintainers, and rejects undocumented identifier forms unless the
+    contract is deliberately expanded.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `videos.getRating` with OAuth-required validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("videos.getRating requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class MembersListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `members.list`.
 
@@ -2355,6 +2386,44 @@ def build_videos_rate_wrapper() -> RepresentativeEndpointWrapper:
     return VideosRateWrapper(metadata=metadata)
 
 
+def build_videos_get_rating_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `videos.getRating`.
+
+    Official quota cost: ``1`` quota unit. The wrapper requires one or more
+    comma-delimited video identifiers through ``id`` on authorized requests,
+    keeps ``liked``, ``disliked``, and ``none`` visible as the supported
+    returned rating-state set, and rejects undocumented identifier forms or
+    modifiers unless the contract is deliberately expanded.
+
+    :return: Representative wrapper configured for `videos.getRating`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="videos",
+        operation_name="getRating",
+        http_method="GET",
+        path_shape="/youtube/v3/videos/getRating",
+        request_shape=EndpointRequestShape(
+            required_fields=("id",),
+            validators=(
+                _require_videos_get_rating_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=1,
+        notes=(
+            "Requires oauth_required auth. Use `id` for one or more "
+            "comma-delimited video identifiers with a maximum of 50 per "
+            "request, keep lookup boundaries reviewable, preserve successful "
+            "`liked`, `disliked`, and `none` results per requested video, "
+            "treat successful unrated outcomes as successful lookup results "
+            "rather than failures, reject undocumented modifiers, and keep "
+            "lookup failures distinct from invalid-request, access, "
+            "`not_found`, and `upstream_unavailable` failures."
+        ),
+    )
+    return VideosGetRatingWrapper(metadata=metadata)
+
+
 def build_members_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `members.list`.
 
@@ -3532,6 +3601,40 @@ def _require_videos_rate_arguments(arguments: dict[str, object]) -> None:
     rating = raw_rating.strip()
     if rating not in {"like", "dislike", "none"}:
         raise ValueError(f"unsupported rating: {rating}")
+
+
+def _validated_videos_get_rating_ids(raw_value: object) -> tuple[str, ...]:
+    """Return validated video identifiers for `videos.getRating`.
+
+    :param raw_value: Candidate `id` value from wrapper arguments.
+    :return: Normalized ordered video identifiers without duplicates.
+    :raises ValueError: If the identifier field is empty, malformed, or duplicated.
+    """
+    if not isinstance(raw_value, str):
+        raise ValueError("id must identify one or more videos")
+
+    normalized_ids: list[str] = []
+    for raw_identifier in raw_value.split(","):
+        identifier = raw_identifier.strip()
+        if not identifier:
+            raise ValueError("id must identify one or more videos")
+        if identifier in normalized_ids:
+            raise ValueError("duplicate video identifiers are unsupported")
+        normalized_ids.append(identifier)
+    if not normalized_ids:
+        raise ValueError("id must identify one or more videos")
+    if len(normalized_ids) > 50:
+        raise ValueError("id may include at most 50 video identifiers")
+    return tuple(normalized_ids)
+
+
+def _require_videos_get_rating_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `videos.getRating` request arguments.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the request arguments do not match supported lookup rules.
+    """
+    _validated_videos_get_rating_ids(arguments.get("id"))
 
 
 def _require_playlist_items_update_body(arguments: dict[str, object]) -> None:

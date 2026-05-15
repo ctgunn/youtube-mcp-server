@@ -4204,6 +4204,89 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
 
         self.assertEqual(context.exception.category, "upstream_service")
 
+    def test_videos_get_rating_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = wrappers_module.build_videos_get_rating_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "requestedId": execution.arguments["id"],
+                "authPath": "oauth_required",
+                "ratingStateSummary": "mixed_rated_and_unrated",
+                "videoRatings": [
+                    {"videoId": "video-123", "rating": "none", "isRated": False, "isUnrated": True},
+                    {"videoId": "video-456", "rating": "liked", "isRated": True, "isUnrated": False},
+                ],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "video-123,video-456"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["requestedId"], "video-123,video-456")
+        self.assertEqual(result["authPath"], "oauth_required")
+        self.assertEqual(result["ratingStateSummary"], "mixed_rated_and_unrated")
+        self.assertEqual(result["videoRatings"][0]["rating"], "none")
+        self.assertEqual(result["videoRatings"][1]["rating"], "liked")
+
+    def test_videos_get_rating_wrapper_preserves_unrated_successes(self):
+        wrapper = wrappers_module.build_videos_get_rating_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "requestedId": execution.arguments["id"],
+                "authPath": "oauth_required",
+                "ratingStateSummary": "all_unrated",
+                "videoRatings": [
+                    {"videoId": "video-123", "rating": "none", "isRated": False, "isUnrated": True},
+                ],
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["ratingStateSummary"], "all_unrated")
+        self.assertEqual(result["videoRatings"][0]["rating"], "none")
+        self.assertTrue(result["videoRatings"][0]["isUnrated"])
+
+    def test_videos_get_rating_wrapper_preserves_upstream_lookup_unavailable_failures(self):
+        wrapper = wrappers_module.build_videos_get_rating_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("rating lookup temporarily unavailable"),
+                    category="upstream_unavailable",
+                    status_code=503,
+                    details={"reason": "backendError"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "rating lookup temporarily unavailable") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "upstream_unavailable")
+
     def test_playlists_update_wrapper_preserves_invalid_request_failures_from_shared_executor(self):
         wrapper = build_playlists_update_wrapper()
         executor = IntegrationExecutor(

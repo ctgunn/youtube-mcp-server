@@ -92,6 +92,8 @@ def build_youtube_data_api_transport(
             return _subscriptions_delete_payload(execution)
         if execution.metadata.operation_key == "videos.rate":
             return _videos_rate_payload(execution, payload)
+        if execution.metadata.operation_key == "videos.getRating":
+            return _videos_get_rating_payload(execution, payload)
         if execution.metadata.operation_key == "videos.update":
             return _videos_update_payload(execution, payload)
         if execution.metadata.operation_key == "playlists.update":
@@ -473,6 +475,7 @@ def _normalized_category_for_execution(
             "videoCategories.list",
             "videos.list",
             "videos.insert",
+            "videos.getRating",
             "videos.rate",
             "videos.update",
             "members.list",
@@ -629,6 +632,14 @@ def _normalized_category_for_execution(
                 )
             ):
                 return "policy_restricted"
+            return None
+        if execution.metadata.operation_key == "videos.getRating":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 404 and ("video" in combined or "target" in combined):
+                return "not_found"
+            if status_code in {500, 502, 503, 504} or "tempor" in combined or "unavailable" in combined:
+                return "upstream_unavailable"
             return None
         if execution.metadata.operation_key == "search.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
@@ -1082,6 +1093,49 @@ def _videos_rate_payload(
     return parsed
 
 
+def _videos_get_rating_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `videos.getRating` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw JSON payload returned by the upstream response.
+    :return: Parsed rating lookup payload with stable per-video result fields.
+    :raises ValueError: If the upstream response is not a JSON object.
+    """
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+
+    requested_id = _stringify_scalar(execution.arguments.get("id"))
+    requested_video_ids = _split_comma_delimited_ids(requested_id)
+    items = parsed.get("items")
+    normalized_items: list[dict[str, Any]] = []
+    if isinstance(items, list):
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                continue
+            fallback_video_id = requested_video_ids[index] if index < len(requested_video_ids) else None
+            video_id = _stringify_scalar(item.get("videoId")) or fallback_video_id
+            rating = _normalized_video_rating_state(item.get("rating"))
+            is_unrated = rating == "none"
+            normalized_items.append(
+                {
+                    "videoId": video_id,
+                    "rating": rating,
+                    "isRated": not is_unrated,
+                    "isUnrated": is_unrated,
+                }
+            )
+
+    parsed["requestedId"] = requested_id
+    parsed["authPath"] = "oauth_required"
+    parsed["videoRatings"] = normalized_items
+    parsed["ratingStateSummary"] = _videos_get_rating_summary(normalized_items)
+    return parsed
+
+
 def _update_payload_with_request_fallbacks(
     execution: RequestExecution,
     payload: str,
@@ -1103,6 +1157,49 @@ def _update_payload_with_request_fallbacks(
     parsed["id"] = parsed.get("id") or (body.get("id") if isinstance(body, dict) else None)
     parsed["title"] = parsed.get("title") or parsed_snippet.get("title") or snippet.get("title")
     return parsed
+
+
+def _split_comma_delimited_ids(raw_value: str) -> tuple[str, ...]:
+    """Return normalized comma-delimited identifiers from one scalar value.
+
+    :param raw_value: Raw comma-delimited identifier string.
+    :return: Ordered identifier values with blanks removed.
+    """
+    return tuple(part.strip() for part in raw_value.split(",") if part.strip())
+
+
+def _normalized_video_rating_state(raw_value: object) -> str:
+    """Return the stable rating-state label for one upstream lookup entry.
+
+    :param raw_value: Upstream rating value for one video.
+    :return: Stable internal rating-state label.
+    """
+    normalized = _stringify_scalar(raw_value).strip().lower()
+    if normalized in {"like", "liked"}:
+        return "liked"
+    if normalized in {"dislike", "disliked"}:
+        return "disliked"
+    if normalized in {"none", "unrated", ""}:
+        return "none"
+    return normalized
+
+
+def _videos_get_rating_summary(video_ratings: Sequence[Mapping[str, object]]) -> str:
+    """Return a stable summary label for normalized rating-state outcomes.
+
+    :param video_ratings: Normalized per-video rating entries.
+    :return: Stable summary label for downstream review surfaces.
+    """
+    if not video_ratings:
+        return "empty"
+
+    rated_count = sum(1 for entry in video_ratings if bool(entry.get("isRated")))
+    unrated_count = sum(1 for entry in video_ratings if bool(entry.get("isUnrated")))
+    if rated_count and unrated_count:
+        return "mixed_rated_and_unrated"
+    if rated_count:
+        return "all_rated"
+    return "all_unrated"
 
 
 def _playlist_images_delete_payload(execution: RequestExecution) -> dict[str, Any]:
