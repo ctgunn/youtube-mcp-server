@@ -94,6 +94,8 @@ def build_youtube_data_api_transport(
             return _videos_rate_payload(execution, payload)
         if execution.metadata.operation_key == "videos.getRating":
             return _videos_get_rating_payload(execution, payload)
+        if execution.metadata.operation_key == "videos.reportAbuse":
+            return _videos_report_abuse_payload(execution, payload)
         if execution.metadata.operation_key == "videos.update":
             return _videos_update_payload(execution, payload)
         if execution.metadata.operation_key == "playlists.update":
@@ -476,6 +478,7 @@ def _normalized_category_for_execution(
             "videos.list",
             "videos.insert",
             "videos.getRating",
+            "videos.reportAbuse",
             "videos.rate",
             "videos.update",
             "members.list",
@@ -640,6 +643,18 @@ def _normalized_category_for_execution(
                 return "not_found"
             if status_code in {500, 502, 503, 504} or "tempor" in combined or "unavailable" in combined:
                 return "upstream_unavailable"
+            return None
+        if execution.metadata.operation_key == "videos.reportAbuse":
+            if "rate" in combined and ("limit" in combined or "exceeded" in combined or "quota" in combined):
+                return "rate_limited"
+            if status_code == 404 and ("video" in combined or "target" in combined):
+                return "not_found"
+            if status_code in {500, 502, 503, 504} or "tempor" in combined or "unavailable" in combined:
+                return "upstream_unavailable"
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 403 or "forbidden" in combined or "permission" in combined:
+                return "auth"
             return None
         if execution.metadata.operation_key == "search.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
@@ -1133,6 +1148,42 @@ def _videos_get_rating_payload(
     parsed["authPath"] = "oauth_required"
     parsed["videoRatings"] = normalized_items
     parsed["ratingStateSummary"] = _videos_get_rating_summary(normalized_items)
+    return parsed
+
+
+def _videos_report_abuse_payload(
+    execution: RequestExecution,
+    payload: str,
+) -> dict[str, Any]:
+    """Return the internal result shape for a `videos.reportAbuse` response.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw payload returned by the upstream response, if any.
+    :return: Lightweight report acknowledgement with stable metadata fields.
+    :raises ValueError: If a non-empty upstream response is not a JSON object.
+    """
+    parsed: dict[str, Any] = {}
+    if payload.strip():
+        loaded = json.loads(payload)
+        if not isinstance(loaded, dict):
+            raise ValueError("YouTube Data API responses must decode to an object")
+        parsed = loaded
+
+    body = execution.arguments.get("body")
+    report_body = body if isinstance(body, dict) else {}
+    parsed["isAccepted"] = parsed.get("isAccepted", True)
+    parsed["reportedVideoId"] = parsed.get("reportedVideoId") or _stringify_scalar(report_body.get("videoId"))
+    parsed["reasonId"] = parsed.get("reasonId") or _stringify_scalar(report_body.get("reasonId"))
+    if report_body.get("secondaryReasonId") is not None:
+        parsed["secondaryReasonId"] = parsed.get("secondaryReasonId") or _stringify_scalar(
+            report_body.get("secondaryReasonId")
+        )
+    if report_body.get("language") is not None:
+        parsed["language"] = parsed.get("language") or _stringify_scalar(report_body.get("language"))
+    parsed["hasComments"] = parsed.get("hasComments") if "hasComments" in parsed else bool(report_body.get("comments"))
+    parsed["authPath"] = parsed.get("authPath") or "oauth_required"
+    parsed["sourceOperation"] = parsed.get("sourceOperation") or execution.metadata.operation_key
+    parsed["upstreamBodyState"] = parsed.get("upstreamBodyState") or ("json" if payload.strip() else "empty")
     return parsed
 
 

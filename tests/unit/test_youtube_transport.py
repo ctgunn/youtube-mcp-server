@@ -51,6 +51,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_videos_list_wrapper,
+    build_videos_report_abuse_wrapper,
     build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
     build_playlists_update_wrapper,
@@ -444,6 +445,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=wrappers_module.build_videos_get_rating_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _videos_report_abuse_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_videos_report_abuse_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -1913,6 +1926,180 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             transport(
                 self._videos_get_rating_execution(
                     arguments={"id": "video-123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-123"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "upstream_unavailable")
+
+    def test_builds_oauth_request_for_videos_report_abuse(self):
+        request = build_youtube_data_api_request(
+            self._videos_report_abuse_execution(
+                arguments={
+                    "body": {
+                        "videoId": "video-123",
+                        "reasonId": "spam",
+                        "secondaryReasonId": "scam",
+                        "comments": "Misleading external links",
+                        "language": "en",
+                    }
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(request.get_method(), "POST")
+        self.assertEqual(request.full_url, "https://www.googleapis.com/youtube/v3/videos/reportAbuse")
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertEqual(
+            json.loads(request.data.decode("utf-8")),
+            {
+                "videoId": "video-123",
+                "reasonId": "spam",
+                "secondaryReasonId": "scam",
+                "comments": "Misleading external links",
+                "language": "en",
+            },
+        )
+
+    def test_transport_normalizes_videos_report_abuse_no_content_acknowledgement(self):
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: _FakeHTTPResponse(""))
+
+        result = transport(
+            self._videos_report_abuse_execution(
+                arguments={"body": {"videoId": "video-123", "reasonId": "spam", "comments": "Do not echo me"}},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+        )
+
+        self.assertTrue(result["isAccepted"])
+        self.assertEqual(result["reportedVideoId"], "video-123")
+        self.assertEqual(result["reasonId"], "spam")
+        self.assertTrue(result["hasComments"])
+        self.assertEqual(result["authPath"], "oauth_required")
+        self.assertEqual(result["sourceOperation"], "videos.reportAbuse")
+        self.assertEqual(result["upstreamBodyState"], "empty")
+        self.assertNotIn("comments", result)
+
+    def test_transport_normalizes_videos_report_abuse_invalid_reason_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos/reportAbuse",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(
+                b'{"error":{"message":"The request contained an invalid abuse reason",'
+                b'"errors":[{"reason":"invalidAbuseReason"}]}}'
+            ),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "invalid abuse reason") as context:
+            transport(
+                self._videos_report_abuse_execution(
+                    arguments={"body": {"videoId": "video-123", "reasonId": "bad-reason"}},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-123"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_videos_report_abuse_rate_limit_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos/reportAbuse",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"rateLimitExceeded"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "rateLimitExceeded") as context:
+            transport(
+                self._videos_report_abuse_execution(
+                    arguments={"body": {"videoId": "video-123", "reasonId": "spam"}},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-123"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "rate_limited")
+
+    def test_transport_normalizes_videos_report_abuse_video_not_found_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos/reportAbuse",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"videoNotFound"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "videoNotFound") as context:
+            transport(
+                self._videos_report_abuse_execution(
+                    arguments={"body": {"videoId": "missing-video", "reasonId": "spam"}},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-123"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "not_found")
+
+    def test_transport_normalizes_videos_report_abuse_forbidden_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos/reportAbuse",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"forbidden"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "forbidden") as context:
+            transport(
+                self._videos_report_abuse_execution(
+                    arguments={"body": {"videoId": "video-123", "reasonId": "spam"}},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-123"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_transport_normalizes_videos_report_abuse_unavailable_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos/reportAbuse",
+            code=503,
+            msg="Service Unavailable",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"report abuse temporarily unavailable"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "temporarily unavailable") as context:
+            transport(
+                self._videos_report_abuse_execution(
+                    arguments={"body": {"videoId": "video-123", "reasonId": "spam"}},
                     auth_context=AuthContext(
                         mode=AuthMode.OAUTH_REQUIRED,
                         credentials=CredentialBundle(oauth_token="oauth-123"),

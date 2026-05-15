@@ -856,6 +856,40 @@ class RepresentativeHigherLayerConsumer:
             "sourceNotes": self.wrapper.metadata.notes,
         }
 
+    def report_video_abuse_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `videos.reportAbuse` result.
+
+        :param arguments: Wrapper arguments needed to report video abuse.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing submitted report context, acknowledgement
+            state, and source contract details without exposing credentials or
+            raw reporter comments.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        body = arguments.get("body")
+        report_body = body if isinstance(body, dict) else {}
+        return {
+            "isAccepted": bool(result.get("isAccepted")),
+            "reportedVideoId": result.get("reportedVideoId") or report_body.get("videoId"),
+            "reasonId": result.get("reasonId") or report_body.get("reasonId"),
+            "secondaryReasonId": result.get("secondaryReasonId") or report_body.get("secondaryReasonId"),
+            "hasComments": bool(result.get("hasComments")),
+            "language": result.get("language") or report_body.get("language"),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceRequiredFields": self.wrapper.metadata.request_shape.required_fields,
+            "sourceRequiredVideoIdField": "body.videoId",
+            "sourceRequiredReasonField": "body.reasonId",
+            "sourceOptionalBodyFields": ("secondaryReasonId", "comments", "language"),
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
+
     def update_playlist_item_summary(
         self,
         *,

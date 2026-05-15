@@ -34,6 +34,9 @@ _SEARCH_VIDEO_ONLY_FIELDS = frozenset(
     }
 )
 _VIDEOS_INSERT_UPLOAD_MODES = frozenset({"multipart", "resumable"})
+_VIDEOS_REPORT_ABUSE_BODY_FIELDS = frozenset(
+    {"videoId", "reasonId", "secondaryReasonId", "comments", "language"}
+)
 
 
 @dataclass(frozen=True)
@@ -762,6 +765,37 @@ class VideosGetRatingWrapper(RepresentativeEndpointWrapper):
         """
         if not auth_context.requires_oauth_access():
             raise ValueError("videos.getRating requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
+class VideosReportAbuseWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `videos.reportAbuse`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires an
+    OAuth-backed request with ``body.videoId`` and ``body.reasonId``, supports
+    ``body.secondaryReasonId``, ``body.comments``, and ``body.language`` as
+    bounded optional report details, and rejects partner-only delegated query
+    modifiers unless the contract is deliberately expanded.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `videos.reportAbuse` with OAuth-required validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured report acknowledgement payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("videos.reportAbuse requires oauth_required auth")
         return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 
@@ -2424,6 +2458,46 @@ def build_videos_get_rating_wrapper() -> RepresentativeEndpointWrapper:
     return VideosGetRatingWrapper(metadata=metadata)
 
 
+def build_videos_report_abuse_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `videos.reportAbuse`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one
+    OAuth-backed report body with ``videoId`` and ``reasonId``, supports
+    ``secondaryReasonId``, ``comments``, and ``language`` as bounded optional
+    body fields, rejects delegated ``onBehalfOfContentOwner`` query behavior
+    in this slice, and keeps no-content acknowledgement outcomes distinct from
+    invalid-request, access, rate-limit, not-found, and upstream failures.
+
+    :return: Representative wrapper configured for `videos.reportAbuse`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="videos",
+        operation_name="reportAbuse",
+        http_method="POST",
+        path_shape="/youtube/v3/videos/reportAbuse",
+        request_shape=EndpointRequestShape(
+            required_fields=("body",),
+            validators=(
+                _require_videos_report_abuse_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `body.videoId` for the target "
+            "video and `body.reasonId` for the primary abuse reason; "
+            "`body.secondaryReasonId`, `body.comments`, and `body.language` "
+            "are the only supported optional report details. "
+            "`onBehalfOfContentOwner` and undocumented fields remain outside "
+            "the guaranteed boundary. Preserve successful no-content report "
+            "acknowledgement outcomes as distinct from `invalid_request`, "
+            "access, invalid reason, `rate_limited`, `not_found`, and "
+            "`upstream_unavailable` failures."
+        ),
+    )
+    return VideosReportAbuseWrapper(metadata=metadata)
+
+
 def build_members_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `members.list`.
 
@@ -3635,6 +3709,21 @@ def _require_videos_get_rating_arguments(arguments: dict[str, object]) -> None:
     :raises ValueError: If the request arguments do not match supported lookup rules.
     """
     _validated_videos_get_rating_ids(arguments.get("id"))
+
+
+def _require_videos_report_abuse_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `videos.reportAbuse` request arguments.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the report body is missing required fields or uses
+        unsupported payload fields.
+    """
+    require_mapping_fields("body", required_keys=("videoId", "reasonId"))(arguments)
+    body = arguments.get("body")
+    assert isinstance(body, dict)  # Narrowed by validator above.
+    for field in body:
+        if field not in _VIDEOS_REPORT_ABUSE_BODY_FIELDS:
+            raise ValueError(f"body.{field} is unsupported")
 
 
 def _require_playlist_items_update_body(arguments: dict[str, object]) -> None:

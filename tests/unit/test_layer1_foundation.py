@@ -47,6 +47,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
     build_videos_list_wrapper,
+    build_videos_report_abuse_wrapper,
     build_videos_rate_wrapper,
     build_video_categories_list_wrapper,
     build_playlists_update_wrapper,
@@ -3940,6 +3941,126 @@ class Layer1FoundationUnitTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"id": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_videos_report_abuse_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_videos_report_abuse_wrapper))
+
+    def test_videos_report_abuse_wrapper_exposes_expected_metadata(self):
+        wrapper = build_videos_report_abuse_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "videos.reportAbuse")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/videos/reportAbuse")
+        self.assertEqual(wrapper.metadata.http_method, "POST")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("body",))
+        self.assertIn("videoId", wrapper.metadata.notes)
+        self.assertIn("reasonId", wrapper.metadata.notes)
+        self.assertIn("secondaryReasonId", wrapper.metadata.notes)
+        self.assertIn("comments", wrapper.metadata.notes)
+        self.assertIn("language", wrapper.metadata.notes)
+        self.assertIn("onBehalfOfContentOwner", wrapper.metadata.notes)
+
+    def test_videos_report_abuse_wrapper_requires_body_field(self):
+        wrapper = build_videos_report_abuse_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: body"):
+            wrapper.metadata.request_shape.validate_arguments({})
+
+    def test_videos_report_abuse_wrapper_requires_mapping_body(self):
+        wrapper = build_videos_report_abuse_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body must be a non-empty mapping"):
+            wrapper.metadata.request_shape.validate_arguments({"body": "video-123"})
+
+    def test_videos_report_abuse_wrapper_requires_video_id_in_body(self):
+        wrapper = build_videos_report_abuse_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.videoId is required"):
+            wrapper.metadata.request_shape.validate_arguments({"body": {"reasonId": "spam"}})
+
+    def test_videos_report_abuse_wrapper_requires_reason_id_in_body(self):
+        wrapper = build_videos_report_abuse_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.reasonId is required"):
+            wrapper.metadata.request_shape.validate_arguments({"body": {"videoId": "video-123"}})
+
+    def test_videos_report_abuse_wrapper_allows_supported_optional_body_fields(self):
+        wrapper = build_videos_report_abuse_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {
+                "body": {
+                    "videoId": "video-123",
+                    "reasonId": "spam",
+                    "secondaryReasonId": "scam",
+                    "comments": "Misleading external links",
+                    "language": "en",
+                }
+            }
+        )
+
+    def test_videos_report_abuse_wrapper_rejects_unsupported_body_fields(self):
+        wrapper = build_videos_report_abuse_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.reporterEmail is unsupported"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"body": {"videoId": "video-123", "reasonId": "spam", "reporterEmail": "user@example.com"}}
+            )
+
+    def test_videos_report_abuse_wrapper_rejects_unsupported_top_level_fields(self):
+        wrapper = build_videos_report_abuse_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: onBehalfOfContentOwner"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "body": {"videoId": "video-123", "reasonId": "spam"},
+                    "onBehalfOfContentOwner": "owner-123",
+                }
+            )
+
+    def test_videos_report_abuse_wrapper_executes_authorized_report_requests(self):
+        wrapper = build_videos_report_abuse_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "isAccepted": True,
+                "reportedVideoId": execution.arguments["body"]["videoId"],
+                "reasonId": execution.arguments["body"]["reasonId"],
+                "authPath": "oauth_required",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"body": {"videoId": "video-123", "reasonId": "spam"}},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertTrue(result["isAccepted"])
+        self.assertEqual(result["reportedVideoId"], "video-123")
+        self.assertEqual(result["reasonId"], "spam")
+        self.assertEqual(result["authPath"], "oauth_required")
+
+    def test_videos_report_abuse_wrapper_requires_oauth_mode(self):
+        wrapper = build_videos_report_abuse_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"isAccepted": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "videos.reportAbuse requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"body": {"videoId": "video-123", "reasonId": "spam"}},
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),

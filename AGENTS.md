@@ -82,6 +82,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - N/A for feature-specific persistence; wrapper metadata, request validation state, rating execution state, and feature artifacts remain in-memory or file-based only (150-videos-rate)
 - N/A for feature-specific persistence; wrapper metadata, request validation state, and mutation acknowledgment state remain in-memory or file-based only (150-videos-rate)
 - N/A for feature-specific persistence; wrapper metadata, request validation state, rating lookup execution state, and feature artifacts remain in-memory or file-based only (151-videos-get-rating)
+- N/A for feature-specific persistence; wrapper metadata, request validation state, abuse-report execution state, and feature artifacts remain in-memory or file-based only (152-videos-report-abuse)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -102,9 +103,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 152-videos-report-abuse: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
 - 151-videos-get-rating: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
 - 151-videos-get-rating: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
-- 150-videos-rate: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
 
 
 <!-- MANUAL ADDITIONS START -->
