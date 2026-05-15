@@ -819,6 +819,43 @@ class RepresentativeHigherLayerConsumer:
             "sourceNotes": self.wrapper.metadata.notes,
         }
 
+    def get_video_rating_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `videos.getRating` result.
+
+        :param arguments: Wrapper arguments needed to look up video ratings.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing requested identifiers, returned states, and
+            source contract details for downstream review surfaces.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        video_ratings = result.get("videoRatings")
+        normalized_ratings = video_ratings if isinstance(video_ratings, list) else []
+        ratings_by_video_id: dict[str, str] = {}
+        for entry in normalized_ratings:
+            if not isinstance(entry, dict):
+                continue
+            video_id = entry.get("videoId")
+            rating = entry.get("rating")
+            if isinstance(video_id, str) and video_id.strip() and isinstance(rating, str):
+                ratings_by_video_id[video_id] = rating
+        return {
+            "requestedId": result.get("requestedId") or arguments.get("id"),
+            "resultCount": len(ratings_by_video_id),
+            "ratingStateSummary": result.get("ratingStateSummary"),
+            "ratingsByVideoId": ratings_by_video_id,
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceRequiredFields": self.wrapper.metadata.request_shape.required_fields,
+            "sourceRequiredIdentifierField": "id",
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
+
     def update_playlist_item_summary(
         self,
         *,

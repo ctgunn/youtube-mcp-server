@@ -436,6 +436,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             auth_context=auth_context,
         )
 
+    def _videos_get_rating_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=wrappers_module.build_videos_get_rating_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
     def _playlists_delete_execution(
         self,
         *,
@@ -1834,6 +1846,81 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_builds_oauth_request_for_videos_get_rating(self):
+        request = build_youtube_data_api_request(
+            self._videos_get_rating_execution(
+                arguments={"id": "video-123,video-456"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(request.get_method(), "GET")
+        self.assertEqual(
+            request.full_url,
+            "https://www.googleapis.com/youtube/v3/videos/getRating?id=video-123%2Cvideo-456",
+        )
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertIsNone(request.data)
+
+    def test_transport_normalizes_videos_get_rating_payloads_per_video(self):
+        transport = build_youtube_data_api_transport(
+            opener=lambda request, timeout: _FakeHTTPResponse(
+                {
+                    "items": [
+                        {"videoId": "video-123", "rating": "none"},
+                        {"videoId": "video-456", "rating": "like"},
+                    ]
+                }
+            )
+        )
+
+        result = transport(
+            self._videos_get_rating_execution(
+                arguments={"id": "video-123,video-456"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["requestedId"], "video-123,video-456")
+        self.assertEqual(result["authPath"], "oauth_required")
+        self.assertEqual(result["ratingStateSummary"], "mixed_rated_and_unrated")
+        self.assertEqual(
+            result["videoRatings"],
+            [
+                {"videoId": "video-123", "rating": "none", "isRated": False, "isUnrated": True},
+                {"videoId": "video-456", "rating": "liked", "isRated": True, "isUnrated": False},
+            ],
+        )
+
+    def test_transport_normalizes_videos_get_rating_lookup_unavailable_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos/getRating",
+            code=503,
+            msg="Service Unavailable",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"rating lookup temporarily unavailable"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "rating lookup temporarily unavailable") as context:
+            transport(
+                self._videos_get_rating_execution(
+                    arguments={"id": "video-123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-123"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "upstream_unavailable")
 
     def test_builds_oauth_request_for_videos_insert_upload(self):
         request = build_youtube_data_api_request(

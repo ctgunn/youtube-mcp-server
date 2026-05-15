@@ -521,6 +521,37 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("none", review_surface["notes"])
         self.assertIn("acknowledgement", review_surface["notes"])
 
+    def test_videos_get_rating_review_surface_exposes_quota_auth_and_lookup_notes(self):
+        review_surface = integrations_package.build_videos_get_rating_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videos")
+        self.assertEqual(review_surface["operationName"], "getRating")
+        self.assertEqual(review_surface["operationKey"], "videos.getRating")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id",))
+        self.assertEqual(review_surface["httpMethod"], "GET")
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos/getRating")
+        self.assertIn("liked", review_surface["notes"])
+        self.assertIn("disliked", review_surface["notes"])
+        self.assertIn("none", review_surface["notes"])
+        self.assertIn("lookup", review_surface["notes"])
+
+    def test_videos_get_rating_review_surface_keeps_identifier_boundary_and_unrated_guidance_visible(self):
+        review_surface = integrations_package.build_videos_get_rating_wrapper().review_surface()
+
+        self.assertEqual(review_surface["optionalFields"], ())
+        self.assertEqual(review_surface["lifecycleState"], "active")
+        self.assertIsNone(review_surface["caveatNote"])
+        self.assertIn("comma-delimited", review_surface["notes"])
+        self.assertIn("successful unrated", review_surface["notes"])
+
+    def test_videos_get_rating_review_surface_exposes_limit_and_lookup_failure_notes(self):
+        review_surface = integrations_package.build_videos_get_rating_wrapper().review_surface()
+
+        self.assertIn("maximum of 50", review_surface["notes"])
+        self.assertIn("upstream_unavailable", review_surface["notes"])
+
     def test_members_list_review_surface_exposes_identity_quota_and_owner_notes(self):
         review_surface = build_members_list_wrapper().review_surface()
 

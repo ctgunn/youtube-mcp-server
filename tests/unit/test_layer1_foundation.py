@@ -3876,6 +3876,76 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 ),
             )
 
+    def test_videos_get_rating_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_videos_get_rating_wrapper))
+
+    def test_videos_get_rating_wrapper_exposes_expected_metadata(self):
+        wrapper = wrappers_module.build_videos_get_rating_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "videos.getRating")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/videos/getRating")
+        self.assertEqual(wrapper.metadata.quota_cost, 1)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("id",))
+        self.assertIn("liked", wrapper.metadata.notes)
+        self.assertIn("disliked", wrapper.metadata.notes)
+        self.assertIn("none", wrapper.metadata.notes)
+
+    def test_videos_get_rating_wrapper_requires_id_field(self):
+        wrapper = wrappers_module.build_videos_get_rating_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: id"):
+            wrapper.metadata.request_shape.validate_arguments({})
+
+    def test_videos_get_rating_wrapper_accepts_one_or_more_video_identifiers(self):
+        wrapper = wrappers_module.build_videos_get_rating_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments({"id": "video-123,video-456"})
+
+    def test_videos_get_rating_wrapper_rejects_unsupported_identifier_forms(self):
+        wrapper = wrappers_module.build_videos_get_rating_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "id must identify one or more videos"):
+            wrapper.metadata.request_shape.validate_arguments({"id": ["video-123", "video-456"]})
+
+    def test_videos_get_rating_wrapper_rejects_duplicate_identifier_values(self):
+        wrapper = wrappers_module.build_videos_get_rating_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "duplicate video identifiers are unsupported"):
+            wrapper.metadata.request_shape.validate_arguments({"id": "video-123,video-123"})
+
+    def test_videos_get_rating_wrapper_rejects_more_than_fifty_identifiers(self):
+        wrapper = wrappers_module.build_videos_get_rating_wrapper()
+        over_limit_identifiers = ",".join(f"video-{index:03d}" for index in range(51))
+
+        with self.assertRaisesRegex(ValueError, "id may include at most 50 video identifiers"):
+            wrapper.metadata.request_shape.validate_arguments({"id": over_limit_identifiers})
+
+    def test_videos_get_rating_wrapper_rejects_unsupported_request_modifiers(self):
+        wrapper = wrappers_module.build_videos_get_rating_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: onBehalfOfContentOwner"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"id": "video-123", "onBehalfOfContentOwner": "owner-123"}
+            )
+
+    def test_videos_get_rating_wrapper_requires_oauth_mode(self):
+        wrapper = wrappers_module.build_videos_get_rating_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"videoRatings": []},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "videos.getRating requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments={"id": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
     def test_playlists_delete_wrapper_exposes_expected_metadata(self):
         wrapper = build_playlists_delete_wrapper()
 

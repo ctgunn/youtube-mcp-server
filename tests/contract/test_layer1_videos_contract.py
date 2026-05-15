@@ -179,3 +179,77 @@ class Layer1VideosContractTests(unittest.TestCase):
         self.assertIn("dislike", review_surface["notes"])
         self.assertIn("none", review_surface["notes"])
         self.assertIn("invalid-request", review_surface["notes"])
+
+    def test_videos_get_rating_contract_artifacts_define_lookup_and_auth_guidance(self):
+        root = os.path.abspath("specs/151-videos-get-rating/contracts")
+        with open(
+            os.path.join(root, "layer1-videos-get-rating-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-videos-get-rating-auth-rating-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_rating_contract = handle.read()
+
+        self.assertIn("quota cost of `1`", wrapper_contract)
+        self.assertIn("successful unrated results remain successful outcomes", wrapper_contract)
+        self.assertIn("OAuth-backed access", auth_rating_contract)
+        self.assertIn("successful positive-rating state", auth_rating_contract)
+        self.assertIn("successful unrated lookup outcomes", auth_rating_contract)
+
+    def test_videos_get_rating_wrapper_review_surface_exposes_lookup_identity_and_quota(self):
+        review_surface = wrappers_module.build_videos_get_rating_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videos")
+        self.assertEqual(review_surface["operationName"], "getRating")
+        self.assertEqual(review_surface["operationKey"], "videos.getRating")
+        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id",))
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos/getRating")
+        self.assertIn("liked", review_surface["notes"])
+        self.assertIn("disliked", review_surface["notes"])
+        self.assertIn("none", review_surface["notes"])
+        self.assertIn("maximum of 50", review_surface["notes"])
+
+    def test_videos_get_rating_contract_artifacts_define_multi_id_and_state_reviewability(self):
+        root = os.path.abspath("specs/151-videos-get-rating/contracts")
+        with open(
+            os.path.join(root, "layer1-videos-get-rating-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-videos-get-rating-auth-rating-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_rating_contract = handle.read()
+
+        self.assertIn("one or more comma-delimited video identifiers", wrapper_contract)
+        self.assertIn("successful unrated results remain successful outcomes", wrapper_contract)
+        self.assertIn("`liked`, `disliked`, and `none`", auth_rating_contract)
+        self.assertIn("under 1 minute", auth_rating_contract)
+
+    def test_videos_get_rating_contract_artifacts_define_failure_boundary_guidance(self):
+        root = os.path.abspath("specs/151-videos-get-rating/contracts")
+        with open(
+            os.path.join(root, "layer1-videos-get-rating-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-videos-get-rating-auth-rating-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_rating_contract = handle.read()
+
+        self.assertIn("at most 50 video identifiers", wrapper_contract)
+        self.assertIn("upstream_unavailable", auth_rating_contract)
