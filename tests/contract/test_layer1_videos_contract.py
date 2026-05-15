@@ -253,3 +253,61 @@ class Layer1VideosContractTests(unittest.TestCase):
 
         self.assertIn("at most 50 video identifiers", wrapper_contract)
         self.assertIn("upstream_unavailable", auth_rating_contract)
+
+    def test_videos_report_abuse_contract_artifacts_define_payload_and_auth_guidance(self):
+        root = os.path.abspath("specs/152-videos-report-abuse/contracts")
+        with open(
+            os.path.join(root, "layer1-videos-report-abuse-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-videos-report-abuse-auth-payload-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_payload_contract = handle.read()
+
+        self.assertIn("quota cost of `50`", wrapper_contract)
+        self.assertIn("`body.videoId`", wrapper_contract)
+        self.assertIn("`body.reasonId`", wrapper_contract)
+        self.assertIn("OAuth-backed access", auth_payload_contract)
+        self.assertIn("`body.secondaryReasonId`", auth_payload_contract)
+        self.assertIn("`body.comments`", auth_payload_contract)
+        self.assertIn("`body.language`", auth_payload_contract)
+
+    def test_videos_report_abuse_wrapper_review_surface_exposes_identity_quota_and_payload_requirements(self):
+        review_surface = wrappers_module.build_videos_report_abuse_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videos")
+        self.assertEqual(review_surface["operationName"], "reportAbuse")
+        self.assertEqual(review_surface["operationKey"], "videos.reportAbuse")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("body",))
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos/reportAbuse")
+        self.assertIn("videoId", review_surface["notes"])
+        self.assertIn("reasonId", review_surface["notes"])
+        self.assertIn("secondaryReasonId", review_surface["notes"])
+        self.assertIn("comments", review_surface["notes"])
+        self.assertIn("language", review_surface["notes"])
+        self.assertIn("onBehalfOfContentOwner", review_surface["notes"])
+
+    def test_videos_report_abuse_contract_artifacts_define_failure_boundary_guidance(self):
+        with open(
+            os.path.join(
+                os.path.abspath("specs/152-videos-report-abuse/contracts"),
+                "layer1-videos-report-abuse-auth-payload-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_payload_contract = handle.read()
+
+        self.assertIn("invalid_request", auth_payload_contract)
+        self.assertIn("access-related failures", auth_payload_contract)
+        self.assertIn("invalid abuse-reason failures", auth_payload_contract)
+        self.assertIn("rate-limit failures", auth_payload_contract)
+        self.assertIn("video-not-found failures", auth_payload_contract)
+        self.assertIn("successful report acknowledgement outcomes", auth_payload_contract)
