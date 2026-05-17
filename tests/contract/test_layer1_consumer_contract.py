@@ -1476,6 +1476,66 @@ class Layer1ConsumerContractTests(unittest.TestCase):
 
         self.assertEqual(context.exception.category, "upstream_unavailable")
 
+    def test_consumer_can_summarize_video_deletes_for_higher_layers(self):
+        wrapper = wrappers_module.build_videos_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "isDeleted": True,
+                "videoId": execution.arguments["id"],
+                "sourceOperation": execution.metadata.operation_key,
+                "authPath": "oauth_required",
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.delete_video_summary(
+            arguments={"id": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["sourceOperation"], "videos.delete")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertEqual(result["sourceRequiredFields"], ("id",))
+        self.assertEqual(result["sourceRequiredIdentifierField"], "id")
+        self.assertEqual(result["sourceBodyBehavior"], "no_request_body")
+        self.assertNotIn("oauthToken", result)
+        self.assertNotIn("targetOwnerIdentity", result)
+        self.assertIn("onBehalfOfContentOwner", result["sourceNotes"])
+
+    def test_consumer_preserves_video_delete_failure_boundaries(self):
+        wrapper = wrappers_module.build_videos_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("video delete temporarily unavailable"),
+                    category="upstream_unavailable",
+                    status_code=503,
+                    details={"reason": "backendError"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "video delete temporarily unavailable") as context:
+            consumer.delete_video_summary(
+                arguments={"id": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "upstream_unavailable")
+
     def test_consumer_can_summarize_caption_updates_for_higher_layers(self):
         wrapper = build_captions_update_wrapper()
         executor = IntegrationExecutor(
