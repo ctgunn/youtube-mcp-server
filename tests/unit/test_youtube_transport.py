@@ -50,6 +50,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_videos_delete_wrapper,
     build_videos_list_wrapper,
     build_videos_report_abuse_wrapper,
     build_video_categories_list_wrapper,
@@ -457,6 +458,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_videos_report_abuse_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _videos_delete_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_videos_delete_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )

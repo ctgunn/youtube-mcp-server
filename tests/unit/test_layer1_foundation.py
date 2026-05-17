@@ -46,6 +46,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_videos_delete_wrapper,
     build_videos_list_wrapper,
     build_videos_report_abuse_wrapper,
     build_videos_rate_wrapper,
@@ -73,6 +74,13 @@ class _FakeHTTPResponse:
 
     def __exit__(self, exc_type, exc, tb):
         return False
+
+
+VIDEOS_DELETE_VALID_ARGUMENTS = {"id": "video-123"}
+VIDEOS_DELETE_BLANK_ID_ARGUMENTS = {"id": "   "}
+VIDEOS_DELETE_BODY_ARGUMENTS = {"id": "video-123", "body": {"id": "video-123"}}
+VIDEOS_DELETE_UNSUPPORTED_FIELD_ARGUMENTS = {"id": "video-123", "notifySubscribers": True}
+VIDEOS_DELETE_DELEGATED_ARGUMENTS = {"id": "video-123", "onBehalfOfContentOwner": "owner-123"}
 
 
 class Layer1FoundationUnitTests(unittest.TestCase):
@@ -4061,6 +4069,102 @@ class Layer1FoundationUnitTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments={"body": {"videoId": "video-123", "reasonId": "spam"}},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_videos_delete_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_videos_delete_wrapper))
+
+    def test_videos_delete_wrapper_exposes_expected_metadata(self):
+        wrapper = build_videos_delete_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "videos.delete")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/videos")
+        self.assertEqual(wrapper.metadata.http_method, "DELETE")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("id",))
+        self.assertEqual(wrapper.metadata.request_shape.optional_fields, ())
+        self.assertIn("no request body", wrapper.metadata.notes)
+        self.assertIn("acknowledgement", wrapper.metadata.notes)
+        self.assertIn("onBehalfOfContentOwner", wrapper.metadata.notes)
+
+    def test_videos_delete_wrapper_requires_id_field(self):
+        wrapper = build_videos_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: id"):
+            wrapper.metadata.request_shape.validate_arguments({})
+
+    def test_videos_delete_wrapper_rejects_blank_id_field(self):
+        wrapper = build_videos_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: id"):
+            wrapper.metadata.request_shape.validate_arguments(VIDEOS_DELETE_BLANK_ID_ARGUMENTS)
+
+    def test_videos_delete_wrapper_rejects_non_string_id_field(self):
+        wrapper = build_videos_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "id must identify one video"):
+            wrapper.metadata.request_shape.validate_arguments({"id": ["video-123"]})
+
+    def test_videos_delete_wrapper_rejects_request_body(self):
+        wrapper = build_videos_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: body"):
+            wrapper.metadata.request_shape.validate_arguments(VIDEOS_DELETE_BODY_ARGUMENTS)
+
+    def test_videos_delete_wrapper_rejects_unsupported_top_level_fields(self):
+        wrapper = build_videos_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: notifySubscribers"):
+            wrapper.metadata.request_shape.validate_arguments(VIDEOS_DELETE_UNSUPPORTED_FIELD_ARGUMENTS)
+
+    def test_videos_delete_wrapper_rejects_unsupported_partner_delegation(self):
+        wrapper = build_videos_delete_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: onBehalfOfContentOwner"):
+            wrapper.metadata.request_shape.validate_arguments(VIDEOS_DELETE_DELEGATED_ARGUMENTS)
+
+    def test_videos_delete_wrapper_executes_authorized_delete_requests(self):
+        wrapper = build_videos_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "videoId": execution.arguments["id"],
+                "isDeleted": True,
+                "sourceOperation": execution.metadata.operation_key,
+                "authPath": "oauth_required",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments=VIDEOS_DELETE_VALID_ARGUMENTS,
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["sourceOperation"], "videos.delete")
+        self.assertEqual(result["authPath"], "oauth_required")
+
+    def test_videos_delete_wrapper_requires_oauth_mode(self):
+        wrapper = build_videos_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"isDeleted": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "videos.delete requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments=VIDEOS_DELETE_VALID_ARGUMENTS,
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),
