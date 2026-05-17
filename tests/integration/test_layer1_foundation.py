@@ -49,6 +49,7 @@ from mcp_server.integrations.wrappers import (
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_videos_delete_wrapper,
     build_videos_list_wrapper,
     build_videos_report_abuse_wrapper,
     build_videos_rate_wrapper,
@@ -4384,6 +4385,101 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_videos_delete_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_videos_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "isDeleted": True,
+                "videoId": execution.arguments["id"],
+                "authPath": "oauth_required",
+                "sourceOperation": execution.metadata.operation_key,
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"id": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["authPath"], "oauth_required")
+        self.assertEqual(result["sourceOperation"], "videos.delete")
+
+    def test_videos_delete_wrapper_rejects_local_validation_failures_before_executor(self):
+        wrapper = build_videos_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"isDeleted": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "missing required field: id"):
+            wrapper.call(
+                executor,
+                arguments={"id": ""},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_videos_delete_wrapper_preserves_access_failures_from_shared_executor(self):
+        wrapper = build_videos_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("Video delete access denied"),
+                    category="auth",
+                    status_code=401,
+                    details={"reason": "unauthorized"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "Video delete access denied") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "auth")
+
+    def test_videos_delete_wrapper_preserves_upstream_refusal_and_not_found_failures(self):
+        wrapper = build_videos_delete_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("videoNotFound"),
+                    category="not_found",
+                    status_code=404,
+                    details={"reason": "videoNotFound"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "videoNotFound") as context:
+            wrapper.call(
+                executor,
+                arguments={"id": "missing-video"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "not_found")
 
     def test_playlists_update_wrapper_preserves_invalid_request_failures_from_shared_executor(self):
         wrapper = build_playlists_update_wrapper()

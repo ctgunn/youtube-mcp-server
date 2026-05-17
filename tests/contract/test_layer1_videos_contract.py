@@ -311,3 +311,59 @@ class Layer1VideosContractTests(unittest.TestCase):
         self.assertIn("rate-limit failures", auth_payload_contract)
         self.assertIn("video-not-found failures", auth_payload_contract)
         self.assertIn("successful report acknowledgement outcomes", auth_payload_contract)
+
+    def test_videos_delete_contract_artifacts_define_delete_and_auth_guidance(self):
+        root = os.path.abspath("specs/153-videos-delete/contracts")
+        with open(
+            os.path.join(root, "layer1-videos-delete-wrapper-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            wrapper_contract = handle.read()
+        with open(
+            os.path.join(root, "layer1-videos-delete-auth-delete-contract.md"),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_delete_contract = handle.read()
+
+        self.assertIn("quota cost of `50`", wrapper_contract)
+        self.assertIn("`id` identifies the target video", wrapper_contract)
+        self.assertIn("does not accept a request body", wrapper_contract)
+        self.assertIn("OAuth-backed access", auth_delete_contract)
+        self.assertIn("successful deletion acknowledgement outcomes", auth_delete_contract)
+        self.assertIn("onBehalfOfContentOwner", auth_delete_contract)
+
+    def test_videos_delete_wrapper_review_surface_exposes_identity_quota_and_delete_requirements(self):
+        review_surface = wrappers_module.build_videos_delete_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "videos")
+        self.assertEqual(review_surface["operationName"], "delete")
+        self.assertEqual(review_surface["operationKey"], "videos.delete")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("id",))
+        self.assertEqual(review_surface["optionalFields"], ())
+        self.assertEqual(review_surface["httpMethod"], "DELETE")
+        self.assertEqual(review_surface["pathShape"], "/youtube/v3/videos")
+        self.assertIn("no request body", review_surface["notes"])
+        self.assertIn("acknowledgement", review_surface["notes"])
+        self.assertIn("onBehalfOfContentOwner", review_surface["notes"])
+
+    def test_videos_delete_contract_artifacts_define_failure_boundary_guidance(self):
+        with open(
+            os.path.join(
+                os.path.abspath("specs/153-videos-delete/contracts"),
+                "layer1-videos-delete-auth-delete-contract.md",
+            ),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            auth_delete_contract = handle.read()
+
+        self.assertIn("invalid_request", auth_delete_contract)
+        self.assertIn("access-related failures", auth_delete_contract)
+        self.assertIn("forbidden delete failures", auth_delete_contract)
+        self.assertIn("video-not-found failures", auth_delete_contract)
+        self.assertIn("upstream unavailability failures", auth_delete_contract)
+        self.assertIn("successful deletion acknowledgement outcomes", auth_delete_contract)

@@ -2122,6 +2122,114 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertEqual(context.exception.category, "upstream_unavailable")
 
+    def test_builds_oauth_request_for_videos_delete(self):
+        request = build_youtube_data_api_request(
+            self._videos_delete_execution(
+                arguments={"id": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(request.get_method(), "DELETE")
+        self.assertEqual(
+            request.full_url,
+            "https://www.googleapis.com/youtube/v3/videos?id=video-123",
+        )
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertIsNone(request.data)
+        self.assertNotIn("Content-type", request.headers)
+
+    def test_transport_normalizes_videos_delete_no_content_acknowledgement(self):
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: _FakeHTTPResponse(""))
+
+        result = transport(
+            self._videos_delete_execution(
+                arguments={"id": "video-123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+        )
+
+        self.assertTrue(result["isDeleted"])
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["authPath"], "oauth_required")
+        self.assertEqual(result["sourceOperation"], "videos.delete")
+        self.assertEqual(result["upstreamBodyState"], "empty")
+
+    def test_transport_normalizes_videos_delete_forbidden_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"forbidden delete request"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "forbidden delete request") as context:
+            transport(
+                self._videos_delete_execution(
+                    arguments={"id": "video-123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-123"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "forbidden")
+
+    def test_transport_normalizes_videos_delete_video_not_found_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"videoNotFound"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "videoNotFound") as context:
+            transport(
+                self._videos_delete_execution(
+                    arguments={"id": "missing-video"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-123"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "not_found")
+
+    def test_transport_normalizes_videos_delete_unavailable_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/videos",
+            code=503,
+            msg="Service Unavailable",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"video delete temporarily unavailable"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "temporarily unavailable") as context:
+            transport(
+                self._videos_delete_execution(
+                    arguments={"id": "video-123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-123"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "upstream_unavailable")
+
     def test_builds_oauth_request_for_videos_insert_upload(self):
         request = build_youtube_data_api_request(
             self._videos_insert_execution(

@@ -890,6 +890,33 @@ class RepresentativeHigherLayerConsumer:
             "sourceNotes": self.wrapper.metadata.notes,
         }
 
+    def delete_video_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `videos.delete` result.
+
+        :param arguments: Wrapper arguments needed to delete one video.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Summary showing deleted video identity, acknowledgement
+            state, and source contract details without exposing credentials or
+            target-owner identity.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        return {
+            "isDeleted": bool(result.get("isDeleted")),
+            "videoId": result.get("videoId") or arguments.get("id"),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceRequiredFields": self.wrapper.metadata.request_shape.required_fields,
+            "sourceRequiredIdentifierField": "id",
+            "sourceBodyBehavior": "no_request_body",
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
+
     def update_playlist_item_summary(
         self,
         *,

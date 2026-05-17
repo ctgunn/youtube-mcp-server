@@ -800,6 +800,37 @@ class VideosReportAbuseWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class VideosDeleteWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `videos.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one target
+    video ``id`` on an OAuth-backed request, sends no request body, rejects
+    delegated ``onBehalfOfContentOwner`` query behavior unless the contract is
+    deliberately expanded, and keeps destructive acknowledgement semantics
+    visible for maintainers.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `videos.delete` with OAuth-required validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured deletion acknowledgement payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("videos.delete requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class MembersListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `members.list`.
 
@@ -2498,6 +2529,43 @@ def build_videos_report_abuse_wrapper() -> RepresentativeEndpointWrapper:
     return VideosReportAbuseWrapper(metadata=metadata)
 
 
+def build_videos_delete_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `videos.delete`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one target
+    video ``id`` on authorized requests, sends no request body, rejects
+    delegated ``onBehalfOfContentOwner`` query behavior in this slice, and
+    keeps no-content deletion acknowledgement outcomes distinct from
+    invalid-request, access, forbidden, not-found, and upstream failures.
+
+    :return: Representative wrapper configured for `videos.delete`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="videos",
+        operation_name="delete",
+        http_method="DELETE",
+        path_shape="/youtube/v3/videos",
+        request_shape=EndpointRequestShape(
+            required_fields=("id",),
+            validators=(
+                _require_videos_delete_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `id` for the target video "
+            "identifier and send no request body for this destructive delete "
+            "operation. `onBehalfOfContentOwner`, request bodies, bulk delete "
+            "shapes, and undocumented fields remain outside the guaranteed "
+            "boundary. Preserve successful no-content deletion acknowledgement "
+            "outcomes as distinct from `invalid_request`, access, `forbidden`, "
+            "`not_found`, and `upstream_unavailable` failures."
+        ),
+    )
+    return VideosDeleteWrapper(metadata=metadata)
+
+
 def build_members_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `members.list`.
 
@@ -3724,6 +3792,18 @@ def _require_videos_report_abuse_arguments(arguments: dict[str, object]) -> None
     for field in body:
         if field not in _VIDEOS_REPORT_ABUSE_BODY_FIELDS:
             raise ValueError(f"body.{field} is unsupported")
+
+
+def _require_videos_delete_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `videos.delete` request arguments.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If the target identifier is malformed or unsupported
+        delete modifiers are supplied.
+    """
+    raw_video_id = arguments.get("id")
+    if not isinstance(raw_video_id, str) or not raw_video_id.strip():
+        raise ValueError("id must identify one video")
 
 
 def _require_playlist_items_update_body(arguments: dict[str, object]) -> None:

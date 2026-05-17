@@ -96,6 +96,8 @@ def build_youtube_data_api_transport(
             return _videos_get_rating_payload(execution, payload)
         if execution.metadata.operation_key == "videos.reportAbuse":
             return _videos_report_abuse_payload(execution, payload)
+        if execution.metadata.operation_key == "videos.delete":
+            return _videos_delete_payload(execution)
         if execution.metadata.operation_key == "videos.update":
             return _videos_update_payload(execution, payload)
         if execution.metadata.operation_key == "playlists.update":
@@ -479,6 +481,7 @@ def _normalized_category_for_execution(
             "videos.insert",
             "videos.getRating",
             "videos.reportAbuse",
+            "videos.delete",
             "videos.rate",
             "videos.update",
             "members.list",
@@ -655,6 +658,16 @@ def _normalized_category_for_execution(
                 return "invalid_request"
             if status_code == 403 or "forbidden" in combined or "permission" in combined:
                 return "auth"
+            return None
+        if execution.metadata.operation_key == "videos.delete":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined:
+                return "invalid_request"
+            if status_code == 404 and ("video" in combined or "target" in combined):
+                return "not_found"
+            if status_code in {500, 502, 503, 504} or "tempor" in combined or "unavailable" in combined:
+                return "upstream_unavailable"
+            if status_code == 403 or "forbidden" in combined or "permission" in combined:
+                return "forbidden"
             return None
         if execution.metadata.operation_key == "search.list":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
@@ -1185,6 +1198,21 @@ def _videos_report_abuse_payload(
     parsed["sourceOperation"] = parsed.get("sourceOperation") or execution.metadata.operation_key
     parsed["upstreamBodyState"] = parsed.get("upstreamBodyState") or ("json" if payload.strip() else "empty")
     return parsed
+
+
+def _videos_delete_payload(execution: RequestExecution) -> dict[str, Any]:
+    """Return the internal result shape for a `videos.delete` response.
+
+    :param execution: Shared request execution details.
+    :return: Lightweight deletion acknowledgement with stable metadata fields.
+    """
+    return {
+        "videoId": _stringify_scalar(execution.arguments.get("id")),
+        "isDeleted": True,
+        "authPath": "oauth_required",
+        "sourceOperation": execution.metadata.operation_key,
+        "upstreamBodyState": "empty",
+    }
 
 
 def _update_payload_with_request_fallbacks(
