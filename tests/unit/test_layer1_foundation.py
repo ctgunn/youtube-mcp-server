@@ -51,6 +51,7 @@ from mcp_server.integrations.wrappers import (
     build_videos_report_abuse_wrapper,
     build_videos_rate_wrapper,
     build_video_categories_list_wrapper,
+    build_watermarks_set_wrapper,
     build_playlists_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -81,6 +82,37 @@ VIDEOS_DELETE_BLANK_ID_ARGUMENTS = {"id": "   "}
 VIDEOS_DELETE_BODY_ARGUMENTS = {"id": "video-123", "body": {"id": "video-123"}}
 VIDEOS_DELETE_UNSUPPORTED_FIELD_ARGUMENTS = {"id": "video-123", "notifySubscribers": True}
 VIDEOS_DELETE_DELEGATED_ARGUMENTS = {"id": "video-123", "onBehalfOfContentOwner": "owner-123"}
+WATERMARKS_SET_VALID_ARGUMENTS = {
+    "channelId": "UC123",
+    "body": {"timing": {"type": "offsetFromStart", "offsetMs": 0}, "position": {"type": "corner"}},
+    "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+}
+WATERMARKS_SET_MISSING_CHANNEL_ARGUMENTS = {
+    "body": WATERMARKS_SET_VALID_ARGUMENTS["body"],
+    "media": WATERMARKS_SET_VALID_ARGUMENTS["media"],
+}
+WATERMARKS_SET_MISSING_BODY_ARGUMENTS = {
+    "channelId": "UC123",
+    "media": WATERMARKS_SET_VALID_ARGUMENTS["media"],
+}
+WATERMARKS_SET_MISSING_MEDIA_ARGUMENTS = {
+    "channelId": "UC123",
+    "body": WATERMARKS_SET_VALID_ARGUMENTS["body"],
+}
+WATERMARKS_SET_UNSUPPORTED_MEDIA_ARGUMENTS = {
+    "channelId": "UC123",
+    "body": WATERMARKS_SET_VALID_ARGUMENTS["body"],
+    "media": {"mimeType": "image/gif", "content": b"watermark-bytes"},
+}
+WATERMARKS_SET_OVERSIZED_MEDIA_ARGUMENTS = {
+    "channelId": "UC123",
+    "body": WATERMARKS_SET_VALID_ARGUMENTS["body"],
+    "media": {"mimeType": "image/png", "content": b"x" * (10 * 1024 * 1024 + 1)},
+}
+WATERMARKS_SET_DELEGATED_ARGUMENTS = {
+    **WATERMARKS_SET_VALID_ARGUMENTS,
+    "onBehalfOfContentOwner": "owner-123",
+}
 
 
 class Layer1FoundationUnitTests(unittest.TestCase):
@@ -4427,6 +4459,142 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                     "videoId": "video-123",
                     "media": {"mimeType": "image/png", "content": b"thumbnail-bytes"},
                 },
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_watermarks_set_wrapper_exposes_expected_metadata(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "watermarks.set")
+        self.assertEqual(wrapper.metadata.path_shape, "/upload/youtube/v3/watermarks/set")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("channelId", "body", "media"))
+        self.assertEqual(wrapper.metadata.request_shape.optional_fields, ())
+        self.assertIn("channelId", wrapper.metadata.notes)
+        self.assertIn("media", wrapper.metadata.notes)
+
+    def test_watermarks_set_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_watermarks_set_wrapper))
+
+    def test_watermarks_set_wrapper_requires_channel_id_field(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: channelId"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_SET_MISSING_CHANNEL_ARGUMENTS)
+
+    def test_watermarks_set_wrapper_requires_body_field(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: body"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_SET_MISSING_BODY_ARGUMENTS)
+
+    def test_watermarks_set_wrapper_requires_media_field(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: media"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_SET_MISSING_MEDIA_ARGUMENTS)
+
+    def test_watermarks_set_wrapper_executes_authorized_update_requests(self):
+        wrapper = build_watermarks_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "channelId": execution.arguments["channelId"],
+                "isSet": True,
+                "sourceOperation": execution.metadata.operation_key,
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments=dict(WATERMARKS_SET_VALID_ARGUMENTS),
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelId"], "UC123")
+        self.assertTrue(result["isSet"])
+        self.assertEqual(result["sourceOperation"], "watermarks.set")
+
+    def test_watermarks_set_wrapper_rejects_blank_channel_id(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: channelId"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {**WATERMARKS_SET_VALID_ARGUMENTS, "channelId": "   "}
+            )
+
+    def test_watermarks_set_wrapper_rejects_non_string_channel_id(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "channelId must identify one channel"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {**WATERMARKS_SET_VALID_ARGUMENTS, "channelId": 123}
+            )
+
+    def test_watermarks_set_wrapper_rejects_incomplete_body_payload(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "body.timing is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {**WATERMARKS_SET_VALID_ARGUMENTS, "body": {"position": {"type": "corner"}}}
+            )
+
+    def test_watermarks_set_wrapper_rejects_incomplete_media_payload(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "media.content is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {
+                    "channelId": "UC123",
+                    "body": WATERMARKS_SET_VALID_ARGUMENTS["body"],
+                    "media": {"mimeType": "image/png", "content": b""},
+                }
+            )
+
+    def test_watermarks_set_wrapper_rejects_unsupported_media_type(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "media.mimeType must be one of"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_SET_UNSUPPORTED_MEDIA_ARGUMENTS)
+
+    def test_watermarks_set_wrapper_rejects_oversized_media_payload(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "media.content exceeds the 10 MB watermark limit"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_SET_OVERSIZED_MEDIA_ARGUMENTS)
+
+    def test_watermarks_set_wrapper_rejects_unsupported_top_level_fields(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: notifySubscribers"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {**WATERMARKS_SET_VALID_ARGUMENTS, "notifySubscribers": True}
+            )
+
+    def test_watermarks_set_wrapper_rejects_unsupported_partner_delegation(self):
+        wrapper = build_watermarks_set_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: onBehalfOfContentOwner"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_SET_DELEGATED_ARGUMENTS)
+
+    def test_watermarks_set_wrapper_requires_oauth_mode(self):
+        wrapper = build_watermarks_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"channelId": "UC123", "isSet": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "watermarks.set requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments=dict(WATERMARKS_SET_VALID_ARGUMENTS),
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),

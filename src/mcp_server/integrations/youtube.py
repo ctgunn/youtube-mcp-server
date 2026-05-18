@@ -78,6 +78,8 @@ def build_youtube_data_api_transport(
             return _channel_banners_insert_payload(execution, payload)
         if execution.metadata.operation_key == "thumbnails.set":
             return _thumbnails_set_payload(execution, payload)
+        if execution.metadata.operation_key == "watermarks.set":
+            return _watermarks_set_payload(execution)
         if execution.metadata.operation_key == "videos.insert":
             return _videos_insert_payload(execution, payload)
         if execution.metadata.operation_key == "playlistImages.insert":
@@ -501,6 +503,7 @@ def _normalized_category_for_execution(
             "playlistItems.delete",
             "playlistImages.insert",
             "thumbnails.set",
+            "watermarks.set",
             "playlistImages.update",
             "playlistImages.delete",
             "commentThreads.list",
@@ -727,6 +730,14 @@ def _normalized_category_for_execution(
             if status_code == 404 and ("thumbnail" in combined or "video" in combined or "target" in combined):
                 return "target_video"
             return None
+        if execution.metadata.operation_key == "watermarks.set":
+            if status_code in {400, 422} or "invalid" in combined or "required" in combined or "image" in combined:
+                return "invalid_request"
+            if status_code in {500, 502, 503, 504} or "tempor" in combined or "unavailable" in combined:
+                return "upstream_unavailable"
+            if status_code == 403 or "forbidden" in combined or "permission" in combined:
+                return "forbidden"
+            return None
         if execution.metadata.operation_key == "playlistImages.update":
             if status_code in {400, 422} or "invalid" in combined or "required" in combined:
                 return "invalid_request"
@@ -885,6 +896,26 @@ def _thumbnails_set_payload(
     parsed["thumbnailUrl"] = parsed.get("thumbnailUrl") or parsed.get("url")
     parsed["isUpdated"] = bool(parsed.get("videoId"))
     return parsed
+
+
+def _watermarks_set_payload(execution: RequestExecution) -> dict[str, Any]:
+    """Return the internal result shape for a `watermarks.set` response.
+
+    Official quota cost: ``50`` quota units. Successful upstream responses are
+    HTTP 204 no-content acknowledgements, so the result preserves target channel
+    context and source contract details without exposing credentials or media.
+
+    :param execution: Shared request execution details.
+    :return: Lightweight watermark-update acknowledgement.
+    """
+    return {
+        "channelId": _stringify_scalar(execution.arguments.get("channelId")),
+        "isSet": True,
+        "sourceOperation": execution.metadata.operation_key,
+        "sourceQuotaCost": execution.metadata.quota_cost,
+        "authPath": "oauth_required",
+        "upstreamBodyState": "empty",
+    }
 
 
 def _playlist_images_insert_payload(

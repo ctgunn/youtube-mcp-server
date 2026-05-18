@@ -53,6 +53,7 @@ from mcp_server.integrations.wrappers import (
     build_videos_delete_wrapper,
     build_videos_list_wrapper,
     build_videos_report_abuse_wrapper,
+    build_watermarks_set_wrapper,
     build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
     build_playlists_update_wrapper,
@@ -218,6 +219,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=wrappers_module.build_thumbnails_set_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _watermarks_set_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_watermarks_set_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -3803,6 +3816,134 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "upstream_service")
+
+    def test_builds_oauth_request_for_watermarks_set_upload(self):
+        execution = self._watermarks_set_execution(
+            arguments={
+                "channelId": "UC123",
+                "body": {"timing": {"type": "offsetFromStart", "offsetMs": 0}, "position": {"type": "corner"}},
+                "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "POST")
+        self.assertIn("https://www.googleapis.com/upload/youtube/v3/watermarks/set?", request.full_url)
+        self.assertIn("channelId=UC123", request.full_url)
+        self.assertNotIn("body=", request.full_url)
+        self.assertNotIn("media=", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(request.headers["Content-type"], 'multipart/related; boundary="yt-mcp-boundary"')
+        self.assertIn(b"watermark-bytes", request.data)
+        self.assertIn(b"offsetFromStart", request.data)
+
+    def test_transport_normalizes_successful_watermarks_set_payload(self):
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: _FakeHTTPResponse(""))
+
+        result = transport(
+            self._watermarks_set_execution(
+                arguments={
+                    "channelId": "UC123",
+                    "body": {"timing": {"type": "offsetFromStart", "offsetMs": 0}, "position": {"type": "corner"}},
+                    "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["channelId"], "UC123")
+        self.assertTrue(result["isSet"])
+        self.assertEqual(result["sourceOperation"], "watermarks.set")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+
+    def test_transport_normalizes_watermarks_set_invalid_image_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/upload/youtube/v3/watermarks/set",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"imageFormatUnsupported"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "imageFormatUnsupported") as context:
+            transport(
+                self._watermarks_set_execution(
+                    arguments={
+                        "channelId": "UC123",
+                        "body": {"timing": {"type": "offsetFromStart"}, "position": {"type": "corner"}},
+                        "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_watermarks_set_forbidden_channel_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/upload/youtube/v3/watermarks/set",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"The watermark cannot be set for the channel"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "watermark cannot be set") as context:
+            transport(
+                self._watermarks_set_execution(
+                    arguments={
+                        "channelId": "UC123",
+                        "body": {"timing": {"type": "offsetFromStart"}, "position": {"type": "corner"}},
+                        "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "forbidden")
+
+    def test_transport_normalizes_watermarks_set_upstream_unavailable_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/upload/youtube/v3/watermarks/set",
+            code=503,
+            msg="Service Unavailable",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"temporary watermark service unavailable"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "temporary watermark service unavailable") as context:
+            transport(
+                self._watermarks_set_execution(
+                    arguments={
+                        "channelId": "UC123",
+                        "body": {"timing": {"type": "offsetFromStart"}, "position": {"type": "corner"}},
+                        "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+                    },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "upstream_unavailable")
 
     def test_builds_oauth_request_for_playlist_images_insert_upload(self):
         execution = self._playlist_images_insert_execution(
