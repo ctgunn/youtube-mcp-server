@@ -216,6 +216,24 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("upload-only", review_surface["notes"])
         self.assertIn("target-only", review_surface["notes"])
 
+    def test_watermarks_set_review_surface_exposes_quota_auth_and_upload_notes(self):
+        review_surface = integrations_package.build_watermarks_set_wrapper().review_surface()
+
+        self.assertEqual(review_surface["resourceName"], "watermarks")
+        self.assertEqual(review_surface["operationName"], "set")
+        self.assertEqual(review_surface["operationKey"], "watermarks.set")
+        self.assertEqual(review_surface["quotaCost"], 50)
+        self.assertEqual(review_surface["authMode"], "oauth_required")
+        self.assertEqual(review_surface["requiredFields"], ("channelId", "body", "media"))
+        self.assertEqual(review_surface["optionalFields"], ())
+        self.assertEqual(review_surface["httpMethod"], "POST")
+        self.assertEqual(review_surface["pathShape"], "/upload/youtube/v3/watermarks/set")
+        self.assertIn("channelId", review_surface["notes"])
+        self.assertIn("body", review_surface["notes"])
+        self.assertIn("media", review_surface["notes"])
+        self.assertIn("10 MB", review_surface["notes"])
+        self.assertIn("onBehalfOfContentOwner", review_surface["notes"])
+
     def test_playlist_images_update_review_surface_exposes_quota_auth_and_update_notes(self):
         review_surface = build_playlist_images_update_wrapper().review_surface()
 

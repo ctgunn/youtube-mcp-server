@@ -16,6 +16,8 @@ from mcp_server.integrations.executor import IntegrationExecutor, RequestExecuti
 
 _CHANNEL_BANNER_ALLOWED_MIME_TYPES = frozenset({"image/jpeg", "image/png", "application/octet-stream"})
 _CHANNEL_BANNER_MAX_BYTES = 6 * 1024 * 1024
+_WATERMARK_ALLOWED_MIME_TYPES = frozenset({"image/jpeg", "image/png", "application/octet-stream"})
+_WATERMARK_MAX_BYTES = 10 * 1024 * 1024
 _CHANNELS_UPDATE_SUPPORTED_PARTS = frozenset({"brandingSettings", "localizations"})
 _CHANNEL_SECTIONS_PLAYLIST_TYPES = frozenset({"singlePlaylist", "multiplePlaylists"})
 _CHANNEL_SECTIONS_CHANNEL_TYPES = frozenset({"multipleChannels"})
@@ -1410,6 +1412,35 @@ class ThumbnailsSetWrapper(RepresentativeEndpointWrapper):
         """
         if not auth_context.requires_oauth_access():
             raise ValueError("thumbnails.set requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
+class WatermarksSetWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `watermarks.set`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one
+    ``channelId``, one watermark ``body`` metadata payload, and one ``media``
+    upload payload on an authorized request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `watermarks.set` with OAuth and upload validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("watermarks.set requires oauth_required auth")
         return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 
@@ -4376,6 +4407,44 @@ def _require_thumbnails_set_arguments(arguments: dict[str, object]) -> None:
         raise ValueError("media.content is required")
 
 
+def _require_watermarks_set_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `watermarks.set` request arguments.
+
+    Official quota cost: ``50`` quota units. The supported request requires
+    ``channelId``, watermark ``body`` metadata, and ``media`` upload content.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If channel, watermark metadata, or media details are incomplete.
+    """
+    raw_channel_id = arguments.get("channelId")
+    if not isinstance(raw_channel_id, str) or not raw_channel_id.strip():
+        raise ValueError("channelId must identify one channel")
+    require_mapping_fields("body", required_keys=("timing", "position"))(arguments)
+    body = arguments.get("body")
+    assert isinstance(body, dict)  # Narrowed by validator above.
+    for field_name in ("timing", "position"):
+        if not isinstance(body.get(field_name), dict) or not body.get(field_name):
+            raise ValueError(f"body.{field_name} must be a non-empty mapping")
+    target_channel_id = body.get("targetChannelId")
+    if target_channel_id is not None and not isinstance(target_channel_id, str):
+        raise ValueError("body.targetChannelId must be a string when provided")
+    require_mapping_fields("media", required_keys=("mimeType", "content"))(arguments)
+    media = arguments.get("media")
+    assert isinstance(media, dict)  # Narrowed by validator above.
+    mime_type = media.get("mimeType")
+    if not isinstance(mime_type, str) or not mime_type.strip():
+        raise ValueError("media.mimeType is required")
+    if mime_type not in _WATERMARK_ALLOWED_MIME_TYPES:
+        allowed = ", ".join(sorted(_WATERMARK_ALLOWED_MIME_TYPES))
+        raise ValueError(f"media.mimeType must be one of: {allowed}")
+    content = media.get("content")
+    content_bytes = content if isinstance(content, bytes) else str(content).encode("utf-8")
+    if not content_bytes:
+        raise ValueError("media.content is required")
+    if len(content_bytes) > _WATERMARK_MAX_BYTES:
+        raise ValueError("media.content exceeds the 10 MB watermark limit")
+
+
 def build_channel_banners_insert_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `channelBanners.insert`.
 
@@ -4441,6 +4510,42 @@ def build_thumbnails_set_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return ThumbnailsSetWrapper(metadata=metadata)
+
+
+def build_watermarks_set_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `watermarks.set`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a target
+    `channelId`, watermark `body` metadata, and one `media` upload payload on
+    authorized requests while keeping the 10 MB media boundary visible.
+
+    :return: Representative wrapper configured for `watermarks.set`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="watermarks",
+        operation_name="set",
+        http_method="POST",
+        path_shape="/upload/youtube/v3/watermarks/set",
+        request_shape=EndpointRequestShape(
+            required_fields=("channelId", "body", "media"),
+            validators=(
+                _require_watermarks_set_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `channelId` for the single target "
+            "channel, use `body` for watermark timing and position metadata, use "
+            "`media` for watermark image upload content, keep the 10 MB limit and "
+            "accepted MIME types image/jpeg, image/png, and application/octet-stream "
+            "visible for review, reject metadata-only or media-only request shapes, "
+            "treat successful 204 responses as watermark-update acknowledgements, "
+            "and keep partner-only `onBehalfOfContentOwner` outside this slice unless "
+            "a later contract explicitly supports it."
+        ),
+    )
+    return WatermarksSetWrapper(metadata=metadata)
 
 
 def build_playlist_images_insert_wrapper() -> RepresentativeEndpointWrapper:

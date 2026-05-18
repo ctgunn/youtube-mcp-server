@@ -55,6 +55,7 @@ from mcp_server.integrations.wrappers import (
     build_videos_rate_wrapper,
     build_videos_update_wrapper,
     build_thumbnails_set_wrapper,
+    build_watermarks_set_wrapper,
     build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
     build_playlists_update_wrapper,
@@ -69,10 +70,10 @@ from mcp_server.observability import InMemoryObservability
 
 
 class _FakeHTTPResponse:
-    def __init__(self, payload: dict[str, object]):
+    def __init__(self, payload: dict[str, object] | str):
         import json
 
-        self._payload = json.dumps(payload).encode("utf-8")
+        self._payload = json.dumps(payload).encode("utf-8") if isinstance(payload, dict) else payload.encode("utf-8")
 
     def read(self) -> bytes:
         return self._payload
@@ -3398,6 +3399,120 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "upstream_service")
+
+    def test_watermarks_set_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_watermarks_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: _FakeHTTPResponse("")
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={
+                "channelId": "UC123",
+                "body": {"timing": {"type": "offsetFromStart", "offsetMs": 0}, "position": {"type": "corner"}},
+                "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelId"], "UC123")
+        self.assertTrue(result["isSet"])
+        self.assertEqual(result["sourceOperation"], "watermarks.set")
+        self.assertEqual(result["authPath"], "oauth_required")
+
+    def test_watermarks_set_wrapper_rejects_invalid_upload_requests_before_executor(self):
+        wrapper = build_watermarks_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"channelId": "UC123", "isSet": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "media.content is required"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "channelId": "UC123",
+                    "body": {"timing": {"type": "offsetFromStart"}, "position": {"type": "corner"}},
+                    "media": {"mimeType": "image/png", "content": b""},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_watermarks_set_wrapper_preserves_invalid_media_failures_from_shared_executor(self):
+        wrapper = build_watermarks_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: (_ for _ in ()).throw(
+                    HTTPError(
+                        url="https://www.googleapis.com/upload/youtube/v3/watermarks/set",
+                        code=400,
+                        msg="Bad Request",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":{"message":"imageFormatUnsupported"}}'),
+                    )
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "imageFormatUnsupported") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "channelId": "UC123",
+                    "body": {"timing": {"type": "offsetFromStart"}, "position": {"type": "corner"}},
+                    "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_watermarks_set_wrapper_preserves_forbidden_channel_failures_from_shared_executor(self):
+        wrapper = build_watermarks_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: (_ for _ in ()).throw(
+                    HTTPError(
+                        url="https://www.googleapis.com/upload/youtube/v3/watermarks/set",
+                        code=403,
+                        msg="Forbidden",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":{"message":"The watermark cannot be set for the channel"}}'),
+                    )
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "watermark cannot be set") as context:
+            wrapper.call(
+                executor,
+                arguments={
+                    "channelId": "UC123",
+                    "body": {"timing": {"type": "offsetFromStart"}, "position": {"type": "corner"}},
+                    "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "forbidden")
 
     def test_playlist_items_insert_wrapper_executes_authorized_requests_through_shared_executor(self):
         wrapper = build_playlist_items_insert_wrapper()

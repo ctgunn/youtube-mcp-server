@@ -1409,6 +1409,31 @@ class RepresentativeHigherLayerConsumer:
             "sourceNotes": self.wrapper.metadata.notes,
         }
 
+    def set_watermark_summary(
+        self,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Return a higher-layer summary from a `watermarks.set` result.
+
+        :param arguments: Wrapper arguments needed to set one channel watermark.
+        :param auth_context: Auth context for the wrapper call.
+        :return: Credential-safe summary showing source contract details and update outcome.
+        """
+        result = self.wrapper.call(self.executor, arguments=arguments, auth_context=auth_context)
+        return {
+            "channelId": result.get("channelId") or arguments.get("channelId"),
+            "isSet": bool(result.get("isSet") or result.get("channelId") or arguments.get("channelId")),
+            "sourceOperation": self.wrapper.metadata.operation_key,
+            "sourceAuthMode": self.wrapper.metadata.review_auth_mode,
+            "sourceQuotaCost": self.wrapper.metadata.quota_cost,
+            "sourceRequiredFields": self.wrapper.metadata.request_shape.required_fields,
+            "sourcePathShape": self.wrapper.metadata.path_shape,
+            "sourceMediaBoundary": "10 MB image/jpeg image/png application/octet-stream",
+            "sourceNotes": self.wrapper.metadata.notes,
+        }
+
     def create_playlist_image_summary(
         self,
         *,

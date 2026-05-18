@@ -1689,6 +1689,75 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertIn("videoId", result["sourceNotes"])
         self.assertIn("media", result["sourceNotes"])
 
+    def test_consumer_can_summarize_watermark_updates_for_higher_layers(self):
+        wrapper = wrappers_module.build_watermarks_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "channelId": execution.arguments["channelId"],
+                "isSet": True,
+                "sourceOperation": execution.metadata.operation_key,
+                "authPath": "oauth_required",
+                "upstreamBodyState": "empty",
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.set_watermark_summary(
+            arguments={
+                "channelId": "UC123",
+                "body": {"timing": {"type": "offsetFromStart"}, "position": {"type": "corner"}},
+                "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelId"], "UC123")
+        self.assertTrue(result["isSet"])
+        self.assertEqual(result["sourceOperation"], "watermarks.set")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+        self.assertEqual(result["sourceRequiredFields"], ("channelId", "body", "media"))
+        self.assertEqual(result["sourcePathShape"], "/upload/youtube/v3/watermarks/set")
+        self.assertEqual(result["sourceMediaBoundary"], "10 MB image/jpeg image/png application/octet-stream")
+        self.assertNotIn("oauthToken", result)
+        self.assertNotIn("channelOwnerIdentity", result)
+        self.assertNotIn("mediaContent", result)
+        self.assertIn("onBehalfOfContentOwner", result["sourceNotes"])
+
+    def test_consumer_preserves_watermark_set_failure_boundaries(self):
+        wrapper = wrappers_module.build_watermarks_set_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: (_ for _ in ()).throw(
+                normalize_upstream_error(
+                    RuntimeError("watermark set temporarily unavailable"),
+                    category="upstream_unavailable",
+                    status_code=503,
+                    details={"reason": "backendError"},
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "watermark set temporarily unavailable") as context:
+            consumer.set_watermark_summary(
+                arguments={
+                    "channelId": "UC123",
+                    "body": {"timing": {"type": "offsetFromStart"}, "position": {"type": "corner"}},
+                    "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "upstream_unavailable")
+
     def test_consumer_can_summarize_playlist_image_creation_for_higher_layers(self):
         wrapper = build_playlist_images_insert_wrapper()
         executor = IntegrationExecutor(
