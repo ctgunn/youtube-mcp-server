@@ -52,6 +52,7 @@ from mcp_server.integrations.wrappers import (
     build_videos_rate_wrapper,
     build_video_categories_list_wrapper,
     build_watermarks_set_wrapper,
+    build_watermarks_unset_wrapper,
     build_playlists_update_wrapper,
     build_captions_delete_wrapper,
     build_captions_download_wrapper,
@@ -113,6 +114,20 @@ WATERMARKS_SET_DELEGATED_ARGUMENTS = {
     **WATERMARKS_SET_VALID_ARGUMENTS,
     "onBehalfOfContentOwner": "owner-123",
 }
+WATERMARKS_UNSET_VALID_ARGUMENTS = {"channelId": "UC123"}
+WATERMARKS_UNSET_MISSING_CHANNEL_ARGUMENTS = {}
+WATERMARKS_UNSET_BLANK_CHANNEL_ARGUMENTS = {"channelId": "   "}
+WATERMARKS_UNSET_NON_STRING_CHANNEL_ARGUMENTS = {"channelId": 123}
+WATERMARKS_UNSET_BODY_ARGUMENTS = {
+    "channelId": "UC123",
+    "body": {"timing": {"type": "offsetFromStart"}, "position": {"type": "corner"}},
+}
+WATERMARKS_UNSET_MEDIA_ARGUMENTS = {
+    "channelId": "UC123",
+    "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+}
+WATERMARKS_UNSET_UNSUPPORTED_FIELD_ARGUMENTS = {"channelId": "UC123", "notifySubscribers": True}
+WATERMARKS_UNSET_DELEGATED_ARGUMENTS = {"channelId": "UC123", "onBehalfOfContentOwner": "owner-123"}
 
 
 class Layer1FoundationUnitTests(unittest.TestCase):
@@ -4595,6 +4610,104 @@ class Layer1FoundationUnitTests(unittest.TestCase):
             wrapper.call(
                 executor,
                 arguments=dict(WATERMARKS_SET_VALID_ARGUMENTS),
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+
+    def test_watermarks_unset_wrapper_exposes_expected_metadata(self):
+        wrapper = build_watermarks_unset_wrapper()
+
+        self.assertEqual(wrapper.metadata.operation_key, "watermarks.unset")
+        self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/watermarks/unset")
+        self.assertEqual(wrapper.metadata.quota_cost, 50)
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("channelId",))
+        self.assertEqual(wrapper.metadata.request_shape.optional_fields, ())
+        self.assertIn("channelId", wrapper.metadata.notes)
+        self.assertIn("no media upload", wrapper.metadata.notes)
+
+    def test_watermarks_unset_wrapper_is_exported_from_integrations_package(self):
+        self.assertTrue(callable(integrations_package.build_watermarks_unset_wrapper))
+
+    def test_watermarks_unset_wrapper_requires_channel_id_field(self):
+        wrapper = build_watermarks_unset_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: channelId"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_UNSET_MISSING_CHANNEL_ARGUMENTS)
+
+    def test_watermarks_unset_wrapper_executes_authorized_removal_requests(self):
+        wrapper = build_watermarks_unset_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {
+                "channelId": execution.arguments["channelId"],
+                "isUnset": True,
+                "sourceOperation": execution.metadata.operation_key,
+            },
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments=dict(WATERMARKS_UNSET_VALID_ARGUMENTS),
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelId"], "UC123")
+        self.assertTrue(result["isUnset"])
+        self.assertEqual(result["sourceOperation"], "watermarks.unset")
+
+    def test_watermarks_unset_wrapper_rejects_blank_channel_id(self):
+        wrapper = build_watermarks_unset_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "missing required field: channelId"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_UNSET_BLANK_CHANNEL_ARGUMENTS)
+
+    def test_watermarks_unset_wrapper_rejects_non_string_channel_id(self):
+        wrapper = build_watermarks_unset_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "channelId must identify one channel"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_UNSET_NON_STRING_CHANNEL_ARGUMENTS)
+
+    def test_watermarks_unset_wrapper_rejects_body_payload(self):
+        wrapper = build_watermarks_unset_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: body"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_UNSET_BODY_ARGUMENTS)
+
+    def test_watermarks_unset_wrapper_rejects_media_payload(self):
+        wrapper = build_watermarks_unset_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: media"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_UNSET_MEDIA_ARGUMENTS)
+
+    def test_watermarks_unset_wrapper_rejects_unsupported_top_level_fields(self):
+        wrapper = build_watermarks_unset_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: notifySubscribers"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_UNSET_UNSUPPORTED_FIELD_ARGUMENTS)
+
+    def test_watermarks_unset_wrapper_rejects_unsupported_partner_delegation(self):
+        wrapper = build_watermarks_unset_wrapper()
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: onBehalfOfContentOwner"):
+            wrapper.metadata.request_shape.validate_arguments(WATERMARKS_UNSET_DELEGATED_ARGUMENTS)
+
+    def test_watermarks_unset_wrapper_requires_oauth_mode(self):
+        wrapper = build_watermarks_unset_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"channelId": "UC123", "isUnset": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "watermarks.unset requires oauth_required auth"):
+            wrapper.call(
+                executor,
+                arguments=dict(WATERMARKS_UNSET_VALID_ARGUMENTS),
                 auth_context=AuthContext(
                     mode=AuthMode.API_KEY,
                     credentials=CredentialBundle(api_key="key-123"),

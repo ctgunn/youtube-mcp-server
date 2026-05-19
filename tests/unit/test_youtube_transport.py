@@ -54,6 +54,7 @@ from mcp_server.integrations.wrappers import (
     build_videos_list_wrapper,
     build_videos_report_abuse_wrapper,
     build_watermarks_set_wrapper,
+    build_watermarks_unset_wrapper,
     build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
     build_playlists_update_wrapper,
@@ -231,6 +232,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
     ) -> RequestExecution:
         return RequestExecution(
             metadata=build_watermarks_set_wrapper().metadata,
+            arguments=arguments,
+            auth_context=auth_context,
+        )
+
+    def _watermarks_unset_execution(
+        self,
+        *,
+        arguments: dict[str, object],
+        auth_context: AuthContext,
+    ) -> RequestExecution:
+        return RequestExecution(
+            metadata=build_watermarks_unset_wrapper().metadata,
             arguments=arguments,
             auth_context=auth_context,
         )
@@ -3936,6 +3949,135 @@ class YouTubeTransportUnitTests(unittest.TestCase):
                         "body": {"timing": {"type": "offsetFromStart"}, "position": {"type": "corner"}},
                         "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
                     },
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "upstream_unavailable")
+
+    def test_builds_oauth_request_for_watermarks_unset(self):
+        execution = self._watermarks_unset_execution(
+            arguments={"channelId": "UC123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        request = build_youtube_data_api_request(execution)
+
+        self.assertEqual(request.method, "POST")
+        self.assertIn("https://www.googleapis.com/youtube/v3/watermarks/unset?", request.full_url)
+        self.assertIn("channelId=UC123", request.full_url)
+        self.assertNotIn("body=", request.full_url)
+        self.assertNotIn("media=", request.full_url)
+        self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
+        self.assertIsNone(request.data)
+
+    def test_transport_normalizes_successful_watermarks_unset_payload(self):
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: _FakeHTTPResponse(""))
+
+        result = transport(
+            self._watermarks_unset_execution(
+                arguments={"channelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-token"),
+                ),
+            )
+        )
+
+        self.assertEqual(result["channelId"], "UC123")
+        self.assertTrue(result["isUnset"])
+        self.assertEqual(result["sourceOperation"], "watermarks.unset")
+        self.assertEqual(result["sourceQuotaCost"], 50)
+
+    def test_transport_normalizes_watermarks_unset_invalid_request_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/watermarks/unset",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"channelId is required"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "channelId is required") as context:
+            transport(
+                self._watermarks_unset_execution(
+                    arguments={"channelId": "UC123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "invalid_request")
+
+    def test_transport_normalizes_watermarks_unset_forbidden_channel_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/watermarks/unset",
+            code=403,
+            msg="Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"The watermark cannot be removed for the channel"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "watermark cannot be removed") as context:
+            transport(
+                self._watermarks_unset_execution(
+                    arguments={"channelId": "UC123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "forbidden")
+
+    def test_transport_normalizes_watermarks_unset_no_removal_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/watermarks/unset",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"watermark already removed"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "watermark already removed") as context:
+            transport(
+                self._watermarks_unset_execution(
+                    arguments={"channelId": "UC123"},
+                    auth_context=AuthContext(
+                        mode=AuthMode.OAUTH_REQUIRED,
+                        credentials=CredentialBundle(oauth_token="oauth-token"),
+                    ),
+                )
+            )
+
+        self.assertEqual(context.exception.category, "no_removal_possible")
+
+    def test_transport_normalizes_watermarks_unset_upstream_unavailable_errors(self):
+        error = HTTPError(
+            url="https://www.googleapis.com/youtube/v3/watermarks/unset",
+            code=503,
+            msg="Service Unavailable",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error":{"message":"temporary watermark service unavailable"}}'),
+        )
+        transport = build_youtube_data_api_transport(opener=lambda request, timeout: (_ for _ in ()).throw(error))
+
+        with self.assertRaisesRegex(RuntimeError, "temporary watermark service unavailable") as context:
+            transport(
+                self._watermarks_unset_execution(
+                    arguments={"channelId": "UC123"},
                     auth_context=AuthContext(
                         mode=AuthMode.OAUTH_REQUIRED,
                         credentials=CredentialBundle(oauth_token="oauth-token"),

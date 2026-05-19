@@ -56,6 +56,7 @@ from mcp_server.integrations.wrappers import (
     build_videos_update_wrapper,
     build_thumbnails_set_wrapper,
     build_watermarks_set_wrapper,
+    build_watermarks_unset_wrapper,
     build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
     build_playlists_update_wrapper,
@@ -3513,6 +3514,134 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.category, "forbidden")
+
+    def test_watermarks_unset_wrapper_executes_authorized_requests_through_shared_executor(self):
+        wrapper = build_watermarks_unset_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(opener=lambda request, timeout: _FakeHTTPResponse("")),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"channelId": "UC123"},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
+            ),
+        )
+
+        self.assertEqual(result["channelId"], "UC123")
+        self.assertTrue(result["isUnset"])
+        self.assertEqual(result["sourceOperation"], "watermarks.unset")
+        self.assertEqual(result["authPath"], "oauth_required")
+
+    def test_watermarks_unset_wrapper_rejects_invalid_payload_requests_before_executor(self):
+        wrapper = build_watermarks_unset_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: {"channelId": "UC123", "isUnset": True},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "unexpected field: media"):
+            wrapper.call(
+                executor,
+                arguments={
+                    "channelId": "UC123",
+                    "media": {"mimeType": "image/png", "content": b"watermark-bytes"},
+                },
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+    def test_watermarks_unset_wrapper_preserves_forbidden_channel_failures_from_shared_executor(self):
+        wrapper = build_watermarks_unset_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: (_ for _ in ()).throw(
+                    HTTPError(
+                        url="https://www.googleapis.com/youtube/v3/watermarks/unset",
+                        code=403,
+                        msg="Forbidden",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":{"message":"The watermark cannot be removed for the channel"}}'),
+                    )
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "watermark cannot be removed") as context:
+            wrapper.call(
+                executor,
+                arguments={"channelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "forbidden")
+
+    def test_watermarks_unset_wrapper_preserves_no_removal_failures_from_shared_executor(self):
+        wrapper = build_watermarks_unset_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: (_ for _ in ()).throw(
+                    HTTPError(
+                        url="https://www.googleapis.com/youtube/v3/watermarks/unset",
+                        code=404,
+                        msg="Not Found",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":{"message":"watermark already removed"}}'),
+                    )
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "watermark already removed") as context:
+            wrapper.call(
+                executor,
+                arguments={"channelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "no_removal_possible")
+
+    def test_watermarks_unset_wrapper_preserves_upstream_unavailable_failures_from_shared_executor(self):
+        wrapper = build_watermarks_unset_wrapper()
+        executor = IntegrationExecutor(
+            transport=build_youtube_data_api_transport(
+                opener=lambda request, timeout: (_ for _ in ()).throw(
+                    HTTPError(
+                        url="https://www.googleapis.com/youtube/v3/watermarks/unset",
+                        code=503,
+                        msg="Service Unavailable",
+                        hdrs=None,
+                        fp=io.BytesIO(b'{"error":{"message":"temporary watermark service unavailable"}}'),
+                    )
+                )
+            ),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(NormalizedUpstreamError, "temporary watermark service unavailable") as context:
+            wrapper.call(
+                executor,
+                arguments={"channelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                ),
+            )
+
+        self.assertEqual(context.exception.category, "upstream_unavailable")
 
     def test_playlist_items_insert_wrapper_executes_authorized_requests_through_shared_executor(self):
         wrapper = build_playlist_items_insert_wrapper()
