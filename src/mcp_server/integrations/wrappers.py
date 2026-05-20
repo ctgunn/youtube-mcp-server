@@ -1445,6 +1445,35 @@ class WatermarksSetWrapper(RepresentativeEndpointWrapper):
 
 
 @dataclass(frozen=True)
+class WatermarksUnsetWrapper(RepresentativeEndpointWrapper):
+    """Represent the typed Layer 1 wrapper for `watermarks.unset`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires one
+    ``channelId`` and rejects watermark metadata or media-upload payloads on an
+    authorized removal request.
+    """
+
+    def call(
+        self,
+        executor: IntegrationExecutor,
+        *,
+        arguments: dict[str, Any],
+        auth_context: AuthContext,
+    ) -> dict[str, Any]:
+        """Execute `watermarks.unset` with OAuth and no-upload validation.
+
+        :param executor: Shared executor for request processing.
+        :param arguments: Wrapper arguments to validate and execute.
+        :param auth_context: Selected auth context for the call.
+        :return: Structured response payload.
+        :raises ValueError: If the request requires a different auth mode.
+        """
+        if not auth_context.requires_oauth_access():
+            raise ValueError("watermarks.unset requires oauth_required auth")
+        return super().call(executor, arguments=arguments, auth_context=auth_context)
+
+
+@dataclass(frozen=True)
 class PlaylistImagesInsertWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `playlistImages.insert`.
 
@@ -4445,6 +4474,21 @@ def _require_watermarks_set_arguments(arguments: dict[str, object]) -> None:
         raise ValueError("media.content exceeds the 10 MB watermark limit")
 
 
+def _require_watermarks_unset_arguments(arguments: dict[str, object]) -> None:
+    """Validate the supported `watermarks.unset` request arguments.
+
+    Official quota cost: ``50`` quota units. The supported request requires
+    ``channelId`` only; watermark metadata, media upload content, set-only
+    fields, and partner delegation are outside this slice.
+
+    :param arguments: Wrapper arguments to validate.
+    :raises ValueError: If channel details are incomplete.
+    """
+    raw_channel_id = arguments.get("channelId")
+    if not isinstance(raw_channel_id, str) or not raw_channel_id.strip():
+        raise ValueError("channelId must identify one channel")
+
+
 def build_channel_banners_insert_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `channelBanners.insert`.
 
@@ -4546,6 +4590,41 @@ def build_watermarks_set_wrapper() -> RepresentativeEndpointWrapper:
         ),
     )
     return WatermarksSetWrapper(metadata=metadata)
+
+
+def build_watermarks_unset_wrapper() -> RepresentativeEndpointWrapper:
+    """Build the typed internal wrapper for `watermarks.unset`.
+
+    Official quota cost: ``50`` quota units. The wrapper requires a target
+    `channelId` on authorized requests, rejects watermark metadata and media
+    upload payloads, and keeps no-removal outcomes visible for review.
+
+    :return: Representative wrapper configured for `watermarks.unset`.
+    """
+    metadata = EndpointMetadata(
+        resource_name="watermarks",
+        operation_name="unset",
+        http_method="POST",
+        path_shape="/youtube/v3/watermarks/unset",
+        request_shape=EndpointRequestShape(
+            required_fields=("channelId",),
+            validators=(
+                _require_watermarks_unset_arguments,
+            ),
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        notes=(
+            "Requires oauth_required auth. Use `channelId` for the single target "
+            "channel, send no media upload and no `body` watermark metadata for "
+            "this unset request, reject upload-oriented, metadata-oriented, or "
+            "set-only request shapes, treat successful 204 responses as "
+            "watermark-removal acknowledgements, keep no-removal outcomes distinct "
+            "from successful removals, and keep partner-only `onBehalfOfContentOwner` "
+            "outside this slice unless a later contract explicitly supports it."
+        ),
+    )
+    return WatermarksUnsetWrapper(metadata=metadata)
 
 
 def build_playlist_images_insert_wrapper() -> RepresentativeEndpointWrapper:
