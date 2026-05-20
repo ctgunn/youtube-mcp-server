@@ -1461,6 +1461,11 @@ Acceptance criteria:
   upstream fields versus lightly normalized wrapper fields.
 - Shared Layer 2 error conventions document how upstream auth, quota, missing
   resource, invalid request, and deprecation errors surface through MCP.
+- Shared Layer 2 implementation layout rules document the expected
+  resource-family package/folder conventions for endpoint-backed public tools,
+  including where tool definitions, handlers, schemas, and tests should live.
+- Layer 2 implementation work keeps resource-family modules cohesive and avoids
+  concentrating all endpoint tools in one large shared file.
 - Layer 2 tool slices can depend on these shared contracts without redefining
   cross-cutting rules in every endpoint tool spec.
 
@@ -2208,6 +2213,12 @@ Acceptance criteria:
 - Shared parameter conventions are documented for repeated fields such as `videoId`, `channelId`, `playlistId`, `query`, `language`, `maxResults`, `order`, and ISO 8601 date filters.
 - Shared Layer 3 response conventions distinguish raw upstream values from normalized fields and heuristic/inferred fields.
 - Shared rules for ranking/filtering semantics such as `creatorOnly`, subscriber-band filters, latest-upload filters, and `sortBy` are documented wherever multiple tools reuse them.
+- Shared Layer 3 implementation layout rules document the expected tool-family
+  package/folder conventions for composed public tools, including where
+  handlers, schemas, reusable composition helpers, and tests should live.
+- Layer 3 implementation work keeps grouped tool families such as `videos_*`,
+  `channels_*`, `playlists_*`, and `transcripts_*` cohesive and avoids
+  concentrating all composed tools in one large shared file.
 - Layer 3 tool slices can depend on these shared contracts without redefining cross-cutting rules in each tool spec.
 
 Dependencies:

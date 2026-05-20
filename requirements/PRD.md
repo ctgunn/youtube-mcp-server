@@ -209,6 +209,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - auth mode (`api_key`, `oauth_required`, or mixed/conditional)
   - deprecation or availability state when applicable
 - Method signatures, docstrings, or adjacent implementation comments for Layer 1 wrappers MUST explicitly include the official quota-unit cost for that endpoint.
+- The Layer 1 integration layer MUST remain organized by shared foundation concerns and YouTube resource-family modules so endpoint wrappers, validators, response normalization, and higher-layer composition helpers remain maintainable as the endpoint inventory grows.
 - The Layer 1 integration layer MUST support server-side composition where a Layer 3 tool depends on multiple upstream resources.
 - The Layer 1 integration layer MUST support direct exposure through Layer 2 tools without requiring each Layer 2 tool to duplicate request execution, auth, quota, or upstream error logic.
 - The Layer 1 integration layer MUST keep upstream API naming and transport details out of Layer 3 tool handlers wherever practical.
@@ -733,7 +734,7 @@ The initial public Layer 3 catalog contains 19 MCP tools.
 16. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
 17. Define the layered YouTube product model plus the public Layer 2 and Layer 3 tool taxonomies.
 18. Define the Layer 1 shared client foundation, endpoint metadata/quota standards, and full documented YouTube Data API endpoint inventory.
-19. Implement the Layer 1 endpoint wrappers.
+19. Implement the Layer 1 endpoint wrappers and organize the completed integration layer by resource family before Layer 2 builds on it.
 20. Implement the Layer 2 endpoint-backed public MCP catalog with per-endpoint quota/auth/deprecation documentation.
 21. Implement the Layer 3 core public tools.
 22. Implement the additional Layer 3 value-add tools for statistics, transcript discovery/search, channel playlist/content workflows, and playlist transcript/search workflows.
