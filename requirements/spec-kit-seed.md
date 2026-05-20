@@ -1324,6 +1324,123 @@ Acceptance criteria:
 Dependencies:
 - `YT-101`, `YT-102`
 
+### YT-156: Layer 1 Resource-Family Module Reorganization
+Description:
+Refactor the completed Layer 1 YouTube Data API endpoint integration code into
+resource-family modules without changing endpoint behavior, contracts, auth
+semantics, quota metadata, request shapes, response shapes, or public import
+compatibility.
+
+Context:
+Layer 1 endpoint work from `YT-103` through `YT-155` implemented the full
+YouTube Data API endpoint inventory, but much of the implementation is now
+concentrated in a small number of broad modules. In the current codebase,
+wrapper classes, builder functions, metadata declarations, and endpoint-specific
+validators are concentrated in `src/mcp_server/integrations/wrappers.py`;
+generic YouTube request construction and endpoint-specific response
+normalization are concentrated in `src/mcp_server/integrations/youtube.py`; and
+representative higher-layer summary helpers are concentrated in
+`src/mcp_server/integrations/consumer.py`. Contract tests are already split by
+resource family, so the implementation should be reorganized to match that
+mental model before Layer 2 and Layer 3 build further on top of Layer 1.
+
+Primary stories:
+- As a maintainer, I can find all Layer 1 integration code for a YouTube
+  resource family such as `captions`, `channels`, `comments`, `playlistItems`,
+  `playlists`, or `videos` without searching through very large shared files.
+- As a future Layer 2 or Layer 3 author, I can import and compose endpoint
+  wrappers from stable resource-family modules while existing compatibility
+  imports continue to work.
+- As a reviewer, I can verify that the refactor preserves the already-complete
+  Layer 1 endpoint contracts instead of reimplementing or changing them.
+
+Acceptance criteria:
+- Resource-specific Layer 1 wrapper classes, builder functions, request-shape
+  validators, and metadata declarations are organized by YouTube resource
+  family.
+- Endpoint-specific response normalizers are organized by YouTube resource
+  family and registered through an explicit dispatch mechanism rather than a
+  single long central `operation_key` conditional chain.
+- Shared Layer 1 foundations remain shared and are not duplicated across
+  resource families, including auth, request execution, retry policy,
+  observability hooks, contracts, error normalization, and generic YouTube HTTP
+  request construction.
+- Existing behavior is preserved for every endpoint from `YT-103` through
+  `YT-155`, including:
+  - request validation rules
+  - supported selector and filter modes
+  - credential attachment behavior
+  - quota-cost metadata
+  - auth-mode metadata
+  - response payload shape
+  - upstream error normalization behavior
+- Existing public import paths remain compatible for downstream code and tests,
+  including `mcp_server.integrations`, `mcp_server.integrations.wrappers`, and
+  `mcp_server.integrations.youtube`.
+- Compatibility shim modules are kept where needed so the refactor does not
+  force all callers to update imports in the same change.
+- Unit, contract, and integration tests are reorganized or supplemented so
+  resource-family behavior can be verified without relying only on monolithic
+  Layer 1 test files.
+- The final implementation passes the existing Layer 1 test coverage with no
+  intentional contract changes.
+
+Suggested module organization:
+- Keep shared foundations in `src/mcp_server/integrations/`:
+  - `auth.py`
+  - `contracts.py`
+  - `errors.py`
+  - `executor.py`
+  - `retry.py`
+  - generic YouTube request-building and transport helpers
+- Add resource-family modules under a dedicated package such as
+  `src/mcp_server/integrations/resources/`.
+- Use resource-family modules for:
+  - `activities`
+  - `captions`
+  - `channel_banners`
+  - `channels`
+  - `channel_sections`
+  - `comments`
+  - `comment_threads`
+  - `guide_categories`
+  - `localization` (`i18nLanguages`, `i18nRegions`)
+  - `members`
+  - `memberships_levels`
+  - `playlist_images`
+  - `playlist_items`
+  - `playlists`
+  - `search`
+  - `subscriptions`
+  - `thumbnails`
+  - `video_abuse_report_reasons`
+  - `video_categories`
+  - `videos`
+  - `watermarks`
+
+Implementation guidance:
+- Treat this as a behavior-preserving refactor, not as a second implementation
+  of `YT-103` through `YT-155`.
+- Move one resource family at a time, keep compatibility exports green, and run
+  focused tests after each move when practical.
+- Prefer explicit registries for wrapper builders and response normalizers so
+  later Layer 2 tooling can discover or map endpoint wrappers without duplicating
+  endpoint inventory logic.
+- Avoid circular imports through `mcp_server.integrations.__init__`; resource
+  modules should depend on shared foundations, while package-level modules
+  should re-export resource symbols.
+- Keep `wrappers.py` and `youtube.py` as compatibility facades or narrow shared
+  modules until downstream imports are deliberately migrated.
+- Split large tests opportunistically by resource family, especially coverage
+  currently concentrated in:
+  - `tests/unit/test_youtube_transport.py`
+  - `tests/unit/test_layer1_foundation.py`
+  - `tests/integration/test_layer1_foundation.py`
+  - `tests/contract/test_layer1_consumer_contract.py`
+
+Dependencies:
+- `YT-103` through `YT-155`
+
 ### YT-201: Layer 2 Shared Scaffolding and Contracts
 Description:
 Build the shared Layer 2 scaffolding required before individual YouTube Data
@@ -1348,7 +1465,7 @@ Acceptance criteria:
   cross-cutting rules in every endpoint tool spec.
 
 Dependencies:
-- `YT-101`, `YT-102`
+- `YT-101`, `YT-102`, `YT-156`
 
 ### YT-202: Layer 2 Tool Metadata, Naming, and Quota Standards
 Description:
@@ -2520,21 +2637,22 @@ Dependencies:
 32. `YT-111` through `YT-123` (channel, comments, comment-thread, and legacy-category endpoints)
 33. `YT-124` through `YT-139` (localization, member, playlist-image, playlist-item, and playlist endpoints)
 34. `YT-140` through `YT-155` (search, subscriptions, thumbnails, video, and watermark endpoints)
-35. `YT-201`
-36. `YT-202`
-37. `YT-203` through `YT-210` (initial read/list Layer 2 endpoint tools)
-38. `YT-211` through `YT-223` (update/comment/category Layer 2 endpoint tools)
-39. `YT-224` through `YT-239` (localization/member/playlist Layer 2 endpoint tools)
-40. `YT-240` through `YT-255` (search/subscription/video/watermark Layer 2 endpoint tools)
-41. `YT-301`
-42. `YT-302` + `YT-304` + `YT-305` + `YT-309` + `YT-310` (parallel where practical)
-43. `YT-303` + `YT-306` + `YT-307` + `YT-311` (parallel where practical)
-44. `YT-308`
-45. `YT-312` + `YT-313` + `YT-316` + `YT-317` (parallel where practical)
-46. `YT-314` + `YT-318` + `YT-319` (parallel where practical)
-47. `YT-315` + `YT-320`
-48. `OPS-401`
-49. `OPS-402`
+35. `YT-156` (Layer 1 resource-family module reorganization before Layer 2 builds on the wrappers)
+36. `YT-201`
+37. `YT-202`
+38. `YT-203` through `YT-210` (initial read/list Layer 2 endpoint tools)
+39. `YT-211` through `YT-223` (update/comment/category Layer 2 endpoint tools)
+40. `YT-224` through `YT-239` (localization/member/playlist Layer 2 endpoint tools)
+41. `YT-240` through `YT-255` (search/subscription/video/watermark Layer 2 endpoint tools)
+42. `YT-301`
+43. `YT-302` + `YT-304` + `YT-305` + `YT-309` + `YT-310` (parallel where practical)
+44. `YT-303` + `YT-306` + `YT-307` + `YT-311` (parallel where practical)
+45. `YT-308`
+46. `YT-312` + `YT-313` + `YT-316` + `YT-317` (parallel where practical)
+47. `YT-314` + `YT-318` + `YT-319` (parallel where practical)
+48. `YT-315` + `YT-320`
+49. `OPS-401`
+50. `OPS-402`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
