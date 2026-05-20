@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
@@ -13,6 +14,138 @@ from mcp_server.integrations.executor import IntegrationExecutor, IntegrationHoo
 from mcp_server.integrations.retry import RetryPolicy
 
 YOUTUBE_DATA_API_ORIGIN = "https://www.googleapis.com"
+
+
+@dataclass(frozen=True)
+class ResponseNormalizer:
+    """Adapt one operation-specific response normalizer to a shared signature.
+
+    :param family_name: Resource-family name that owns the normalizer.
+    :param operation_key: Stable operation key handled by the normalizer.
+    :param input_requirements: Input shape required by the wrapped handler.
+    :param _handler: Callable invoked for the selected input shape.
+    """
+
+    family_name: str
+    operation_key: str
+    input_requirements: str
+    _handler: Callable[..., dict[str, Any]]
+
+    @classmethod
+    def context_only(
+        cls,
+        *,
+        family_name: str,
+        operation_key: str,
+        handler: Callable[[RequestExecution], dict[str, Any]],
+    ) -> "ResponseNormalizer":
+        """Build a normalizer that only needs execution context.
+
+        :param family_name: Resource-family name that owns the normalizer.
+        :param operation_key: Stable operation key handled by the normalizer.
+        :param handler: Callable accepting a ``RequestExecution``.
+        :return: Response normalizer adapted to the shared dispatch shape.
+        """
+        return cls(family_name=family_name, operation_key=operation_key, input_requirements="context", _handler=handler)
+
+    @classmethod
+    def payload_only(
+        cls,
+        *,
+        family_name: str,
+        operation_key: str,
+        handler: Callable[[str], dict[str, Any]],
+    ) -> "ResponseNormalizer":
+        """Build a normalizer that only needs response payload content.
+
+        :param family_name: Resource-family name that owns the normalizer.
+        :param operation_key: Stable operation key handled by the normalizer.
+        :param handler: Callable accepting response payload content.
+        :return: Response normalizer adapted to the shared dispatch shape.
+        """
+        return cls(family_name=family_name, operation_key=operation_key, input_requirements="payload", _handler=handler)
+
+    @classmethod
+    def context_and_payload(
+        cls,
+        *,
+        family_name: str,
+        operation_key: str,
+        handler: Callable[[RequestExecution, str], dict[str, Any]],
+    ) -> "ResponseNormalizer":
+        """Build a normalizer that needs execution context and payload content.
+
+        :param family_name: Resource-family name that owns the normalizer.
+        :param operation_key: Stable operation key handled by the normalizer.
+        :param handler: Callable accepting execution context and payload content.
+        :return: Response normalizer adapted to the shared dispatch shape.
+        """
+        return cls(family_name=family_name, operation_key=operation_key, input_requirements="context_payload", _handler=handler)
+
+    def normalize(self, execution: RequestExecution, payload: str) -> dict[str, Any]:
+        """Normalize one response payload for the configured operation.
+
+        :param execution: Shared request execution details.
+        :param payload: Raw response payload content.
+        :return: Normalized response payload.
+        :raises ValueError: If the normalizer was created with an unsupported input shape.
+        """
+        if self.input_requirements == "context":
+            return self._handler(execution)
+        if self.input_requirements == "payload":
+            return self._handler(payload)
+        if self.input_requirements == "context_payload":
+            return self._handler(execution, payload)
+        raise ValueError(f"unsupported response normalizer input shape: {self.input_requirements}")
+
+    def metadata_for_test(self, metadata: Any) -> Any:
+        """Return metadata with this normalizer's operation key for tests.
+
+        :param metadata: Endpoint metadata to copy.
+        :return: Metadata copy whose operation key matches the normalizer.
+        """
+        resource_name, operation_name = self.operation_key.split(".", 1)
+        return replace(metadata, resource_name=resource_name, operation_name=operation_name)
+
+
+def build_response_normalizer_registry(
+    normalizers: Sequence[ResponseNormalizer],
+) -> Mapping[str, ResponseNormalizer]:
+    """Build an operation-key response normalizer registry.
+
+    :param normalizers: Response normalizers to register by operation key.
+    :return: Mapping from operation key to response normalizer.
+    :raises ValueError: If duplicate operation keys are supplied.
+    """
+    registry: dict[str, ResponseNormalizer] = {}
+    for normalizer in normalizers:
+        if normalizer.operation_key in registry:
+            raise ValueError(f"duplicate response normalizer: {normalizer.operation_key}")
+        registry[normalizer.operation_key] = normalizer
+    return registry
+
+
+def normalize_youtube_response(
+    execution: RequestExecution,
+    payload: str,
+    *,
+    registry: Mapping[str, ResponseNormalizer],
+) -> dict[str, Any]:
+    """Normalize a YouTube response through explicit dispatch or JSON fallback.
+
+    :param execution: Shared request execution details.
+    :param payload: Raw response payload content.
+    :param registry: Operation-key to response normalizer mapping.
+    :return: Normalized response payload.
+    :raises ValueError: If fallback JSON parsing does not produce an object.
+    """
+    normalizer = registry.get(execution.metadata.operation_key)
+    if normalizer is not None:
+        return normalizer.normalize(execution, payload)
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError("YouTube Data API responses must decode to an object")
+    return parsed
 
 
 def build_youtube_data_api_transport(
@@ -68,107 +201,11 @@ def build_youtube_data_api_transport(
                 details={"reason": "timeout"},
             )
 
-        if execution.metadata.operation_key == "captions.download":
-            return _download_payload(execution, payload)
-        if execution.metadata.operation_key == "captions.delete":
-            return _delete_payload(execution)
-        if execution.metadata.operation_key == "channelSections.delete":
-            return _channel_sections_delete_payload(execution)
-        if execution.metadata.operation_key == "channelBanners.insert":
-            return _channel_banners_insert_payload(execution, payload)
-        if execution.metadata.operation_key == "thumbnails.set":
-            return _thumbnails_set_payload(execution, payload)
-        if execution.metadata.operation_key == "watermarks.set":
-            return _watermarks_set_payload(execution)
-        if execution.metadata.operation_key == "watermarks.unset":
-            return _watermarks_unset_payload(execution)
-        if execution.metadata.operation_key == "videos.insert":
-            return _videos_insert_payload(execution, payload)
-        if execution.metadata.operation_key == "playlistImages.insert":
-            return _playlist_images_insert_payload(execution, payload)
-        if execution.metadata.operation_key == "playlistItems.insert":
-            return _playlist_items_insert_payload(execution, payload)
-        if execution.metadata.operation_key == "playlists.insert":
-            return _playlists_insert_payload(execution, payload)
-        if execution.metadata.operation_key == "subscriptions.insert":
-            return _subscriptions_insert_payload(execution, payload)
-        if execution.metadata.operation_key == "subscriptions.delete":
-            return _subscriptions_delete_payload(execution)
-        if execution.metadata.operation_key == "videos.rate":
-            return _videos_rate_payload(execution, payload)
-        if execution.metadata.operation_key == "videos.getRating":
-            return _videos_get_rating_payload(execution, payload)
-        if execution.metadata.operation_key == "videos.reportAbuse":
-            return _videos_report_abuse_payload(execution, payload)
-        if execution.metadata.operation_key == "videos.delete":
-            return _videos_delete_payload(execution)
-        if execution.metadata.operation_key == "videos.update":
-            return _videos_update_payload(execution, payload)
-        if execution.metadata.operation_key == "playlists.update":
-            return _playlists_update_payload(execution, payload)
-        if execution.metadata.operation_key == "playlists.delete":
-            return _playlists_delete_payload(execution)
-        if execution.metadata.operation_key == "playlistItems.update":
-            return _playlist_items_update_payload(execution, payload)
-        if execution.metadata.operation_key == "playlistItems.delete":
-            return _playlist_items_delete_payload(execution)
-        if execution.metadata.operation_key == "playlistImages.update":
-            return _playlist_images_update_payload(execution, payload)
-        if execution.metadata.operation_key == "playlistImages.delete":
-            return _playlist_images_delete_payload(execution)
-        if execution.metadata.operation_key == "channelSections.list":
-            return _channel_sections_list_payload(payload)
-        if execution.metadata.operation_key == "comments.list":
-            return _comments_list_payload(payload)
-        if execution.metadata.operation_key == "commentThreads.list":
-            return _comment_threads_list_payload(payload)
-        if execution.metadata.operation_key == "guideCategories.list":
-            return _guide_categories_list_payload(payload)
-        if execution.metadata.operation_key == "i18nLanguages.list":
-            return _i18n_languages_list_payload(payload)
-        if execution.metadata.operation_key == "i18nRegions.list":
-            return _i18n_regions_list_payload(payload)
-        if execution.metadata.operation_key == "videoAbuseReportReasons.list":
-            return _video_abuse_report_reasons_list_payload(payload)
-        if execution.metadata.operation_key == "videoCategories.list":
-            return _video_categories_list_payload(execution, payload)
-        if execution.metadata.operation_key == "videos.list":
-            return _videos_list_payload(execution, payload)
-        if execution.metadata.operation_key == "members.list":
-            return _members_list_payload(payload)
-        if execution.metadata.operation_key == "membershipsLevels.list":
-            return _memberships_levels_list_payload(payload)
-        if execution.metadata.operation_key == "playlistImages.list":
-            return _playlist_images_list_payload(execution, payload)
-        if execution.metadata.operation_key == "playlistItems.list":
-            return _playlist_items_list_payload(execution, payload)
-        if execution.metadata.operation_key == "playlists.list":
-            return _playlists_list_payload(execution, payload)
-        if execution.metadata.operation_key == "subscriptions.list":
-            return _subscriptions_list_payload(execution, payload)
-        if execution.metadata.operation_key == "search.list":
-            return _search_list_payload(execution, payload)
-        if execution.metadata.operation_key == "commentThreads.insert":
-            return _comment_threads_insert_payload(execution, payload)
-        if execution.metadata.operation_key == "comments.insert":
-            return _comments_insert_payload(execution, payload)
-        if execution.metadata.operation_key == "comments.update":
-            return _comments_update_payload(execution, payload)
-        if execution.metadata.operation_key == "comments.setModerationStatus":
-            return _comments_set_moderation_status_payload(execution)
-        if execution.metadata.operation_key == "comments.delete":
-            return _comments_delete_payload(execution)
-        if execution.metadata.operation_key == "channelSections.insert":
-            return _channel_sections_insert_payload(execution, payload)
-        if execution.metadata.operation_key == "channelSections.update":
-            return _channel_sections_update_payload(execution, payload)
-        if execution.metadata.operation_key == "channels.update":
-            return _channels_update_payload(payload)
-
-        parsed = json.loads(payload)
-        if not isinstance(parsed, dict):
-            raise ValueError("YouTube Data API responses must decode to an object")
-        return parsed
+        return normalize_youtube_response(
+            execution,
+            payload,
+            registry=default_response_normalizer_registry(),
+        )
 
     return transport
 
@@ -1918,3 +1955,254 @@ def _channels_update_payload(payload: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ValueError("YouTube Data API responses must decode to an object")
     return parsed
+
+
+def default_response_normalizer_registry() -> Mapping[str, ResponseNormalizer]:
+    """Return the default operation-key response normalizer registry.
+
+    :return: Mapping used by the shared YouTube transport to normalize endpoint payloads.
+    """
+    return build_response_normalizer_registry(
+        (
+            ResponseNormalizer.context_and_payload(
+                family_name="captions",
+                operation_key="captions.download",
+                handler=_download_payload,
+            ),
+            ResponseNormalizer.context_only(
+                family_name="captions",
+                operation_key="captions.delete",
+                handler=_delete_payload,
+            ),
+            ResponseNormalizer.context_only(
+                family_name="channel_sections",
+                operation_key="channelSections.delete",
+                handler=_channel_sections_delete_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="channel_banners",
+                operation_key="channelBanners.insert",
+                handler=_channel_banners_insert_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="thumbnails",
+                operation_key="thumbnails.set",
+                handler=_thumbnails_set_payload,
+            ),
+            ResponseNormalizer.context_only(
+                family_name="watermarks",
+                operation_key="watermarks.set",
+                handler=_watermarks_set_payload,
+            ),
+            ResponseNormalizer.context_only(
+                family_name="watermarks",
+                operation_key="watermarks.unset",
+                handler=_watermarks_unset_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="videos",
+                operation_key="videos.insert",
+                handler=_videos_insert_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="playlist_images",
+                operation_key="playlistImages.insert",
+                handler=_playlist_images_insert_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="playlist_items",
+                operation_key="playlistItems.insert",
+                handler=_playlist_items_insert_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="playlists",
+                operation_key="playlists.insert",
+                handler=_playlists_insert_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="subscriptions",
+                operation_key="subscriptions.insert",
+                handler=_subscriptions_insert_payload,
+            ),
+            ResponseNormalizer.context_only(
+                family_name="subscriptions",
+                operation_key="subscriptions.delete",
+                handler=_subscriptions_delete_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="videos",
+                operation_key="videos.rate",
+                handler=_videos_rate_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="videos",
+                operation_key="videos.getRating",
+                handler=_videos_get_rating_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="videos",
+                operation_key="videos.reportAbuse",
+                handler=_videos_report_abuse_payload,
+            ),
+            ResponseNormalizer.context_only(
+                family_name="videos",
+                operation_key="videos.delete",
+                handler=_videos_delete_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="videos",
+                operation_key="videos.update",
+                handler=_videos_update_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="playlists",
+                operation_key="playlists.update",
+                handler=_playlists_update_payload,
+            ),
+            ResponseNormalizer.context_only(
+                family_name="playlists",
+                operation_key="playlists.delete",
+                handler=_playlists_delete_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="playlist_items",
+                operation_key="playlistItems.update",
+                handler=_playlist_items_update_payload,
+            ),
+            ResponseNormalizer.context_only(
+                family_name="playlist_items",
+                operation_key="playlistItems.delete",
+                handler=_playlist_items_delete_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="playlist_images",
+                operation_key="playlistImages.update",
+                handler=_playlist_images_update_payload,
+            ),
+            ResponseNormalizer.context_only(
+                family_name="playlist_images",
+                operation_key="playlistImages.delete",
+                handler=_playlist_images_delete_payload,
+            ),
+            ResponseNormalizer.payload_only(
+                family_name="channel_sections",
+                operation_key="channelSections.list",
+                handler=_channel_sections_list_payload,
+            ),
+            ResponseNormalizer.payload_only(
+                family_name="comments",
+                operation_key="comments.list",
+                handler=_comments_list_payload,
+            ),
+            ResponseNormalizer.payload_only(
+                family_name="comment_threads",
+                operation_key="commentThreads.list",
+                handler=_comment_threads_list_payload,
+            ),
+            ResponseNormalizer.payload_only(
+                family_name="guide_categories",
+                operation_key="guideCategories.list",
+                handler=_guide_categories_list_payload,
+            ),
+            ResponseNormalizer.payload_only(
+                family_name="localization",
+                operation_key="i18nLanguages.list",
+                handler=_i18n_languages_list_payload,
+            ),
+            ResponseNormalizer.payload_only(
+                family_name="localization",
+                operation_key="i18nRegions.list",
+                handler=_i18n_regions_list_payload,
+            ),
+            ResponseNormalizer.payload_only(
+                family_name="video_abuse_report_reasons",
+                operation_key="videoAbuseReportReasons.list",
+                handler=_video_abuse_report_reasons_list_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="video_categories",
+                operation_key="videoCategories.list",
+                handler=_video_categories_list_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="videos",
+                operation_key="videos.list",
+                handler=_videos_list_payload,
+            ),
+            ResponseNormalizer.payload_only(
+                family_name="members",
+                operation_key="members.list",
+                handler=_members_list_payload,
+            ),
+            ResponseNormalizer.payload_only(
+                family_name="memberships_levels",
+                operation_key="membershipsLevels.list",
+                handler=_memberships_levels_list_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="playlist_images",
+                operation_key="playlistImages.list",
+                handler=_playlist_images_list_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="playlist_items",
+                operation_key="playlistItems.list",
+                handler=_playlist_items_list_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="playlists",
+                operation_key="playlists.list",
+                handler=_playlists_list_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="subscriptions",
+                operation_key="subscriptions.list",
+                handler=_subscriptions_list_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="search",
+                operation_key="search.list",
+                handler=_search_list_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="comment_threads",
+                operation_key="commentThreads.insert",
+                handler=_comment_threads_insert_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="comments",
+                operation_key="comments.insert",
+                handler=_comments_insert_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="comments",
+                operation_key="comments.update",
+                handler=_comments_update_payload,
+            ),
+            ResponseNormalizer.context_only(
+                family_name="comments",
+                operation_key="comments.setModerationStatus",
+                handler=_comments_set_moderation_status_payload,
+            ),
+            ResponseNormalizer.context_only(
+                family_name="comments",
+                operation_key="comments.delete",
+                handler=_comments_delete_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="channel_sections",
+                operation_key="channelSections.insert",
+                handler=_channel_sections_insert_payload,
+            ),
+            ResponseNormalizer.context_and_payload(
+                family_name="channel_sections",
+                operation_key="channelSections.update",
+                handler=_channel_sections_update_payload,
+            ),
+            ResponseNormalizer.payload_only(
+                family_name="channels",
+                operation_key="channels.update",
+                handler=_channels_update_payload,
+            ),
+        )
+    )

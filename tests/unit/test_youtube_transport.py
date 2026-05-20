@@ -11,9 +11,13 @@ import mcp_server.integrations.wrappers as wrappers_module
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.executor import RequestExecution
 from mcp_server.integrations.youtube import (
+    ResponseNormalizer,
+    build_response_normalizer_registry,
     build_youtube_data_api_executor,
     build_youtube_data_api_request,
     build_youtube_data_api_transport,
+    default_response_normalizer_registry,
+    normalize_youtube_response,
 )
 from mcp_server.integrations.wrappers import (
     build_activities_list_wrapper,
@@ -91,6 +95,96 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             arguments=arguments,
             auth_context=auth_context,
         )
+
+    def test_response_normalizer_registry_handles_supported_input_shapes(self):
+        execution = self._execution(
+            arguments={"part": "snippet", "channelId": "UC123"},
+            auth_context=AuthContext(mode=AuthMode.API_KEY, credentials=CredentialBundle(api_key="key-123")),
+        )
+        context_only = ResponseNormalizer.context_only(
+            family_name="activities",
+            operation_key="activities.list",
+            handler=lambda execution: {"sourceOperation": execution.metadata.operation_key},
+        )
+        payload_only = ResponseNormalizer.payload_only(
+            family_name="activities",
+            operation_key="activities.payload",
+            handler=lambda payload: {"payload": payload},
+        )
+        context_and_payload = ResponseNormalizer.context_and_payload(
+            family_name="activities",
+            operation_key="activities.both",
+            handler=lambda execution, payload: {
+                "sourceOperation": execution.metadata.operation_key,
+                "payload": payload,
+            },
+        )
+
+        registry = build_response_normalizer_registry((context_only, payload_only, context_and_payload))
+
+        self.assertEqual(
+            normalize_youtube_response(execution, "ignored", registry=registry),
+            {"sourceOperation": "activities.list"},
+        )
+        payload_execution = RequestExecution(
+            metadata=payload_only.metadata_for_test(execution.metadata),
+            arguments=execution.arguments,
+            auth_context=execution.auth_context,
+        )
+        self.assertEqual(
+            normalize_youtube_response(payload_execution, "payload-text", registry=registry),
+            {"payload": "payload-text"},
+        )
+        both_execution = RequestExecution(
+            metadata=context_and_payload.metadata_for_test(execution.metadata),
+            arguments=execution.arguments,
+            auth_context=execution.auth_context,
+        )
+        self.assertEqual(
+            normalize_youtube_response(both_execution, "payload-text", registry=registry),
+            {"sourceOperation": "activities.both", "payload": "payload-text"},
+        )
+
+    def test_response_normalizer_registry_preserves_generic_json_fallback(self):
+        execution = self._execution(
+            arguments={"part": "snippet", "channelId": "UC123"},
+            auth_context=AuthContext(mode=AuthMode.API_KEY, credentials=CredentialBundle(api_key="key-123")),
+        )
+
+        self.assertEqual(normalize_youtube_response(execution, '{"items": []}', registry={}), {"items": []})
+
+        with self.assertRaisesRegex(ValueError, "decode to an object"):
+            normalize_youtube_response(execution, '["not-object"]', registry={})
+
+    def test_response_normalizer_registry_exposes_family_ownership(self):
+        normalizer = ResponseNormalizer.context_and_payload(
+            family_name="videos",
+            operation_key="videos.list",
+            handler=lambda execution, payload: {"operation": execution.metadata.operation_key, "payload": payload},
+        )
+        registry = build_response_normalizer_registry((normalizer,))
+
+        self.assertEqual(registry["videos.list"].family_name, "videos")
+        self.assertEqual(registry["videos.list"].input_requirements, "context_payload")
+
+    def test_default_response_normalizer_registry_covers_representative_operation_shapes(self):
+        registry = default_response_normalizer_registry()
+
+        expected = {
+            "captions.download": ("captions", "context_payload"),
+            "watermarks.unset": ("watermarks", "context"),
+            "channelSections.list": ("channel_sections", "payload"),
+            "videos.list": ("videos", "context_payload"),
+            "comments.delete": ("comments", "context"),
+            "search.list": ("search", "context_payload"),
+            "i18nLanguages.list": ("localization", "payload"),
+            "channels.update": ("channels", "payload"),
+        }
+
+        for operation_key, (family_name, input_requirements) in expected.items():
+            self.assertIn(operation_key, registry)
+            self.assertEqual(registry[operation_key].family_name, family_name)
+            self.assertEqual(registry[operation_key].input_requirements, input_requirements)
 
     def _captions_execution(
         self,

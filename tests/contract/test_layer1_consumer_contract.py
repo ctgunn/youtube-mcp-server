@@ -94,6 +94,27 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["sourceAuthMode"], "api_key")
         self.assertEqual(result["sourceQuotaCost"], 1)
 
+    def test_consumer_accepts_resource_family_wrapper_builder_results(self):
+        from mcp_server.integrations.resources.videos import build_videos_list_wrapper
+
+        wrapper = build_videos_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {"items": [{"id": execution.arguments["id"]}]},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+        consumer = RepresentativeHigherLayerConsumer(wrapper=wrapper, executor=executor)
+
+        result = consumer.fetch_videos_summary(
+            arguments={"part": "snippet", "id": "video-123"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["sourceOperation"], "videos.list")
+        self.assertEqual(result["sourceQuotaCost"], 1)
+
     def test_consumer_surfaces_normalized_failures_without_raw_upstream_shapes(self):
         wrapper = self._build_wrapper()
         executor = IntegrationExecutor(

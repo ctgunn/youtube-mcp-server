@@ -140,6 +140,22 @@ class Layer1FoundationUnitTests(unittest.TestCase):
         self.assertEqual(wrapper.metadata.review_auth_mode, "mixed/conditional")
         self.assertIn("channelId", wrapper.metadata.auth_condition_note)
 
+    def test_package_exports_match_resource_family_builders(self):
+        from mcp_server.integrations.resources import activities, videos, watermarks
+
+        self.assertEqual(
+            integrations_package.build_activities_list_wrapper().review_surface(),
+            activities.build_activities_list_wrapper().review_surface(),
+        )
+        self.assertEqual(
+            integrations_package.build_videos_list_wrapper().review_surface(),
+            videos.build_videos_list_wrapper().review_surface(),
+        )
+        self.assertEqual(
+            integrations_package.build_watermarks_unset_wrapper().review_surface(),
+            watermarks.build_watermarks_unset_wrapper().review_surface(),
+        )
+
     def test_activities_list_wrapper_requires_one_selector_field(self):
         wrapper = build_activities_list_wrapper()
 
