@@ -117,6 +117,26 @@ class Layer1ResourceModuleUnitTests(unittest.TestCase):
             watermarks.build_watermarks_set_wrapper().review_surface(),
         )
 
+    def test_wrapper_implementations_live_in_resource_family_modules(self):
+        wrappers = importlib.import_module("mcp_server.integrations.wrappers")
+        activities = importlib.import_module("mcp_server.integrations.resources.activities")
+        videos = importlib.import_module("mcp_server.integrations.resources.videos")
+
+        self.assertEqual(
+            activities.ActivitiesListWrapper.__module__,
+            "mcp_server.integrations.resources.activities",
+        )
+        self.assertEqual(
+            wrappers.ActivitiesListWrapper.__module__,
+            "mcp_server.integrations.resources.activities",
+        )
+        self.assertEqual(
+            videos.VideosReportAbuseWrapper.__module__,
+            "mcp_server.integrations.resources.videos",
+        )
+        with open(wrappers.__file__, "r", encoding="utf-8") as handle:
+            self.assertLess(len(handle.readlines()), 80)
+
     def test_resource_family_access_matches_legacy_builder_surfaces(self):
         resources = importlib.import_module("mcp_server.integrations.resources")
         wrappers = importlib.import_module("mcp_server.integrations.wrappers")
@@ -131,6 +151,38 @@ class Layer1ResourceModuleUnitTests(unittest.TestCase):
             builder().review_surface(),
             wrappers.build_videos_report_abuse_wrapper().review_surface(),
         )
+
+    def test_response_normalizers_are_family_owned(self):
+        normalizers = importlib.import_module("mcp_server.integrations.resources.normalizers")
+
+        registry = normalizers.default_response_normalizer_registry()
+
+        self.assertEqual(registry["videos.list"].family_name, "videos")
+        self.assertEqual(
+            registry["videos.list"]._handler.__module__,
+            "mcp_server.integrations.resources.response_normalizers.videos",
+        )
+        self.assertEqual(
+            registry["captions.download"]._handler.__module__,
+            "mcp_server.integrations.resources.response_normalizers.captions",
+        )
+
+    def test_consumer_summary_methods_are_family_mixins(self):
+        consumer_module = importlib.import_module("mcp_server.integrations.consumer")
+        consumer = consumer_module.RepresentativeHigherLayerConsumer
+
+        self.assertIn("VideosConsumerMixin", {base.__name__ for base in consumer.__mro__})
+        self.assertIn("CaptionsConsumerMixin", {base.__name__ for base in consumer.__mro__})
+        self.assertEqual(
+            consumer.fetch_videos_summary.__module__,
+            "mcp_server.integrations.resources.consumers.videos",
+        )
+        self.assertEqual(
+            consumer.download_caption_summary.__module__,
+            "mcp_server.integrations.resources.consumers.captions",
+        )
+        with open(consumer_module.__file__, "r", encoding="utf-8") as handle:
+            self.assertLess(len(handle.readlines()), 40)
 
 
 if __name__ == "__main__":
