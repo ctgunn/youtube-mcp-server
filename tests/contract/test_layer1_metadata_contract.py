@@ -89,6 +89,17 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("OAuth", review_surface["authConditionNote"])
         self.assertIn("quota guidance conflicts", review_surface["caveatNote"])
 
+    def test_resource_family_builders_preserve_representative_metadata(self):
+        from mcp_server.integrations.resources.activities import build_activities_list_wrapper
+        from mcp_server.integrations.resources.videos import build_videos_report_abuse_wrapper
+        from mcp_server.integrations.resources.watermarks import build_watermarks_set_wrapper
+
+        self.assertEqual(build_activities_list_wrapper().review_surface()["quotaCost"], 1)
+        self.assertEqual(build_activities_list_wrapper().review_surface()["authMode"], "mixed/conditional")
+        self.assertEqual(build_videos_report_abuse_wrapper().review_surface()["quotaCost"], 50)
+        self.assertEqual(build_videos_report_abuse_wrapper().review_surface()["authMode"], "oauth_required")
+        self.assertEqual(build_watermarks_set_wrapper().review_surface()["requiredFields"], ("channelId", "body", "media"))
+
     def test_review_surface_supports_higher_layer_comparison(self):
         public_wrapper = EndpointMetadata(
             resource_name="videos",

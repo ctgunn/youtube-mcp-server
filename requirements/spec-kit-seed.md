@@ -1333,16 +1333,18 @@ compatibility.
 
 Context:
 Layer 1 endpoint work from `YT-103` through `YT-155` implemented the full
-YouTube Data API endpoint inventory, but much of the implementation is now
-concentrated in a small number of broad modules. In the current codebase,
-wrapper classes, builder functions, metadata declarations, and endpoint-specific
-validators are concentrated in `src/mcp_server/integrations/wrappers.py`;
-generic YouTube request construction and endpoint-specific response
-normalization are concentrated in `src/mcp_server/integrations/youtube.py`; and
-representative higher-layer summary helpers are concentrated in
-`src/mcp_server/integrations/consumer.py`. Contract tests are already split by
-resource family, so the implementation should be reorganized to match that
-mental model before Layer 2 and Layer 3 build further on top of Layer 1.
+YouTube Data API endpoint inventory. Prior to `YT-156`, much of that
+implementation was concentrated in a small number of broad modules:
+`src/mcp_server/integrations/wrappers.py` held wrapper classes, builder
+functions, metadata declarations, and endpoint-specific validators;
+`src/mcp_server/integrations/youtube.py` held generic YouTube request
+construction plus endpoint-specific response normalization; and
+`src/mcp_server/integrations/consumer.py` held representative higher-layer
+summary helpers. `YT-156` reorganizes those endpoint-specific responsibilities
+around resource-family modules while keeping shared foundations and
+compatibility imports stable, so Layer 2 and Layer 3 agents should build on the
+resource-family package rather than re-concentrating endpoint logic in the
+compatibility modules.
 
 Primary stories:
 - As a maintainer, I can find all Layer 1 integration code for a YouTube

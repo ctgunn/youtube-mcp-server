@@ -87,6 +87,39 @@ class _FakeHTTPResponse:
 
 
 class Layer1FoundationIntegrationTests(unittest.TestCase):
+    def test_resource_family_wrapper_executes_through_shared_executor(self):
+        from mcp_server.integrations.resources.activities import build_activities_list_wrapper
+
+        wrapper = build_activities_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda execution: {"items": [{"id": execution.arguments["channelId"]}]},
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet", "channelId": "UC123"},
+            auth_context=AuthContext(mode=AuthMode.API_KEY, credentials=CredentialBundle(api_key="key-123")),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "UC123")
+
+    def test_resource_family_wrapper_rejects_invalid_shape_before_execution(self):
+        from mcp_server.integrations.resources.activities import build_activities_list_wrapper
+
+        wrapper = build_activities_list_wrapper()
+        executor = IntegrationExecutor(
+            transport=lambda _execution: self.fail("invalid request should not execute"),
+            retry_policy=RetryPolicy(max_attempts=1),
+        )
+
+        with self.assertRaisesRegex(ValueError, "activities.list requires a supported selector"):
+            wrapper.call(
+                executor,
+                arguments={"part": "snippet"},
+                auth_context=AuthContext(mode=AuthMode.API_KEY, credentials=CredentialBundle(api_key="key-123")),
+            )
+
     def test_activities_list_wrapper_executes_channel_requests_through_shared_executor(self):
         wrapper = build_activities_list_wrapper()
         executor = IntegrationExecutor(
