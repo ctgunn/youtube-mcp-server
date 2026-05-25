@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from mcp_server.tools.youtube_common.contracts import Layer2ContractError
+
 
 class ResponseKind(Enum):
     """Represent successful result kinds used by Layer 2 tools."""
@@ -15,6 +17,14 @@ class ResponseKind(Enum):
     UPLOAD_RESULT = "upload_result"
     DOWNLOAD_WRAPPER = "download_wrapper"
     LOOKUP = "lookup"
+
+
+class ResponseBoundaryKind(Enum):
+    """Classify whether response behavior belongs in Layer 2."""
+
+    NEAR_RAW = "near_raw"
+    LIGHTLY_RESHAPED = "lightly_reshaped"
+    OUT_OF_SCOPE = "out_of_scope"
 
 
 class ErrorCategory(Enum):
@@ -129,6 +139,39 @@ class ResponseConvention:
         if self.result_kind is ResponseKind.DOWNLOAD_WRAPPER:
             metadata["contentPolicy"] = self.content_policy or "safe_text_or_metadata_wrapper"
         return metadata
+
+
+@dataclass(frozen=True)
+class ResponseBoundary:
+    """Describe the boundary between Layer 2 and higher-level responses.
+
+    :param boundary_kind: Classification of the response behavior.
+    :param allowed_wrapper_fields: Safe wrapper fields allowed for MCP clarity.
+    :param preserved_upstream_fields: Upstream-visible fields preserved.
+    :param disallowed_behavior: Behaviors that belong outside Layer 2.
+    """
+
+    boundary_kind: ResponseBoundaryKind
+    allowed_wrapper_fields: tuple[str, ...] = field(default_factory=tuple)
+    preserved_upstream_fields: tuple[str, ...] = field(default_factory=tuple)
+    disallowed_behavior: tuple[str, ...] = field(default_factory=tuple)
+
+    def to_metadata(self) -> dict[str, Any]:
+        """Build JSON-compatible response-boundary metadata.
+
+        :return: Metadata describing the response boundary.
+        :raises Layer2ContractError: If out-of-scope behavior is not explained.
+        """
+        if not isinstance(self.boundary_kind, ResponseBoundaryKind):
+            raise Layer2ContractError("boundary_kind must be a ResponseBoundaryKind")
+        if self.boundary_kind is ResponseBoundaryKind.OUT_OF_SCOPE and not self.disallowed_behavior:
+            raise Layer2ContractError("out-of-scope response boundaries require disallowed behavior")
+        return {
+            "boundaryKind": self.boundary_kind.value,
+            "allowedWrapperFields": list(self.allowed_wrapper_fields),
+            "preservedUpstreamFields": list(self.preserved_upstream_fields),
+            "disallowedBehavior": list(self.disallowed_behavior),
+        }
 
 
 UNSAFE_DETAIL_MARKERS = ("api_key", "token", "secret", "stack", "raw_media", "signed_url")
