@@ -87,6 +87,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - N/A for feature-specific persistence; wrapper metadata, request validation state, mutation execution state, and feature artifacts remain in-memory or file-based only (155-watermarks-unset-wrapper)
 - Python 3.11 + Python standard library dataclasses, enums, JSON, urllib request tooling, and package imports; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff (156-layer1-resource-modules)
 - N/A for feature-specific persistence; wrapper metadata, response-normalizer registration, compatibility exports, verification evidence, and feature artifacts remain in-memory or file-based only (156-layer1-resource-modules)
+- Python 3.11 + Existing Python MCP tool registry and dispatcher under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/`; existing Layer 1 YouTube integration resource modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/resources/`; Python standard library dataclasses, enums, JSON-compatible dictionaries, and package imports; pytest; Ruff (201-layer2-shared-contracts)
+- N/A for feature-specific persistence; Layer 2 contract metadata, representative examples, registration metadata, test fixtures, and planning artifacts remain in memory or file-based only (201-layer2-shared-contracts)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -107,9 +109,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 201-layer2-shared-contracts: Added Python 3.11 + Existing Python MCP tool registry and dispatcher under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/`; existing Layer 1 YouTube integration resource modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/resources/`; Python standard library dataclasses, enums, JSON-compatible dictionaries, and package imports; pytest; Ruff
 - 156-layer1-resource-modules: Added Python 3.11 + Python standard library dataclasses, enums, JSON, urllib request tooling, and package imports; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
 - 155-watermarks-unset-wrapper: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
-- 154-watermarks-set-wrapper: Added Python 3.11 + Python standard library dataclasses, enums, JSON, and urllib request tooling; existing internal integration modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`; pytest; Ruff
 
 
 <!-- MANUAL ADDITIONS START -->
