@@ -137,6 +137,7 @@ def build_representative_tool_descriptor(contract: YouTubeToolContract) -> dict[
     return {
         "name": contract.tool_name,
         "description": contract.description,
+        "metadata": contract.to_tool_metadata(),
         "inputSchema": {
             "type": "object",
             "required": list(contract.input_contract.get("required", [])),

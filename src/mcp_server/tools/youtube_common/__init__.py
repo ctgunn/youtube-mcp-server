@@ -2,6 +2,8 @@
 
 from mcp_server.tools.youtube_common.contracts import (
     AuthMode,
+    AvailabilityState,
+    validate_safe_public_metadata,
     YouTubeToolContract,
     YouTubeToolContractError,
     derive_tool_name,
@@ -9,6 +11,8 @@ from mcp_server.tools.youtube_common.contracts import (
 from mcp_server.tools.youtube_common.conventions import (
     ErrorCategory,
     InputConvention,
+    ResponseBoundary,
+    ResponseBoundaryKind,
     ResponseConvention,
     ResponseKind,
     sanitize_error_details,
@@ -25,6 +29,7 @@ from mcp_server.tools.youtube_common.families import (
 
 __all__ = [
     "AuthMode",
+    "AvailabilityState",
     "ErrorCategory",
     "InputConvention",
     "YouTubeToolContractError",
@@ -33,6 +38,8 @@ __all__ = [
     "REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS",
     "REQUIRED_YOUTUBE_RESOURCE_FAMILIES",
     "RESOURCE_FAMILY_REGISTRY",
+    "ResponseBoundary",
+    "ResponseBoundaryKind",
     "ResponseConvention",
     "ResponseKind",
     "SHARED_YOUTUBE_HELPER_BOUNDARY",
@@ -40,4 +47,5 @@ __all__ = [
     "derive_tool_name",
     "get_resource_family",
     "sanitize_error_details",
+    "validate_safe_public_metadata",
 ]
