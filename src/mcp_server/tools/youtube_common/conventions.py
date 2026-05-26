@@ -1,4 +1,4 @@
-"""Shared Layer 2 input, response, and error conventions."""
+"""Shared YouTube input, response, and error conventions."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from mcp_server.tools.youtube_common.contracts import Layer2ContractError
 
 
 class ResponseKind(Enum):
-    """Represent successful result kinds used by Layer 2 tools."""
+    """Represent successful result kinds used by YouTube tools."""
 
     LIST = "list"
     MUTATION_ACKNOWLEDGMENT = "mutation_acknowledgment"
@@ -28,7 +28,7 @@ class ResponseBoundaryKind(Enum):
 
 
 class ErrorCategory(Enum):
-    """Represent stable MCP-safe Layer 2 failure categories."""
+    """Represent stable MCP-safe YouTube tool failure categories."""
 
     AUTHENTICATION_FAILED = "authentication_failed"
     AUTHORIZATION_FAILED = "authorization_failed"
@@ -74,7 +74,7 @@ class InputConvention:
     def to_schema(self) -> dict[str, Any]:
         """Build JSON-compatible schema metadata for the input convention.
 
-        :return: Schema-like metadata suitable for shared Layer 2 tests and
+        :return: Schema-like metadata suitable for shared YouTube tests and
             future MCP tool definitions.
         """
         all_fields = tuple(
@@ -102,7 +102,7 @@ class InputConvention:
 
 @dataclass(frozen=True)
 class ResponseConvention:
-    """Describe a near-raw successful Layer 2 response shape.
+    """Describe a near-raw successful YouTube tool response shape.
 
     :param result_kind: Shared result kind.
     :param items_path: Path to returned items for list or lookup results.

@@ -1,8 +1,8 @@
-"""Representative Layer 2 contract examples for shared validation."""
+"""Representative shared YouTube contract examples for shared validation."""
 
 from __future__ import annotations
 
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, Layer2ToolContract, derive_tool_name
+from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract, derive_tool_name
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
 
 
@@ -21,8 +21,8 @@ def _contract(
     availability_state: AvailabilityState = AvailabilityState.ACTIVE,
     usage_notes: tuple[str, ...] = (),
     caveats: tuple[str, ...] = (),
-) -> Layer2ToolContract:
-    """Build a representative Layer 2 contract example.
+) -> YouTubeToolContract:
+    """Build a representative shared YouTube contract example.
 
     :param resource: Upstream YouTube resource name.
     :param method: Upstream YouTube method name.
@@ -37,11 +37,11 @@ def _contract(
     :param availability_state: Public availability status for the example.
     :param usage_notes: Optional caller-facing usage notes with quota details.
     :param caveats: Optional caveat notes for the example.
-    :return: A validated representative Layer 2 tool contract.
+    :return: A validated representative YouTube tool contract.
     """
     notes = usage_notes or (f"Quota cost: {quota_cost}. Auth: {auth_mode.value}.",)
     boundary = response_boundary or _default_response_boundary(response_convention)
-    return Layer2ToolContract(
+    return YouTubeToolContract(
         tool_name=derive_tool_name(resource, method),
         upstream_resource=resource,
         upstream_method=method,
@@ -102,7 +102,7 @@ def _default_response_boundary(response_convention: dict) -> dict:
     ).to_metadata()
 
 
-REPRESENTATIVE_LAYER2_CONTRACTS: tuple[Layer2ToolContract, ...] = (
+REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     _contract(
         resource="activities",
         method="list",

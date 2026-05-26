@@ -1,14 +1,14 @@
-# Contract: YT-201 Layer 2 Public MCP Tool Contract
+# Contract: YT-201 YouTube tool foundation Public MCP Tool Contract
 
 ## Purpose
 
-Define the shared public MCP-facing contract for Layer 2 YouTube Data API endpoint tools. Later endpoint slices from YT-203 through YT-255 must use this contract rather than redefining naming, metadata, input, response, auth, quota, caveat, or error conventions.
+Define the shared public MCP-facing contract for YouTube Data API endpoint tools. Later endpoint slices from YT-203 through YT-255 must use this contract rather than redefining naming, metadata, input, response, auth, quota, caveat, or error conventions.
 
 This contract defines shared behavior only. It does not add a concrete endpoint-backed tool by itself.
 
 ## Contract Scope
 
-- Public Layer 2 MCP tool naming
+- Public YouTube tool foundation MCP tool naming
 - Required endpoint identity metadata
 - Auth mode and quota visibility
 - MCP-facing input contract conventions
@@ -21,7 +21,7 @@ This contract does not define Layer 3 composed tools, heuristic workflows, hoste
 
 ## Public Tool Naming
 
-Layer 2 public tool names must:
+YouTube public tool names must:
 
 - Use `resource_method`
 - Omit a redundant `youtube_` prefix
@@ -40,7 +40,7 @@ Required examples:
 
 ## Required Tool Metadata
 
-Every Layer 2 tool contract must expose:
+Every YouTube tool contract must expose:
 
 - Public MCP tool name
 - Mapped YouTube resource and method
@@ -55,7 +55,7 @@ Descriptions must be understandable from MCP tool discovery without requiring th
 
 ## Input Contract Rules
 
-Layer 2 inputs must stay close to upstream YouTube Data API request concepts.
+YouTube tool inputs must stay close to upstream YouTube Data API request concepts.
 
 Input contracts must document:
 
@@ -73,7 +73,7 @@ Validation failures must be deterministic and safe for MCP clients. Validation m
 
 ## Response Contract Rules
 
-Layer 2 responses must stay near-raw to upstream resource shape while remaining MCP-safe.
+YouTube tool responses must stay near-raw to upstream resource shape while remaining MCP-safe.
 
 Responses must preserve upstream-visible concepts when present:
 
@@ -91,11 +91,11 @@ Light wrapper fields are allowed only for:
 - Safe metadata such as quota cost or requested parts
 - Safe content delivery for payloads that cannot be returned as plain JSON fields
 
-Layer 2 responses must not present higher-level composition, ranking, enrichment, or heuristic interpretation as if it were raw endpoint behavior.
+YouTube tool responses must not present higher-level composition, ranking, enrichment, or heuristic interpretation as if it were raw endpoint behavior.
 
 ## Auth and Quota Rules
 
-Each Layer 2 tool must declare one of:
+Each YouTube tool must declare one of:
 
 - `api_key`
 - `oauth_required`
@@ -103,11 +103,11 @@ Each Layer 2 tool must declare one of:
 
 Mixed or conditional auth must describe the selector, caller context, or request mode that changes the credential requirement.
 
-Each Layer 2 tool must expose the official quota-unit cost. High-cost tools must call out the cost clearly in discovery metadata or review-facing contract evidence.
+Each YouTube tool must expose the official quota-unit cost. High-cost tools must call out the cost clearly in discovery metadata or review-facing contract evidence.
 
 ## Error Contract Rules
 
-Layer 2 tools must map failures to stable MCP-safe categories:
+YouTube tools must map failures to stable MCP-safe categories:
 
 - `authentication_failed`
 - `authorization_failed`

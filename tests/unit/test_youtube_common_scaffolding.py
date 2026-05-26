@@ -1,8 +1,10 @@
-"""Unit tests for shared Layer 2 scaffolding helpers."""
+"""Unit tests for shared YouTube scaffolding helpers."""
+
+import pytest
 
 
-def test_layer2_package_imports():
-    """Confirm the shared Layer 2 package can be imported."""
+def test_youtube_package_imports():
+    """Confirm the shared YouTube package can be imported."""
     import mcp_server.tools.youtube_common as youtube_common
 
     assert youtube_common is not None
@@ -41,9 +43,9 @@ def test_derive_tool_name_rejects_redundant_youtube_prefix():
     """Reject resource names that would create redundant public prefixes."""
     import pytest
 
-    from mcp_server.tools.youtube_common import Layer2ContractError, derive_tool_name
+    from mcp_server.tools.youtube_common import YouTubeToolContractError, derive_tool_name
 
-    with pytest.raises(Layer2ContractError):
+    with pytest.raises(YouTubeToolContractError):
         derive_tool_name("youtube_videos", "list")
 
 
@@ -58,7 +60,7 @@ def test_derive_tool_name_rejects_casing_drifted_method_names():
 
 
 def test_input_convention_builds_schema_metadata():
-    """Represent near-raw Layer 2 input mapping as schema metadata."""
+    """Represent near-raw YouTube tool input mapping as schema metadata."""
     from mcp_server.tools.youtube_common import InputConvention
 
     convention = InputConvention(
@@ -98,11 +100,11 @@ def test_response_boundary_builds_metadata():
     }
 
 
-def test_required_layer2_resource_families_have_placement_metadata():
+def test_required_youtube_resource_families_have_placement_metadata():
     """Expose resource-family placement rules for later endpoint slices."""
-    from mcp_server.tools.youtube_common import REQUIRED_LAYER2_RESOURCE_FAMILIES, get_resource_family
+    from mcp_server.tools.youtube_common import REQUIRED_YOUTUBE_RESOURCE_FAMILIES, get_resource_family
 
-    assert {"activities", "captions", "videos", "watermarks"}.issubset(REQUIRED_LAYER2_RESOURCE_FAMILIES)
+    assert {"activities", "captions", "videos", "watermarks"}.issubset(REQUIRED_YOUTUBE_RESOURCE_FAMILIES)
 
     videos = get_resource_family("videos")
 

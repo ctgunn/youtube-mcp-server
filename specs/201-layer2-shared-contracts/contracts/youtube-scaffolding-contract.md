@@ -1,14 +1,14 @@
-# Contract: YT-201 Layer 2 Scaffolding and Resource-Family Layout
+# Contract: YT-201 YouTube tool foundation Scaffolding and Resource-Family Layout
 
 ## Purpose
 
-Define the internal scaffolding contract for adding Layer 2 endpoint-backed public MCP tools by YouTube resource family. Later endpoint slices must use this contract to place tool definitions, input contracts, handlers, response expectations, tests, examples, and caveat notes consistently.
+Define the internal scaffolding contract for adding YouTube endpoint-backed public MCP tools by YouTube resource family. Later endpoint slices must use this contract to place tool definitions, input contracts, handlers, response expectations, tests, examples, and caveat notes consistently.
 
 This contract is internal to `/Users/ctgunn/Projects/youtube-mcp-server`. It supports public MCP tool consistency but does not itself add a concrete public endpoint tool.
 
 ## Contract Scope
 
-- Shared Layer 2 helper boundary
+- shared YouTube helper boundary
 - Resource-family ownership rules
 - Expected locations for endpoint-specific public tool artifacts
 - Test placement and Red-Green-Refactor evidence expectations
@@ -18,9 +18,9 @@ This contract is internal to `/Users/ctgunn/Projects/youtube-mcp-server`. It sup
 
 This contract does not define a new transport, a new persistence layer, or a new YouTube endpoint wrapper.
 
-## Shared Layer 2 Boundary
+## shared YouTube Boundary
 
-Shared Layer 2 scaffolding may own:
+shared YouTube scaffolding may own:
 
 - Public tool naming helpers
 - Metadata records or validation helpers
@@ -41,7 +41,7 @@ Shared scaffolding must not own:
 
 ## Resource-Family Ownership
 
-Endpoint-specific Layer 2 tools must be organized by YouTube resource family. Family examples include:
+Endpoint-specific YouTube tools must be organized by YouTube resource family. Family examples include:
 
 - `activities`
 - `captions`
@@ -65,7 +65,7 @@ Endpoint-specific Layer 2 tools must be organized by YouTube resource family. Fa
 - `videos`
 - `watermarks`
 
-Each family may own endpoint-specific definitions, schemas, handlers, examples, and tests for its public Layer 2 tools. Shared rules must remain centralized.
+Each family may own endpoint-specific definitions, schemas, handlers, examples, and tests for its public YouTube tools. Shared rules must remain centralized.
 
 ## Placement Expectations
 
@@ -83,18 +83,18 @@ Future endpoint slices must identify placements for:
 
 The planned test locations for YT-201 shared scaffolding are:
 
-- `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer2_shared_scaffolding.py`
-- `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer2_shared_contract.py`
-- `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer2_tool_catalog_contract.py`
-- `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_layer2_tool_registration.py`
+- `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_common_scaffolding.py`
+- `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_common_contract.py`
+- `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_tool_catalog_contract.py`
+- `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_youtube_tool_registration.py`
 
 Later endpoint slices may add family-specific files while preserving these shared tests.
 
 ## Layer 1 Dependency Boundary
 
-Layer 2 tools must depend on existing Layer 1 integration capabilities for request shaping, credential attachment, upstream execution, response normalization, and upstream error normalization.
+YouTube tools must depend on existing Layer 1 integration capabilities for request shaping, credential attachment, upstream execution, response normalization, and upstream error normalization.
 
-Layer 2 shared scaffolding must not duplicate Layer 1:
+YouTube tool foundation shared scaffolding must not duplicate Layer 1:
 
 - Auth context handling
 - Request execution
@@ -104,7 +104,7 @@ Layer 2 shared scaffolding must not duplicate Layer 1:
 - Upstream response parsing
 - Upstream error normalization
 
-Layer 2 may add public MCP-facing descriptions, schemas, result wrappers, and safe error categorization at the tool boundary.
+shared YouTube tool foundation may add public MCP-facing descriptions, schemas, result wrappers, and safe error categorization at the tool boundary.
 
 ## Documentation and Caveat Rules
 
@@ -120,7 +120,7 @@ Caveats include:
 - Official documentation inconsistencies
 - Delegated content-owner behavior
 
-Shared caveat categories belong in Layer 2 shared scaffolding; endpoint-specific facts belong with the resource family.
+Shared caveat categories belong in YouTube tool foundation shared scaffolding; endpoint-specific facts belong with the resource family.
 
 ## Test and Verification Contract
 
@@ -140,7 +140,7 @@ python3 -m ruff check .
 Focused YT-201 validation should include:
 
 ```bash
-python3 -m pytest tests/unit/test_layer2_shared_scaffolding.py tests/contract/test_layer2_shared_contract.py tests/integration/test_layer2_tool_registration.py
+python3 -m pytest tests/unit/test_youtube_common_scaffolding.py tests/contract/test_youtube_common_contract.py tests/integration/test_youtube_tool_registration.py
 ```
 
 ## Docstring Contract
@@ -159,10 +159,10 @@ This applies to naming helpers, metadata validators, schema builders, registrati
 
 - YT-201 must remain shared scaffolding only
 - Later endpoint slices must not redefine shared naming, auth, quota, response, or error rules
-- Resource-family organization must prevent a monolithic Layer 2 endpoint-tool file
+- Resource-family organization must prevent a monolithic YouTube endpoint-tool file
 - Shared scaffolding must stay reusable across all YT-203 through YT-255 endpoint slices
 - Secrets and stack traces must never appear in public tool errors, examples, logs, or tests
 
 ## Implementation Alignment
 
-The resource-family scaffold lives in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/families.py`. It records the required Layer 2 family names, family-specific placement metadata, shared/helper boundary rules, and a representative descriptor factory used by registration tests without adding endpoint execution.
+The resource-family scaffold lives in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/families.py`. It records the required YouTube tool foundation family names, family-specific placement metadata, shared/helper boundary rules, and a representative descriptor factory used by registration tests without adding endpoint execution.
