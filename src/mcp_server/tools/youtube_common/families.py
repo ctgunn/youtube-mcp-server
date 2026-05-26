@@ -1,14 +1,14 @@
-"""Resource-family scaffolding for future Layer 2 tools."""
+"""Resource-family scaffolding for future YouTube tools."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
-from mcp_server.tools.youtube_common.contracts import Layer2ToolContract
+from mcp_server.tools.youtube_common.contracts import YouTubeToolContract
 
 
-SHARED_LAYER2_HELPER_BOUNDARY = {
+SHARED_YOUTUBE_HELPER_BOUNDARY = {
     "shared": (
         "naming",
         "auth_quota_metadata",
@@ -25,7 +25,7 @@ SHARED_LAYER2_HELPER_BOUNDARY = {
     ),
 }
 
-REQUIRED_LAYER2_RESOURCE_FAMILIES: tuple[str, ...] = (
+REQUIRED_YOUTUBE_RESOURCE_FAMILIES: tuple[str, ...] = (
     "activities",
     "captions",
     "channel_banners",
@@ -51,8 +51,8 @@ REQUIRED_LAYER2_RESOURCE_FAMILIES: tuple[str, ...] = (
 
 
 @dataclass(frozen=True)
-class Layer2ResourceFamily:
-    """Describe resource-family placement for future Layer 2 endpoint tools.
+class YouTubeResourceFamily:
+    """Describe resource-family placement for future YouTube endpoint tools.
 
     :param family_name: Stable resource-family label.
     :param definition_location: Expected tool definition module path.
@@ -73,7 +73,7 @@ class Layer2ResourceFamily:
 
 
 def _family_module_name(family_name: str) -> str:
-    """Return the module-friendly name for a Layer 2 resource family.
+    """Return the module-friendly name for a YouTube resource family.
 
     :param family_name: Resource-family label.
     :return: Python module name for the family.
@@ -81,40 +81,40 @@ def _family_module_name(family_name: str) -> str:
     return family_name
 
 
-def _build_family(family_name: str) -> Layer2ResourceFamily:
-    """Build placement metadata for one Layer 2 resource family.
+def _build_family(family_name: str) -> YouTubeResourceFamily:
+    """Build placement metadata for one YouTube resource family.
 
     :param family_name: Resource-family label.
     :return: Resource-family placement metadata.
     """
     module_name = _family_module_name(family_name)
     base = "/Users/ctgunn/Projects/youtube-mcp-server"
-    return Layer2ResourceFamily(
+    return YouTubeResourceFamily(
         family_name=family_name,
         definition_location=f"{base}/src/mcp_server/tools/youtube_common/{module_name}.py",
         handler_location=f"{base}/src/mcp_server/tools/youtube_common/{module_name}.py",
         schema_location=f"{base}/src/mcp_server/tools/youtube_common/{module_name}.py",
         test_locations={
-            "unit": f"{base}/tests/unit/test_layer2_{module_name}.py",
-            "contract": f"{base}/tests/contract/test_layer2_{module_name}_contract.py",
-            "integration": f"{base}/tests/integration/test_layer2_{module_name}_registration.py",
+            "unit": f"{base}/tests/unit/test_youtube_{module_name}.py",
+            "contract": f"{base}/tests/contract/test_youtube_{module_name}_contract.py",
+            "integration": f"{base}/tests/integration/test_youtube_{module_name}_registration.py",
         },
-        documentation_location=f"{base}/specs/{{slice}}/contracts/layer2-{module_name}-contract.md",
+        documentation_location=f"{base}/specs/{{slice}}/contracts/youtube-{module_name}-contract.md",
         layer1_dependency=f"mcp_server.integrations.resources.{module_name}",
     )
 
 
-RESOURCE_FAMILY_REGISTRY: dict[str, Layer2ResourceFamily] = {
-    family_name: _build_family(family_name) for family_name in REQUIRED_LAYER2_RESOURCE_FAMILIES
+RESOURCE_FAMILY_REGISTRY: dict[str, YouTubeResourceFamily] = {
+    family_name: _build_family(family_name) for family_name in REQUIRED_YOUTUBE_RESOURCE_FAMILIES
 }
 
 
-def get_resource_family(family_name: str) -> Layer2ResourceFamily:
-    """Look up Layer 2 placement metadata for a resource family.
+def get_resource_family(family_name: str) -> YouTubeResourceFamily:
+    """Look up YouTube tool placement metadata for a resource family.
 
     :param family_name: Resource-family label.
     :return: Resource-family placement metadata.
-    :raises KeyError: If the family is not part of the required Layer 2 set.
+    :raises KeyError: If the family is not part of the required shared YouTube set.
     """
     return RESOURCE_FAMILY_REGISTRY[family_name]
 
@@ -128,10 +128,10 @@ def _representative_handler(arguments: dict[str, Any]) -> dict[str, Any]:
     return {"representativeOnly": True, "arguments": arguments}
 
 
-def build_representative_tool_descriptor(contract: Layer2ToolContract) -> dict[str, Any]:
+def build_representative_tool_descriptor(contract: YouTubeToolContract) -> dict[str, Any]:
     """Build a dispatcher descriptor without adding endpoint execution.
 
-    :param contract: Representative Layer 2 tool contract.
+    :param contract: Representative YouTube tool contract.
     :return: Descriptor compatible with the existing in-memory dispatcher.
     """
     return {

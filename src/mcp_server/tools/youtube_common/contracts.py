@@ -1,4 +1,4 @@
-"""Shared Layer 2 contract primitives for endpoint-backed MCP tools.
+"""Shared YouTube contract primitives for endpoint-backed MCP tools.
 
 The concrete endpoint tools are implemented in later feature slices. This
 module owns only cross-cutting public contract metadata and validation helpers.
@@ -11,12 +11,12 @@ from enum import Enum
 from typing import Any
 
 
-class Layer2ContractError(ValueError):
-    """Raised when shared Layer 2 contract metadata is invalid."""
+class YouTubeToolContractError(ValueError):
+    """Raised when shared YouTube contract metadata is invalid."""
 
 
 class AuthMode(Enum):
-    """Represent the credential mode declared by a Layer 2 tool contract."""
+    """Represent the credential mode declared by a YouTube tool contract."""
 
     API_KEY = "api_key"
     OAUTH_REQUIRED = "oauth_required"
@@ -29,32 +29,32 @@ def _require_text(value: str, field_name: str) -> str:
     :param value: Candidate text value.
     :param field_name: Name of the field being validated.
     :return: The stripped text value.
-    :raises Layer2ContractError: If the value is not non-empty text.
+    :raises YouTubeToolContractError: If the value is not non-empty text.
     """
     if not isinstance(value, str) or not value.strip():
-        raise Layer2ContractError(f"{field_name} is required")
+        raise YouTubeToolContractError(f"{field_name} is required")
     return value.strip()
 
 
 def derive_tool_name(resource: str, method: str) -> str:
-    """Derive a public Layer 2 tool name from an upstream resource method.
+    """Derive a public YouTube tool name from an upstream resource method.
 
     :param resource: Upstream YouTube Data API resource name.
     :param method: Upstream YouTube Data API method name.
     :return: Public MCP tool name using the ``resource_method`` pattern.
-    :raises Layer2ContractError: If either component is empty or would create a
+    :raises YouTubeToolContractError: If either component is empty or would create a
         redundant ``youtube_`` public prefix.
     """
     resource_name = _require_text(resource, "resource")
     method_name = _require_text(method, "method")
     if resource_name.lower().startswith("youtube"):
-        raise Layer2ContractError("Layer 2 tool names must not use a youtube_ prefix")
+        raise YouTubeToolContractError("YouTube tool names must not use a youtube_ prefix")
     return f"{resource_name}_{method_name}"
 
 
 @dataclass(frozen=True)
-class Layer2ToolContract:
-    """Describe the shared public contract for one Layer 2 endpoint tool.
+class YouTubeToolContract:
+    """Describe the shared public contract for one YouTube endpoint tool.
 
     :param tool_name: Public MCP tool name.
     :param upstream_resource: Upstream YouTube Data API resource.
@@ -86,8 +86,8 @@ class Layer2ToolContract:
     def __post_init__(self) -> None:
         """Validate required contract metadata after dataclass construction.
 
-        :raises Layer2ContractError: If any required metadata is missing,
-            inconsistent, or unsafe for shared Layer 2 use.
+        :raises YouTubeToolContractError: If any required metadata is missing,
+            inconsistent, or unsafe for shared YouTube use.
         """
         for field_name in (
             "tool_name",
@@ -101,24 +101,24 @@ class Layer2ToolContract:
 
         expected_name = derive_tool_name(self.upstream_resource, self.upstream_method)
         if self.tool_name != expected_name:
-            raise Layer2ContractError(f"tool_name must be {expected_name}")
+            raise YouTubeToolContractError(f"tool_name must be {expected_name}")
         if not isinstance(self.auth_mode, AuthMode):
-            raise Layer2ContractError("auth_mode must be an AuthMode")
+            raise YouTubeToolContractError("auth_mode must be an AuthMode")
         if not isinstance(self.quota_cost, int) or self.quota_cost < 1:
-            raise Layer2ContractError("quota_cost must be a positive integer")
+            raise YouTubeToolContractError("quota_cost must be a positive integer")
         if not isinstance(self.input_contract, dict) or not self.input_contract:
-            raise Layer2ContractError("input_contract is required")
+            raise YouTubeToolContractError("input_contract is required")
         if not isinstance(self.response_convention, dict) or not self.response_convention:
-            raise Layer2ContractError("response_convention is required")
+            raise YouTubeToolContractError("response_convention is required")
         if not self.error_categories:
-            raise Layer2ContractError("error_categories are required")
+            raise YouTubeToolContractError("error_categories are required")
         object.__setattr__(self, "error_categories", tuple(self.error_categories))
         object.__setattr__(self, "caveats", tuple(self.caveats))
 
     def to_tool_metadata(self) -> dict[str, Any]:
         """Return MCP-facing metadata for discovery and review surfaces.
 
-        :return: JSON-compatible metadata describing the Layer 2 tool contract.
+        :return: JSON-compatible metadata describing the YouTube tool contract.
         """
         return {
             "name": self.tool_name,

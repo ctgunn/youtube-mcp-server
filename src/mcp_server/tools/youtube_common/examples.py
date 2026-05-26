@@ -1,8 +1,8 @@
-"""Representative Layer 2 contract examples for shared validation."""
+"""Representative shared YouTube contract examples for shared validation."""
 
 from __future__ import annotations
 
-from mcp_server.tools.youtube_common.contracts import AuthMode, Layer2ToolContract
+from mcp_server.tools.youtube_common.contracts import AuthMode, YouTubeToolContract
 
 
 def _contract(
@@ -17,8 +17,8 @@ def _contract(
     response_convention: dict,
     error_categories: tuple[str, ...],
     caveats: tuple[str, ...] = (),
-) -> Layer2ToolContract:
-    """Build a representative Layer 2 contract example.
+) -> YouTubeToolContract:
+    """Build a representative shared YouTube contract example.
 
     :param resource: Upstream YouTube resource name.
     :param method: Upstream YouTube method name.
@@ -30,9 +30,9 @@ def _contract(
     :param response_convention: Representative response convention metadata.
     :param error_categories: Safe error categories for the example.
     :param caveats: Optional caveat notes for the example.
-    :return: A validated representative Layer 2 tool contract.
+    :return: A validated representative YouTube tool contract.
     """
-    return Layer2ToolContract(
+    return YouTubeToolContract(
         tool_name=f"{resource}_{method}",
         upstream_resource=resource,
         upstream_method=method,
@@ -48,7 +48,7 @@ def _contract(
     )
 
 
-REPRESENTATIVE_LAYER2_CONTRACTS: tuple[Layer2ToolContract, ...] = (
+REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     _contract(
         resource="activities",
         method="list",

@@ -1,22 +1,22 @@
-"""Contract tests for shared Layer 2 tool contracts."""
+"""Contract tests for shared YouTube tool contracts."""
 
 import pytest
 
 from mcp_server.tools.youtube_common import (
     AuthMode,
     ErrorCategory,
-    Layer2ContractError,
-    Layer2ToolContract,
-    SHARED_LAYER2_HELPER_BOUNDARY,
+    YouTubeToolContractError,
+    YouTubeToolContract,
+    SHARED_YOUTUBE_HELPER_BOUNDARY,
     ResponseConvention,
     ResponseKind,
     sanitize_error_details,
 )
 
 
-def test_layer2_tool_contract_requires_public_metadata():
+def test_youtube_tool_contract_requires_public_metadata():
     """Require every representative contract to expose MCP-facing metadata."""
-    contract = Layer2ToolContract(
+    contract = YouTubeToolContract(
         tool_name="videos_list",
         upstream_resource="videos",
         upstream_method="list",
@@ -55,8 +55,8 @@ def test_layer2_tool_contract_requires_public_metadata():
         ("error_categories", ()),
     ],
 )
-def test_layer2_tool_contract_rejects_missing_required_metadata(field, value):
-    """Reject contracts that omit required shared Layer 2 metadata."""
+def test_youtube_tool_contract_rejects_missing_required_metadata(field, value):
+    """Reject contracts that omit required shared YouTube metadata."""
     kwargs = {
         "tool_name": "videos_list",
         "upstream_resource": "videos",
@@ -72,8 +72,8 @@ def test_layer2_tool_contract_rejects_missing_required_metadata(field, value):
     }
     kwargs[field] = value
 
-    with pytest.raises(Layer2ContractError):
-        Layer2ToolContract(**kwargs)
+    with pytest.raises(YouTubeToolContractError):
+        YouTubeToolContract(**kwargs)
 
 
 @pytest.mark.parametrize(
@@ -103,7 +103,7 @@ def test_response_conventions_expose_near_raw_result_shapes(kind, metadata_key):
     assert metadata_key in metadata
 
 
-def test_error_categories_cover_shared_layer2_failures():
+def test_error_categories_cover_shared_youtube_failures():
     """Keep shared error categories stable for endpoint-backed tools."""
     assert {category.value for category in ErrorCategory} == {
         "authentication_failed",
@@ -135,7 +135,7 @@ def test_sanitize_error_details_removes_secret_bearing_fields():
 
 def test_shared_helper_boundary_keeps_endpoint_facts_in_resource_families():
     """Document which concerns are shared and which stay endpoint-specific."""
-    assert "naming" in SHARED_LAYER2_HELPER_BOUNDARY["shared"]
-    assert "auth_quota_metadata" in SHARED_LAYER2_HELPER_BOUNDARY["shared"]
-    assert "upstream_execution" in SHARED_LAYER2_HELPER_BOUNDARY["endpoint_family"]
-    assert "media_transfer" in SHARED_LAYER2_HELPER_BOUNDARY["endpoint_family"]
+    assert "naming" in SHARED_YOUTUBE_HELPER_BOUNDARY["shared"]
+    assert "auth_quota_metadata" in SHARED_YOUTUBE_HELPER_BOUNDARY["shared"]
+    assert "upstream_execution" in SHARED_YOUTUBE_HELPER_BOUNDARY["endpoint_family"]
+    assert "media_transfer" in SHARED_YOUTUBE_HELPER_BOUNDARY["endpoint_family"]

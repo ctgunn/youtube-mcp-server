@@ -1,15 +1,15 @@
-# Quickstart: YT-201 Layer 2 Shared Scaffolding and Contracts
+# Quickstart: YT-201 Shared YouTube Scaffolding and Contracts
 
 ## Purpose
 
-Use this feature to establish the shared Layer 2 contracts and scaffolding required before individual YouTube Data API endpoint MCP tools are exposed publicly.
+Use this feature to establish the shared YouTube contracts and scaffolding required before individual YouTube Data API endpoint MCP tools are exposed publicly.
 
 YT-201 defines shared rules for naming, upstream identity, auth and quota visibility, input mapping, near-raw result conventions, safe errors, resource-family placement, representative examples, tests, and docstrings. It does not implement concrete endpoint-backed tools.
 
 ## Prerequisites
 
 - Work from `/Users/ctgunn/Projects/youtube-mcp-server` on branch `201-layer2-shared-contracts`
-- Keep the slice limited to shared Layer 2 scaffolding and representative examples
+- Keep the slice limited to shared YouTube scaffolding and representative examples
 - Do not add concrete endpoint-backed YouTube tools in this slice
 - Preserve existing MCP registry, dispatcher, hosted transport, retrieval tools, and Layer 1 endpoint behavior
 - Depend on Layer 1 resource-family capabilities for upstream request execution and normalization
@@ -17,7 +17,7 @@ YT-201 defines shared rules for naming, upstream identity, auth and quota visibi
 
 ## Red Phase
 
-1. Add failing contract tests proving a representative Layer 2 tool contract is incomplete without public name, upstream identity, auth mode, quota cost, input mapping, response convention, caveat handling, and safe error categories.
+1. Add failing contract tests proving a representative YouTube tool contract is incomplete without public name, upstream identity, auth mode, quota cost, input mapping, response convention, caveat handling, and safe error categories.
 2. Add failing unit tests for deterministic `resource_method` naming, including camelCase method suffixes and rejection of redundant `youtube_` naming.
 3. Add failing or characterization tests for representative endpoint shapes:
    - simple read
@@ -32,11 +32,11 @@ YT-201 defines shared rules for naming, upstream identity, auth and quota visibi
 
 ## Green Phase
 
-1. Add the minimum shared Layer 2 contract records or helpers needed to satisfy the failing metadata and naming tests.
+1. Add the minimum shared YouTube contract records or helpers needed to satisfy the failing metadata and naming tests.
 2. Add representative example records or fixtures for the required endpoint shapes without implementing actual endpoint tool behavior.
 3. Add shared validation expectations for auth mode, quota visibility, caveats, input mapping, near-raw response conventions, and safe errors.
-4. Add the minimum registration or discovery scaffolding needed to prove future Layer 2 tools can fit the existing MCP tool registry.
-5. Keep shared Layer 2 code centralized and endpoint-specific behavior out of this slice.
+4. Add the minimum registration or discovery scaffolding needed to prove future YouTube tools can fit the existing MCP tool registry.
+5. Keep shared YouTube code centralized and endpoint-specific behavior out of this slice.
 
 ## Refactor Phase
 
@@ -51,7 +51,7 @@ YT-201 defines shared rules for naming, upstream identity, auth and quota visibi
 From `/Users/ctgunn/Projects/youtube-mcp-server`:
 
 ```bash
-python3 -m pytest tests/unit/test_layer2_shared_scaffolding.py tests/contract/test_layer2_shared_contract.py tests/integration/test_layer2_tool_registration.py
+python3 -m pytest tests/unit/test_youtube_common_scaffolding.py tests/contract/test_youtube_common_contract.py tests/integration/test_youtube_tool_registration.py
 python3 -m pytest
 python3 -m ruff check .
 ```
@@ -70,12 +70,12 @@ and dispatcher registration without endpoint execution.
 When contract catalog coverage is added, include:
 
 ```bash
-python3 -m pytest tests/contract/test_layer2_tool_catalog_contract.py
+python3 -m pytest tests/contract/test_youtube_tool_catalog_contract.py
 ```
 
 ## Review Checklist
 
-- Shared public Layer 2 naming rules are defined and tested
+- Shared public YouTube tool naming rules are defined and tested
 - Representative examples cover the required endpoint shapes
 - Auth modes, quota costs, and caveats are visible before invocation
 - Input contracts stay close to upstream request concepts

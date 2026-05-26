@@ -1,6 +1,11 @@
-"""Shared scaffolding for Layer 2 YouTube MCP tools."""
+"""Shared scaffolding for endpoint-backed YouTube MCP tools."""
 
-from mcp_server.tools.youtube_common.contracts import AuthMode, Layer2ContractError, Layer2ToolContract, derive_tool_name
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    YouTubeToolContract,
+    YouTubeToolContractError,
+    derive_tool_name,
+)
 from mcp_server.tools.youtube_common.conventions import (
     ErrorCategory,
     InputConvention,
@@ -8,12 +13,12 @@ from mcp_server.tools.youtube_common.conventions import (
     ResponseKind,
     sanitize_error_details,
 )
-from mcp_server.tools.youtube_common.examples import REPRESENTATIVE_LAYER2_CONTRACTS
+from mcp_server.tools.youtube_common.examples import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
 from mcp_server.tools.youtube_common.families import (
-    REQUIRED_LAYER2_RESOURCE_FAMILIES,
+    REQUIRED_YOUTUBE_RESOURCE_FAMILIES,
     RESOURCE_FAMILY_REGISTRY,
-    SHARED_LAYER2_HELPER_BOUNDARY,
-    Layer2ResourceFamily,
+    SHARED_YOUTUBE_HELPER_BOUNDARY,
+    YouTubeResourceFamily,
     build_representative_tool_descriptor,
     get_resource_family,
 )
@@ -22,15 +27,15 @@ __all__ = [
     "AuthMode",
     "ErrorCategory",
     "InputConvention",
-    "Layer2ContractError",
-    "Layer2ResourceFamily",
-    "Layer2ToolContract",
-    "REPRESENTATIVE_LAYER2_CONTRACTS",
-    "REQUIRED_LAYER2_RESOURCE_FAMILIES",
+    "YouTubeToolContractError",
+    "YouTubeResourceFamily",
+    "YouTubeToolContract",
+    "REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS",
+    "REQUIRED_YOUTUBE_RESOURCE_FAMILIES",
     "RESOURCE_FAMILY_REGISTRY",
     "ResponseConvention",
     "ResponseKind",
-    "SHARED_LAYER2_HELPER_BOUNDARY",
+    "SHARED_YOUTUBE_HELPER_BOUNDARY",
     "build_representative_tool_descriptor",
     "derive_tool_name",
     "get_resource_family",

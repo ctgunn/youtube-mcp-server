@@ -1,12 +1,12 @@
-"""Integration tests for Layer 2 tool registration scaffolding."""
+"""Integration tests for YouTube tool registration scaffolding."""
 
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
-from mcp_server.tools.youtube_common import REPRESENTATIVE_LAYER2_CONTRACTS, build_representative_tool_descriptor
+from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS, build_representative_tool_descriptor
 
 
-def test_representative_layer2_descriptor_registers_without_endpoint_execution():
-    """Register a representative Layer 2 descriptor with the existing dispatcher."""
-    descriptor = build_representative_tool_descriptor(REPRESENTATIVE_LAYER2_CONTRACTS[0])
+def test_representative_youtube_descriptor_registers_without_endpoint_execution():
+    """Register a representative YouTube descriptor with the existing dispatcher."""
+    descriptor = build_representative_tool_descriptor(REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS[0])
     dispatcher = InMemoryToolDispatcher(tools=[])
 
     dispatcher.register_tool(

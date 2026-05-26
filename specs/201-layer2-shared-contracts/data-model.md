@@ -1,6 +1,6 @@
-# Data Model: YT-201 Layer 2 Shared Scaffolding and Contracts
+# Data Model: YT-201 Shared YouTube Scaffolding and Contracts
 
-## Layer 2 Tool Contract
+## YouTube Tool Contract
 
 **Purpose**: Represents the public MCP-facing contract for one endpoint-backed YouTube Data API tool.
 
@@ -33,12 +33,12 @@
 
 - Derived from one `Resource-Method Name`
 - Owns one `Input Contract`, one `Response Convention`, and one or more `Error Category` entries
-- Belongs to one `Layer 2 Resource Family`
+- Belongs to one `YouTube Resource Family`
 - References one Layer 1 endpoint capability through upstream identity and operation key
 
 ## Resource-Method Name
 
-**Purpose**: Represents the upstream resource and method pair used to derive the public Layer 2 tool name.
+**Purpose**: Represents the upstream resource and method pair used to derive the public YouTube tool name.
 
 **Fields**:
 
@@ -56,7 +56,7 @@
 
 **Relationships**:
 
-- Derives one `Layer 2 Tool Contract`
+- Derives one `YouTube Tool Contract`
 - Maps to one upstream endpoint identity
 
 ## Input Contract
@@ -85,12 +85,12 @@
 
 **Relationships**:
 
-- Belongs to one `Layer 2 Tool Contract`
+- Belongs to one `YouTube Tool Contract`
 - Produces request inputs for one Layer 1 endpoint capability
 
 ## Response Convention
 
-**Purpose**: Defines the successful result shape for a Layer 2 tool while preserving near-raw upstream semantics.
+**Purpose**: Defines the successful result shape for a YouTube tool while preserving near-raw upstream semantics.
 
 **Fields**:
 
@@ -111,12 +111,12 @@
 
 **Relationships**:
 
-- Belongs to one `Layer 2 Tool Contract`
+- Belongs to one `YouTube Tool Contract`
 - Is validated by representative examples and contract tests
 
 ## Error Category
 
-**Purpose**: Provides stable MCP-safe failure categories for Layer 2 endpoint-backed tools.
+**Purpose**: Provides stable MCP-safe failure categories for YouTube endpoint-backed tools.
 
 **Fields**:
 
@@ -134,7 +134,7 @@
 
 **Relationships**:
 
-- Belongs to one or more `Layer 2 Tool Contract` records
+- Belongs to one or more `YouTube Tool Contract` records
 - Uses shared error conventions rather than endpoint-local categories
 
 ## Auth and Quota Declaration
@@ -151,17 +151,17 @@
 
 **Validation Rules**:
 
-- Must be present for every representative Layer 2 tool contract
+- Must be present for every representative YouTube tool contract
 - Must distinguish mixed/conditional auth from single-mode auth
 - Must call out high-cost tools such as expensive upload or search operations
 - Must record caveats discovered from official or project documentation
 
 **Relationships**:
 
-- Belongs to one `Layer 2 Tool Contract`
+- Belongs to one `YouTube Tool Contract`
 - Is checked by shared contract tests and endpoint-slice review
 
-## Layer 2 Resource Family
+## YouTube Resource Family
 
 **Purpose**: Groups endpoint-backed public tools by YouTube capability family while keeping shared rules centralized.
 
@@ -178,18 +178,18 @@
 **Validation Rules**:
 
 - Must keep endpoint-backed public tools cohesive by family
-- Must depend on shared Layer 2 scaffolding for naming, metadata, auth, quota, response, and error rules
+- Must depend on shared YouTube scaffolding for naming, metadata, auth, quota, response, and error rules
 - Must not duplicate shared cross-cutting rules in each family
 - Must not place every endpoint-backed tool in one monolithic file
 
 **Relationships**:
 
-- Owns one or more `Layer 2 Tool Contract` records
+- Owns one or more `YouTube Tool Contract` records
 - Depends on Layer 1 resource-family capabilities for execution
 
 ## Scaffolding Contract
 
-**Purpose**: Maintainer-facing agreement for where future Layer 2 endpoint slices place definitions, handlers, tests, contracts, and caveat notes.
+**Purpose**: Maintainer-facing agreement for where future YouTube endpoint slices place definitions, handlers, tests, contracts, and caveat notes.
 
 **Fields**:
 
@@ -198,7 +198,7 @@
 - `schema_location`: Expected location for input contracts or schema builders
 - `test_locations`: Expected contract, unit, and integration test locations
 - `documentation_location`: Expected location for caveats and examples
-- `shared_helper_boundary`: Which behavior belongs in shared Layer 2 helpers versus endpoint-family modules
+- `shared_helper_boundary`: Which behavior belongs in shared YouTube helpers versus endpoint-family modules
 
 **Validation Rules**:
 
@@ -208,7 +208,7 @@
 
 **Relationships**:
 
-- Guides each `Layer 2 Resource Family`
+- Guides each `YouTube Resource Family`
 - Is validated by quickstart and contract checks
 
 ## Verification Evidence
@@ -218,7 +218,7 @@
 **Fields**:
 
 - `red_phase_evidence`: Failing or characterization tests added before implementation
-- `focused_contract_checks`: Layer 2 contract tests for naming, metadata, auth, quota, response, and errors
+- `focused_contract_checks`: shared YouTube contract tests for naming, metadata, auth, quota, response, and errors
 - `unit_checks`: Focused helper and validation tests
 - `integration_checks`: Registration or discovery checks against the MCP tool registry
 - `full_suite_command`: Expected to be `python3 -m pytest`
