@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from mcp_server.tools.youtube_common.contracts import Layer2ContractError
+from mcp_server.tools.youtube_common.contracts import YouTubeToolContractError
 
 
 class ResponseKind(Enum):
@@ -20,7 +20,7 @@ class ResponseKind(Enum):
 
 
 class ResponseBoundaryKind(Enum):
-    """Classify whether response behavior belongs in Layer 2."""
+    """Classify whether response behavior belongs in endpoint-backed YouTube tools."""
 
     NEAR_RAW = "near_raw"
     LIGHTLY_RESHAPED = "lightly_reshaped"
@@ -143,12 +143,12 @@ class ResponseConvention:
 
 @dataclass(frozen=True)
 class ResponseBoundary:
-    """Describe the boundary between Layer 2 and higher-level responses.
+    """Describe the boundary between endpoint-backed and higher-level responses.
 
     :param boundary_kind: Classification of the response behavior.
     :param allowed_wrapper_fields: Safe wrapper fields allowed for MCP clarity.
     :param preserved_upstream_fields: Upstream-visible fields preserved.
-    :param disallowed_behavior: Behaviors that belong outside Layer 2.
+    :param disallowed_behavior: Behaviors that belong outside endpoint-backed tools.
     """
 
     boundary_kind: ResponseBoundaryKind
@@ -160,12 +160,12 @@ class ResponseBoundary:
         """Build JSON-compatible response-boundary metadata.
 
         :return: Metadata describing the response boundary.
-        :raises Layer2ContractError: If out-of-scope behavior is not explained.
+        :raises YouTubeToolContractError: If out-of-scope behavior is not explained.
         """
         if not isinstance(self.boundary_kind, ResponseBoundaryKind):
-            raise Layer2ContractError("boundary_kind must be a ResponseBoundaryKind")
+            raise YouTubeToolContractError("boundary_kind must be a ResponseBoundaryKind")
         if self.boundary_kind is ResponseBoundaryKind.OUT_OF_SCOPE and not self.disallowed_behavior:
-            raise Layer2ContractError("out-of-scope response boundaries require disallowed behavior")
+            raise YouTubeToolContractError("out-of-scope response boundaries require disallowed behavior")
         return {
             "boundaryKind": self.boundary_kind.value,
             "allowedWrapperFields": list(self.allowed_wrapper_fields),

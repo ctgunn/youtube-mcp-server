@@ -93,7 +93,7 @@ def test_youtube_tool_contract_rejects_missing_required_metadata(field, value):
         YouTubeToolContract(**kwargs)
 
 
-def test_layer2_tool_contract_requires_quota_visible_description_and_notes():
+def test_youtube_tool_contract_requires_quota_visible_description_and_notes():
     """Reject metadata that hides quota cost from caller-facing text."""
     kwargs = {
         "tool_name": "videos_list",
@@ -116,7 +116,7 @@ def test_layer2_tool_contract_requires_quota_visible_description_and_notes():
         YouTubeToolContract(**kwargs)
 
 
-def test_layer2_tool_contract_rejects_casing_drifted_tool_names():
+def test_youtube_tool_contract_rejects_casing_drifted_tool_names():
     """Reject public names derived from snake_case rewrites of upstream methods."""
     with pytest.raises(YouTubeToolContractError):
         YouTubeToolContract(
@@ -166,8 +166,8 @@ def test_response_conventions_expose_near_raw_result_shapes(kind, metadata_key):
     assert metadata_key in metadata
 
 
-def test_response_boundary_metadata_classifies_layer2_result_scope():
-    """Classify response behavior as Layer 2 or out of scope."""
+def test_response_boundary_metadata_classifies_youtube_result_scope():
+    """Classify response behavior as endpoint-backed or out of scope."""
     boundary = ResponseBoundary(
         boundary_kind=ResponseBoundaryKind.LIGHTLY_RESHAPED,
         allowed_wrapper_fields=("endpoint", "quotaCost"),

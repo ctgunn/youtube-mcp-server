@@ -1,7 +1,5 @@
 """Unit tests for shared YouTube scaffolding helpers."""
 
-import pytest
-
 
 def test_youtube_package_imports():
     """Confirm the shared YouTube package can be imported."""
@@ -19,8 +17,8 @@ def test_derive_tool_name_uses_resource_method_pattern():
     assert derive_tool_name("videos", "getRating") == "videos_getRating"
 
 
-def test_derive_tool_name_covers_representative_layer2_inventory_names():
-    """Derive deterministic names for representative Layer 2 endpoints."""
+def test_derive_tool_name_covers_representative_youtube_inventory_names():
+    """Derive deterministic names for representative YouTube endpoints."""
     from mcp_server.tools.youtube_common import derive_tool_name
 
     examples = {
@@ -53,9 +51,9 @@ def test_derive_tool_name_rejects_casing_drifted_method_names():
     """Reject snake_case rewrites of official upstream method names."""
     import pytest
 
-    from mcp_server.tools.youtube_common import Layer2ContractError, derive_tool_name
+    from mcp_server.tools.youtube_common import YouTubeToolContractError, derive_tool_name
 
-    with pytest.raises(Layer2ContractError):
+    with pytest.raises(YouTubeToolContractError):
         derive_tool_name("videos", "get_rating")
 
 
@@ -84,7 +82,7 @@ def test_input_convention_builds_schema_metadata():
 
 
 def test_response_boundary_builds_metadata():
-    """Represent response-boundary metadata for Layer 2 standards."""
+    """Represent response-boundary metadata for shared YouTube standards."""
     from mcp_server.tools.youtube_common import ResponseBoundary, ResponseBoundaryKind
 
     metadata = ResponseBoundary(

@@ -28,9 +28,9 @@ def test_representative_youtube_descriptor_registers_without_endpoint_execution(
     assert dispatcher.call_tool(descriptor["name"], {"part": "snippet"})["representativeOnly"] is True
 
 
-def test_representative_layer2_descriptor_exposes_metadata_without_execution():
+def test_representative_youtube_descriptor_exposes_metadata_without_execution():
     """Expose standards metadata while keeping representative descriptors inert."""
-    contract = REPRESENTATIVE_LAYER2_CONTRACTS[0]
+    contract = REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS[0]
     descriptor = build_representative_tool_descriptor(contract)
 
     assert descriptor["metadata"]["name"] == contract.tool_name
@@ -43,13 +43,13 @@ def test_representative_layer2_descriptor_exposes_metadata_without_execution():
     assert "sourceOperation" not in result
 
 
-def test_representative_layer2_descriptor_metadata_includes_cost_access_and_notes():
+def test_representative_youtube_descriptor_metadata_includes_cost_access_and_notes():
     """Expose caller-facing metadata needed before representative invocation."""
-    descriptor = build_representative_tool_descriptor(REPRESENTATIVE_LAYER2_CONTRACTS[0])
+    descriptor = build_representative_tool_descriptor(REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS[0])
     metadata = descriptor["metadata"]
 
-    assert metadata["quotaCost"] == REPRESENTATIVE_LAYER2_CONTRACTS[0].quota_cost
-    assert metadata["authMode"] == REPRESENTATIVE_LAYER2_CONTRACTS[0].auth_mode.value
+    assert metadata["quotaCost"] == REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS[0].quota_cost
+    assert metadata["authMode"] == REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS[0].auth_mode.value
     assert metadata["availabilityState"]
-    assert metadata["caveats"] == list(REPRESENTATIVE_LAYER2_CONTRACTS[0].caveats)
+    assert metadata["caveats"] == list(REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS[0].caveats)
     assert metadata["usageNotes"]

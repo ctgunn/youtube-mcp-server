@@ -27,7 +27,7 @@ class AuthMode(Enum):
 
 
 class AvailabilityState(Enum):
-    """Represent public availability status for a Layer 2 tool contract."""
+    """Represent public availability status for a YouTube tool contract."""
 
     ACTIVE = "active"
     DEPRECATED = "deprecated"
@@ -65,22 +65,22 @@ def _contains_unsafe_marker(key: str) -> bool:
 
 
 def validate_safe_public_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
-    """Validate public Layer 2 metadata before discovery exposure.
+    """Validate public YouTube tool metadata before discovery exposure.
 
     :param metadata: JSON-compatible metadata intended for public surfaces.
     :return: The original metadata mapping when it contains no unsafe keys.
-    :raises Layer2ContractError: If a key suggests secrets, stack traces,
+    :raises YouTubeToolContractError: If a key suggests secrets, stack traces,
         signed URLs, or unsafe raw media payloads.
     """
     if not isinstance(metadata, dict):
-        raise Layer2ContractError("metadata must be a mapping")
+        raise YouTubeToolContractError("metadata must be a mapping")
 
     def walk(value: Any, path: str) -> None:
         """Walk nested metadata and reject unsafe public keys.
 
         :param value: Current metadata value.
         :param path: Dot-separated path to the current value.
-        :raises Layer2ContractError: If an unsafe key is encountered.
+        :raises YouTubeToolContractError: If an unsafe key is encountered.
         """
         if isinstance(value, dict):
             for key, nested in value.items():
