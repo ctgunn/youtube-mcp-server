@@ -56,6 +56,35 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertIn("server_info", names)
         self.assertIn("server_list_tools", names)
 
+    def test_activities_list_tools_call_success_returns_structured_result(self):
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-activities-ok",
+            "method": "tools/call",
+            "params": {"name": "activities_list", "arguments": {"part": "snippet", "channelId": "UC123"}},
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        result = response["result"]["content"][0]["structuredContent"]
+        self.assertEqual(result["endpoint"], "activities.list")
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["requestedParts"], ["snippet"])
+
+    def test_activities_list_tools_call_invalid_request_returns_safe_error(self):
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-activities-invalid",
+            "method": "tools/call",
+            "params": {
+                "name": "activities_list",
+                "arguments": {"part": "snippet", "channelId": "UC123", "mine": True},
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["data"]["category"], "invalid_request")
+        self.assertEqual(response["error"]["data"]["toolName"], "activities_list")
+
     def test_initialize_success_detection_accepts_initialize_result(self):
         response = route_mcp_request(
             {

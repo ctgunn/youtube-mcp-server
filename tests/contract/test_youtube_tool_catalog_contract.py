@@ -28,6 +28,22 @@ def test_representative_examples_expose_auth_quota_and_caveats():
     assert by_name["watermarks_unset"].caveats
 
 
+def test_representative_activities_example_aligns_with_concrete_contract():
+    """Keep the representative activities example aligned with YT-203."""
+    from mcp_server.tools.youtube_common.activities import build_activities_list_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "activities_list"
+    ]
+    concrete = build_activities_list_contract()
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == concrete.quota_cost
+    assert representative.auth_mode == concrete.auth_mode
+
+
 def test_representative_examples_expose_complete_metadata_standard():
     """Require representative examples to expose the YT-202 metadata standard."""
     assert len(REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS) >= 10

@@ -20,6 +20,18 @@ class ListToolsMethodTests(unittest.TestCase):
         self.assertIn("description", response["result"]["tools"][0])
         self.assertIn("inputSchema", response["result"]["tools"][0])
 
+    def test_activities_list_discovery_preserves_safe_metadata(self):
+        payload = {"jsonrpc": "2.0", "id": "req-list-activities", "method": "tools/list", "params": {}}
+        response = route_mcp_request(payload, InMemoryToolDispatcher())
+        tools = {tool["name"]: tool for tool in response["result"]["tools"]}
+
+        activities = tools["activities_list"]
+
+        self.assertEqual(activities["metadata"]["upstream"]["operationKey"], "activities.list")
+        self.assertEqual(activities["metadata"]["quotaCost"], 1)
+        self.assertEqual(activities["metadata"]["authMode"], "mixed/conditional")
+        self.assertIn("usageNotes", activities["metadata"])
+
     def test_list_tools_with_empty_registry(self):
         dispatcher = InMemoryToolDispatcher(tools=[])
         payload = {"jsonrpc": "2.0", "id": "req-list-empty", "method": "tools/list", "params": {}}
