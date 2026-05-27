@@ -151,11 +151,27 @@ def _handle_call(request_id, params, dispatcher):
     except RetrievalError as exc:
         return error_response_for_category(exc.category, str(exc), request_id=request_id, details=exc.details)
     except ValueError as exc:
+        details = {"toolName": tool_name}
+        extra_details = getattr(exc, "details", None)
+        if isinstance(extra_details, dict):
+            details.update(extra_details)
+        category = getattr(exc, "category", "invalid_argument")
+        protocol_category = {
+            "invalid_request": "invalid_argument",
+            "authentication_failed": "unauthenticated",
+            "authorization_failed": "authorization_denied",
+            "quota_exhausted": "transport_not_supported",
+            "resource_not_found": "resource_missing",
+            "deprecated_endpoint": "transport_not_supported",
+            "endpoint_unavailable": "unavailable_source",
+            "upstream_failure": "internal_execution_failure",
+        }.get(category, category)
+        details.setdefault("category", category)
         return error_response_for_category(
-            "invalid_argument",
+            protocol_category,
             str(exc),
             request_id=request_id,
-            details={"toolName": tool_name},
+            details=details,
         )
     except Exception:
         return error_response_for_category(

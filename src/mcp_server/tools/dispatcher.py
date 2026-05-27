@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from mcp_server.tools.retrieval import FETCH_TOOL_SCHEMA, SEARCH_TOOL_SCHEMA, fetch_tool, search_tool
+from mcp_server.tools.youtube_common import build_activities_list_tool_descriptor
 
 BASELINE_TOOL_SCHEMAS = {
     "server_ping": {
@@ -79,6 +80,7 @@ class InMemoryToolDispatcher:
                     or entry.get("input_schema")
                     or {"type": "object", "properties": {}, "additionalProperties": True},
                     handler=entry.get("handler"),
+                    metadata=entry.get("metadata"),
                 )
         else:
             for tool in initial_tools:
@@ -87,10 +89,18 @@ class InMemoryToolDispatcher:
                     description=tool.get("description"),
                     input_schema=tool.get("inputSchema") or tool.get("input_schema"),
                     handler=tool.get("handler"),
+                    metadata=tool.get("metadata"),
                 )
 
-    def register_tool(self, name: str, description: str, input_schema: dict, handler: Callable):
-        """Register a tool definition and callable handler."""
+    def register_tool(self, name: str, description: str, input_schema: dict, handler: Callable, metadata=None):
+        """Register a tool definition and callable handler.
+
+        :param name: Public tool name.
+        :param description: Public tool description.
+        :param input_schema: JSON-compatible input schema.
+        :param handler: Callable tool handler.
+        :param metadata: Optional safe public metadata for discovery.
+        """
         if not isinstance(description, str) or not description.strip():
             raise ToolRegistrationError("tool description is required")
         if not isinstance(input_schema, dict):
@@ -111,14 +121,21 @@ class InMemoryToolDispatcher:
             "inputSchema": input_schema,
             "handler": handler,
         }
+        if metadata is not None:
+            if not isinstance(metadata, dict):
+                raise ToolRegistrationError("metadata must be an object")
+            self._tools[normalized]["metadata"] = metadata
 
     def _tool_descriptor(self, entry: dict[str, Any]) -> dict[str, Any]:
         """Build the public tool descriptor exposed to clients."""
-        return {
+        descriptor = {
             "name": entry["name"],
             "description": entry["description"],
             "inputSchema": entry["inputSchema"],
         }
+        if "metadata" in entry:
+            descriptor["metadata"] = entry["metadata"]
+        return descriptor
 
     def list_tools(self):
         """Return registered tools in stable normalized order."""
@@ -161,6 +178,7 @@ class InMemoryToolDispatcher:
                 "inputSchema": FETCH_TOOL_SCHEMA,
                 "handler": fetch_tool,
             },
+            build_activities_list_tool_descriptor(),
         ]
 
     def _normalize_server_metadata(self, server_metadata):

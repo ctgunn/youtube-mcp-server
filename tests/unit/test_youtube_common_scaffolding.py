@@ -110,3 +110,14 @@ def test_required_youtube_resource_families_have_placement_metadata():
     assert videos.definition_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
     assert "tests/contract" in videos.test_locations["contract"]
     assert videos.layer1_dependency == "mcp_server.integrations.resources.videos"
+
+
+def test_activities_resource_family_points_to_concrete_layer2_module():
+    """Expose the concrete activities family placement for YT-203."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    activities = get_resource_family("activities")
+
+    assert activities.definition_location.endswith("src/mcp_server/tools/youtube_common/activities.py")
+    assert activities.handler_location.endswith("src/mcp_server/tools/youtube_common/activities.py")
+    assert activities.schema_location.endswith("src/mcp_server/tools/youtube_common/activities.py")

@@ -1,5 +1,15 @@
 """Shared scaffolding for endpoint-backed YouTube MCP tools."""
 
+from mcp_server.tools.youtube_common.activities import (
+    ACTIVITIES_LIST_INPUT_SCHEMA,
+    ACTIVITIES_LIST_TOOL_NAME,
+    ActivitiesListToolError,
+    build_activities_list_contract,
+    build_activities_list_handler,
+    build_activities_list_tool_descriptor,
+    map_activities_list_result,
+    validate_activities_list_arguments,
+)
 from mcp_server.tools.youtube_common.contracts import (
     AuthMode,
     AvailabilityState,
@@ -30,6 +40,9 @@ from mcp_server.tools.youtube_common.families import (
 __all__ = [
     "AuthMode",
     "AvailabilityState",
+    "ACTIVITIES_LIST_INPUT_SCHEMA",
+    "ACTIVITIES_LIST_TOOL_NAME",
+    "ActivitiesListToolError",
     "ErrorCategory",
     "InputConvention",
     "YouTubeToolContractError",
@@ -43,9 +56,14 @@ __all__ = [
     "ResponseConvention",
     "ResponseKind",
     "SHARED_YOUTUBE_HELPER_BOUNDARY",
+    "build_activities_list_contract",
+    "build_activities_list_handler",
+    "build_activities_list_tool_descriptor",
     "build_representative_tool_descriptor",
     "derive_tool_name",
     "get_resource_family",
+    "map_activities_list_result",
     "sanitize_error_details",
     "validate_safe_public_metadata",
+    "validate_activities_list_arguments",
 ]
