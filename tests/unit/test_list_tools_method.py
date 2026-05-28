@@ -10,7 +10,10 @@ from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 
 
 class ListToolsMethodTests(unittest.TestCase):
+    """Unit coverage for MCP tools/list behavior."""
+
     def test_list_tools_with_default_registry(self):
+        """List default registry tools with public descriptor fields."""
         payload = {"jsonrpc": "2.0", "id": "req-list", "method": "tools/list", "params": {}}
         response = route_mcp_request(payload, InMemoryToolDispatcher())
         self.assertEqual(response["jsonrpc"], "2.0")
@@ -21,6 +24,7 @@ class ListToolsMethodTests(unittest.TestCase):
         self.assertIn("inputSchema", response["result"]["tools"][0])
 
     def test_activities_list_discovery_preserves_safe_metadata(self):
+        """Expose safe activities_list metadata through tools/list."""
         payload = {"jsonrpc": "2.0", "id": "req-list-activities", "method": "tools/list", "params": {}}
         response = route_mcp_request(payload, InMemoryToolDispatcher())
         tools = {tool["name"]: tool for tool in response["result"]["tools"]}
@@ -32,13 +36,28 @@ class ListToolsMethodTests(unittest.TestCase):
         self.assertEqual(activities["metadata"]["authMode"], "mixed/conditional")
         self.assertIn("usageNotes", activities["metadata"])
 
+    def test_captions_list_discovery_preserves_safe_metadata(self):
+        """Expose safe captions_list metadata through tools/list."""
+        payload = {"jsonrpc": "2.0", "id": "req-list-captions", "method": "tools/list", "params": {}}
+        response = route_mcp_request(payload, InMemoryToolDispatcher())
+        tools = {tool["name"]: tool for tool in response["result"]["tools"]}
+
+        captions = tools["captions_list"]
+
+        self.assertEqual(captions["metadata"]["upstream"]["operationKey"], "captions.list")
+        self.assertEqual(captions["metadata"]["quotaCost"], 50)
+        self.assertEqual(captions["metadata"]["authMode"], "oauth_required")
+        self.assertIn("usageNotes", captions["metadata"])
+
     def test_list_tools_with_empty_registry(self):
+        """Return an empty tools list for an empty dispatcher."""
         dispatcher = InMemoryToolDispatcher(tools=[])
         payload = {"jsonrpc": "2.0", "id": "req-list-empty", "method": "tools/list", "params": {}}
         response = route_mcp_request(payload, dispatcher)
         self.assertEqual(response["result"]["tools"], [])
 
     def test_list_tools_is_deterministic(self):
+        """Return tools in stable normalized-name order."""
         dispatcher = InMemoryToolDispatcher(tools=[])
         dispatcher.register_tool(
             name="Zulu",
@@ -62,6 +81,7 @@ class ListToolsMethodTests(unittest.TestCase):
         )
 
     def test_server_list_tools_matches_tools_list_descriptors(self):
+        """Return the same descriptors from server_list_tools and tools/list."""
         dispatcher = InMemoryToolDispatcher()
         list_response = route_mcp_request(
             {"jsonrpc": "2.0", "id": "req-list-1", "method": "tools/list", "params": {}},

@@ -121,3 +121,14 @@ def test_activities_resource_family_points_to_concrete_layer2_module():
     assert activities.definition_location.endswith("src/mcp_server/tools/youtube_common/activities.py")
     assert activities.handler_location.endswith("src/mcp_server/tools/youtube_common/activities.py")
     assert activities.schema_location.endswith("src/mcp_server/tools/youtube_common/activities.py")
+
+
+def test_captions_resource_family_points_to_concrete_layer2_module():
+    """Expose the concrete captions family placement for YT-204."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    captions = get_resource_family("captions")
+
+    assert captions.definition_location.endswith("src/mcp_server/tools/youtube_common/captions.py")
+    assert captions.handler_location.endswith("src/mcp_server/tools/youtube_common/captions.py")
+    assert captions.schema_location.endswith("src/mcp_server/tools/youtube_common/captions.py")
