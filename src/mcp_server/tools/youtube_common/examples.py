@@ -115,6 +115,30 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         error_categories=("invalid_request", "authentication_failed", "quota_exhausted"),
     ),
     _contract(
+        resource="captions",
+        method="list",
+        description="List caption tracks. Endpoint: captions.list. Quota cost: 50. Auth: oauth_required.",
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        resource_family="captions",
+        input_contract={
+            "required": ["part", "videoId"],
+            "properties": {
+                "part": {"type": "string"},
+                "videoId": {"type": "string"},
+                "id": {"type": "string"},
+                "onBehalfOfContentOwner": {"type": "string"},
+            },
+        },
+        response_convention={"resultKind": "list", "itemsPath": "items", "pagingFields": ["nextPageToken"]},
+        error_categories=("invalid_request", "authentication_failed", "authorization_failed", "quota_exhausted"),
+        usage_notes=(
+            "Quota cost: 50. Auth: oauth_required. Use videoId for caption listing.",
+            "Quota cost: 50. onBehalfOfContentOwner is optional delegation context.",
+        ),
+        caveats=("Caption listing requires eligible OAuth authorization.",),
+    ),
+    _contract(
         resource="comments",
         method="setModerationStatus",
         description=(

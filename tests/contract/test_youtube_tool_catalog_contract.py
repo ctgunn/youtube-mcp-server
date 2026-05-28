@@ -44,6 +44,22 @@ def test_representative_activities_example_aligns_with_concrete_contract():
     assert representative.auth_mode == concrete.auth_mode
 
 
+def test_representative_captions_example_aligns_with_concrete_contract():
+    """Keep the representative captions-list example aligned with YT-204."""
+    from mcp_server.tools.youtube_common.captions import build_captions_list_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "captions_list"
+    ]
+    concrete = build_captions_list_contract()
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == concrete.quota_cost
+    assert representative.auth_mode == concrete.auth_mode
+
+
 def test_representative_examples_expose_complete_metadata_standard():
     """Require representative examples to expose the YT-202 metadata standard."""
     assert len(REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS) >= 10

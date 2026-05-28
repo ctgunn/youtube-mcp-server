@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from mcp_server.tools.retrieval import FETCH_TOOL_SCHEMA, SEARCH_TOOL_SCHEMA, fetch_tool, search_tool
-from mcp_server.tools.youtube_common import build_activities_list_tool_descriptor
+from mcp_server.tools.youtube_common import build_activities_list_tool_descriptor, build_captions_list_tool_descriptor
 
 BASELINE_TOOL_SCHEMAS = {
     "server_ping": {
@@ -179,6 +179,7 @@ class InMemoryToolDispatcher:
                 "handler": fetch_tool,
             },
             build_activities_list_tool_descriptor(),
+            build_captions_list_tool_descriptor(),
         ]
 
     def _normalize_server_metadata(self, server_metadata):
