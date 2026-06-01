@@ -53,3 +53,14 @@ def test_representative_youtube_descriptor_metadata_includes_cost_access_and_not
     assert metadata["availabilityState"]
     assert metadata["caveats"] == list(REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS[0].caveats)
     assert metadata["usageNotes"]
+
+
+def test_default_registry_includes_executable_captions_insert_tool():
+    """Register ``captions_insert`` by default with safe metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "captions_insert" in listed
+    assert listed["captions_insert"]["metadata"]["upstream"]["operationKey"] == "captions.insert"
+    assert listed["captions_insert"]["metadata"]["quotaCost"] == 400
+    assert listed["captions_insert"]["metadata"]["authMode"] == "oauth_required"

@@ -122,6 +122,48 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertEqual(response["error"]["data"]["category"], "invalid_request")
         self.assertEqual(response["error"]["data"]["toolName"], "captions_list")
 
+    def test_captions_insert_tools_call_success_returns_structured_result(self):
+        """Return structured content for a valid captions_insert call."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-captions-insert-ok",
+            "method": "tools/call",
+            "params": {
+                "name": "captions_insert",
+                "arguments": {
+                    "part": "snippet",
+                    "body": {"snippet": {"videoId": "video-123", "language": "en", "name": "English captions"}},
+                    "media": {"mimeType": "text/xml", "content": "caption text"},
+                },
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        result = response["result"]["content"][0]["structuredContent"]
+        self.assertEqual(result["endpoint"], "captions.insert")
+        self.assertEqual(result["item"]["id"], "created-caption")
+        self.assertEqual(result["requestedParts"], ["snippet"])
+
+    def test_captions_insert_tools_call_invalid_request_returns_safe_error(self):
+        """Return a safe error for an invalid captions_insert call."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-captions-insert-invalid",
+            "method": "tools/call",
+            "params": {
+                "name": "captions_insert",
+                "arguments": {
+                    "part": "snippet",
+                    "body": {"snippet": {"videoId": "video-123", "language": "en", "name": "English captions"}},
+                    "media": {"mimeType": "text/xml"},
+                },
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["data"]["category"], "invalid_request")
+        self.assertEqual(response["error"]["data"]["toolName"], "captions_insert")
+
     def test_initialize_success_detection_accepts_initialize_result(self):
         """Treat a successful initialize response as initialized."""
         response = route_mcp_request(

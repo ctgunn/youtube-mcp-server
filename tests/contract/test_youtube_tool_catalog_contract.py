@@ -9,6 +9,7 @@ def test_representative_examples_include_required_us1_shapes():
 
     assert {
         "activities_list",
+        "captions_insert",
         "playlists_insert",
         "comments_setModerationStatus",
         "videos_getRating",
@@ -58,6 +59,24 @@ def test_representative_captions_example_aligns_with_concrete_contract():
     assert representative.upstream_method == concrete.upstream_method
     assert representative.quota_cost == concrete.quota_cost
     assert representative.auth_mode == concrete.auth_mode
+
+
+def test_representative_captions_insert_example_aligns_with_concrete_contract():
+    """Keep the representative captions-insert example aligned with YT-205."""
+    from mcp_server.tools.youtube_common.captions import build_captions_insert_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "captions_insert"
+    ]
+    concrete = build_captions_insert_contract()
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == concrete.quota_cost
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
 
 
 def test_representative_examples_expose_complete_metadata_standard():

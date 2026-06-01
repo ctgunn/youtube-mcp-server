@@ -49,6 +49,22 @@ class ListToolsMethodTests(unittest.TestCase):
         self.assertEqual(captions["metadata"]["authMode"], "oauth_required")
         self.assertIn("usageNotes", captions["metadata"])
 
+    def test_captions_insert_discovery_preserves_safe_metadata(self):
+        """Expose safe captions_insert metadata through tools/list."""
+        payload = {"jsonrpc": "2.0", "id": "req-list-captions-insert", "method": "tools/list", "params": {}}
+        response = route_mcp_request(payload, InMemoryToolDispatcher())
+        tools = {tool["name"]: tool for tool in response["result"]["tools"]}
+
+        captions = tools["captions_insert"]
+
+        self.assertEqual(captions["metadata"]["upstream"]["operationKey"], "captions.insert")
+        self.assertEqual(captions["metadata"]["quotaCost"], 400)
+        self.assertEqual(captions["metadata"]["authMode"], "oauth_required")
+        self.assertEqual(captions["inputSchema"]["required"], ["part", "body", "media"])
+        self.assertIn("media", captions["metadata"]["inputContract"]["properties"])
+        self.assertIn("usageNotes", captions["metadata"])
+        self.assertTrue(any("media" in note for note in captions["metadata"]["usageNotes"]))
+
     def test_list_tools_with_empty_registry(self):
         """Return an empty tools list for an empty dispatcher."""
         dispatcher = InMemoryToolDispatcher(tools=[])
