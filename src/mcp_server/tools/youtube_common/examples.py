@@ -139,6 +139,58 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         caveats=("Caption listing requires eligible OAuth authorization.",),
     ),
     _contract(
+        resource="captions",
+        method="insert",
+        description=(
+            "Insert caption track. Endpoint: captions.insert. "
+            "Quota cost: 400. Auth: oauth_required. Requires caption media input."
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=400,
+        resource_family="captions",
+        input_contract={
+            "required": ["part", "body", "media"],
+            "properties": {
+                "part": {"type": "string"},
+                "body": {"type": "object"},
+                "media": {"type": "object"},
+                "onBehalfOfContentOwner": {"type": "string"},
+                "sync": {"type": "boolean"},
+            },
+        },
+        response_convention={
+            "resultKind": "upload_result",
+            "resourcePath": "item",
+            "mediaResult": "safe_media_summary",
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=("endpoint", "quotaCost", "metadata", "media", "delegation", "requestedParts"),
+            preserved_upstream_fields=("item", "id", "snippet", "requestedParts"),
+            disallowed_behavior=("caption_download", "language_ranking", "translation", "cross_endpoint_aggregation"),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.MEDIA_CONSTRAINED,
+        usage_notes=(
+            "Quota cost: 400. Auth: oauth_required. Provide body metadata and media input.",
+            "Quota cost: 400. onBehalfOfContentOwner is optional delegation context.",
+            "Quota cost: 400. sync is deprecated upstream and is not the recommended path.",
+        ),
+        caveats=(
+            "Caption insertion requires eligible OAuth authorization.",
+            "Caption media input is required; metadata-only requests are unsupported.",
+            "sync is deprecated and should not be used as the normal path.",
+        ),
+    ),
+    _contract(
         resource="comments",
         method="setModerationStatus",
         description=(

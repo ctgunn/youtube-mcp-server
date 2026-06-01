@@ -24,6 +24,7 @@ def test_derive_tool_name_covers_representative_youtube_inventory_names():
     examples = {
         ("videos", "list"): "videos_list",
         ("playlists", "insert"): "playlists_insert",
+        ("captions", "insert"): "captions_insert",
         ("comments", "setModerationStatus"): "comments_setModerationStatus",
         ("videos", "getRating"): "videos_getRating",
         ("videos", "reportAbuse"): "videos_reportAbuse",
@@ -132,3 +133,18 @@ def test_captions_resource_family_points_to_concrete_layer2_module():
     assert captions.definition_location.endswith("src/mcp_server/tools/youtube_common/captions.py")
     assert captions.handler_location.endswith("src/mcp_server/tools/youtube_common/captions.py")
     assert captions.schema_location.endswith("src/mcp_server/tools/youtube_common/captions.py")
+
+
+def test_representative_captions_insert_metadata_exposes_upload_and_sync_caveats():
+    """Expose safe caller-facing metadata for the captions insert endpoint."""
+    from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
+
+    by_name = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}
+    metadata = by_name["captions_insert"].to_tool_metadata()
+
+    assert metadata["quotaCost"] == 400
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["part", "body", "media"]
+    assert "media" in metadata["inputContract"]["properties"]
+    assert any("media" in note for note in metadata["usageNotes"])
+    assert any("sync" in caveat for caveat in metadata["caveats"])
