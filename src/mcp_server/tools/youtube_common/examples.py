@@ -191,6 +191,59 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         ),
     ),
     _contract(
+        resource="captions",
+        method="update",
+        description=(
+            "Update caption track. Endpoint: captions.update. "
+            "Quota cost: 450. Auth: oauth_required. Requires caption update body; media replacement is optional."
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=450,
+        resource_family="captions",
+        input_contract={
+            "required": ["part", "body"],
+            "properties": {
+                "part": {"type": "string"},
+                "body": {"type": "object"},
+                "media": {"type": "object"},
+                "onBehalfOfContentOwner": {"type": "string"},
+                "sync": {"type": "boolean"},
+            },
+        },
+        response_convention={
+            "resultKind": "upload_result",
+            "resourcePath": "item",
+            "mediaResult": "safe_media_summary",
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=("endpoint", "quotaCost", "update", "media", "delegation", "requestedParts"),
+            preserved_upstream_fields=("item", "id", "snippet", "requestedParts"),
+            disallowed_behavior=("caption_download", "caption_creation", "language_ranking", "translation"),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.MEDIA_CONSTRAINED,
+        usage_notes=(
+            "Quota cost: 450. Auth: oauth_required. Provide body with the caption track id.",
+            "Quota cost: 450. media is optional replacement caption content and must be paired with a valid body.",
+            "Quota cost: 450. onBehalfOfContentOwner is optional delegation context.",
+            "Quota cost: 450. sync is deprecated upstream and requires updated caption media.",
+        ),
+        caveats=(
+            "Caption update requires eligible OAuth authorization.",
+            "Caption update body is required; media-only requests are unsupported.",
+            "sync is deprecated and should not be used as the normal path.",
+        ),
+    ),
+    _contract(
         resource="comments",
         method="setModerationStatus",
         description=(

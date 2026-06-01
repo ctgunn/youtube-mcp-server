@@ -148,3 +148,20 @@ def test_representative_captions_insert_metadata_exposes_upload_and_sync_caveats
     assert "media" in metadata["inputContract"]["properties"]
     assert any("media" in note for note in metadata["usageNotes"])
     assert any("sync" in caveat for caveat in metadata["caveats"])
+
+
+def test_representative_captions_update_metadata_exposes_update_media_and_sync_caveats():
+    """Expose safe caller-facing metadata for the captions update endpoint."""
+    from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
+
+    by_name = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}
+    metadata = by_name["captions_update"].to_tool_metadata()
+
+    assert metadata["quotaCost"] == 450
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert "body" in metadata["inputContract"]["properties"]
+    assert "media" in metadata["inputContract"]["properties"]
+    assert any("body" in note for note in metadata["usageNotes"])
+    assert any("media" in note for note in metadata["usageNotes"])
+    assert any("sync" in caveat for caveat in metadata["caveats"])
