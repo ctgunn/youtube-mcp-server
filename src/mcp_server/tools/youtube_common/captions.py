@@ -9,6 +9,7 @@ from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.captions import (
+    build_captions_download_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
     build_captions_update_wrapper,
@@ -24,6 +25,9 @@ CAPTIONS_INSERT_TOOL_NAME = "captions_insert"
 CAPTIONS_INSERT_QUOTA_COST = 400
 CAPTIONS_UPDATE_TOOL_NAME = "captions_update"
 CAPTIONS_UPDATE_QUOTA_COST = 450
+CAPTIONS_DOWNLOAD_TOOL_NAME = "captions_download"
+CAPTIONS_DOWNLOAD_QUOTA_COST = 200
+CAPTIONS_DOWNLOAD_FORMATS = ("sbv", "scc", "srt", "ttml", "vtt")
 
 CAPTIONS_LIST_INPUT_SCHEMA = {
     "type": "object",
@@ -164,6 +168,35 @@ CAPTIONS_UPDATE_CAVEATS = (
     "The upstream sync option is deprecated and should not be used as the normal path.",
 )
 
+CAPTIONS_DOWNLOAD_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["id"],
+    "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "tfmt": {"type": "string", "enum": list(CAPTIONS_DOWNLOAD_FORMATS)},
+        "tlang": {"type": "string", "minLength": 2, "maxLength": 2},
+        "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+CAPTIONS_DOWNLOAD_DESCRIPTION = (
+    "Download YouTube caption track content. Endpoint: captions.download. "
+    "Quota cost: 200. Auth: oauth_required. Requires caption track id and eligible edit permission."
+)
+CAPTIONS_DOWNLOAD_USAGE_NOTES = (
+    "Quota cost: 200. Auth: oauth_required. Provide id for the caption track to download.",
+    "Quota cost: 200. Caption download requires eligible access and permission to edit the associated video.",
+    "Quota cost: 200. tfmt is optional and supports sbv, scc, srt, ttml, and vtt.",
+    "Quota cost: 200. tlang is optional and should be an ISO 639-1-style two-letter language code.",
+    "Quota cost: 200. onBehalfOfContentOwner is optional delegation context and still requires eligible OAuth authorization.",
+)
+CAPTIONS_DOWNLOAD_CAVEATS = (
+    "Caption download requires eligible OAuth authorization and permission to edit the associated video.",
+    "The upstream response is binary file content; public examples and errors must not expose private caption payloads.",
+    "tfmt and tlang conversion can fail upstream when the requested format or language cannot be produced.",
+)
+
 
 class CaptionsListToolError(ValueError):
     """Represent a safe caller-facing ``captions_list`` failure."""
@@ -200,6 +233,21 @@ class CaptionsUpdateToolError(ValueError):
 
     def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
         """Initialize the safe captions-update error.
+
+        :param message: Caller-facing error message.
+        :param category: Shared safe error category.
+        :param details: Safe diagnostic details for MCP error payloads.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = details or {}
+
+
+class CaptionsDownloadToolError(ValueError):
+    """Represent a safe caller-facing ``captions_download`` failure."""
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the safe captions-download error.
 
         :param message: Caller-facing error message.
         :param category: Shared safe error category.
@@ -251,6 +299,24 @@ def _default_captions_update_transport(execution) -> dict[str, Any]:
     return response
 
 
+def _default_captions_download_transport(execution) -> dict[str, Any]:
+    """Return safe downloaded caption content for local default execution.
+
+    :param execution: Layer 1 execution request containing validated arguments.
+    :return: Upstream-shaped downloaded caption content without private data.
+    """
+    response: dict[str, Any] = {
+        "content": "caption content",
+        "contentType": "application/octet-stream",
+        "contentForm": "text",
+    }
+    if execution.arguments.get("tfmt"):
+        response["requestedFormat"] = execution.arguments["tfmt"]
+    if execution.arguments.get("tlang"):
+        response["requestedLanguage"] = execution.arguments["tlang"]
+    return response
+
+
 def _default_executor() -> IntegrationExecutor:
     """Build the default Layer 1 executor used by ``captions_list``.
 
@@ -273,6 +339,14 @@ def _default_update_executor() -> IntegrationExecutor:
     :return: Executor with a safe local transport for updated-resource results.
     """
     return IntegrationExecutor(transport=_default_captions_update_transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _default_download_executor() -> IntegrationExecutor:
+    """Build the default Layer 1 executor used by ``captions_download``.
+
+    :return: Executor with a safe local transport for downloaded-content results.
+    """
+    return IntegrationExecutor(transport=_default_captions_download_transport, retry_policy=RetryPolicy(max_attempts=1))
 
 
 def build_captions_list_contract() -> YouTubeToolContract:
@@ -394,6 +468,65 @@ def build_captions_update_contract() -> YouTubeToolContract:
         availability_state=AvailabilityState.MEDIA_CONSTRAINED,
         usage_notes=CAPTIONS_UPDATE_USAGE_NOTES,
         caveats=CAPTIONS_UPDATE_CAVEATS,
+    )
+
+
+def build_captions_download_contract() -> YouTubeToolContract:
+    """Build the public contract metadata for ``captions_download``.
+
+    :return: Validated Layer 2 tool contract for ``captions_download``.
+    """
+    return YouTubeToolContract(
+        tool_name=CAPTIONS_DOWNLOAD_TOOL_NAME,
+        upstream_resource="captions",
+        upstream_method="download",
+        operation_key="captions.download",
+        description=CAPTIONS_DOWNLOAD_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=CAPTIONS_DOWNLOAD_QUOTA_COST,
+        resource_family="captions",
+        input_contract=CAPTIONS_DOWNLOAD_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "download_wrapper",
+            "contentPath": "content",
+            "contentPolicy": "safe_text_or_metadata_wrapper",
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=(
+                "endpoint",
+                "quotaCost",
+                "download",
+                "delegation",
+                "requestedFormat",
+                "requestedLanguage",
+                "contentType",
+                "contentForm",
+                "sizeBytes",
+            ),
+            preserved_upstream_fields=("content", "contentType", "contentForm", "sizeBytes"),
+            disallowed_behavior=(
+                "caption_listing",
+                "caption_creation",
+                "caption_update",
+                "caption_deletion",
+                "language_ranking",
+                "local_translation",
+                "summarization",
+            ),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=CAPTIONS_DOWNLOAD_USAGE_NOTES,
+        caveats=CAPTIONS_DOWNLOAD_CAVEATS,
     )
 
 
@@ -696,6 +829,77 @@ def _caption_update_media_summary(arguments: dict[str, Any]) -> dict[str, Any] |
     return summary
 
 
+def _download_id(arguments: dict[str, Any]) -> str:
+    """Return the required caption track identifier for download.
+
+    :param arguments: Caller-supplied tool arguments.
+    :return: Stripped caption track identifier.
+    :raises CaptionsDownloadToolError: If the identifier is missing.
+    """
+    caption_id = _clean_text(arguments, "id")
+    if not caption_id:
+        raise CaptionsDownloadToolError(
+            "captions_download requires id.",
+            category="invalid_request",
+            details={"field": "id"},
+        )
+    return caption_id
+
+
+def _download_format(arguments: dict[str, Any]) -> str | None:
+    """Return the optional validated caption download format.
+
+    :param arguments: Caller-supplied tool arguments.
+    :return: Supported ``tfmt`` value when supplied.
+    :raises CaptionsDownloadToolError: If the format is unsupported.
+    """
+    if "tfmt" not in arguments:
+        return None
+    tfmt = _clean_text(arguments, "tfmt")
+    if tfmt not in CAPTIONS_DOWNLOAD_FORMATS:
+        raise CaptionsDownloadToolError(
+            "captions_download unsupported tfmt. Supported values: sbv, scc, srt, ttml, vtt.",
+            category="invalid_request",
+            details={"field": "tfmt"},
+        )
+    return tfmt
+
+
+def _download_language(arguments: dict[str, Any]) -> str | None:
+    """Return the optional validated caption download target language.
+
+    :param arguments: Caller-supplied tool arguments.
+    :return: Lowercase two-letter language code when supplied.
+    :raises CaptionsDownloadToolError: If the language value is malformed.
+    """
+    if "tlang" not in arguments:
+        return None
+    tlang = _clean_text(arguments, "tlang")
+    if not tlang or len(tlang) != 2 or not tlang.isalpha():
+        raise CaptionsDownloadToolError(
+            "captions_download tlang must be a two-letter language code.",
+            category="invalid_request",
+            details={"field": "tlang"},
+        )
+    return tlang.lower()
+
+
+def _caption_download_summary(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return a safe download summary for a caption download request.
+
+    :param arguments: Original tool arguments.
+    :return: Safe caption download fields for public result surfaces.
+    """
+    summary: dict[str, Any] = {"id": _download_id(arguments)}
+    tfmt = _download_format(arguments)
+    if tfmt:
+        summary["tfmt"] = tfmt
+    tlang = _download_language(arguments)
+    if tlang:
+        summary["tlang"] = tlang
+    return summary
+
+
 def validate_captions_insert_arguments(
     arguments: dict[str, Any],
     *,
@@ -812,6 +1016,42 @@ def validate_captions_update_arguments(
     return context
 
 
+def validate_captions_download_arguments(
+    arguments: dict[str, Any],
+    *,
+    oauth_token: str | None = None,
+) -> dict[str, Any]:
+    """Validate ``captions_download`` arguments and return safe request context.
+
+    :param arguments: Caller-supplied tool arguments.
+    :param oauth_token: Optional OAuth token availability for caption download.
+    :return: Safe identifier and optional conversion context for result mapping.
+    :raises CaptionsDownloadToolError: If arguments are invalid or require missing authorization.
+    """
+    context: dict[str, Any] = {"id": _download_id(arguments)}
+    tfmt = _download_format(arguments)
+    if tfmt:
+        context["tfmt"] = tfmt
+    tlang = _download_language(arguments)
+    if tlang:
+        context["tlang"] = tlang
+
+    if arguments.get("onBehalfOfContentOwner") is not None and not oauth_token:
+        raise CaptionsDownloadToolError(
+            "Delegated caption download requires eligible OAuth authorization.",
+            category="authentication_failed",
+            details={"field": "onBehalfOfContentOwner"},
+        )
+
+    if not oauth_token:
+        raise CaptionsDownloadToolError(
+            "captions_download requires eligible OAuth authorization.",
+            category="authentication_failed",
+            details={"operation": "captions.download"},
+        )
+    return context
+
+
 def _lookup_summary(arguments: dict[str, Any]) -> dict[str, str]:
     """Return a safe lookup summary for one caption-list request.
 
@@ -893,6 +1133,34 @@ def map_captions_update_result(response: dict[str, Any], arguments: dict[str, An
     return result
 
 
+def map_captions_download_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map a Layer 1 download response to the public Layer 2 result shape.
+
+    :param response: Upstream-shaped downloaded caption content returned by Layer 1.
+    :param arguments: Original validated tool arguments.
+    :return: Near-raw downloaded caption content with light MCP clarity fields.
+    """
+    result: dict[str, Any] = {
+        "endpoint": "captions.download",
+        "quotaCost": CAPTIONS_DOWNLOAD_QUOTA_COST,
+        "content": response.get("content", ""),
+        "contentType": response.get("contentType", "application/octet-stream"),
+        "contentForm": response.get("contentForm") or ("binary" if isinstance(response.get("content"), bytes) else "text"),
+        "download": _caption_download_summary(arguments),
+    }
+    if isinstance(response.get("sizeBytes"), int):
+        result["sizeBytes"] = response["sizeBytes"]
+    tfmt = _download_format(arguments)
+    if tfmt:
+        result["requestedFormat"] = tfmt
+    tlang = _download_language(arguments)
+    if tlang:
+        result["requestedLanguage"] = tlang
+    if _clean_text(arguments, "onBehalfOfContentOwner"):
+        result["delegation"] = {"onBehalfOfContentOwner": True}
+    return result
+
+
 def _map_upstream_error(error: NormalizedUpstreamError) -> CaptionsListToolError:
     """Map a normalized upstream error to the public Layer 2 error model.
 
@@ -953,6 +1221,32 @@ def _map_update_upstream_error(error: NormalizedUpstreamError) -> CaptionsUpdate
         category = "resource_not_found"
     details = {"upstreamStatus": error.upstream_status} if error.upstream_status else {}
     return CaptionsUpdateToolError(str(error), category=category, details=details)
+
+
+def _map_download_upstream_error(error: NormalizedUpstreamError) -> CaptionsDownloadToolError:
+    """Map a normalized upstream error to the public download error model.
+
+    :param error: Normalized upstream failure raised by Layer 1 execution.
+    :return: Safe ``captions_download`` error.
+    """
+    categories = {
+        "auth": "authorization_failed",
+        "not_found": "resource_not_found",
+        "rate_limit": "quota_exhausted",
+        "transient": "endpoint_unavailable",
+        "invalid_request": "invalid_request",
+        "upstream_service": "upstream_failure",
+    }
+    lowered = str(error).lower()
+    category = categories.get(error.category, "upstream_failure")
+    if "couldnotconvert" in lowered:
+        category = "invalid_request"
+    if "captionnotfound" in lowered:
+        category = "resource_not_found"
+    if "forbidden" in lowered:
+        category = "authorization_failed"
+    details = {"upstreamStatus": error.upstream_status} if error.upstream_status else {}
+    return CaptionsDownloadToolError(str(error), category=category, details=details)
 
 
 def build_captions_list_handler(
@@ -1075,6 +1369,46 @@ def build_captions_update_handler(
     return handler
 
 
+def build_captions_download_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "eligible-caption-access",
+):
+    """Build the concrete ``captions_download`` handler.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for caption download.
+    :return: Callable dispatcher handler.
+    """
+    captions_wrapper = wrapper or build_captions_download_wrapper()
+    captions_executor = executor or _default_download_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one ``captions_download`` request.
+
+        :param arguments: Validated dispatcher arguments.
+        :return: Public Layer 2 downloaded caption content result.
+        :raises CaptionsDownloadToolError: If validation, authorization, or upstream execution fails.
+        """
+        validate_captions_download_arguments(arguments, oauth_token=oauth_token)
+        auth_context = _auth_context(oauth_token=oauth_token)
+        try:
+            response = captions_wrapper.call(captions_executor, arguments=arguments, auth_context=auth_context)
+        except NormalizedUpstreamError as error:
+            raise _map_download_upstream_error(error) from error
+        except ValueError as error:
+            raise CaptionsDownloadToolError(
+                str(error),
+                category="invalid_request",
+                details={"operation": "captions.download"},
+            ) from error
+        return map_captions_download_result(response, arguments)
+
+    return handler
+
+
 def build_captions_list_tool_descriptor(
     *,
     wrapper=None,
@@ -1156,7 +1490,38 @@ def build_captions_update_tool_descriptor(
     }
 
 
+def build_captions_download_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "eligible-caption-access",
+) -> dict[str, Any]:
+    """Build the dispatcher descriptor for the ``captions_download`` tool.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for caption download.
+    :return: Dispatcher-compatible descriptor for the concrete Layer 2 tool.
+    """
+    contract = build_captions_download_contract()
+    return {
+        "name": CAPTIONS_DOWNLOAD_TOOL_NAME,
+        "description": CAPTIONS_DOWNLOAD_DESCRIPTION,
+        "metadata": contract.to_tool_metadata(),
+        "inputSchema": CAPTIONS_DOWNLOAD_INPUT_SCHEMA,
+        "handler": build_captions_download_handler(
+            wrapper=wrapper,
+            executor=executor,
+            oauth_token=oauth_token,
+        ),
+    }
+
+
 __all__ = [
+    "CAPTIONS_DOWNLOAD_FORMATS",
+    "CAPTIONS_DOWNLOAD_INPUT_SCHEMA",
+    "CAPTIONS_DOWNLOAD_QUOTA_COST",
+    "CAPTIONS_DOWNLOAD_TOOL_NAME",
     "CAPTIONS_INSERT_INPUT_SCHEMA",
     "CAPTIONS_INSERT_QUOTA_COST",
     "CAPTIONS_INSERT_TOOL_NAME",
@@ -1166,9 +1531,13 @@ __all__ = [
     "CAPTIONS_UPDATE_INPUT_SCHEMA",
     "CAPTIONS_UPDATE_QUOTA_COST",
     "CAPTIONS_UPDATE_TOOL_NAME",
+    "CaptionsDownloadToolError",
     "CaptionsInsertToolError",
     "CaptionsListToolError",
     "CaptionsUpdateToolError",
+    "build_captions_download_contract",
+    "build_captions_download_handler",
+    "build_captions_download_tool_descriptor",
     "build_captions_insert_contract",
     "build_captions_insert_handler",
     "build_captions_insert_tool_descriptor",
@@ -1178,9 +1547,11 @@ __all__ = [
     "build_captions_update_contract",
     "build_captions_update_handler",
     "build_captions_update_tool_descriptor",
+    "map_captions_download_result",
     "map_captions_insert_result",
     "map_captions_list_result",
     "map_captions_update_result",
+    "validate_captions_download_arguments",
     "validate_captions_insert_arguments",
     "validate_captions_list_arguments",
     "validate_captions_update_arguments",

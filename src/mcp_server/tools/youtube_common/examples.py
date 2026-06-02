@@ -337,14 +337,72 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     _contract(
         resource="captions",
         method="download",
-        description="Download captions. Endpoint: captions.download. Quota cost: 200. Auth: oauth_required.",
+        description=(
+            "Download caption track content. Endpoint: captions.download. "
+            "Quota cost: 200. Auth: oauth_required. Requires caption track id and eligible edit permission."
+        ),
         auth_mode=AuthMode.OAUTH_REQUIRED,
         quota_cost=200,
         resource_family="captions",
-        input_contract={"required": ["id"], "properties": {"tfmt": {"type": "string"}}},
-        response_convention={"resultKind": "download_wrapper", "contentPolicy": "safe_text_or_metadata_wrapper"},
-        error_categories=("invalid_request", "authorization_failed", "resource_not_found"),
-        availability_state=AvailabilityState.MEDIA_CONSTRAINED,
+        input_contract={
+            "required": ["id"],
+            "properties": {
+                "id": {"type": "string"},
+                "tfmt": {"type": "string", "enum": ["sbv", "scc", "srt", "ttml", "vtt"]},
+                "tlang": {"type": "string"},
+                "onBehalfOfContentOwner": {"type": "string"},
+            },
+        },
+        response_convention={
+            "resultKind": "download_wrapper",
+            "contentPath": "content",
+            "contentPolicy": "safe_text_or_metadata_wrapper",
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=(
+                "endpoint",
+                "quotaCost",
+                "download",
+                "delegation",
+                "requestedFormat",
+                "requestedLanguage",
+                "contentType",
+                "contentForm",
+                "sizeBytes",
+            ),
+            preserved_upstream_fields=("content", "contentType", "contentForm", "sizeBytes"),
+            disallowed_behavior=(
+                "caption_listing",
+                "caption_creation",
+                "caption_update",
+                "caption_deletion",
+                "language_ranking",
+                "local_translation",
+                "summarization",
+            ),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        usage_notes=(
+            "Quota cost: 200. Auth: oauth_required. Provide id for the caption track to download.",
+            "Quota cost: 200. Caption download requires eligible access and permission to edit the associated video.",
+            "Quota cost: 200. tfmt is optional and supports sbv, scc, srt, ttml, and vtt.",
+            "Quota cost: 200. tlang is optional and should be an ISO 639-1-style two-letter language code.",
+            "Quota cost: 200. onBehalfOfContentOwner is optional delegation context.",
+        ),
+        caveats=(
+            "Caption download requires eligible OAuth authorization and permission to edit the associated video.",
+            "The upstream response is binary file content; public examples and errors must not expose private caption payloads.",
+            "tfmt and tlang conversion can fail upstream when the requested format or language cannot be produced.",
+        ),
     ),
     _contract(
         resource="search",

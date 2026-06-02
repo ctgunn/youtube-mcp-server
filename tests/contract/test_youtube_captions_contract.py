@@ -5,18 +5,23 @@ import pytest
 from mcp_server.tools import youtube_common
 from mcp_server.tools.youtube_common import AuthMode, AvailabilityState
 from mcp_server.tools.youtube_common.captions import (
+    CAPTIONS_DOWNLOAD_TOOL_NAME,
     CAPTIONS_INSERT_TOOL_NAME,
     CAPTIONS_LIST_TOOL_NAME,
     CAPTIONS_UPDATE_TOOL_NAME,
+    CaptionsDownloadToolError,
     CaptionsInsertToolError,
     CaptionsListToolError,
     CaptionsUpdateToolError,
+    build_captions_download_contract,
+    build_captions_download_tool_descriptor,
     build_captions_insert_contract,
     build_captions_insert_tool_descriptor,
     build_captions_list_contract,
     build_captions_list_tool_descriptor,
     build_captions_update_contract,
     build_captions_update_tool_descriptor,
+    validate_captions_download_arguments,
     validate_captions_insert_arguments,
     validate_captions_list_arguments,
     validate_captions_update_arguments,
@@ -36,6 +41,9 @@ def test_concrete_captions_module_exports_public_tool_contract():
     assert captions.CAPTIONS_UPDATE_TOOL_NAME == "captions_update"
     assert youtube_common.CAPTIONS_UPDATE_TOOL_NAME == "captions_update"
     assert callable(captions.build_captions_update_tool_descriptor)
+    assert captions.CAPTIONS_DOWNLOAD_TOOL_NAME == "captions_download"
+    assert youtube_common.CAPTIONS_DOWNLOAD_TOOL_NAME == "captions_download"
+    assert callable(captions.build_captions_download_tool_descriptor)
 
 
 def test_captions_list_contract_exposes_identity_quota_auth_and_delegation():
@@ -101,6 +109,30 @@ def test_captions_update_contract_exposes_identity_quota_auth_media_and_delegati
     assert any("deprecated" in caveat.lower() for caveat in metadata["caveats"])
 
 
+def test_captions_download_contract_exposes_identity_quota_auth_conversion_and_delegation():
+    """Expose the public metadata required before caption download."""
+    contract = build_captions_download_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.tool_name == CAPTIONS_DOWNLOAD_TOOL_NAME
+    assert contract.upstream_resource == "captions"
+    assert contract.upstream_method == "download"
+    assert contract.quota_cost == 200
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["upstream"]["operationKey"] == "captions.download"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert {"id", "tfmt", "tlang", "onBehalfOfContentOwner"}.issubset(
+        metadata["inputContract"]["properties"]
+    )
+    assert metadata["inputContract"]["properties"]["tfmt"]["enum"] == ["sbv", "scc", "srt", "ttml", "vtt"]
+    assert any("permission" in note.lower() for note in metadata["usageNotes"])
+    assert any("tfmt" in note for note in metadata["usageNotes"])
+    assert any("tlang" in note for note in metadata["usageNotes"])
+    assert any("Quota cost: 200" in note for note in metadata["usageNotes"])
+
+
 def test_captions_list_descriptor_matches_contract_and_schema():
     """Build a dispatcher descriptor that matches the public contract."""
     descriptor = build_captions_list_tool_descriptor()
@@ -141,6 +173,21 @@ def test_captions_update_descriptor_matches_contract_and_schema():
     assert descriptor["metadata"]["authMode"] == "oauth_required"
     assert descriptor["inputSchema"]["required"] == ["part", "body"]
     assert {"part", "body", "media", "sync", "onBehalfOfContentOwner"}.issubset(
+        descriptor["inputSchema"]["properties"]
+    )
+    assert callable(descriptor["handler"])
+
+
+def test_captions_download_descriptor_matches_contract_and_schema():
+    """Build a dispatcher descriptor that matches the download public contract."""
+    descriptor = build_captions_download_tool_descriptor()
+
+    assert descriptor["name"] == "captions_download"
+    assert "Quota cost: 200" in descriptor["description"]
+    assert descriptor["metadata"]["upstream"]["operationKey"] == "captions.download"
+    assert descriptor["metadata"]["authMode"] == "oauth_required"
+    assert descriptor["inputSchema"]["required"] == ["id"]
+    assert {"id", "tfmt", "tlang", "onBehalfOfContentOwner"}.issubset(
         descriptor["inputSchema"]["properties"]
     )
     assert callable(descriptor["handler"])
@@ -208,6 +255,30 @@ def test_captions_update_contract_documents_body_plus_media_result_shape():
     assert "content" not in result["media"]
 
 
+def test_captions_download_contract_documents_successful_result_shape():
+    """Require successful download results to preserve caption content context."""
+    result = build_captions_download_tool_descriptor()["handler"]({"id": "caption-1"})
+
+    assert result["endpoint"] == "captions.download"
+    assert result["quotaCost"] == 200
+    assert result["content"] == "caption content"
+    assert result["contentType"] == "application/octet-stream"
+    assert result["contentForm"] == "text"
+    assert result["download"] == {"id": "caption-1"}
+
+
+def test_captions_download_contract_documents_conversion_result_shape():
+    """Require successful download results to include safe conversion context."""
+    result = build_captions_download_tool_descriptor()["handler"](
+        {"id": "caption-1", "tfmt": "vtt", "tlang": "es"}
+    )
+
+    assert result["endpoint"] == "captions.download"
+    assert result["requestedFormat"] == "vtt"
+    assert result["requestedLanguage"] == "es"
+    assert result["download"] == {"id": "caption-1", "tfmt": "vtt", "tlang": "es"}
+
+
 @pytest.mark.parametrize(
     "arguments",
     [
@@ -272,6 +343,26 @@ def test_captions_update_validation_surfaces_safe_error_categories(arguments):
 
 
 @pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"id": "   "},
+        {"id": "caption-1", "tfmt": "unsupported"},
+        {"id": "caption-1", "tlang": "spanish"},
+        {"id": "caption-1", "onBehalfOfContentOwner": "owner"},
+    ],
+)
+def test_captions_download_validation_surfaces_safe_error_categories(arguments):
+    """Surface safe error categories for invalid or unauthorized download requests."""
+    with pytest.raises(CaptionsDownloadToolError) as exc_info:
+        validate_captions_download_arguments(arguments, oauth_token=None)
+
+    assert exc_info.value.category in {"invalid_request", "authentication_failed"}
+    assert "api" not in exc_info.value.details
+    assert "token" not in exc_info.value.details
+
+
+@pytest.mark.parametrize(
     ("category", "message", "expected"),
     [
         ("auth", "forbidden", "authorization_failed"),
@@ -302,6 +393,42 @@ def test_captions_update_maps_upstream_errors_to_safe_categories(category, messa
 
     with pytest.raises(CaptionsUpdateToolError) as exc_info:
         descriptor["handler"]({"part": "snippet", "body": {"id": "caption-1"}})
+
+    assert exc_info.value.category == expected
+    assert exc_info.value.details == {"upstreamStatus": 400}
+
+
+@pytest.mark.parametrize(
+    ("category", "message", "expected"),
+    [
+        ("auth", "forbidden", "authorization_failed"),
+        ("not_found", "captionNotFound", "resource_not_found"),
+        ("rate_limit", "quota", "quota_exhausted"),
+        ("transient", "temporarily unavailable", "endpoint_unavailable"),
+        ("invalid_request", "couldNotConvert", "invalid_request"),
+    ],
+)
+def test_captions_download_maps_upstream_errors_to_safe_categories(category, message, expected):
+    """Map Layer 1 failures into safe public download error categories."""
+    from mcp_server.integrations.errors import NormalizedUpstreamError
+
+    class FailingWrapper:
+        """Raise one normalized error from the fake Layer 1 wrapper."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise the configured normalized upstream error.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError(message, category, retryable=False, upstream_status=400)
+
+    descriptor = build_captions_download_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(CaptionsDownloadToolError) as exc_info:
+        descriptor["handler"]({"id": "caption-1"})
 
     assert exc_info.value.category == expected
     assert exc_info.value.details == {"upstreamStatus": 400}

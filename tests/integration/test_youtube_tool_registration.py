@@ -75,3 +75,14 @@ def test_default_registry_includes_executable_captions_update_tool():
     assert listed["captions_update"]["metadata"]["upstream"]["operationKey"] == "captions.update"
     assert listed["captions_update"]["metadata"]["quotaCost"] == 450
     assert listed["captions_update"]["metadata"]["authMode"] == "oauth_required"
+
+
+def test_default_registry_includes_executable_captions_download_tool():
+    """Register ``captions_download`` by default with safe metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "captions_download" in listed
+    assert listed["captions_download"]["metadata"]["upstream"]["operationKey"] == "captions.download"
+    assert listed["captions_download"]["metadata"]["quotaCost"] == 200
+    assert listed["captions_download"]["metadata"]["authMode"] == "oauth_required"

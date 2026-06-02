@@ -82,6 +82,24 @@ class ListToolsMethodTests(unittest.TestCase):
         self.assertIn("usageNotes", captions["metadata"])
         self.assertTrue(any("body" in note for note in captions["metadata"]["usageNotes"]))
 
+    def test_captions_download_discovery_preserves_safe_metadata(self):
+        """Expose safe captions_download metadata through tools/list."""
+        payload = {"jsonrpc": "2.0", "id": "req-list-captions-download", "method": "tools/list", "params": {}}
+        response = route_mcp_request(payload, InMemoryToolDispatcher())
+        tools = {tool["name"]: tool for tool in response["result"]["tools"]}
+
+        captions = tools["captions_download"]
+
+        self.assertEqual(captions["metadata"]["upstream"]["operationKey"], "captions.download")
+        self.assertEqual(captions["metadata"]["quotaCost"], 200)
+        self.assertEqual(captions["metadata"]["authMode"], "oauth_required")
+        self.assertEqual(captions["inputSchema"]["required"], ["id"])
+        self.assertIn("tfmt", captions["metadata"]["inputContract"]["properties"])
+        self.assertIn("tlang", captions["metadata"]["inputContract"]["properties"])
+        self.assertIn("usageNotes", captions["metadata"])
+        self.assertTrue(any("tfmt" in note for note in captions["metadata"]["usageNotes"]))
+        self.assertTrue(any("tlang" in note for note in captions["metadata"]["usageNotes"]))
+
     def test_list_tools_with_empty_registry(self):
         """Return an empty tools list for an empty dispatcher."""
         dispatcher = InMemoryToolDispatcher(tools=[])

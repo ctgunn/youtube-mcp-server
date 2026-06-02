@@ -3,18 +3,23 @@
 import pytest
 
 from mcp_server.tools.youtube_common.captions import (
+    CAPTIONS_DOWNLOAD_INPUT_SCHEMA,
     CAPTIONS_INSERT_INPUT_SCHEMA,
     CAPTIONS_LIST_INPUT_SCHEMA,
     CAPTIONS_UPDATE_INPUT_SCHEMA,
+    CaptionsDownloadToolError,
     CaptionsInsertToolError,
     CaptionsListToolError,
     CaptionsUpdateToolError,
+    build_captions_download_tool_descriptor,
     build_captions_insert_tool_descriptor,
     build_captions_list_tool_descriptor,
     build_captions_update_tool_descriptor,
+    map_captions_download_result,
     map_captions_insert_result,
     map_captions_list_result,
     map_captions_update_result,
+    validate_captions_download_arguments,
     validate_captions_insert_arguments,
     validate_captions_list_arguments,
     validate_captions_update_arguments,
@@ -54,6 +59,16 @@ def _valid_captions_update_with_media_arguments() -> dict:
     }
 
 
+def _valid_captions_download_arguments() -> dict:
+    """Return a representative valid ``captions_download`` request."""
+    return {"id": "caption-1"}
+
+
+def _valid_captions_download_with_conversion_arguments() -> dict:
+    """Return a representative valid ``captions_download`` conversion request."""
+    return {"id": "caption-1", "tfmt": "vtt", "tlang": "es"}
+
+
 def test_captions_list_schema_preserves_lookup_pagination_and_delegation_inputs():
     """Expose the upstream-like request fields for ``captions_list``."""
     properties = CAPTIONS_LIST_INPUT_SCHEMA["properties"]
@@ -79,6 +94,16 @@ def test_captions_update_schema_preserves_body_media_and_delegation_inputs():
     assert CAPTIONS_UPDATE_INPUT_SCHEMA["required"] == ["part", "body"]
     assert {"part", "body", "media", "onBehalfOfContentOwner", "sync"}.issubset(properties)
     assert CAPTIONS_UPDATE_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_captions_download_schema_preserves_id_conversion_and_delegation_inputs():
+    """Expose upstream-like request fields for ``captions_download``."""
+    properties = CAPTIONS_DOWNLOAD_INPUT_SCHEMA["properties"]
+
+    assert CAPTIONS_DOWNLOAD_INPUT_SCHEMA["required"] == ["id"]
+    assert {"id", "tfmt", "tlang", "onBehalfOfContentOwner"}.issubset(properties)
+    assert properties["tfmt"]["enum"] == ["sbv", "scc", "srt", "ttml", "vtt"]
+    assert CAPTIONS_DOWNLOAD_INPUT_SCHEMA["additionalProperties"] is False
 
 
 def test_validate_captions_list_arguments_accepts_authorized_video_request():
@@ -115,6 +140,23 @@ def test_validate_captions_update_arguments_accepts_authorized_body_plus_media_r
     selected = validate_captions_update_arguments(_valid_captions_update_with_media_arguments(), oauth_token="oauth")
 
     assert selected == {"id": "caption-1", "mediaMimeType": "text/xml"}
+
+
+def test_validate_captions_download_arguments_accepts_authorized_default_request():
+    """Map an authorized default download request to safe context."""
+    selected = validate_captions_download_arguments(_valid_captions_download_arguments(), oauth_token="oauth")
+
+    assert selected == {"id": "caption-1"}
+
+
+def test_validate_captions_download_arguments_accepts_authorized_conversion_request():
+    """Map an authorized conversion download request to safe context."""
+    selected = validate_captions_download_arguments(
+        _valid_captions_download_with_conversion_arguments(),
+        oauth_token="oauth",
+    )
+
+    assert selected == {"id": "caption-1", "tfmt": "vtt", "tlang": "es"}
 
 
 def test_validate_captions_list_arguments_accepts_caption_id_filter():
@@ -185,6 +227,24 @@ def test_map_captions_update_result_preserves_resource_update_and_safe_media_sum
     assert result["update"] == {"id": "caption-1"}
     assert result["media"] == {"mimeType": "text/xml", "contentProvided": True}
     assert "content" not in result["media"]
+
+
+def test_map_captions_download_result_preserves_content_and_conversion_context():
+    """Preserve near-raw downloaded content fields in the mapped result."""
+    result = map_captions_download_result(
+        {"content": "WEBVTT", "contentType": "text/vtt", "sizeBytes": 6},
+        _valid_captions_download_with_conversion_arguments(),
+    )
+
+    assert result["content"] == "WEBVTT"
+    assert result["contentType"] == "text/vtt"
+    assert result["contentForm"] == "text"
+    assert result["sizeBytes"] == 6
+    assert result["endpoint"] == "captions.download"
+    assert result["quotaCost"] == 200
+    assert result["requestedFormat"] == "vtt"
+    assert result["requestedLanguage"] == "es"
+    assert result["download"] == {"id": "caption-1", "tfmt": "vtt", "tlang": "es"}
 
 
 def test_map_captions_list_result_preserves_empty_collection_success():
@@ -277,6 +337,61 @@ def test_captions_update_handler_invokes_wrapper_for_authorized_body_request():
     assert result["endpoint"] == "captions.update"
     assert calls[0][1] == _valid_captions_update_arguments()
     assert calls[0][2] == "oauth_required"
+
+
+def test_captions_download_handler_invokes_wrapper_for_authorized_default_request():
+    """Call the injected Layer 1 download wrapper through the concrete handler."""
+    calls = []
+
+    class FakeWrapper:
+        """Capture Layer 1 wrapper calls made by the download handler."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one fake Layer 1 call and return downloaded content.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :return: Upstream-shaped downloaded caption content.
+            """
+            calls.append((executor, arguments, auth_context.mode.value))
+            return {"content": "caption content", "contentType": "application/octet-stream"}
+
+    descriptor = build_captions_download_tool_descriptor(wrapper=FakeWrapper(), executor=object())
+
+    result = descriptor["handler"](_valid_captions_download_arguments())
+
+    assert result["content"] == "caption content"
+    assert result["endpoint"] == "captions.download"
+    assert calls[0][1] == _valid_captions_download_arguments()
+    assert calls[0][2] == "oauth_required"
+
+
+def test_captions_download_handler_invokes_wrapper_for_authorized_conversion_request():
+    """Call the injected Layer 1 download wrapper with format and language options."""
+    calls = []
+
+    class FakeWrapper:
+        """Capture Layer 1 wrapper calls made by the conversion handler."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one fake Layer 1 call and return converted content.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :return: Upstream-shaped converted caption content.
+            """
+            calls.append((executor, arguments, auth_context.mode.value))
+            return {"content": "WEBVTT", "contentType": "text/vtt"}
+
+    descriptor = build_captions_download_tool_descriptor(wrapper=FakeWrapper(), executor=object())
+
+    result = descriptor["handler"](_valid_captions_download_with_conversion_arguments())
+
+    assert result["requestedFormat"] == "vtt"
+    assert result["requestedLanguage"] == "es"
+    assert calls[0][1] == _valid_captions_download_with_conversion_arguments()
 
 
 def test_validate_captions_list_arguments_rejects_missing_part():
@@ -447,6 +562,36 @@ def test_validate_captions_update_arguments_accepts_deprecated_sync_with_media()
     assert selected["syncDeprecated"] is True
 
 
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        ({}, "requires id"),
+        ({"id": "   "}, "requires id"),
+        ({"id": "caption-1", "tfmt": "unsupported"}, "unsupported tfmt"),
+        ({"id": "caption-1", "tlang": "spanish"}, "tlang must be a two-letter language code"),
+    ],
+)
+def test_validate_captions_download_arguments_rejects_invalid_inputs(arguments, message):
+    """Reject download requests with incomplete or unsupported input."""
+    with pytest.raises(CaptionsDownloadToolError, match=message):
+        validate_captions_download_arguments(arguments, oauth_token="oauth")
+
+
+def test_validate_captions_download_arguments_rejects_missing_oauth():
+    """Reject caption download without eligible OAuth authorization."""
+    with pytest.raises(CaptionsDownloadToolError, match="requires eligible OAuth authorization"):
+        validate_captions_download_arguments(_valid_captions_download_arguments(), oauth_token=None)
+
+
+def test_validate_captions_download_arguments_rejects_delegation_without_oauth():
+    """Reject delegated download requests without eligible OAuth authorization."""
+    arguments = _valid_captions_download_arguments()
+    arguments["onBehalfOfContentOwner"] = "owner"
+
+    with pytest.raises(CaptionsDownloadToolError, match="Delegated caption download requires eligible OAuth authorization"):
+        validate_captions_download_arguments(arguments, oauth_token=None)
+
+
 def test_existing_captions_list_and_insert_validation_remains_unchanged():
     """Preserve existing captions list and insert validation behavior."""
     assert validate_captions_list_arguments(
@@ -457,3 +602,7 @@ def test_existing_captions_list_and_insert_validation_remains_unchanged():
         _valid_captions_insert_arguments(),
         oauth_token="oauth",
     )["videoId"] == "video-123"
+    assert validate_captions_update_arguments(
+        _valid_captions_update_arguments(),
+        oauth_token="oauth",
+    )["id"] == "caption-1"

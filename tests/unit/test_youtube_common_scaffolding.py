@@ -165,3 +165,21 @@ def test_representative_captions_update_metadata_exposes_update_media_and_sync_c
     assert any("body" in note for note in metadata["usageNotes"])
     assert any("media" in note for note in metadata["usageNotes"])
     assert any("sync" in caveat for caveat in metadata["caveats"])
+
+
+def test_representative_captions_download_metadata_exposes_permission_and_conversion_caveats():
+    """Expose safe caller-facing metadata for the captions download endpoint."""
+    from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
+
+    by_name = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}
+    metadata = by_name["captions_download"].to_tool_metadata()
+
+    assert metadata["quotaCost"] == 200
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert metadata["inputContract"]["properties"]["tfmt"]["enum"] == ["sbv", "scc", "srt", "ttml", "vtt"]
+    assert "tlang" in metadata["inputContract"]["properties"]
+    assert any("permission" in note.lower() for note in metadata["usageNotes"])
+    assert any("tfmt" in note for note in metadata["usageNotes"])
+    assert any("tlang" in note for note in metadata["usageNotes"])
+    assert any("binary" in caveat.lower() for caveat in metadata["caveats"])
