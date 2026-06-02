@@ -5,14 +5,19 @@ import pytest
 from mcp_server.tools.youtube_common.captions import (
     CAPTIONS_INSERT_INPUT_SCHEMA,
     CAPTIONS_LIST_INPUT_SCHEMA,
+    CAPTIONS_UPDATE_INPUT_SCHEMA,
     CaptionsInsertToolError,
     CaptionsListToolError,
+    CaptionsUpdateToolError,
     build_captions_insert_tool_descriptor,
     build_captions_list_tool_descriptor,
+    build_captions_update_tool_descriptor,
     map_captions_insert_result,
     map_captions_list_result,
+    map_captions_update_result,
     validate_captions_insert_arguments,
     validate_captions_list_arguments,
+    validate_captions_update_arguments,
 )
 
 
@@ -28,6 +33,23 @@ def _valid_captions_insert_arguments() -> dict:
                 "isDraft": False,
             }
         },
+        "media": {"mimeType": "text/xml", "content": "caption text"},
+    }
+
+
+def _valid_captions_update_arguments() -> dict:
+    """Return a representative valid ``captions_update`` request."""
+    return {
+        "part": "snippet",
+        "body": {"id": "caption-1", "snippet": {"isDraft": False}},
+    }
+
+
+def _valid_captions_update_with_media_arguments() -> dict:
+    """Return a representative valid ``captions_update`` media request."""
+    return {
+        "part": "id",
+        "body": {"id": "caption-1"},
         "media": {"mimeType": "text/xml", "content": "caption text"},
     }
 
@@ -50,6 +72,15 @@ def test_captions_insert_schema_preserves_metadata_media_and_delegation_inputs()
     assert CAPTIONS_INSERT_INPUT_SCHEMA["additionalProperties"] is False
 
 
+def test_captions_update_schema_preserves_body_media_and_delegation_inputs():
+    """Expose upstream-like request fields for ``captions_update``."""
+    properties = CAPTIONS_UPDATE_INPUT_SCHEMA["properties"]
+
+    assert CAPTIONS_UPDATE_INPUT_SCHEMA["required"] == ["part", "body"]
+    assert {"part", "body", "media", "onBehalfOfContentOwner", "sync"}.issubset(properties)
+    assert CAPTIONS_UPDATE_INPUT_SCHEMA["additionalProperties"] is False
+
+
 def test_validate_captions_list_arguments_accepts_authorized_video_request():
     """Map an authorized video request to the video caption lookup path."""
     selected = validate_captions_list_arguments(
@@ -70,6 +101,20 @@ def test_validate_captions_insert_arguments_accepts_authorized_metadata_and_medi
         "name": "English captions",
         "mediaMimeType": "text/xml",
     }
+
+
+def test_validate_captions_update_arguments_accepts_authorized_body_only_request():
+    """Map an authorized body-only update request to safe context."""
+    selected = validate_captions_update_arguments(_valid_captions_update_arguments(), oauth_token="oauth")
+
+    assert selected == {"id": "caption-1", "isDraft": False}
+
+
+def test_validate_captions_update_arguments_accepts_authorized_body_plus_media_request():
+    """Map an authorized body-plus-media update request to safe context."""
+    selected = validate_captions_update_arguments(_valid_captions_update_with_media_arguments(), oauth_token="oauth")
+
+    assert selected == {"id": "caption-1", "mediaMimeType": "text/xml"}
 
 
 def test_validate_captions_list_arguments_accepts_caption_id_filter():
@@ -122,6 +167,22 @@ def test_map_captions_insert_result_preserves_resource_metadata_and_safe_media_s
         "name": "English captions",
         "isDraft": False,
     }
+    assert result["media"] == {"mimeType": "text/xml", "contentProvided": True}
+    assert "content" not in result["media"]
+
+
+def test_map_captions_update_result_preserves_resource_update_and_safe_media_summary():
+    """Preserve near-raw updated caption resource fields in the mapped result."""
+    result = map_captions_update_result(
+        {"id": "caption-1", "snippet": {"isDraft": False}},
+        _valid_captions_update_with_media_arguments(),
+    )
+
+    assert result["item"] == {"id": "caption-1", "snippet": {"isDraft": False}}
+    assert result["requestedParts"] == ["id"]
+    assert result["endpoint"] == "captions.update"
+    assert result["quotaCost"] == 450
+    assert result["update"] == {"id": "caption-1"}
     assert result["media"] == {"mimeType": "text/xml", "contentProvided": True}
     assert "content" not in result["media"]
 
@@ -187,6 +248,34 @@ def test_captions_insert_handler_invokes_wrapper_for_authorized_metadata_and_med
     assert result["item"]["id"] == "caption-1"
     assert result["endpoint"] == "captions.insert"
     assert calls[0][1] == _valid_captions_insert_arguments()
+    assert calls[0][2] == "oauth_required"
+
+
+def test_captions_update_handler_invokes_wrapper_for_authorized_body_request():
+    """Call the injected Layer 1 update wrapper through the concrete handler."""
+    calls = []
+
+    class FakeWrapper:
+        """Capture Layer 1 wrapper calls made by the update handler."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one fake Layer 1 call and return an updated resource.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :return: Upstream-shaped updated caption resource.
+            """
+            calls.append((executor, arguments, auth_context.mode.value))
+            return {"id": "caption-1", "snippet": {"isDraft": False}}
+
+    descriptor = build_captions_update_tool_descriptor(wrapper=FakeWrapper(), executor=object())
+
+    result = descriptor["handler"](_valid_captions_update_arguments())
+
+    assert result["item"]["id"] == "caption-1"
+    assert result["endpoint"] == "captions.update"
+    assert calls[0][1] == _valid_captions_update_arguments()
     assert calls[0][2] == "oauth_required"
 
 
@@ -289,3 +378,82 @@ def test_validate_captions_insert_arguments_accepts_deprecated_sync_with_oauth()
     selected = validate_captions_insert_arguments(arguments, oauth_token="oauth")
 
     assert selected["syncDeprecated"] is True
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        ({"body": {"id": "caption-1"}}, "requires part"),
+        ({"part": "snippet"}, "requires body"),
+        ({"part": "snippet", "body": {}}, "requires body.id"),
+        ({"part": "snippet", "body": {"id": "   "}}, "requires body.id"),
+    ],
+)
+def test_validate_captions_update_arguments_rejects_missing_body_fields(arguments, message):
+    """Reject update requests with incomplete caption body."""
+    with pytest.raises(CaptionsUpdateToolError, match=message):
+        validate_captions_update_arguments(arguments, oauth_token="oauth")
+
+
+def test_validate_captions_update_arguments_rejects_media_without_body():
+    """Reject media-only update requests."""
+    with pytest.raises(CaptionsUpdateToolError, match="requires body"):
+        validate_captions_update_arguments(
+            {"part": "id", "media": {"mimeType": "text/xml", "content": "caption text"}},
+            oauth_token="oauth",
+        )
+
+
+def test_validate_captions_update_arguments_rejects_unsupported_media_descriptor():
+    """Reject media descriptors that cannot identify replacement caption content."""
+    arguments = _valid_captions_update_arguments()
+    arguments["media"] = {"mimeType": "text/xml"}
+
+    with pytest.raises(CaptionsUpdateToolError, match="requires media.content"):
+        validate_captions_update_arguments(arguments, oauth_token="oauth")
+
+
+def test_validate_captions_update_arguments_rejects_missing_oauth():
+    """Reject caption update without eligible OAuth authorization."""
+    with pytest.raises(CaptionsUpdateToolError, match="requires eligible OAuth authorization"):
+        validate_captions_update_arguments(_valid_captions_update_arguments(), oauth_token=None)
+
+
+def test_validate_captions_update_arguments_rejects_delegation_without_oauth():
+    """Reject delegated update requests without eligible OAuth authorization."""
+    arguments = _valid_captions_update_arguments()
+    arguments["onBehalfOfContentOwner"] = "owner"
+
+    with pytest.raises(CaptionsUpdateToolError, match="Delegated caption update requires eligible OAuth authorization"):
+        validate_captions_update_arguments(arguments, oauth_token=None)
+
+
+def test_validate_captions_update_arguments_rejects_invalid_sync():
+    """Reject non-boolean deprecated sync values."""
+    arguments = _valid_captions_update_with_media_arguments()
+    arguments["sync"] = "yes"
+
+    with pytest.raises(CaptionsUpdateToolError, match="sync must be a boolean"):
+        validate_captions_update_arguments(arguments, oauth_token="oauth")
+
+
+def test_validate_captions_update_arguments_accepts_deprecated_sync_with_media():
+    """Allow deprecated upstream sync only with replacement media."""
+    arguments = _valid_captions_update_with_media_arguments()
+    arguments["sync"] = True
+
+    selected = validate_captions_update_arguments(arguments, oauth_token="oauth")
+
+    assert selected["syncDeprecated"] is True
+
+
+def test_existing_captions_list_and_insert_validation_remains_unchanged():
+    """Preserve existing captions list and insert validation behavior."""
+    assert validate_captions_list_arguments(
+        {"part": "snippet", "videoId": "video-123"},
+        oauth_token="oauth",
+    ) == {"videoId": "video-123"}
+    assert validate_captions_insert_arguments(
+        _valid_captions_insert_arguments(),
+        oauth_token="oauth",
+    )["videoId"] == "video-123"

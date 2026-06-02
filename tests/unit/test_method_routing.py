@@ -164,6 +164,47 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertEqual(response["error"]["data"]["category"], "invalid_request")
         self.assertEqual(response["error"]["data"]["toolName"], "captions_insert")
 
+    def test_captions_update_tools_call_success_returns_structured_result(self):
+        """Return structured content for a valid captions_update call."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-captions-update-ok",
+            "method": "tools/call",
+            "params": {
+                "name": "captions_update",
+                "arguments": {
+                    "part": "snippet",
+                    "body": {"id": "caption-1", "snippet": {"isDraft": False}},
+                },
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        result = response["result"]["content"][0]["structuredContent"]
+        self.assertEqual(result["endpoint"], "captions.update")
+        self.assertEqual(result["item"]["id"], "caption-1")
+        self.assertEqual(result["requestedParts"], ["snippet"])
+
+    def test_captions_update_tools_call_invalid_request_returns_safe_error(self):
+        """Return a safe error for an invalid captions_update call."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-captions-update-invalid",
+            "method": "tools/call",
+            "params": {
+                "name": "captions_update",
+                "arguments": {
+                    "part": "snippet",
+                    "body": {"id": "caption-1"},
+                    "media": {"mimeType": "text/xml"},
+                },
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["data"]["category"], "invalid_request")
+        self.assertEqual(response["error"]["data"]["toolName"], "captions_update")
+
     def test_initialize_success_detection_accepts_initialize_result(self):
         """Treat a successful initialize response as initialized."""
         response = route_mcp_request(

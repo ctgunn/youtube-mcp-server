@@ -8,7 +8,11 @@ from mcp_server.integrations.auth import AuthContext, CredentialBundle
 from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
-from mcp_server.integrations.resources.captions import build_captions_insert_wrapper, build_captions_list_wrapper
+from mcp_server.integrations.resources.captions import (
+    build_captions_insert_wrapper,
+    build_captions_list_wrapper,
+    build_captions_update_wrapper,
+)
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
@@ -18,6 +22,8 @@ CAPTIONS_LIST_TOOL_NAME = "captions_list"
 CAPTIONS_LIST_QUOTA_COST = 50
 CAPTIONS_INSERT_TOOL_NAME = "captions_insert"
 CAPTIONS_INSERT_QUOTA_COST = 400
+CAPTIONS_UPDATE_TOOL_NAME = "captions_update"
+CAPTIONS_UPDATE_QUOTA_COST = 450
 
 CAPTIONS_LIST_INPUT_SCHEMA = {
     "type": "object",
@@ -103,6 +109,61 @@ CAPTIONS_INSERT_CAVEATS = (
     "The upstream sync option is deprecated and should not be used as the normal path.",
 )
 
+CAPTIONS_UPDATE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["part", "body"],
+    "properties": {
+        "part": {"type": "string", "minLength": 1},
+        "body": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "snippet": {
+                    "type": "object",
+                    "properties": {
+                        "isDraft": {"type": "boolean"},
+                    },
+                    "additionalProperties": True,
+                },
+            },
+            "required": ["id"],
+            "additionalProperties": True,
+        },
+        "media": {
+            "type": "object",
+            "properties": {
+                "mimeType": {"type": "string", "minLength": 1},
+                "content": {"type": "string", "minLength": 1},
+                "contentRef": {"type": "string", "minLength": 1},
+                "filename": {"type": "string", "minLength": 1},
+                "sizeBytes": {"type": "integer", "minimum": 0},
+            },
+            "additionalProperties": False,
+        },
+        "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
+        "sync": {"type": "boolean"},
+    },
+    "additionalProperties": False,
+}
+
+CAPTIONS_UPDATE_DESCRIPTION = (
+    "Update a YouTube caption track. Endpoint: captions.update. "
+    "Quota cost: 450. Auth: oauth_required. Requires caption update body; media replacement is optional."
+)
+CAPTIONS_UPDATE_USAGE_NOTES = (
+    "Quota cost: 450. Auth: oauth_required. Provide part and a body with the caption track id.",
+    "Quota cost: 450. body.snippet.isDraft may be supplied for draft-status updates.",
+    "Quota cost: 450. media is optional replacement caption content and must be paired with a valid body.",
+    "Quota cost: 450. onBehalfOfContentOwner is optional delegation context and still requires eligible OAuth authorization.",
+    "Quota cost: 450. sync is deprecated upstream and requires updated caption media when processed.",
+)
+CAPTIONS_UPDATE_CAVEATS = (
+    "Caption update requires eligible OAuth authorization for the target caption track.",
+    "Caption update body is required; media-only requests are unsupported.",
+    "Replacement media is optional and must not expose raw caption content in public metadata or errors.",
+    "The upstream sync option is deprecated and should not be used as the normal path.",
+)
+
 
 class CaptionsListToolError(ValueError):
     """Represent a safe caller-facing ``captions_list`` failure."""
@@ -124,6 +185,21 @@ class CaptionsInsertToolError(ValueError):
 
     def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
         """Initialize the safe captions-insert error.
+
+        :param message: Caller-facing error message.
+        :param category: Shared safe error category.
+        :param details: Safe diagnostic details for MCP error payloads.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = details or {}
+
+
+class CaptionsUpdateToolError(ValueError):
+    """Represent a safe caller-facing ``captions_update`` failure."""
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the safe captions-update error.
 
         :param message: Caller-facing error message.
         :param category: Shared safe error category.
@@ -161,6 +237,20 @@ def _default_captions_insert_transport(execution) -> dict[str, Any]:
     }
 
 
+def _default_captions_update_transport(execution) -> dict[str, Any]:
+    """Return a safe updated caption resource for local default execution.
+
+    :param execution: Layer 1 execution request containing validated arguments.
+    :return: Upstream-shaped updated caption resource without media content.
+    """
+    body = execution.arguments.get("body", {})
+    response: dict[str, Any] = {"id": body.get("id", "caption-1")}
+    snippet = body.get("snippet")
+    if isinstance(snippet, dict):
+        response["snippet"] = {"isDraft": snippet.get("isDraft", False)}
+    return response
+
+
 def _default_executor() -> IntegrationExecutor:
     """Build the default Layer 1 executor used by ``captions_list``.
 
@@ -175,6 +265,14 @@ def _default_insert_executor() -> IntegrationExecutor:
     :return: Executor with a safe local transport for created-resource results.
     """
     return IntegrationExecutor(transport=_default_captions_insert_transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _default_update_executor() -> IntegrationExecutor:
+    """Build the default Layer 1 executor used by ``captions_update``.
+
+    :return: Executor with a safe local transport for updated-resource results.
+    """
+    return IntegrationExecutor(transport=_default_captions_update_transport, retry_policy=RetryPolicy(max_attempts=1))
 
 
 def build_captions_list_contract() -> YouTubeToolContract:
@@ -255,6 +353,47 @@ def build_captions_insert_contract() -> YouTubeToolContract:
         availability_state=AvailabilityState.MEDIA_CONSTRAINED,
         usage_notes=CAPTIONS_INSERT_USAGE_NOTES,
         caveats=CAPTIONS_INSERT_CAVEATS,
+    )
+
+
+def build_captions_update_contract() -> YouTubeToolContract:
+    """Build the public contract metadata for ``captions_update``.
+
+    :return: Validated Layer 2 tool contract for ``captions_update``.
+    """
+    return YouTubeToolContract(
+        tool_name=CAPTIONS_UPDATE_TOOL_NAME,
+        upstream_resource="captions",
+        upstream_method="update",
+        operation_key="captions.update",
+        description=CAPTIONS_UPDATE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=CAPTIONS_UPDATE_QUOTA_COST,
+        resource_family="captions",
+        input_contract=CAPTIONS_UPDATE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "upload_result",
+            "resourcePath": "item",
+            "mediaResult": "safe_media_summary",
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=("endpoint", "quotaCost", "update", "media", "delegation", "requestedParts"),
+            preserved_upstream_fields=("item", "id", "snippet", "requestedParts"),
+            disallowed_behavior=("caption_download", "caption_creation", "language_ranking", "translation"),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.MEDIA_CONSTRAINED,
+        usage_notes=CAPTIONS_UPDATE_USAGE_NOTES,
+        caveats=CAPTIONS_UPDATE_CAVEATS,
     )
 
 
@@ -461,6 +600,102 @@ def _caption_media_summary(arguments: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
+def _update_body(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return the required caption update body.
+
+    :param arguments: Caller-supplied tool arguments.
+    :return: Caption update body mapping.
+    :raises CaptionsUpdateToolError: If the body is missing.
+    """
+    body = arguments.get("body")
+    if not isinstance(body, dict):
+        raise CaptionsUpdateToolError(
+            "captions_update requires body.",
+            category="invalid_request",
+            details={"field": "body"},
+        )
+    return body
+
+
+def _update_body_id(body: dict[str, Any]) -> str:
+    """Return the required caption track identifier from an update body.
+
+    :param body: Caption update body mapping.
+    :return: Stripped caption track identifier.
+    :raises CaptionsUpdateToolError: If the identifier is missing.
+    """
+    caption_id = body.get("id")
+    if not isinstance(caption_id, str) or not caption_id.strip():
+        raise CaptionsUpdateToolError(
+            "captions_update requires body.id.",
+            category="invalid_request",
+            details={"field": "body.id"},
+        )
+    return caption_id.strip()
+
+
+def _update_media(arguments: dict[str, Any]) -> dict[str, Any] | None:
+    """Return optional replacement media from a caption update request.
+
+    :param arguments: Caller-supplied tool arguments.
+    :return: Media mapping when supplied, otherwise ``None``.
+    :raises CaptionsUpdateToolError: If media input is unsupported.
+    """
+    if "media" not in arguments:
+        return None
+    media = arguments.get("media")
+    if not isinstance(media, dict):
+        raise CaptionsUpdateToolError(
+            "captions_update media must be an object.",
+            category="invalid_request",
+            details={"field": "media"},
+        )
+    has_content = isinstance(media.get("content"), str) and bool(media.get("content", "").strip())
+    has_reference = isinstance(media.get("contentRef"), str) and bool(media.get("contentRef", "").strip())
+    if not has_content and not has_reference:
+        raise CaptionsUpdateToolError(
+            "captions_update requires media.content or media.contentRef when media is supplied.",
+            category="invalid_request",
+            details={"field": "media.content"},
+        )
+    return media
+
+
+def _caption_update_summary(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return a safe update summary for a caption update request.
+
+    :param arguments: Original tool arguments.
+    :return: Safe caption update fields for public result surfaces.
+    """
+    body = _update_body(arguments)
+    summary: dict[str, Any] = {"id": _update_body_id(body)}
+    snippet = body.get("snippet")
+    if isinstance(snippet, dict) and "isDraft" in snippet:
+        summary["isDraft"] = bool(snippet["isDraft"])
+    return summary
+
+
+def _caption_update_media_summary(arguments: dict[str, Any]) -> dict[str, Any] | None:
+    """Return a safe media summary for a caption update request.
+
+    :param arguments: Original tool arguments.
+    :return: Safe media metadata without raw caption content, or ``None``.
+    """
+    media = _update_media(arguments)
+    if media is None:
+        return None
+    summary: dict[str, Any] = {"contentProvided": True}
+    mime_type = _clean_text(media, "mimeType")
+    if mime_type:
+        summary["mimeType"] = mime_type
+    filename = _clean_text(media, "filename")
+    if filename:
+        summary["filename"] = filename
+    if isinstance(media.get("sizeBytes"), int):
+        summary["sizeBytes"] = media["sizeBytes"]
+    return summary
+
+
 def validate_captions_insert_arguments(
     arguments: dict[str, Any],
     *,
@@ -511,6 +746,68 @@ def validate_captions_insert_arguments(
             "captions_insert requires eligible OAuth authorization.",
             category="authentication_failed",
             details={"operation": "captions.insert"},
+        )
+    return context
+
+
+def validate_captions_update_arguments(
+    arguments: dict[str, Any],
+    *,
+    oauth_token: str | None = None,
+) -> dict[str, Any]:
+    """Validate ``captions_update`` arguments and return safe request context.
+
+    :param arguments: Caller-supplied tool arguments.
+    :param oauth_token: Optional OAuth token availability for caption update.
+    :return: Safe update and optional media context for result mapping.
+    :raises CaptionsUpdateToolError: If arguments are invalid or require missing authorization.
+    """
+    if not isinstance(arguments.get("part"), str) or not arguments.get("part", "").strip():
+        raise CaptionsUpdateToolError(
+            "captions_update requires part.",
+            category="invalid_request",
+            details={"field": "part"},
+        )
+
+    body = _update_body(arguments)
+    context: dict[str, Any] = {"id": _update_body_id(body)}
+    snippet = body.get("snippet")
+    if isinstance(snippet, dict) and "isDraft" in snippet:
+        context["isDraft"] = bool(snippet["isDraft"])
+
+    media = _update_media(arguments)
+    if media is not None:
+        mime_type = _clean_text(media, "mimeType")
+        if mime_type:
+            context["mediaMimeType"] = mime_type
+
+    if arguments.get("sync") is not None:
+        if not isinstance(arguments["sync"], bool):
+            raise CaptionsUpdateToolError(
+                "captions_update sync must be a boolean when supplied.",
+                category="invalid_request",
+                details={"field": "sync"},
+            )
+        if media is None:
+            raise CaptionsUpdateToolError(
+                "captions_update sync requires replacement media because the upstream option is deprecated.",
+                category="invalid_request",
+                details={"field": "sync"},
+            )
+        context["syncDeprecated"] = True
+
+    if arguments.get("onBehalfOfContentOwner") is not None and not oauth_token:
+        raise CaptionsUpdateToolError(
+            "Delegated caption update requires eligible OAuth authorization.",
+            category="authentication_failed",
+            details={"field": "onBehalfOfContentOwner"},
+        )
+
+    if not oauth_token:
+        raise CaptionsUpdateToolError(
+            "captions_update requires eligible OAuth authorization.",
+            category="authentication_failed",
+            details={"operation": "captions.update"},
         )
     return context
 
@@ -572,6 +869,30 @@ def map_captions_insert_result(response: dict[str, Any], arguments: dict[str, An
     return result
 
 
+def map_captions_update_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map a Layer 1 update response to the public Layer 2 result shape.
+
+    :param response: Upstream-shaped updated caption resource returned by Layer 1.
+    :param arguments: Original validated tool arguments.
+    :return: Near-raw updated caption resource with light MCP clarity fields.
+    """
+    result: dict[str, Any] = {
+        "endpoint": "captions.update",
+        "quotaCost": CAPTIONS_UPDATE_QUOTA_COST,
+        "item": response,
+        "requestedParts": _requested_parts(arguments),
+        "update": _caption_update_summary(arguments),
+    }
+    media_summary = _caption_update_media_summary(arguments)
+    if media_summary is not None:
+        result["media"] = media_summary
+    if _clean_text(arguments, "onBehalfOfContentOwner"):
+        result["delegation"] = {"onBehalfOfContentOwner": True}
+    if arguments.get("sync") is not None:
+        result["sync"] = {"deprecated": True, "requested": bool(arguments["sync"])}
+    return result
+
+
 def _map_upstream_error(error: NormalizedUpstreamError) -> CaptionsListToolError:
     """Map a normalized upstream error to the public Layer 2 error model.
 
@@ -608,6 +929,30 @@ def _map_insert_upstream_error(error: NormalizedUpstreamError) -> CaptionsInsert
     }
     details = {"upstreamStatus": error.upstream_status} if error.upstream_status else {}
     return CaptionsInsertToolError(str(error), category=categories.get(error.category, "upstream_failure"), details=details)
+
+
+def _map_update_upstream_error(error: NormalizedUpstreamError) -> CaptionsUpdateToolError:
+    """Map a normalized upstream error to the public update error model.
+
+    :param error: Normalized upstream failure raised by Layer 1 execution.
+    :return: Safe ``captions_update`` error.
+    """
+    categories = {
+        "auth": "authorization_failed",
+        "not_found": "resource_not_found",
+        "rate_limit": "quota_exhausted",
+        "transient": "endpoint_unavailable",
+        "invalid_request": "invalid_request",
+        "upstream_service": "upstream_failure",
+    }
+    lowered = str(error).lower()
+    category = categories.get(error.category, "upstream_failure")
+    if "contentrequired" in lowered:
+        category = "invalid_request"
+    if "captionnotfound" in lowered:
+        category = "resource_not_found"
+    details = {"upstreamStatus": error.upstream_status} if error.upstream_status else {}
+    return CaptionsUpdateToolError(str(error), category=category, details=details)
 
 
 def build_captions_list_handler(
@@ -690,6 +1035,46 @@ def build_captions_insert_handler(
     return handler
 
 
+def build_captions_update_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "eligible-caption-access",
+):
+    """Build the concrete ``captions_update`` handler.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for caption update.
+    :return: Callable dispatcher handler.
+    """
+    captions_wrapper = wrapper or build_captions_update_wrapper()
+    captions_executor = executor or _default_update_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one ``captions_update`` request.
+
+        :param arguments: Validated dispatcher arguments.
+        :return: Public Layer 2 updated caption resource result.
+        :raises CaptionsUpdateToolError: If validation, authorization, or upstream execution fails.
+        """
+        validate_captions_update_arguments(arguments, oauth_token=oauth_token)
+        auth_context = _auth_context(oauth_token=oauth_token)
+        try:
+            response = captions_wrapper.call(captions_executor, arguments=arguments, auth_context=auth_context)
+        except NormalizedUpstreamError as error:
+            raise _map_update_upstream_error(error) from error
+        except ValueError as error:
+            raise CaptionsUpdateToolError(
+                str(error),
+                category="invalid_request",
+                details={"operation": "captions.update"},
+            ) from error
+        return map_captions_update_result(response, arguments)
+
+    return handler
+
+
 def build_captions_list_tool_descriptor(
     *,
     wrapper=None,
@@ -744,6 +1129,33 @@ def build_captions_insert_tool_descriptor(
     }
 
 
+def build_captions_update_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "eligible-caption-access",
+) -> dict[str, Any]:
+    """Build the dispatcher descriptor for the ``captions_update`` tool.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for caption update.
+    :return: Dispatcher-compatible descriptor for the concrete Layer 2 tool.
+    """
+    contract = build_captions_update_contract()
+    return {
+        "name": CAPTIONS_UPDATE_TOOL_NAME,
+        "description": CAPTIONS_UPDATE_DESCRIPTION,
+        "metadata": contract.to_tool_metadata(),
+        "inputSchema": CAPTIONS_UPDATE_INPUT_SCHEMA,
+        "handler": build_captions_update_handler(
+            wrapper=wrapper,
+            executor=executor,
+            oauth_token=oauth_token,
+        ),
+    }
+
+
 __all__ = [
     "CAPTIONS_INSERT_INPUT_SCHEMA",
     "CAPTIONS_INSERT_QUOTA_COST",
@@ -751,16 +1163,25 @@ __all__ = [
     "CAPTIONS_LIST_INPUT_SCHEMA",
     "CAPTIONS_LIST_QUOTA_COST",
     "CAPTIONS_LIST_TOOL_NAME",
+    "CAPTIONS_UPDATE_INPUT_SCHEMA",
+    "CAPTIONS_UPDATE_QUOTA_COST",
+    "CAPTIONS_UPDATE_TOOL_NAME",
     "CaptionsInsertToolError",
     "CaptionsListToolError",
+    "CaptionsUpdateToolError",
     "build_captions_insert_contract",
     "build_captions_insert_handler",
     "build_captions_insert_tool_descriptor",
     "build_captions_list_contract",
     "build_captions_list_handler",
     "build_captions_list_tool_descriptor",
+    "build_captions_update_contract",
+    "build_captions_update_handler",
+    "build_captions_update_tool_descriptor",
     "map_captions_insert_result",
     "map_captions_list_result",
+    "map_captions_update_result",
     "validate_captions_insert_arguments",
     "validate_captions_list_arguments",
+    "validate_captions_update_arguments",
 ]

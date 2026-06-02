@@ -64,3 +64,14 @@ def test_default_registry_includes_executable_captions_insert_tool():
     assert listed["captions_insert"]["metadata"]["upstream"]["operationKey"] == "captions.insert"
     assert listed["captions_insert"]["metadata"]["quotaCost"] == 400
     assert listed["captions_insert"]["metadata"]["authMode"] == "oauth_required"
+
+
+def test_default_registry_includes_executable_captions_update_tool():
+    """Register ``captions_update`` by default with safe metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "captions_update" in listed
+    assert listed["captions_update"]["metadata"]["upstream"]["operationKey"] == "captions.update"
+    assert listed["captions_update"]["metadata"]["quotaCost"] == 450
+    assert listed["captions_update"]["metadata"]["authMode"] == "oauth_required"
