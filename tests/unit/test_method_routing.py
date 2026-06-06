@@ -205,6 +205,41 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertEqual(response["error"]["data"]["category"], "invalid_request")
         self.assertEqual(response["error"]["data"]["toolName"], "captions_update")
 
+    def test_captions_download_tools_call_success_returns_structured_result(self):
+        """Return structured content for a valid captions_download call."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-captions-download-ok",
+            "method": "tools/call",
+            "params": {
+                "name": "captions_download",
+                "arguments": {"id": "caption-1", "tfmt": "vtt", "tlang": "es"},
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        result = response["result"]["content"][0]["structuredContent"]
+        self.assertEqual(result["endpoint"], "captions.download")
+        self.assertEqual(result["content"], "caption content")
+        self.assertEqual(result["requestedFormat"], "vtt")
+        self.assertEqual(result["requestedLanguage"], "es")
+
+    def test_captions_download_tools_call_invalid_request_returns_safe_error(self):
+        """Return a safe error for an invalid captions_download call."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-captions-download-invalid",
+            "method": "tools/call",
+            "params": {
+                "name": "captions_download",
+                "arguments": {"id": "caption-1", "tfmt": "unsupported"},
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["data"]["category"], "invalid_request")
+        self.assertEqual(response["error"]["data"]["toolName"], "captions_download")
+
     def test_initialize_success_detection_accepts_initialize_result(self):
         """Treat a successful initialize response as initialized."""
         response = route_mcp_request(

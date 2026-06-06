@@ -8,6 +8,7 @@ from typing import Any, Callable
 from mcp_server.tools.retrieval import FETCH_TOOL_SCHEMA, SEARCH_TOOL_SCHEMA, fetch_tool, search_tool
 from mcp_server.tools.youtube_common import (
     build_activities_list_tool_descriptor,
+    build_captions_download_tool_descriptor,
     build_captions_insert_tool_descriptor,
     build_captions_list_tool_descriptor,
     build_captions_update_tool_descriptor,
@@ -187,6 +188,7 @@ class InMemoryToolDispatcher:
             build_captions_list_tool_descriptor(),
             build_captions_insert_tool_descriptor(),
             build_captions_update_tool_descriptor(),
+            build_captions_download_tool_descriptor(),
         ]
 
     def _normalize_server_metadata(self, server_metadata):
