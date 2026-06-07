@@ -279,6 +279,27 @@ def test_captions_download_public_metadata_is_safe_and_complete():
     assert "apiKey" not in str(metadata)
 
 
+def test_captions_delete_public_metadata_is_safe_and_complete():
+    """Expose safe quota, auth, destructive delete, and no-body metadata."""
+    from mcp_server.tools.youtube_common.captions import build_captions_delete_contract
+
+    metadata = build_captions_delete_contract().to_tool_metadata()
+
+    assert metadata["name"] == "captions_delete"
+    assert metadata["upstream"]["operationKey"] == "captions.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "onBehalfOfContentOwner" in metadata["inputContract"]["properties"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert metadata["responseConvention"]["bodyPolicy"] == "no_upstream_body"
+    assert any("destructive" in caveat.lower() for caveat in metadata["caveats"])
+    assert "token" not in str(metadata).lower()
+    assert "apiKey" not in str(metadata)
+    assert "raw_media" not in str(metadata)
+
+
 def test_shared_helper_boundary_keeps_endpoint_facts_in_resource_families():
     """Document which concerns are shared and which stay endpoint-specific."""
     assert "naming" in SHARED_YOUTUBE_HELPER_BOUNDARY["shared"]

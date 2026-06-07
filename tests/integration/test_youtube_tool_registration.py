@@ -86,3 +86,20 @@ def test_default_registry_includes_executable_captions_download_tool():
     assert listed["captions_download"]["metadata"]["upstream"]["operationKey"] == "captions.download"
     assert listed["captions_download"]["metadata"]["quotaCost"] == 200
     assert listed["captions_download"]["metadata"]["authMode"] == "oauth_required"
+
+
+def test_default_registry_includes_executable_captions_delete_tool():
+    """Register ``captions_delete`` by default with safe metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "captions_delete" in listed
+    metadata = listed["captions_delete"]["metadata"]
+    assert metadata["upstream"]["operationKey"] == "captions.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["bodyPolicy"] == "no_upstream_body"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert any("destructive" in caveat.lower() for caveat in metadata["caveats"])

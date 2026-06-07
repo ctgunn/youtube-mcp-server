@@ -405,6 +405,71 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         ),
     ),
     _contract(
+        resource="captions",
+        method="delete",
+        description=(
+            "Delete caption track. Endpoint: captions.delete. "
+            "Quota cost: 50. Auth: oauth_required. Requires caption track id; deletion is destructive."
+        ),
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        resource_family="captions",
+        input_contract={
+            "required": ["id"],
+            "properties": {
+                "id": {"type": "string"},
+                "onBehalfOfContentOwner": {"type": "string"},
+            },
+        },
+        response_convention={
+            "resultKind": "mutation_acknowledgment",
+            "acknowledgmentPath": "delete",
+            "successStatus": 204,
+            "bodyPolicy": "no_upstream_body",
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=(
+                "endpoint",
+                "quotaCost",
+                "delete",
+                "status",
+                "responseStatus",
+                "hasResponseBody",
+                "delegation",
+            ),
+            preserved_upstream_fields=("responseStatus", "hasResponseBody"),
+            disallowed_behavior=(
+                "caption_listing",
+                "caption_download",
+                "caption_creation",
+                "caption_update",
+                "deleted_resource_echo",
+                "request_body",
+                "undo",
+            ),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        usage_notes=(
+            "Quota cost: 50. Auth: oauth_required. Provide id for the caption track to delete.",
+            "Quota cost: 50. captions.delete accepts no request body and returns a 204 No Content acknowledgment.",
+            "Quota cost: 50. onBehalfOfContentOwner is optional delegation context.",
+        ),
+        caveats=(
+            "Caption deletion requires eligible OAuth authorization for the target caption track.",
+            "Caption deletion is destructive and does not provide undo or recovery behavior.",
+            "The upstream success response is 204 No Content; results must not fabricate deleted caption resource fields.",
+        ),
+    ),
+    _contract(
         resource="search",
         method="list",
         description="Search YouTube resources. Endpoint: search.list. Quota cost: 100. Auth: api_key.",

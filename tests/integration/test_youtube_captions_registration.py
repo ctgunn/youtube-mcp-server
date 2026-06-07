@@ -2,6 +2,7 @@
 
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.captions import (
+    build_captions_delete_tool_descriptor,
     build_captions_download_tool_descriptor,
     build_captions_insert_tool_descriptor,
     build_captions_list_tool_descriptor,
@@ -73,6 +74,25 @@ def _valid_captions_download_arguments() -> dict:
 def _register_captions_download() -> InMemoryToolDispatcher:
     """Register the concrete captions download tool in a fresh dispatcher."""
     descriptor = build_captions_download_tool_descriptor()
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
+def _valid_captions_delete_arguments() -> dict:
+    """Return a representative valid ``captions_delete`` request."""
+    return {"id": "caption-1"}
+
+
+def _register_captions_delete() -> InMemoryToolDispatcher:
+    """Register the concrete captions delete tool in a fresh dispatcher."""
+    descriptor = build_captions_delete_tool_descriptor()
     dispatcher = InMemoryToolDispatcher(tools=[])
     dispatcher.register_tool(
         name=descriptor["name"],
@@ -232,3 +252,52 @@ def test_captions_download_dispatcher_rejects_invalid_request():
         assert "arguments missing required field: id" in str(error) or "requires id" in str(error)
     else:  # pragma: no cover - failure path
         raise AssertionError("expected invalid caption download request to fail")
+
+
+def test_captions_delete_descriptor_registers_as_executable_tool():
+    """Register and execute ``captions_delete`` through the dispatcher."""
+    dispatcher = _register_captions_delete()
+
+    result = dispatcher.call_tool("captions_delete", _valid_captions_delete_arguments())
+
+    assert result["endpoint"] == "captions.delete"
+    assert result["status"] == "deleted"
+    assert result["delete"] == {"id": "caption-1"}
+
+
+def test_captions_delete_registration_exposes_metadata_and_usage_notes():
+    """Expose quota, auth, deletion, caveats, and usage notes in registration."""
+    dispatcher = _register_captions_delete()
+
+    [listed] = dispatcher.list_tools()
+
+    assert listed["metadata"]["name"] == "captions_delete"
+    assert listed["metadata"]["upstream"]["operationKey"] == "captions.delete"
+    assert listed["metadata"]["quotaCost"] == 50
+    assert listed["metadata"]["authMode"] == "oauth_required"
+    assert listed["metadata"]["usageNotes"]
+    assert listed["metadata"]["caveats"]
+
+
+def test_captions_delete_dispatcher_rejects_invalid_request():
+    """Reject invalid caption delete requests through dispatcher invocation."""
+    dispatcher = _register_captions_delete()
+
+    try:
+        dispatcher.call_tool("captions_delete", {"body": {}})
+    except ValueError as error:
+        assert "arguments missing required field: id" in str(error) or "unsupported field: body" in str(error)
+    else:  # pragma: no cover - failure path
+        raise AssertionError("expected invalid caption delete request to fail")
+
+
+def test_captions_delete_dispatcher_rejects_body_like_request():
+    """Reject body-like delete requests even when the required id is present."""
+    dispatcher = _register_captions_delete()
+
+    try:
+        dispatcher.call_tool("captions_delete", {"id": "caption-1", "body": {}})
+    except ValueError as error:
+        assert "unsupported field: body" in str(error) or "accepts no request body" in str(error)
+    else:  # pragma: no cover - failure path
+        raise AssertionError("expected body-like caption delete request to fail")
