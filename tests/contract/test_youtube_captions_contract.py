@@ -5,14 +5,18 @@ import pytest
 from mcp_server.tools import youtube_common
 from mcp_server.tools.youtube_common import AuthMode, AvailabilityState
 from mcp_server.tools.youtube_common.captions import (
+    CAPTIONS_DELETE_TOOL_NAME,
     CAPTIONS_DOWNLOAD_TOOL_NAME,
     CAPTIONS_INSERT_TOOL_NAME,
     CAPTIONS_LIST_TOOL_NAME,
     CAPTIONS_UPDATE_TOOL_NAME,
+    CaptionsDeleteToolError,
     CaptionsDownloadToolError,
     CaptionsInsertToolError,
     CaptionsListToolError,
     CaptionsUpdateToolError,
+    build_captions_delete_contract,
+    build_captions_delete_tool_descriptor,
     build_captions_download_contract,
     build_captions_download_tool_descriptor,
     build_captions_insert_contract,
@@ -21,6 +25,7 @@ from mcp_server.tools.youtube_common.captions import (
     build_captions_list_tool_descriptor,
     build_captions_update_contract,
     build_captions_update_tool_descriptor,
+    validate_captions_delete_arguments,
     validate_captions_download_arguments,
     validate_captions_insert_arguments,
     validate_captions_list_arguments,
@@ -44,6 +49,9 @@ def test_concrete_captions_module_exports_public_tool_contract():
     assert captions.CAPTIONS_DOWNLOAD_TOOL_NAME == "captions_download"
     assert youtube_common.CAPTIONS_DOWNLOAD_TOOL_NAME == "captions_download"
     assert callable(captions.build_captions_download_tool_descriptor)
+    assert captions.CAPTIONS_DELETE_TOOL_NAME == "captions_delete"
+    assert youtube_common.CAPTIONS_DELETE_TOOL_NAME == "captions_delete"
+    assert callable(captions.build_captions_delete_tool_descriptor)
 
 
 def test_captions_list_contract_exposes_identity_quota_auth_and_delegation():
@@ -133,6 +141,53 @@ def test_captions_download_contract_exposes_identity_quota_auth_conversion_and_d
     assert any("Quota cost: 200" in note for note in metadata["usageNotes"])
 
 
+def test_captions_delete_contract_exposes_identity_quota_auth_and_delegation():
+    """Expose the public metadata required before caption deletion."""
+    contract = build_captions_delete_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.tool_name == CAPTIONS_DELETE_TOOL_NAME
+    assert contract.upstream_resource == "captions"
+    assert contract.upstream_method == "delete"
+    assert contract.quota_cost == 50
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["upstream"]["operationKey"] == "captions.delete"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert {"id", "onBehalfOfContentOwner"}.issubset(metadata["inputContract"]["properties"])
+    assert any("delete" in note.lower() for note in metadata["usageNotes"])
+    assert any("onBehalfOfContentOwner" in note for note in metadata["usageNotes"])
+    assert any("Quota cost: 50" in note for note in metadata["usageNotes"])
+
+
+def test_captions_delete_contract_documents_no_body_no_content_boundary():
+    """Expose destructive delete, no-body input, and no-content response semantics."""
+    metadata = build_captions_delete_contract().to_tool_metadata()
+
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"] == {
+        "resultKind": "mutation_acknowledgment",
+        "acknowledgmentPath": "delete",
+        "successStatus": 204,
+        "bodyPolicy": "no_upstream_body",
+    }
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert set(metadata["responseBoundary"]["allowedWrapperFields"]) == {
+        "endpoint",
+        "quotaCost",
+        "delete",
+        "status",
+        "responseStatus",
+        "hasResponseBody",
+        "delegation",
+    }
+    assert "hasResponseBody" in metadata["responseBoundary"]["preservedUpstreamFields"]
+    assert "request_body" in metadata["responseBoundary"]["disallowedBehavior"]
+    assert any("destructive" in caveat.lower() for caveat in metadata["caveats"])
+    assert any("204 No Content" in note for note in metadata["usageNotes"])
+
+
 def test_captions_list_descriptor_matches_contract_and_schema():
     """Build a dispatcher descriptor that matches the public contract."""
     descriptor = build_captions_list_tool_descriptor()
@@ -190,6 +245,19 @@ def test_captions_download_descriptor_matches_contract_and_schema():
     assert {"id", "tfmt", "tlang", "onBehalfOfContentOwner"}.issubset(
         descriptor["inputSchema"]["properties"]
     )
+    assert callable(descriptor["handler"])
+
+
+def test_captions_delete_descriptor_matches_contract_and_schema():
+    """Build a dispatcher descriptor that matches the delete public contract."""
+    descriptor = build_captions_delete_tool_descriptor()
+
+    assert descriptor["name"] == "captions_delete"
+    assert "Quota cost: 50" in descriptor["description"]
+    assert descriptor["metadata"]["upstream"]["operationKey"] == "captions.delete"
+    assert descriptor["metadata"]["authMode"] == "oauth_required"
+    assert descriptor["inputSchema"]["required"] == ["id"]
+    assert {"id", "onBehalfOfContentOwner"}.issubset(descriptor["inputSchema"]["properties"])
     assert callable(descriptor["handler"])
 
 
@@ -279,6 +347,19 @@ def test_captions_download_contract_documents_conversion_result_shape():
     assert result["download"] == {"id": "caption-1", "tfmt": "vtt", "tlang": "es"}
 
 
+def test_captions_delete_contract_documents_successful_result_shape():
+    """Require successful delete results to preserve deletion acknowledgment context."""
+    result = build_captions_delete_tool_descriptor()["handler"]({"id": "caption-1"})
+
+    assert result["endpoint"] == "captions.delete"
+    assert result["quotaCost"] == 50
+    assert result["delete"] == {"id": "caption-1"}
+    assert result["status"] == "deleted"
+    assert result["responseStatus"] == 204
+    assert result["hasResponseBody"] is False
+    assert "item" not in result
+
+
 @pytest.mark.parametrize(
     "arguments",
     [
@@ -362,6 +443,52 @@ def test_captions_download_validation_surfaces_safe_error_categories(arguments):
     assert "token" not in exc_info.value.details
 
 
+@pytest.mark.parametrize("arguments", [{}, {"id": "   "}, {"id": "caption-1", "onBehalfOfContentOwner": "owner"}])
+def test_captions_delete_validation_surfaces_safe_error_categories(arguments):
+    """Surface safe error categories for invalid or unauthorized delete requests."""
+    with pytest.raises(CaptionsDeleteToolError) as exc_info:
+        validate_captions_delete_arguments(arguments, oauth_token=None)
+
+    assert exc_info.value.category in {"invalid_request", "authentication_failed"}
+    assert "api" not in exc_info.value.details
+    assert "token" not in exc_info.value.details
+
+
+@pytest.mark.parametrize(
+    ("arguments", "oauth_token", "expected_category", "expected_field", "message"),
+    [
+        ({}, "oauth", "invalid_request", "id", "requires id"),
+        ({"id": "   "}, "oauth", "invalid_request", "id", "requires id"),
+        ({"id": "caption-1", "body": {}}, "oauth", "invalid_request", "body", "accepts no request body"),
+        ({"id": "caption-1", "part": "snippet"}, "oauth", "invalid_request", "part", "supports only"),
+        (
+            {"id": "caption-1", "onBehalfOfContentOwner": "owner"},
+            None,
+            "authentication_failed",
+            "onBehalfOfContentOwner",
+            "Delegated caption deletion",
+        ),
+        ({"id": "caption-1"}, None, "authentication_failed", None, "requires eligible OAuth authorization"),
+    ],
+)
+def test_captions_delete_validation_handles_unsupported_and_unauthorized_requests(
+    arguments,
+    oauth_token,
+    expected_category,
+    expected_field,
+    message,
+):
+    """Reject invalid delete requests with safe categories and field details."""
+    with pytest.raises(CaptionsDeleteToolError, match=message) as exc_info:
+        validate_captions_delete_arguments(arguments, oauth_token=oauth_token)
+
+    assert exc_info.value.category == expected_category
+    if expected_field is not None:
+        assert exc_info.value.details == {"field": expected_field}
+    assert "api" not in exc_info.value.details
+    assert "token" not in exc_info.value.details
+
+
 @pytest.mark.parametrize(
     ("category", "message", "expected"),
     [
@@ -428,6 +555,43 @@ def test_captions_download_maps_upstream_errors_to_safe_categories(category, mes
     descriptor = build_captions_download_tool_descriptor(wrapper=FailingWrapper(), executor=object())
 
     with pytest.raises(CaptionsDownloadToolError) as exc_info:
+        descriptor["handler"]({"id": "caption-1"})
+
+    assert exc_info.value.category == expected
+    assert exc_info.value.details == {"upstreamStatus": 400}
+
+
+@pytest.mark.parametrize(
+    ("category", "message", "expected"),
+    [
+        ("auth", "forbidden", "authorization_failed"),
+        ("not_found", "captionNotFound", "resource_not_found"),
+        ("rate_limit", "quota", "quota_exhausted"),
+        ("transient", "temporarily unavailable", "endpoint_unavailable"),
+        ("invalid_request", "invalid id", "invalid_request"),
+        ("unexpected", "upstream confused", "upstream_failure"),
+    ],
+)
+def test_captions_delete_maps_upstream_errors_to_safe_categories(category, message, expected):
+    """Map Layer 1 failures into safe public delete error categories."""
+    from mcp_server.integrations.errors import NormalizedUpstreamError
+
+    class FailingWrapper:
+        """Raise one normalized error from the fake Layer 1 wrapper."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise the configured normalized upstream error.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError(message, category, retryable=False, upstream_status=400)
+
+    descriptor = build_captions_delete_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(CaptionsDeleteToolError) as exc_info:
         descriptor["handler"]({"id": "caption-1"})
 
     assert exc_info.value.category == expected

@@ -116,6 +116,24 @@ def test_representative_captions_download_example_aligns_with_concrete_contract(
     assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
 
 
+def test_representative_captions_delete_example_aligns_with_concrete_contract():
+    """Keep the representative captions-delete example aligned with YT-208."""
+    from mcp_server.tools.youtube_common.captions import build_captions_delete_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "captions_delete"
+    ]
+    concrete = build_captions_delete_contract()
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == concrete.quota_cost
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+
+
 def test_representative_examples_expose_complete_metadata_standard():
     """Require representative examples to expose the YT-202 metadata standard."""
     assert len(REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS) >= 10

@@ -3,22 +3,27 @@
 import pytest
 
 from mcp_server.tools.youtube_common.captions import (
+    CAPTIONS_DELETE_INPUT_SCHEMA,
     CAPTIONS_DOWNLOAD_INPUT_SCHEMA,
     CAPTIONS_INSERT_INPUT_SCHEMA,
     CAPTIONS_LIST_INPUT_SCHEMA,
     CAPTIONS_UPDATE_INPUT_SCHEMA,
+    CaptionsDeleteToolError,
     CaptionsDownloadToolError,
     CaptionsInsertToolError,
     CaptionsListToolError,
     CaptionsUpdateToolError,
+    build_captions_delete_tool_descriptor,
     build_captions_download_tool_descriptor,
     build_captions_insert_tool_descriptor,
     build_captions_list_tool_descriptor,
     build_captions_update_tool_descriptor,
+    map_captions_delete_result,
     map_captions_download_result,
     map_captions_insert_result,
     map_captions_list_result,
     map_captions_update_result,
+    validate_captions_delete_arguments,
     validate_captions_download_arguments,
     validate_captions_insert_arguments,
     validate_captions_list_arguments,
@@ -69,6 +74,11 @@ def _valid_captions_download_with_conversion_arguments() -> dict:
     return {"id": "caption-1", "tfmt": "vtt", "tlang": "es"}
 
 
+def _valid_captions_delete_arguments() -> dict:
+    """Return a representative valid ``captions_delete`` request."""
+    return {"id": "caption-1"}
+
+
 def test_captions_list_schema_preserves_lookup_pagination_and_delegation_inputs():
     """Expose the upstream-like request fields for ``captions_list``."""
     properties = CAPTIONS_LIST_INPUT_SCHEMA["properties"]
@@ -104,6 +114,16 @@ def test_captions_download_schema_preserves_id_conversion_and_delegation_inputs(
     assert {"id", "tfmt", "tlang", "onBehalfOfContentOwner"}.issubset(properties)
     assert properties["tfmt"]["enum"] == ["sbv", "scc", "srt", "ttml", "vtt"]
     assert CAPTIONS_DOWNLOAD_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_captions_delete_schema_preserves_id_and_delegation_inputs():
+    """Expose upstream-like request fields for ``captions_delete``."""
+    properties = CAPTIONS_DELETE_INPUT_SCHEMA["properties"]
+
+    assert CAPTIONS_DELETE_INPUT_SCHEMA["required"] == ["id"]
+    assert {"id", "onBehalfOfContentOwner"}.issubset(properties)
+    assert "body" not in properties
+    assert CAPTIONS_DELETE_INPUT_SCHEMA["additionalProperties"] is False
 
 
 def test_validate_captions_list_arguments_accepts_authorized_video_request():
@@ -157,6 +177,31 @@ def test_validate_captions_download_arguments_accepts_authorized_conversion_requ
     )
 
     assert selected == {"id": "caption-1", "tfmt": "vtt", "tlang": "es"}
+
+
+def test_validate_captions_delete_arguments_accepts_authorized_request():
+    """Map an authorized delete request to safe context."""
+    selected = validate_captions_delete_arguments(_valid_captions_delete_arguments(), oauth_token="oauth")
+
+    assert selected == {"id": "caption-1"}
+
+
+def test_validate_captions_delete_arguments_rejects_request_body_shape():
+    """Reject body-like delete input with safe body-specific details."""
+    with pytest.raises(CaptionsDeleteToolError, match="accepts no request body") as exc_info:
+        validate_captions_delete_arguments({"id": "caption-1", "body": {}}, oauth_token="oauth")
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details == {"field": "body"}
+
+
+def test_validate_captions_delete_arguments_rejects_unsupported_options():
+    """Reject unsupported delete options without leaking unsafe diagnostics."""
+    with pytest.raises(CaptionsDeleteToolError, match="supports only") as exc_info:
+        validate_captions_delete_arguments({"id": "caption-1", "part": "snippet"}, oauth_token="oauth")
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details == {"field": "part"}
 
 
 def test_validate_captions_list_arguments_accepts_caption_id_filter():
@@ -245,6 +290,19 @@ def test_map_captions_download_result_preserves_content_and_conversion_context()
     assert result["requestedFormat"] == "vtt"
     assert result["requestedLanguage"] == "es"
     assert result["download"] == {"id": "caption-1", "tfmt": "vtt", "tlang": "es"}
+
+
+def test_map_captions_delete_result_preserves_acknowledgment_context():
+    """Preserve near-raw deletion acknowledgment fields in the mapped result."""
+    result = map_captions_delete_result({}, _valid_captions_delete_arguments())
+
+    assert result["endpoint"] == "captions.delete"
+    assert result["quotaCost"] == 50
+    assert result["delete"] == {"id": "caption-1"}
+    assert result["status"] == "deleted"
+    assert result["responseStatus"] == 204
+    assert result["hasResponseBody"] is False
+    assert "item" not in result
 
 
 def test_map_captions_list_result_preserves_empty_collection_success():
@@ -392,6 +450,34 @@ def test_captions_download_handler_invokes_wrapper_for_authorized_conversion_req
     assert result["requestedFormat"] == "vtt"
     assert result["requestedLanguage"] == "es"
     assert calls[0][1] == _valid_captions_download_with_conversion_arguments()
+
+
+def test_captions_delete_handler_invokes_wrapper_for_authorized_request():
+    """Call the injected Layer 1 delete wrapper through the concrete handler."""
+    calls = []
+
+    class FakeWrapper:
+        """Capture Layer 1 wrapper calls made by the delete handler."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one fake Layer 1 call and return no-content acknowledgment.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :return: Upstream-shaped delete acknowledgment.
+            """
+            calls.append((executor, arguments, auth_context.mode.value))
+            return {}
+
+    descriptor = build_captions_delete_tool_descriptor(wrapper=FakeWrapper(), executor=object())
+
+    result = descriptor["handler"](_valid_captions_delete_arguments())
+
+    assert result["endpoint"] == "captions.delete"
+    assert result["delete"] == {"id": "caption-1"}
+    assert calls[0][1] == _valid_captions_delete_arguments()
+    assert calls[0][2] == "oauth_required"
 
 
 def test_validate_captions_list_arguments_rejects_missing_part():

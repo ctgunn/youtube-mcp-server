@@ -9,6 +9,7 @@ from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.captions import (
+    build_captions_delete_wrapper,
     build_captions_download_wrapper,
     build_captions_insert_wrapper,
     build_captions_list_wrapper,
@@ -28,6 +29,8 @@ CAPTIONS_UPDATE_QUOTA_COST = 450
 CAPTIONS_DOWNLOAD_TOOL_NAME = "captions_download"
 CAPTIONS_DOWNLOAD_QUOTA_COST = 200
 CAPTIONS_DOWNLOAD_FORMATS = ("sbv", "scc", "srt", "ttml", "vtt")
+CAPTIONS_DELETE_TOOL_NAME = "captions_delete"
+CAPTIONS_DELETE_QUOTA_COST = 50
 
 CAPTIONS_LIST_INPUT_SCHEMA = {
     "type": "object",
@@ -197,6 +200,31 @@ CAPTIONS_DOWNLOAD_CAVEATS = (
     "tfmt and tlang conversion can fail upstream when the requested format or language cannot be produced.",
 )
 
+CAPTIONS_DELETE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["id"],
+    "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+CAPTIONS_DELETE_DESCRIPTION = (
+    "Delete a YouTube caption track. Endpoint: captions.delete. "
+    "Quota cost: 50. Auth: oauth_required. Requires caption track id; deletion is destructive."
+)
+CAPTIONS_DELETE_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide id for the caption track to delete.",
+    "Quota cost: 50. captions.delete accepts no request body and returns a 204 No Content acknowledgment.",
+    "Quota cost: 50. onBehalfOfContentOwner is optional delegation context and still requires eligible OAuth authorization.",
+)
+CAPTIONS_DELETE_CAVEATS = (
+    "Caption deletion requires eligible OAuth authorization for the target caption track.",
+    "Caption deletion is destructive and does not provide undo or recovery behavior.",
+    "The upstream success response is 204 No Content; results must not fabricate deleted caption resource fields.",
+)
+
 
 class CaptionsListToolError(ValueError):
     """Represent a safe caller-facing ``captions_list`` failure."""
@@ -248,6 +276,21 @@ class CaptionsDownloadToolError(ValueError):
 
     def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
         """Initialize the safe captions-download error.
+
+        :param message: Caller-facing error message.
+        :param category: Shared safe error category.
+        :param details: Safe diagnostic details for MCP error payloads.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = details or {}
+
+
+class CaptionsDeleteToolError(ValueError):
+    """Represent a safe caller-facing ``captions_delete`` failure."""
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the safe captions-delete error.
 
         :param message: Caller-facing error message.
         :param category: Shared safe error category.
@@ -317,6 +360,15 @@ def _default_captions_download_transport(execution) -> dict[str, Any]:
     return response
 
 
+def _default_captions_delete_transport(_execution) -> dict[str, Any]:
+    """Return a safe no-content acknowledgment for local default execution.
+
+    :param _execution: Layer 1 execution request, unused by the default transport.
+    :return: Empty upstream-shaped delete acknowledgment.
+    """
+    return {}
+
+
 def _default_executor() -> IntegrationExecutor:
     """Build the default Layer 1 executor used by ``captions_list``.
 
@@ -347,6 +399,14 @@ def _default_download_executor() -> IntegrationExecutor:
     :return: Executor with a safe local transport for downloaded-content results.
     """
     return IntegrationExecutor(transport=_default_captions_download_transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _default_delete_executor() -> IntegrationExecutor:
+    """Build the default Layer 1 executor used by ``captions_delete``.
+
+    :return: Executor with a safe local transport for delete acknowledgments.
+    """
+    return IntegrationExecutor(transport=_default_captions_delete_transport, retry_policy=RetryPolicy(max_attempts=1))
 
 
 def build_captions_list_contract() -> YouTubeToolContract:
@@ -527,6 +587,64 @@ def build_captions_download_contract() -> YouTubeToolContract:
         availability_state=AvailabilityState.ACTIVE,
         usage_notes=CAPTIONS_DOWNLOAD_USAGE_NOTES,
         caveats=CAPTIONS_DOWNLOAD_CAVEATS,
+    )
+
+
+def build_captions_delete_contract() -> YouTubeToolContract:
+    """Build the public contract metadata for ``captions_delete``.
+
+    :return: Validated Layer 2 tool contract for ``captions_delete``.
+    """
+    return YouTubeToolContract(
+        tool_name=CAPTIONS_DELETE_TOOL_NAME,
+        upstream_resource="captions",
+        upstream_method="delete",
+        operation_key="captions.delete",
+        description=CAPTIONS_DELETE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=CAPTIONS_DELETE_QUOTA_COST,
+        resource_family="captions",
+        input_contract=CAPTIONS_DELETE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "mutation_acknowledgment",
+            "acknowledgmentPath": "delete",
+            "successStatus": 204,
+            "bodyPolicy": "no_upstream_body",
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=(
+                "endpoint",
+                "quotaCost",
+                "delete",
+                "status",
+                "responseStatus",
+                "hasResponseBody",
+                "delegation",
+            ),
+            preserved_upstream_fields=("responseStatus", "hasResponseBody"),
+            disallowed_behavior=(
+                "caption_listing",
+                "caption_download",
+                "caption_creation",
+                "caption_update",
+                "deleted_resource_echo",
+                "request_body",
+                "undo",
+            ),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=CAPTIONS_DELETE_USAGE_NOTES,
+        caveats=CAPTIONS_DELETE_CAVEATS,
     )
 
 
@@ -900,6 +1018,32 @@ def _caption_download_summary(arguments: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
+def _delete_id(arguments: dict[str, Any]) -> str:
+    """Return the required caption track identifier for deletion.
+
+    :param arguments: Caller-supplied tool arguments.
+    :return: Stripped caption track identifier.
+    :raises CaptionsDeleteToolError: If the identifier is missing.
+    """
+    caption_id = _clean_text(arguments, "id")
+    if not caption_id:
+        raise CaptionsDeleteToolError(
+            "captions_delete requires id.",
+            category="invalid_request",
+            details={"field": "id"},
+        )
+    return caption_id
+
+
+def _caption_delete_summary(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return a safe deletion summary for a caption delete request.
+
+    :param arguments: Original tool arguments.
+    :return: Safe caption deletion fields for public result surfaces.
+    """
+    return {"id": _delete_id(arguments)}
+
+
 def validate_captions_insert_arguments(
     arguments: dict[str, Any],
     *,
@@ -1052,6 +1196,51 @@ def validate_captions_download_arguments(
     return context
 
 
+def validate_captions_delete_arguments(
+    arguments: dict[str, Any],
+    *,
+    oauth_token: str | None = None,
+) -> dict[str, Any]:
+    """Validate ``captions_delete`` arguments and return safe request context.
+
+    :param arguments: Caller-supplied tool arguments.
+    :param oauth_token: Optional OAuth token availability for caption deletion.
+    :return: Safe identifier context for result mapping.
+    :raises CaptionsDeleteToolError: If arguments are invalid or require missing authorization.
+    """
+    if "body" in arguments:
+        raise CaptionsDeleteToolError(
+            "captions_delete accepts no request body.",
+            category="invalid_request",
+            details={"field": "body"},
+        )
+
+    unsupported = sorted(set(arguments) - set(CAPTIONS_DELETE_INPUT_SCHEMA["properties"]))
+    if unsupported:
+        raise CaptionsDeleteToolError(
+            "captions_delete supports only id and onBehalfOfContentOwner.",
+            category="invalid_request",
+            details={"field": unsupported[0]},
+        )
+
+    context: dict[str, Any] = {"id": _delete_id(arguments)}
+
+    if arguments.get("onBehalfOfContentOwner") is not None and not oauth_token:
+        raise CaptionsDeleteToolError(
+            "Delegated caption deletion requires eligible OAuth authorization.",
+            category="authentication_failed",
+            details={"field": "onBehalfOfContentOwner"},
+        )
+
+    if not oauth_token:
+        raise CaptionsDeleteToolError(
+            "captions_delete requires eligible OAuth authorization.",
+            category="authentication_failed",
+            details={"operation": "captions.delete"},
+        )
+    return context
+
+
 def _lookup_summary(arguments: dict[str, Any]) -> dict[str, str]:
     """Return a safe lookup summary for one caption-list request.
 
@@ -1161,6 +1350,27 @@ def map_captions_download_result(response: dict[str, Any], arguments: dict[str, 
     return result
 
 
+def map_captions_delete_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map a Layer 1 delete response to the public Layer 2 result shape.
+
+    :param response: Upstream-shaped delete acknowledgment returned by Layer 1.
+    :param arguments: Original validated tool arguments.
+    :return: Near-raw deletion acknowledgment with light MCP clarity fields.
+    """
+    response_status = response.get("responseStatus", 204) if isinstance(response, dict) else 204
+    result: dict[str, Any] = {
+        "endpoint": "captions.delete",
+        "quotaCost": CAPTIONS_DELETE_QUOTA_COST,
+        "delete": _caption_delete_summary(arguments),
+        "status": "deleted",
+        "responseStatus": response_status,
+        "hasResponseBody": False,
+    }
+    if _clean_text(arguments, "onBehalfOfContentOwner"):
+        result["delegation"] = {"onBehalfOfContentOwner": True}
+    return result
+
+
 def _map_upstream_error(error: NormalizedUpstreamError) -> CaptionsListToolError:
     """Map a normalized upstream error to the public Layer 2 error model.
 
@@ -1247,6 +1457,30 @@ def _map_download_upstream_error(error: NormalizedUpstreamError) -> CaptionsDown
         category = "authorization_failed"
     details = {"upstreamStatus": error.upstream_status} if error.upstream_status else {}
     return CaptionsDownloadToolError(str(error), category=category, details=details)
+
+
+def _map_delete_upstream_error(error: NormalizedUpstreamError) -> CaptionsDeleteToolError:
+    """Map a normalized upstream error to the public delete error model.
+
+    :param error: Normalized upstream failure raised by Layer 1 execution.
+    :return: Safe ``captions_delete`` error.
+    """
+    categories = {
+        "auth": "authorization_failed",
+        "not_found": "resource_not_found",
+        "rate_limit": "quota_exhausted",
+        "transient": "endpoint_unavailable",
+        "invalid_request": "invalid_request",
+        "upstream_service": "upstream_failure",
+    }
+    lowered = str(error).lower()
+    category = categories.get(error.category, "upstream_failure")
+    if "captionnotfound" in lowered:
+        category = "resource_not_found"
+    if "forbidden" in lowered:
+        category = "authorization_failed"
+    details = {"upstreamStatus": error.upstream_status} if error.upstream_status else {}
+    return CaptionsDeleteToolError(str(error), category=category, details=details)
 
 
 def build_captions_list_handler(
@@ -1409,6 +1643,46 @@ def build_captions_download_handler(
     return handler
 
 
+def build_captions_delete_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "eligible-caption-access",
+):
+    """Build the concrete ``captions_delete`` handler.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for caption deletion.
+    :return: Callable dispatcher handler.
+    """
+    captions_wrapper = wrapper or build_captions_delete_wrapper()
+    captions_executor = executor or _default_delete_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one ``captions_delete`` request.
+
+        :param arguments: Validated dispatcher arguments.
+        :return: Public Layer 2 deletion acknowledgment result.
+        :raises CaptionsDeleteToolError: If validation, authorization, or upstream execution fails.
+        """
+        validate_captions_delete_arguments(arguments, oauth_token=oauth_token)
+        auth_context = _auth_context(oauth_token=oauth_token)
+        try:
+            response = captions_wrapper.call(captions_executor, arguments=arguments, auth_context=auth_context)
+        except NormalizedUpstreamError as error:
+            raise _map_delete_upstream_error(error) from error
+        except ValueError as error:
+            raise CaptionsDeleteToolError(
+                str(error),
+                category="invalid_request",
+                details={"operation": "captions.delete"},
+            ) from error
+        return map_captions_delete_result(response, arguments)
+
+    return handler
+
+
 def build_captions_list_tool_descriptor(
     *,
     wrapper=None,
@@ -1517,7 +1791,37 @@ def build_captions_download_tool_descriptor(
     }
 
 
+def build_captions_delete_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "eligible-caption-access",
+) -> dict[str, Any]:
+    """Build the dispatcher descriptor for the ``captions_delete`` tool.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for caption deletion.
+    :return: Dispatcher-compatible descriptor for the concrete Layer 2 tool.
+    """
+    contract = build_captions_delete_contract()
+    return {
+        "name": CAPTIONS_DELETE_TOOL_NAME,
+        "description": CAPTIONS_DELETE_DESCRIPTION,
+        "metadata": contract.to_tool_metadata(),
+        "inputSchema": CAPTIONS_DELETE_INPUT_SCHEMA,
+        "handler": build_captions_delete_handler(
+            wrapper=wrapper,
+            executor=executor,
+            oauth_token=oauth_token,
+        ),
+    }
+
+
 __all__ = [
+    "CAPTIONS_DELETE_INPUT_SCHEMA",
+    "CAPTIONS_DELETE_QUOTA_COST",
+    "CAPTIONS_DELETE_TOOL_NAME",
     "CAPTIONS_DOWNLOAD_FORMATS",
     "CAPTIONS_DOWNLOAD_INPUT_SCHEMA",
     "CAPTIONS_DOWNLOAD_QUOTA_COST",
@@ -1531,10 +1835,14 @@ __all__ = [
     "CAPTIONS_UPDATE_INPUT_SCHEMA",
     "CAPTIONS_UPDATE_QUOTA_COST",
     "CAPTIONS_UPDATE_TOOL_NAME",
+    "CaptionsDeleteToolError",
     "CaptionsDownloadToolError",
     "CaptionsInsertToolError",
     "CaptionsListToolError",
     "CaptionsUpdateToolError",
+    "build_captions_delete_contract",
+    "build_captions_delete_handler",
+    "build_captions_delete_tool_descriptor",
     "build_captions_download_contract",
     "build_captions_download_handler",
     "build_captions_download_tool_descriptor",
@@ -1547,10 +1855,12 @@ __all__ = [
     "build_captions_update_contract",
     "build_captions_update_handler",
     "build_captions_update_tool_descriptor",
+    "map_captions_delete_result",
     "map_captions_download_result",
     "map_captions_insert_result",
     "map_captions_list_result",
     "map_captions_update_result",
+    "validate_captions_delete_arguments",
     "validate_captions_download_arguments",
     "validate_captions_insert_arguments",
     "validate_captions_list_arguments",
