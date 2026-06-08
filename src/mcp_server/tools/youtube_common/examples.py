@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp_server.tools.youtube_common.channel_banners import build_channel_banners_insert_contract
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract, derive_tool_name
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
 
@@ -469,6 +470,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
             "The upstream success response is 204 No Content; results must not fabricate deleted caption resource fields.",
         ),
     ),
+    build_channel_banners_insert_contract(),
     _contract(
         resource="search",
         method="list",
