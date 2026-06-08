@@ -300,6 +300,31 @@ def test_captions_delete_public_metadata_is_safe_and_complete():
     assert "raw_media" not in str(metadata)
 
 
+def test_channel_banners_insert_public_metadata_is_safe_and_complete():
+    """Expose safe quota, auth, media, URL, and activation-boundary metadata."""
+    from mcp_server.tools.youtube_common.channel_banners import build_channel_banners_insert_contract
+
+    metadata = build_channel_banners_insert_contract().to_tool_metadata()
+
+    assert metadata["name"] == "channelBanners_insert"
+    assert metadata["upstream"]["operationKey"] == "channelBanners.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "media_constrained"
+    assert metadata["inputContract"]["required"] == ["media"]
+    assert "onBehalfOfContentOwner" in metadata["inputContract"]["properties"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["returnedUrlField"] == "url"
+    assert metadata["responseConvention"]["activationBoundary"] == "channels.update"
+    assert any("6 MB" in note for note in metadata["usageNotes"])
+    assert any("16:9" in note for note in metadata["usageNotes"])
+    assert any("channels.update" in note for note in metadata["usageNotes"])
+    assert "token" not in str(metadata).lower()
+    assert "apiKey" not in str(metadata)
+    assert "raw_media" not in str(metadata)
+    assert "content" not in str(metadata["responseBoundary"]).lower()
+
+
 def test_shared_helper_boundary_keeps_endpoint_facts_in_resource_families():
     """Document which concerns are shared and which stay endpoint-specific."""
     assert "naming" in SHARED_YOUTUBE_HELPER_BOUNDARY["shared"]

@@ -103,3 +103,27 @@ def test_default_registry_includes_executable_captions_delete_tool():
     assert metadata["responseConvention"]["bodyPolicy"] == "no_upstream_body"
     assert metadata["responseConvention"]["successStatus"] == 204
     assert any("destructive" in caveat.lower() for caveat in metadata["caveats"])
+
+
+def test_default_registry_includes_executable_channel_banners_insert_tool_with_upload_metadata():
+    """Register ``channelBanners_insert`` by default with upload metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channelBanners_insert" in listed
+    metadata = listed["channelBanners_insert"]["metadata"]
+    description = listed["channelBanners_insert"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "channelBanners.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "media_constrained"
+    assert metadata["inputContract"]["required"] == ["media"]
+    assert "onBehalfOfContentOwner" in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["returnedUrlField"] == "url"
+    assert metadata["responseConvention"]["activationBoundary"] == "channels.update"
+    assert "image/jpeg" in metadata_text
+    assert "image/png" in metadata_text
+    assert "6 MB" in metadata_text
+    assert "channels.update" in metadata_text
