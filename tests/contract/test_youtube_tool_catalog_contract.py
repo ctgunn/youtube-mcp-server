@@ -155,6 +155,26 @@ def test_representative_channel_banners_insert_example_aligns_with_concrete_cont
     assert representative.response_convention["activationBoundary"] == "channels.update"
 
 
+def test_representative_channels_list_example_aligns_with_concrete_contract():
+    """Keep the representative channels-list example aligned with YT-210."""
+    from mcp_server.tools.youtube_common.channels import build_channels_list_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "channels_list"
+    ]
+    concrete = build_channels_list_contract()
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == concrete.quota_cost
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert "forUsername" in representative.input_contract["properties"]
+
+
 def test_representative_examples_expose_complete_metadata_standard():
     """Require representative examples to expose the YT-202 metadata standard."""
     assert len(REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS) >= 10

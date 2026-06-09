@@ -135,6 +135,17 @@ def test_captions_resource_family_points_to_concrete_layer2_module():
     assert captions.schema_location.endswith("src/mcp_server/tools/youtube_common/captions.py")
 
 
+def test_channels_resource_family_points_to_concrete_layer2_module():
+    """Expose the concrete channels family placement for YT-210."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    channels = get_resource_family("channels")
+
+    assert channels.definition_location.endswith("src/mcp_server/tools/youtube_common/channels.py")
+    assert channels.handler_location.endswith("src/mcp_server/tools/youtube_common/channels.py")
+    assert channels.schema_location.endswith("src/mcp_server/tools/youtube_common/channels.py")
+
+
 def test_representative_captions_insert_metadata_exposes_upload_and_sync_caveats():
     """Expose safe caller-facing metadata for the captions insert endpoint."""
     from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
