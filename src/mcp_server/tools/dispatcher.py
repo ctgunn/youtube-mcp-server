@@ -15,6 +15,7 @@ from mcp_server.tools.youtube_common import (
     build_captions_update_tool_descriptor,
     build_channel_banners_insert_tool_descriptor,
     build_channels_list_tool_descriptor,
+    build_channels_update_tool_descriptor,
 )
 
 BASELINE_TOOL_SCHEMAS = {
@@ -195,6 +196,7 @@ class InMemoryToolDispatcher:
             build_captions_delete_tool_descriptor(),
             build_channel_banners_insert_tool_descriptor(),
             build_channels_list_tool_descriptor(),
+            build_channels_update_tool_descriptor(),
         ]
 
     def _normalize_server_metadata(self, server_metadata):

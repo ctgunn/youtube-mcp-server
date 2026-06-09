@@ -12,6 +12,7 @@ def test_representative_examples_include_required_us1_shapes():
         "captions_insert",
         "captions_update",
         "channelBanners_insert",
+        "channels_update",
         "playlists_insert",
         "comments_setModerationStatus",
         "videos_getRating",
@@ -175,6 +176,27 @@ def test_representative_channels_list_example_aligns_with_concrete_contract():
     assert "forUsername" in representative.input_contract["properties"]
 
 
+def test_representative_channels_update_example_aligns_with_concrete_contract():
+    """Keep the representative channels-update example aligned with YT-211."""
+    from mcp_server.tools.youtube_common.channels import build_channels_update_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "channels_update"
+    ]
+    concrete = build_channels_update_contract()
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == concrete.quota_cost
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.input_contract["properties"]["part"]["enum"] == ["brandingSettings", "localizations"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert representative.response_convention["supportedWritableParts"] == ["brandingSettings", "localizations"]
+
+
 def test_representative_examples_expose_complete_metadata_standard():
     """Require representative examples to expose the YT-202 metadata standard."""
     assert len(REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS) >= 10
@@ -226,3 +248,5 @@ def test_representative_examples_cover_required_us2_shapes():
     assert by_name["captions_download"].response_convention["resultKind"] == "download_wrapper"
     assert by_name["search_list"].quota_cost == 100
     assert by_name["guideCategories_list"].caveats
+    assert by_name["channels_update"].quota_cost == 50
+    assert by_name["channels_update"].response_convention["resultKind"] == "updated_resource"
