@@ -127,3 +127,25 @@ def test_default_registry_includes_executable_channel_banners_insert_tool_with_u
     assert "image/png" in metadata_text
     assert "6 MB" in metadata_text
     assert "channels.update" in metadata_text
+
+
+def test_default_registry_includes_executable_channels_list_tool_with_selector_metadata():
+    """Register ``channels_list`` by default with selector metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channels_list" in listed
+    metadata = listed["channels_list"]["metadata"]
+    description = listed["channels_list"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "channels.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert {"id", "mine", "forHandle", "forUsername"}.issubset(metadata["inputContract"]["properties"])
+    assert "OAuth" in metadata_text
+    assert "forHandle" in metadata_text
+    assert "forUsername" in metadata_text
+    assert "empty" in metadata_text.lower()

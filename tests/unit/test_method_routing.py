@@ -94,6 +94,36 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertEqual(response["error"]["data"]["category"], "invalid_request")
         self.assertEqual(response["error"]["data"]["toolName"], "activities_list")
 
+    def test_channels_list_tools_call_invalid_request_returns_safe_error(self):
+        """Return a safe error for an invalid channels_list selector combination."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-channels-invalid",
+            "method": "tools/call",
+            "params": {
+                "name": "channels_list",
+                "arguments": {"part": "snippet", "id": "UC123", "mine": True},
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["data"]["category"], "invalid_request")
+        self.assertEqual(response["error"]["data"]["toolName"], "channels_list")
+
+    def test_channels_list_tools_call_mine_without_oauth_returns_safe_error(self):
+        """Return a safe auth error for owner-scoped channels_list without OAuth."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-channels-auth",
+            "method": "tools/call",
+            "params": {"name": "channels_list", "arguments": {"part": "snippet", "mine": True}},
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["data"]["category"], "authentication_failed")
+        self.assertEqual(response["error"]["data"]["toolName"], "channels_list")
+        self.assertNotIn("public-channel-access", str(response["error"]))
+
     def test_captions_list_tools_call_success_returns_structured_result(self):
         """Return structured content for a valid captions_list call."""
         payload = {
