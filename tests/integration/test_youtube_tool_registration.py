@@ -149,3 +149,27 @@ def test_default_registry_includes_executable_channels_list_tool_with_selector_m
     assert "forHandle" in metadata_text
     assert "forUsername" in metadata_text
     assert "empty" in metadata_text.lower()
+
+
+def test_default_registry_includes_executable_channels_update_tool_with_update_metadata():
+    """Register ``channels_update`` by default with writable update metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channels_update" in listed
+    metadata = listed["channels_update"]["metadata"]
+    description = listed["channels_update"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "channels.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert metadata["inputContract"]["properties"]["part"]["enum"] == ["brandingSettings", "localizations"]
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert metadata["responseConvention"]["supportedWritableParts"] == ["brandingSettings", "localizations"]
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "bannerExternalUrl" in metadata_text
+    assert "channelBanners_insert" in metadata_text
+    assert "analytics" in metadata_text.lower()

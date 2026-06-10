@@ -270,6 +270,49 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertEqual(response["error"]["data"]["category"], "invalid_request")
         self.assertEqual(response["error"]["data"]["toolName"], "captions_download")
 
+    def test_channels_update_tools_call_success_returns_structured_result(self):
+        """Return structured content for a valid channels_update call."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-channels-update-ok",
+            "method": "tools/call",
+            "params": {
+                "name": "channels_update",
+                "arguments": {
+                    "part": "brandingSettings",
+                    "body": {"id": "UC123", "brandingSettings": {"channel": {"description": "Updated"}}},
+                },
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        result = response["result"]["content"][0]["structuredContent"]
+        self.assertEqual(result["endpoint"], "channels.update")
+        self.assertEqual(result["quotaCost"], 50)
+        self.assertEqual(result["updatedPart"], "brandingSettings")
+        self.assertEqual(result["requestedParts"], ["brandingSettings"])
+        self.assertEqual(result["item"]["id"], "UC123")
+
+    def test_channels_update_tools_call_invalid_request_returns_safe_error(self):
+        """Return a safe error for an invalid channels_update call."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-channels-update-invalid",
+            "method": "tools/call",
+            "params": {
+                "name": "channels_update",
+                "arguments": {
+                    "part": "brandingSettings,localizations",
+                    "body": {"id": "UC123", "brandingSettings": {"channel": {}}},
+                },
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["data"]["category"], "invalid_request")
+        self.assertEqual(response["error"]["data"]["toolName"], "channels_update")
+        self.assertNotIn("authorized-channel-update", str(response["error"]))
+
     def test_initialize_success_detection_accepts_initialize_result(self):
         """Treat a successful initialize response as initialized."""
         response = route_mcp_request(

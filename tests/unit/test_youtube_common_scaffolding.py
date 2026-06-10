@@ -146,6 +146,18 @@ def test_channels_resource_family_points_to_concrete_layer2_module():
     assert channels.schema_location.endswith("src/mcp_server/tools/youtube_common/channels.py")
 
 
+def test_channels_update_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``channels_update`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import channels
+
+    assert channels.CHANNELS_UPDATE_TOOL_NAME == "channels_update"
+    assert youtube_common.CHANNELS_UPDATE_TOOL_NAME == "channels_update"
+    assert youtube_common.CHANNELS_UPDATE_QUOTA_COST == 50
+    assert callable(channels.build_channels_update_contract)
+    assert callable(youtube_common.build_channels_update_tool_descriptor)
+
+
 def test_representative_captions_insert_metadata_exposes_upload_and_sync_caveats():
     """Expose safe caller-facing metadata for the captions insert endpoint."""
     from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
