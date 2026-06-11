@@ -158,6 +158,29 @@ def test_channels_update_scaffolding_exports_concrete_layer2_symbols():
     assert callable(youtube_common.build_channels_update_tool_descriptor)
 
 
+def test_channel_sections_resource_family_points_to_concrete_layer2_module():
+    """Expose the concrete channel-sections family placement for YT-212."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    channel_sections = get_resource_family("channel_sections")
+
+    assert channel_sections.definition_location.endswith("src/mcp_server/tools/youtube_common/channel_sections.py")
+    assert channel_sections.handler_location.endswith("src/mcp_server/tools/youtube_common/channel_sections.py")
+    assert channel_sections.schema_location.endswith("src/mcp_server/tools/youtube_common/channel_sections.py")
+
+
+def test_channel_sections_list_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``channelSections_list`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import channel_sections
+
+    assert channel_sections.CHANNEL_SECTIONS_LIST_TOOL_NAME == "channelSections_list"
+    assert youtube_common.CHANNEL_SECTIONS_LIST_TOOL_NAME == "channelSections_list"
+    assert youtube_common.CHANNEL_SECTIONS_LIST_QUOTA_COST == 1
+    assert callable(channel_sections.build_channel_sections_list_contract)
+    assert callable(youtube_common.build_channel_sections_list_tool_descriptor)
+
+
 def test_representative_captions_insert_metadata_exposes_upload_and_sync_caveats():
     """Expose safe caller-facing metadata for the captions insert endpoint."""
     from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS

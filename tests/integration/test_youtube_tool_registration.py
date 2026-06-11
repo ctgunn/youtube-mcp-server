@@ -151,6 +151,37 @@ def test_default_registry_includes_executable_channels_list_tool_with_selector_m
     assert "empty" in metadata_text.lower()
 
 
+def test_default_registry_includes_executable_channel_sections_list_tool_with_caveat_metadata():
+    """Register ``channelSections_list`` by default with selector and caveat metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channelSections_list" in listed
+    metadata = listed["channelSections_list"]["metadata"]
+    description = listed["channelSections_list"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "channelSections.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert {"channelId", "id", "mine", "hl", "onBehalfOfContentOwner"}.issubset(
+        metadata["inputContract"]["properties"]
+    )
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["caveatFields"] == [
+        "hlDeprecated",
+        "contentOwnerPartnerScoped",
+        "paginationCompatibilityOnly",
+    ]
+    assert "OAuth" in metadata_text
+    assert "deprecated" in metadata_text
+    assert "content partners" in metadata_text
+    assert "empty" in metadata_text.lower()
+    assert "mutate channel sections" in metadata_text
+
+
 def test_default_registry_includes_executable_channels_update_tool_with_update_metadata():
     """Register ``channels_update`` by default with writable update metadata."""
     dispatcher = InMemoryToolDispatcher()
