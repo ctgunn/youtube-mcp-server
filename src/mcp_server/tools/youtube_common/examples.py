@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from mcp_server.tools.youtube_common.channel_banners import build_channel_banners_insert_contract
+from mcp_server.tools.youtube_common.channel_sections import build_channel_sections_list_contract
 from mcp_server.tools.youtube_common.channels import build_channels_list_contract, build_channels_update_contract
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract, derive_tool_name
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
@@ -472,6 +473,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         ),
     ),
     build_channel_banners_insert_contract(),
+    build_channel_sections_list_contract(),
     build_channels_list_contract(),
     build_channels_update_contract(),
     _contract(

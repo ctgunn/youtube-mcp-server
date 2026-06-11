@@ -124,6 +124,52 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertEqual(response["error"]["data"]["toolName"], "channels_list")
         self.assertNotIn("public-channel-access", str(response["error"]))
 
+    def test_channel_sections_list_tools_call_success_returns_structured_result(self):
+        """Return structured content for a valid channelSections_list call."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-channel-sections-ok",
+            "method": "tools/call",
+            "params": {"name": "channelSections_list", "arguments": {"part": "snippet", "channelId": "UC123"}},
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        result = response["result"]["content"][0]["structuredContent"]
+        self.assertEqual(result["endpoint"], "channelSections.list")
+        self.assertEqual(result["items"], [])
+        self.assertEqual(result["requestedParts"], ["snippet"])
+        self.assertEqual(result["selector"], {"name": "channelId"})
+
+    def test_channel_sections_list_tools_call_invalid_request_returns_safe_error(self):
+        """Return a safe error for an invalid channelSections_list selector combination."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-channel-sections-invalid",
+            "method": "tools/call",
+            "params": {
+                "name": "channelSections_list",
+                "arguments": {"part": "snippet", "channelId": "UC123", "mine": True},
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["data"]["category"], "invalid_request")
+        self.assertEqual(response["error"]["data"]["toolName"], "channelSections_list")
+
+    def test_channel_sections_list_tools_call_mine_without_oauth_returns_safe_error(self):
+        """Return a safe auth error for owner-scoped channelSections_list without OAuth."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-channel-sections-auth",
+            "method": "tools/call",
+            "params": {"name": "channelSections_list", "arguments": {"part": "snippet", "mine": True}},
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["data"]["category"], "authentication_failed")
+        self.assertEqual(response["error"]["data"]["toolName"], "channelSections_list")
+        self.assertNotIn("public-channel-section-access", str(response["error"]))
+
     def test_captions_list_tools_call_success_returns_structured_result(self):
         """Return structured content for a valid captions_list call."""
         payload = {
