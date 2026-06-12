@@ -182,6 +182,34 @@ def test_default_registry_includes_executable_channel_sections_list_tool_with_ca
     assert "mutate channel sections" in metadata_text
 
 
+def test_default_registry_includes_executable_channel_sections_insert_tool_with_create_metadata():
+    """Register ``channelSections_insert`` by default with create metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channelSections_insert" in listed
+    metadata = listed["channelSections_insert"]["metadata"]
+    description = listed["channelSections_insert"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "channelSections.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert metadata["inputContract"]["properties"]["part"]["enum"] == ["contentDetails", "id", "snippet"]
+    assert metadata["responseConvention"]["resultKind"] == "created_resource"
+    assert metadata["responseConvention"]["supportedWritableParts"] == ["contentDetails", "id", "snippet"]
+    assert "snippet.type" in metadata_text
+    assert "body.snippet.channelId" in metadata_text
+    assert "singlePlaylist" in metadata_text
+    assert "multiplePlaylists" in metadata_text
+    assert "multipleChannels" in metadata_text
+    assert "maximum" in metadata_text.lower()
+    assert "playlistItems.list" in metadata_text
+    assert "channels.update" in metadata_text
+
+
 def test_default_registry_includes_executable_channels_update_tool_with_update_metadata():
     """Register ``channels_update`` by default with writable update metadata."""
     dispatcher = InMemoryToolDispatcher()

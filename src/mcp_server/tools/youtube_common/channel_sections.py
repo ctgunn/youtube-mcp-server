@@ -8,11 +8,188 @@ from mcp_server.integrations.auth import AuthContext, CredentialBundle
 from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
-from mcp_server.integrations.resources.channel_sections import build_channel_sections_list_wrapper
+from mcp_server.integrations.resources.channel_sections import (
+    build_channel_sections_insert_wrapper,
+    build_channel_sections_list_wrapper,
+)
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
 
+
+CHANNEL_SECTIONS_INSERT_TOOL_NAME = "channelSections_insert"
+CHANNEL_SECTIONS_INSERT_QUOTA_COST = 50
+CHANNEL_SECTIONS_INSERT_SUPPORTED_PARTS = ("contentDetails", "id", "snippet")
+CHANNEL_SECTIONS_INSERT_PLAYLIST_TYPES = ("singlePlaylist", "multiplePlaylists")
+CHANNEL_SECTIONS_INSERT_CHANNEL_TYPES = ("multipleChannels",)
+CHANNEL_SECTIONS_INSERT_TITLE_REQUIRED_TYPES = ("multipleChannels", "multiplePlaylists")
+CHANNEL_SECTIONS_INSERT_MAX_REFERENCES = 50
+
+CHANNEL_SECTIONS_INSERT_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["part", "body"],
+    "properties": {
+        "part": {"type": "string", "minLength": 1, "enum": list(CHANNEL_SECTIONS_INSERT_SUPPORTED_PARTS)},
+        "body": {
+            "type": "object",
+            "required": ["snippet"],
+            "properties": {
+                "snippet": {
+                    "type": "object",
+                    "required": ["type", "channelId"],
+                    "properties": {
+                        "type": {"type": "string", "minLength": 1},
+                        "channelId": {"type": "string", "minLength": 1},
+                        "title": {"type": "string", "minLength": 1},
+                        "position": {"type": "integer", "minimum": 0},
+                    },
+                    "additionalProperties": False,
+                },
+                "contentDetails": {
+                    "type": "object",
+                    "properties": {
+                        "playlists": {"type": "array", "items": {"type": "string", "minLength": 1}},
+                        "channels": {"type": "array", "items": {"type": "string", "minLength": 1}},
+                    },
+                    "additionalProperties": False,
+                },
+            },
+            "additionalProperties": False,
+        },
+        "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
+        "onBehalfOfContentOwnerChannel": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+CHANNEL_SECTIONS_INSERT_DESCRIPTION = (
+    "Create a YouTube channel section. Endpoint: channelSections.insert. "
+    "Quota cost: 50. Auth: oauth_required. Requires a channel-section body."
+)
+CHANNEL_SECTIONS_INSERT_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide part and a channel-section body.",
+    "Quota cost: 50. Supported part values are contentDetails, id, and snippet.",
+    "Quota cost: 50. The body requires body.snippet.type and body.snippet.channelId for the target channel.",
+    "Quota cost: 50. Supported writable fields are body.snippet.type, body.snippet.channelId, body.snippet.title, body.snippet.position, body.contentDetails.playlists[], and body.contentDetails.channels[].",
+    "Quota cost: 50. singlePlaylist requires exactly one playlist reference.",
+    "Quota cost: 50. multiplePlaylists requires playlist references and a title.",
+    "Quota cost: 50. multipleChannels requires channel references and a title.",
+    "Quota cost: 50. onBehalfOfContentOwner and onBehalfOfContentOwnerChannel are partner-only delegated context fields and must be paired.",
+    "Quota cost: 50. YouTube may reject creation when the target channel has reached the maximum channel-section capacity.",
+    "Quota cost: 50. This tool does not call playlistItems.list, channels.update, playlist creation, video expansion, sorting, enrichment, or layout recommendation workflows.",
+)
+CHANNEL_SECTIONS_INSERT_CAVEATS = (
+    "Channel-section creation requires eligible OAuth authorization for channel layout operations.",
+    "Partner delegated creation is authorization-sensitive and requires both onBehalfOfContentOwner and onBehalfOfContentOwnerChannel.",
+    "Section content rules depend on body.snippet.type: singlePlaylist, multiplePlaylists, and multipleChannels each accept different contentDetails fields.",
+    "The upstream endpoint can reject requests when maximum channel-section behavior or referenced-resource availability prevents creation.",
+    "This low-level tool does not sort, replace, reorder, update, delete, expand, enrich, or recommend channel sections.",
+)
+CHANNEL_SECTIONS_INSERT_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_playlist_section",
+        "arguments": {
+            "part": "snippet,contentDetails",
+            "body": {
+                "snippet": {"type": "singlePlaylist", "channelId": "UC123", "title": "Uploads", "position": 3},
+                "contentDetails": {"playlists": ["PL123"]},
+            },
+        },
+        "result": {
+            "endpoint": "channelSections.insert",
+            "quotaCost": 50,
+            "created": True,
+            "requestedParts": ["snippet", "contentDetails"],
+            "item": {"id": "section-123"},
+        },
+        "notes": "Creates a single-playlist channel section for the authorized target channel.",
+    },
+    {
+        "name": "authorized_channel_section",
+        "arguments": {
+            "part": "snippet,contentDetails",
+            "body": {
+                "snippet": {"type": "multipleChannels", "channelId": "UC123", "title": "Related channels"},
+                "contentDetails": {"channels": ["UC456", "UC789"]},
+            },
+        },
+        "result": {"endpoint": "channelSections.insert", "quotaCost": 50, "created": True},
+        "notes": "Creates a channel-backed section when channel references match the selected section type.",
+    },
+    {
+        "name": "delegated_channel_section",
+        "arguments": {
+            "part": "snippet",
+            "onBehalfOfContentOwner": "content-owner-id",
+            "onBehalfOfContentOwnerChannel": "UC123",
+            "body": {"snippet": {"type": "multipleChannels", "channelId": "UC123", "title": "Network channels"}},
+        },
+        "result": {
+            "endpoint": "channelSections.insert",
+            "quotaCost": 50,
+            "partnerContext": {"onBehalfOfContentOwner": True, "onBehalfOfContentOwnerChannel": True},
+        },
+        "notes": "Delegated creation requires eligible partner authorization and paired delegated owner/channel context.",
+    },
+    {
+        "name": "missing_oauth",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"type": "singlePlaylist", "channelId": "UC123"}},
+        },
+        "error": {"category": "authentication_failed", "field": "auth"},
+        "notes": "Channel-section creation requires eligible OAuth authorization.",
+    },
+    {
+        "name": "missing_section_type",
+        "arguments": {"part": "snippet", "body": {"snippet": {"channelId": "UC123"}}},
+        "error": {"category": "invalid_request", "field": "body.snippet.type"},
+        "notes": "body.snippet.type is required to determine content structure rules.",
+    },
+    {
+        "name": "invalid_content_structure",
+        "arguments": {
+            "part": "contentDetails",
+            "body": {
+                "snippet": {"type": "multipleChannels", "channelId": "UC123", "title": "Related"},
+                "contentDetails": {"playlists": ["PL123"]},
+            },
+        },
+        "error": {"category": "invalid_request", "field": "body.contentDetails.playlists"},
+        "notes": "Channel-backed sections cannot supply playlist references.",
+    },
+    {
+        "name": "duplicate_references",
+        "arguments": {
+            "part": "contentDetails",
+            "body": {
+                "snippet": {"type": "multiplePlaylists", "channelId": "UC123", "title": "Featured"},
+                "contentDetails": {"playlists": ["PL123", "PL123"]},
+            },
+        },
+        "error": {"category": "invalid_request", "field": "body.contentDetails.playlists"},
+        "notes": "Duplicate playlist or channel references are rejected before creation.",
+    },
+    {
+        "name": "capacity_limit",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"type": "singlePlaylist", "channelId": "UC123"}},
+        },
+        "error": {"category": "invalid_request", "reason": "maximumChannelSections"},
+        "notes": "The upstream endpoint can reject creation when the channel reaches the maximum section capacity.",
+    },
+    {
+        "name": "unsupported_higher_level_workflow",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"type": "singlePlaylist", "channelId": "UC123"}},
+            "playlistItems": {"list": True},
+        },
+        "error": {"category": "invalid_request", "field": "playlistItems"},
+        "notes": "playlistItems.list expansion is outside this endpoint-backed create tool.",
+    },
+)
 
 CHANNEL_SECTIONS_LIST_TOOL_NAME = "channelSections_list"
 CHANNEL_SECTIONS_LIST_QUOTA_COST = 1
@@ -137,6 +314,51 @@ class ChannelSectionsListToolError(ValueError):
         self.details = details or {}
 
 
+class ChannelSectionsInsertToolError(ValueError):
+    """Represent a safe caller-facing ``channelSections_insert`` failure."""
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the safe channel-sections-insert error.
+
+        :param message: Caller-facing error message.
+        :param category: Shared safe error category.
+        :param details: Safe diagnostic details for MCP error payloads.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = details or {}
+
+
+def _default_channel_sections_insert_transport(execution) -> dict[str, Any]:
+    """Return a safe created channel-section resource for local execution.
+
+    :param execution: Layer 1 execution request containing validated arguments.
+    :return: Upstream-shaped created channel-section resource.
+    """
+    arguments = getattr(execution, "arguments", {}) or {}
+    body = arguments.get("body") if isinstance(arguments.get("body"), dict) else {}
+    item: dict[str, Any] = {
+        "kind": "youtube#channelSection",
+        "etag": "local-channel-section",
+        "id": body.get("id", "section-123"),
+    }
+    for field in ("snippet", "contentDetails"):
+        if field in body:
+            item[field] = body[field]
+    return item
+
+
+def _default_insert_executor() -> IntegrationExecutor:
+    """Build the default Layer 1 executor used by ``channelSections_insert``.
+
+    :return: Executor with a safe local transport for created channel-section resources.
+    """
+    return IntegrationExecutor(
+        transport=_default_channel_sections_insert_transport,
+        retry_policy=RetryPolicy(max_attempts=1),
+    )
+
+
 def _default_channel_sections_transport(_execution) -> dict[str, Any]:
     """Return a safe empty channel-section collection for local execution.
 
@@ -204,6 +426,62 @@ def build_channel_sections_list_contract() -> YouTubeToolContract:
     )
 
 
+def build_channel_sections_insert_contract() -> YouTubeToolContract:
+    """Build the public contract metadata for ``channelSections_insert``.
+
+    :return: Validated Layer 2 tool contract for ``channelSections_insert``.
+    """
+    return YouTubeToolContract(
+        tool_name=CHANNEL_SECTIONS_INSERT_TOOL_NAME,
+        upstream_resource="channelSections",
+        upstream_method="insert",
+        operation_key="channelSections.insert",
+        description=CHANNEL_SECTIONS_INSERT_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=CHANNEL_SECTIONS_INSERT_QUOTA_COST,
+        resource_family="channel_sections",
+        input_contract=CHANNEL_SECTIONS_INSERT_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "created_resource",
+            "resourcePath": "item",
+            "supportedWritableParts": list(CHANNEL_SECTIONS_INSERT_SUPPORTED_PARTS),
+            "writableBodyFields": [
+                "body.snippet.type",
+                "body.snippet.channelId",
+                "body.snippet.title",
+                "body.snippet.position",
+                "body.contentDetails.playlists[]",
+                "body.contentDetails.channels[]",
+            ],
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=("endpoint", "quotaCost", "created", "item", "requestedParts", "partnerContext"),
+            preserved_upstream_fields=("kind", "etag", "id", "snippet", "contentDetails", "requestedParts"),
+            disallowed_behavior=(
+                "channel_section_update",
+                "channel_section_delete",
+                "playlist_item_insertion",
+                "video_upload",
+                "layout_recommendation",
+                "cross_endpoint_aggregation",
+            ),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=CHANNEL_SECTIONS_INSERT_USAGE_NOTES,
+        caveats=CHANNEL_SECTIONS_INSERT_CAVEATS,
+    )
+
+
 def _active_selectors(arguments: dict[str, Any]) -> list[tuple[str, Any]]:
     """Return active channel-section selectors from one request.
 
@@ -268,6 +546,326 @@ def map_channel_sections_list_result(response: dict[str, Any], arguments: dict[s
         if field in response:
             result[field] = response[field]
     return result
+
+
+def _safe_insert_partner_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return safe partner-context flags for one insert request.
+
+    :param arguments: Caller-supplied ``channelSections_insert`` arguments.
+    :return: Safe partner-context flags without owner or channel identifiers.
+    """
+    context: dict[str, Any] = {}
+    if "onBehalfOfContentOwner" in arguments:
+        context["onBehalfOfContentOwner"] = True
+    if "onBehalfOfContentOwnerChannel" in arguments:
+        context["onBehalfOfContentOwnerChannel"] = True
+    return context
+
+
+def map_channel_sections_insert_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map a Layer 1 channel-section insert response to the public result shape.
+
+    :param response: Upstream-shaped created channel-section resource.
+    :param arguments: Original validated tool arguments.
+    :return: Near-raw created-resource result with light MCP clarity fields.
+    """
+    result: dict[str, Any] = {
+        "endpoint": "channelSections.insert",
+        "quotaCost": CHANNEL_SECTIONS_INSERT_QUOTA_COST,
+        "created": True,
+        "item": response,
+        "requestedParts": _requested_parts(arguments),
+    }
+    partner_context = _safe_insert_partner_context(arguments)
+    if partner_context:
+        result["partnerContext"] = partner_context
+    return result
+
+
+def _raise_insert_invalid(message: str, field: str, **details: Any) -> None:
+    """Raise a safe invalid-request error for ``channelSections_insert`` validation.
+
+    :param message: Caller-facing validation message.
+    :param field: Request field or content rule that failed validation.
+    :param details: Additional safe diagnostic metadata.
+    :raises ChannelSectionsInsertToolError: Always raised with a safe category.
+    """
+    safe_details = {"field": field}
+    safe_details.update(details)
+    raise ChannelSectionsInsertToolError(message, category="invalid_request", details=safe_details)
+
+
+def _nonempty_text(value: Any) -> bool:
+    """Return whether a value is a non-empty string after trimming.
+
+    :param value: Value to inspect.
+    :return: ``True`` when the value is a non-empty string.
+    """
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _validate_insert_parts(arguments: dict[str, Any]) -> None:
+    """Validate requested insert parts against the supported part set.
+
+    :param arguments: Caller-supplied ``channelSections_insert`` arguments.
+    :raises ChannelSectionsInsertToolError: If the part selection is missing or unsupported.
+    """
+    parts = _requested_parts(arguments)
+    if not parts:
+        _raise_insert_invalid("channelSections_insert requires part.", "part")
+    unsupported = [part for part in parts if part not in CHANNEL_SECTIONS_INSERT_SUPPORTED_PARTS]
+    if unsupported:
+        _raise_insert_invalid("channelSections_insert received an unsupported part.", "part")
+
+
+def _insert_body(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return the channel-section insert body after top-level shape checks.
+
+    :param arguments: Caller-supplied ``channelSections_insert`` arguments.
+    :return: Validated body mapping.
+    :raises ChannelSectionsInsertToolError: If body is missing or malformed.
+    """
+    body = arguments.get("body")
+    if not isinstance(body, dict):
+        _raise_insert_invalid("channelSections_insert requires a body object.", "body")
+    unsupported = [field for field in body if field not in {"snippet", "contentDetails"}]
+    if unsupported:
+        _raise_insert_invalid("channelSections_insert body contains an unsupported field.", f"body.{unsupported[0]}")
+    return body
+
+
+def _insert_snippet(body: dict[str, Any]) -> dict[str, Any]:
+    """Return the channel-section snippet after writable-field validation.
+
+    :param body: Validated insert body mapping.
+    :return: Validated snippet mapping.
+    :raises ChannelSectionsInsertToolError: If snippet fields are missing or unsupported.
+    """
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        _raise_insert_invalid("channelSections_insert requires body.snippet.", "body.snippet")
+    unsupported = [field for field in snippet if field not in {"type", "channelId", "title", "position"}]
+    if unsupported:
+        _raise_insert_invalid(
+            "channelSections_insert body.snippet contains an unsupported field.",
+            f"body.snippet.{unsupported[0]}",
+        )
+    if not _nonempty_text(snippet.get("type")):
+        _raise_insert_invalid("channelSections_insert requires body.snippet.type.", "body.snippet.type")
+    if not _nonempty_text(snippet.get("channelId")):
+        _raise_insert_invalid("channelSections_insert requires body.snippet.channelId.", "body.snippet.channelId")
+    position = snippet.get("position")
+    if position is not None and (not isinstance(position, int) or position < 0):
+        _raise_insert_invalid("channelSections_insert position must be a non-negative integer.", "body.snippet.position")
+    return snippet
+
+
+def _insert_content_details(body: dict[str, Any]) -> dict[str, Any]:
+    """Return the channel-section contentDetails mapping after shape checks.
+
+    :param body: Validated insert body mapping.
+    :return: Content details mapping or an empty mapping.
+    :raises ChannelSectionsInsertToolError: If contentDetails is malformed.
+    """
+    content_details = body.get("contentDetails", {})
+    if content_details is None:
+        return {}
+    if not isinstance(content_details, dict):
+        _raise_insert_invalid("channelSections_insert contentDetails must be an object.", "body.contentDetails")
+    unsupported = [field for field in content_details if field not in {"playlists", "channels"}]
+    if unsupported:
+        _raise_insert_invalid(
+            "channelSections_insert body.contentDetails contains an unsupported field.",
+            f"body.contentDetails.{unsupported[0]}",
+        )
+    return content_details
+
+
+def _reference_values(content_details: dict[str, Any], field: str) -> list[str]:
+    """Return validated channel-section reference identifiers.
+
+    :param content_details: Request ``contentDetails`` mapping.
+    :param field: Reference field, such as ``playlists`` or ``channels``.
+    :return: Trimmed reference identifiers.
+    :raises ChannelSectionsInsertToolError: If references are missing, malformed, duplicated, or too many.
+    """
+    raw_values = content_details.get(field)
+    details_field = f"body.contentDetails.{field}"
+    if not isinstance(raw_values, list) or not raw_values:
+        _raise_insert_invalid("channelSections_insert requires content references.", details_field)
+    values: list[str] = []
+    for value in raw_values:
+        if not _nonempty_text(value):
+            _raise_insert_invalid("channelSections_insert references must be non-empty strings.", details_field)
+        values.append(value.strip())
+    if len(values) != len(set(values)):
+        _raise_insert_invalid(
+            "channelSections_insert does not support duplicate references.",
+            details_field,
+            reason="duplicateReferences",
+        )
+    if len(values) > CHANNEL_SECTIONS_INSERT_MAX_REFERENCES:
+        _raise_insert_invalid(
+            "channelSections_insert received too many references.",
+            details_field,
+            reason="tooManyReferences",
+        )
+    return values
+
+
+def _validate_insert_content_rules(snippet: dict[str, Any], content_details: dict[str, Any]) -> None:
+    """Validate section-type-specific channel-section content rules.
+
+    :param snippet: Validated body snippet mapping.
+    :param content_details: Validated contentDetails mapping.
+    :raises ChannelSectionsInsertToolError: If content rules are not satisfied.
+    """
+    section_type = str(snippet["type"]).strip()
+    if section_type in CHANNEL_SECTIONS_INSERT_TITLE_REQUIRED_TYPES and not _nonempty_text(snippet.get("title")):
+        _raise_insert_invalid("channelSections_insert requires title for this section type.", "body.snippet.title")
+
+    if section_type in CHANNEL_SECTIONS_INSERT_PLAYLIST_TYPES:
+        if content_details.get("channels") not in (None, [], ()):
+            _raise_insert_invalid(
+                "channelSections_insert playlist-backed sections cannot include channels.",
+                "body.contentDetails.channels",
+            )
+        playlists = _reference_values(content_details, "playlists")
+        if section_type == "singlePlaylist" and len(playlists) != 1:
+            _raise_insert_invalid(
+                "channelSections_insert singlePlaylist requires exactly one playlist.",
+                "body.contentDetails.playlists",
+            )
+        return
+
+    if section_type in CHANNEL_SECTIONS_INSERT_CHANNEL_TYPES:
+        if content_details.get("playlists") not in (None, [], ()):
+            _raise_insert_invalid(
+                "channelSections_insert channel-backed sections cannot include playlists.",
+                "body.contentDetails.playlists",
+            )
+        _reference_values(content_details, "channels")
+        return
+
+    if content_details.get("playlists") not in (None, [], ()):
+        _raise_insert_invalid(
+            "channelSections_insert section type does not accept playlists.",
+            "body.contentDetails.playlists",
+        )
+    if content_details.get("channels") not in (None, [], ()):
+        _raise_insert_invalid(
+            "channelSections_insert section type does not accept channels.",
+            "body.contentDetails.channels",
+        )
+
+
+def _validate_insert_partner_context(arguments: dict[str, Any]) -> None:
+    """Validate delegated owner/channel context without exposing identifiers.
+
+    :param arguments: Caller-supplied ``channelSections_insert`` arguments.
+    :raises ChannelSectionsInsertToolError: If partner context is empty or unpaired.
+    """
+    owner_present = "onBehalfOfContentOwner" in arguments
+    channel_present = "onBehalfOfContentOwnerChannel" in arguments
+    for field in ("onBehalfOfContentOwner", "onBehalfOfContentOwnerChannel"):
+        if field in arguments and not _nonempty_text(arguments[field]):
+            _raise_insert_invalid(f"channelSections_insert requires a non-empty {field}.", field)
+    if owner_present and not channel_present:
+        _raise_insert_invalid(
+            "channelSections_insert delegated owner context requires delegated channel context.",
+            "onBehalfOfContentOwnerChannel",
+            partnerScoped=True,
+        )
+    if channel_present and not owner_present:
+        _raise_insert_invalid(
+            "channelSections_insert delegated channel context requires delegated owner context.",
+            "onBehalfOfContentOwner",
+            partnerScoped=True,
+        )
+
+
+def validate_channel_sections_insert_arguments(
+    arguments: dict[str, Any],
+    *,
+    oauth_token: str | None = None,
+) -> None:
+    """Validate foundational ``channelSections_insert`` arguments.
+
+    :param arguments: Caller-supplied tool arguments.
+    :param oauth_token: OAuth token availability for channel-section creation.
+    :raises ChannelSectionsInsertToolError: If required foundational fields are invalid.
+    """
+    supported_fields = set(CHANNEL_SECTIONS_INSERT_INPUT_SCHEMA["properties"])
+    for field in arguments:
+        if field not in supported_fields:
+            raise ChannelSectionsInsertToolError(
+                f"channelSections_insert does not support {field}.",
+                category="invalid_request",
+                details={"field": field},
+            )
+
+    if not oauth_token:
+        raise ChannelSectionsInsertToolError(
+            "channelSections_insert requires eligible user authorization.",
+            category="authentication_failed",
+            details={"field": "auth"},
+        )
+    _validate_insert_partner_context(arguments)
+    _validate_insert_parts(arguments)
+    body = _insert_body(arguments)
+    snippet = _insert_snippet(body)
+    content_details = _insert_content_details(body)
+    _validate_insert_content_rules(snippet, content_details)
+
+
+def _insert_auth_context(*, oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 auth context for ``channelSections_insert``.
+
+    :param oauth_token: OAuth token available for the write request.
+    :return: Auth context suitable for the Layer 1 insert wrapper.
+    :raises ChannelSectionsInsertToolError: If OAuth credentials are unavailable.
+    """
+    if not oauth_token:
+        raise ChannelSectionsInsertToolError(
+            "channelSections_insert requires eligible user authorization.",
+            category="authentication_failed",
+            details={"field": "auth"},
+        )
+    return AuthContext(mode=Layer1AuthMode.OAUTH_REQUIRED, credentials=CredentialBundle(oauth_token=oauth_token))
+
+
+def _map_insert_upstream_error(error: NormalizedUpstreamError) -> ChannelSectionsInsertToolError:
+    """Map a normalized upstream insert error to the public Layer 2 error model.
+
+    :param error: Normalized upstream failure raised by Layer 1 execution.
+    :return: Safe ``channelSections_insert`` error.
+    """
+    categories = {
+        "auth": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "not_found": "resource_not_found",
+        "rate_limit": "quota_exhausted",
+        "rate_limited": "quota_exhausted",
+        "transient": "endpoint_unavailable",
+        "upstream_unavailable": "endpoint_unavailable",
+        "upstream_service": "upstream_failure",
+        "invalid_request": "invalid_request",
+        "validation": "invalid_request",
+    }
+    messages = {
+        "invalid_request": "channelSections_insert request was rejected by the upstream endpoint.",
+        "authorization_failed": "channelSections_insert was not authorized by the upstream endpoint.",
+        "quota_exhausted": "channelSections_insert quota was exhausted by the upstream endpoint.",
+        "resource_not_found": "channelSections_insert target was not found by the upstream endpoint.",
+        "endpoint_unavailable": "channelSections_insert upstream endpoint is temporarily unavailable.",
+        "upstream_failure": "channelSections_insert upstream execution failed.",
+    }
+    category = categories.get(error.category, "upstream_failure")
+    return ChannelSectionsInsertToolError(
+        messages[category],
+        category=category,
+        details={"upstreamStatus": error.upstream_status} if error.upstream_status else {},
+    )
 
 
 def validate_channel_sections_list_arguments(
@@ -507,7 +1105,90 @@ def build_channel_sections_list_tool_descriptor(
     }
 
 
+def build_channel_sections_insert_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-channel-section-write",
+):
+    """Build the concrete ``channelSections_insert`` handler.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for write requests.
+    :return: Callable dispatcher handler.
+    """
+    channel_sections_wrapper = wrapper or build_channel_sections_insert_wrapper()
+    channel_sections_executor = executor or _default_insert_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one ``channelSections_insert`` request.
+
+        :param arguments: Validated dispatcher arguments.
+        :return: Public Layer 2 created channel-section result.
+        :raises ChannelSectionsInsertToolError: If validation, authorization, or upstream execution fails.
+        """
+        validate_channel_sections_insert_arguments(arguments, oauth_token=oauth_token)
+        auth_context = _insert_auth_context(oauth_token=oauth_token)
+        try:
+            response = channel_sections_wrapper.call(
+                channel_sections_executor,
+                arguments=arguments,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as error:
+            raise _map_insert_upstream_error(error) from error
+        except ValueError as error:
+            raise ChannelSectionsInsertToolError(
+                str(error),
+                category="invalid_request",
+            ) from error
+        except Exception as error:
+            raise ChannelSectionsInsertToolError(
+                "channelSections_insert upstream execution failed.",
+                category="upstream_failure",
+            ) from error
+        return map_channel_sections_insert_result(response, arguments)
+
+    return handler
+
+
+def build_channel_sections_insert_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-channel-section-write",
+) -> dict[str, Any]:
+    """Build the dispatcher descriptor for the ``channelSections_insert`` tool.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for write requests.
+    :return: Dispatcher-compatible descriptor for the concrete Layer 2 tool.
+    """
+    contract = build_channel_sections_insert_contract()
+    return {
+        "name": CHANNEL_SECTIONS_INSERT_TOOL_NAME,
+        "description": CHANNEL_SECTIONS_INSERT_DESCRIPTION,
+        "metadata": contract.to_tool_metadata(),
+        "inputSchema": CHANNEL_SECTIONS_INSERT_INPUT_SCHEMA,
+        "handler": build_channel_sections_insert_handler(
+            wrapper=wrapper,
+            executor=executor,
+            oauth_token=oauth_token,
+        ),
+    }
+
+
 __all__ = [
+    "CHANNEL_SECTIONS_INSERT_CAVEATS",
+    "CHANNEL_SECTIONS_INSERT_CALLER_EXAMPLES",
+    "CHANNEL_SECTIONS_INSERT_DESCRIPTION",
+    "CHANNEL_SECTIONS_INSERT_INPUT_SCHEMA",
+    "CHANNEL_SECTIONS_INSERT_QUOTA_COST",
+    "CHANNEL_SECTIONS_INSERT_SUPPORTED_PARTS",
+    "CHANNEL_SECTIONS_INSERT_TOOL_NAME",
+    "CHANNEL_SECTIONS_INSERT_USAGE_NOTES",
     "CHANNEL_SECTIONS_LIST_CAVEATS",
     "CHANNEL_SECTIONS_LIST_CALLER_EXAMPLES",
     "CHANNEL_SECTIONS_LIST_DESCRIPTION",
@@ -516,10 +1197,16 @@ __all__ = [
     "CHANNEL_SECTIONS_LIST_SELECTORS",
     "CHANNEL_SECTIONS_LIST_TOOL_NAME",
     "CHANNEL_SECTIONS_LIST_USAGE_NOTES",
+    "ChannelSectionsInsertToolError",
     "ChannelSectionsListToolError",
+    "build_channel_sections_insert_contract",
+    "build_channel_sections_insert_handler",
+    "build_channel_sections_insert_tool_descriptor",
     "build_channel_sections_list_contract",
     "build_channel_sections_list_handler",
     "build_channel_sections_list_tool_descriptor",
+    "map_channel_sections_insert_result",
     "map_channel_sections_list_result",
+    "validate_channel_sections_insert_arguments",
     "validate_channel_sections_list_arguments",
 ]

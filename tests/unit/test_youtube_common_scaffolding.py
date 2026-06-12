@@ -181,6 +181,21 @@ def test_channel_sections_list_scaffolding_exports_concrete_layer2_symbols():
     assert callable(youtube_common.build_channel_sections_list_tool_descriptor)
 
 
+def test_channel_sections_insert_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``channelSections_insert`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import channel_sections
+
+    channel_sections_family = youtube_common.get_resource_family("channel_sections")
+
+    assert channel_sections_family.definition_location.endswith("src/mcp_server/tools/youtube_common/channel_sections.py")
+    assert channel_sections.CHANNEL_SECTIONS_INSERT_TOOL_NAME == "channelSections_insert"
+    assert youtube_common.CHANNEL_SECTIONS_INSERT_TOOL_NAME == "channelSections_insert"
+    assert youtube_common.CHANNEL_SECTIONS_INSERT_QUOTA_COST == 50
+    assert callable(channel_sections.build_channel_sections_insert_contract)
+    assert callable(youtube_common.build_channel_sections_insert_tool_descriptor)
+
+
 def test_representative_captions_insert_metadata_exposes_upload_and_sync_caveats():
     """Expose safe caller-facing metadata for the captions insert endpoint."""
     from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
