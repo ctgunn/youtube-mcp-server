@@ -14,6 +14,7 @@ def test_representative_examples_include_required_us1_shapes():
         "channelBanners_insert",
         "channelSections_insert",
         "channelSections_list",
+        "channelSections_update",
         "channels_update",
         "playlists_insert",
         "comments_setModerationStatus",
@@ -230,6 +231,32 @@ def test_representative_channel_sections_insert_example_aligns_with_concrete_con
     assert "maximum" in metadata_text.lower()
 
 
+def test_representative_channel_sections_update_example_aligns_with_concrete_contract():
+    """Keep the representative channel-section update example aligned with YT-214."""
+    from mcp_server.tools.youtube_common.channel_sections import build_channel_sections_update_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "channelSections_update"
+    ]
+    concrete = build_channel_sections_update_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == concrete.quota_cost
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.input_contract["properties"]["part"]["enum"] == ["contentDetails", "id", "snippet"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert representative.response_convention["supportedWritableParts"] == ["contentDetails", "id", "snippet"]
+    assert representative.response_convention["overwriteSensitive"] is True
+    assert "body.id" in metadata_text
+    assert "omitted" in metadata_text.lower()
+
+
 def test_representative_channels_update_example_aligns_with_concrete_contract():
     """Keep the representative channels-update example aligned with YT-211."""
     from mcp_server.tools.youtube_common.channels import build_channels_update_contract
@@ -304,3 +331,5 @@ def test_representative_examples_cover_required_us2_shapes():
     assert by_name["guideCategories_list"].caveats
     assert by_name["channels_update"].quota_cost == 50
     assert by_name["channels_update"].response_convention["resultKind"] == "updated_resource"
+    assert by_name["channelSections_update"].quota_cost == 50
+    assert by_name["channelSections_update"].response_convention["resultKind"] == "updated_resource"

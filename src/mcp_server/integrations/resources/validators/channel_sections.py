@@ -43,7 +43,7 @@ def _validate_channel_sections_body(
     section_type = raw_type.strip()
 
     raw_channel_id = snippet.get("channelId")
-    if not isinstance(raw_channel_id, str) or not raw_channel_id.strip():
+    if not require_existing_id and (not isinstance(raw_channel_id, str) or not raw_channel_id.strip()):
         raise ValueError("body.snippet.channelId is required")
 
     title = snippet.get("title")

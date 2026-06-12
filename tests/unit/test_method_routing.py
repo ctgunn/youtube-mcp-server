@@ -191,6 +191,27 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertNotIn("authorized-channel-section-write", str(response["error"]))
         self.assertNotIn("UC-secret", str(response["error"]))
 
+    def test_channel_sections_update_tools_call_invalid_request_returns_safe_error(self):
+        """Return a safe error for an invalid channelSections_update body."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-channel-sections-update-invalid",
+            "method": "tools/call",
+            "params": {
+                "name": "channelSections_update",
+                "arguments": {
+                    "part": "snippet",
+                    "body": {"snippet": {"type": "singlePlaylist"}},
+                },
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["data"]["category"], "invalid_request")
+        self.assertEqual(response["error"]["data"]["toolName"], "channelSections_update")
+        self.assertNotIn("authorized-channel-section-write", str(response["error"]))
+        self.assertNotIn("UC-secret", str(response["error"]))
+
     def test_captions_list_tools_call_success_returns_structured_result(self):
         """Return structured content for a valid captions_list call."""
         payload = {

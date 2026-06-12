@@ -56,3 +56,36 @@ def test_default_registry_executes_channel_sections_insert_created_result():
     assert result["requestedParts"] == ["snippet", "contentDetails"]
     assert result["item"]["snippet"] == body["snippet"]
     assert result["item"]["contentDetails"] == body["contentDetails"]
+
+
+def test_default_registry_includes_executable_channel_sections_update_tool():
+    """Register ``channelSections_update`` by default with safe metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channelSections_update" in listed
+    metadata = listed["channelSections_update"]["metadata"]
+    assert metadata["upstream"]["operationKey"] == "channelSections.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+
+
+def test_default_registry_executes_channel_sections_update_result():
+    """Invoke the default ``channelSections_update`` handler through the dispatcher."""
+    dispatcher = InMemoryToolDispatcher()
+    body = {
+        "id": "section-123",
+        "snippet": {"type": "singlePlaylist", "title": "Uploads"},
+        "contentDetails": {"playlists": ["PL123"]},
+    }
+
+    result = dispatcher.call_tool("channelSections_update", {"part": "snippet,contentDetails", "body": body})
+
+    assert result["endpoint"] == "channelSections.update"
+    assert result["quotaCost"] == 50
+    assert result["updated"] is True
+    assert result["requestedParts"] == ["snippet", "contentDetails"]
+    assert result["item"]["id"] == "section-123"
+    assert result["item"]["snippet"] == body["snippet"]
+    assert result["item"]["contentDetails"] == body["contentDetails"]

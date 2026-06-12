@@ -10,12 +10,17 @@ from mcp_server.tools.youtube_common.channel_sections import (
     CHANNEL_SECTIONS_INSERT_TOOL_NAME,
     CHANNEL_SECTIONS_LIST_CALLER_EXAMPLES,
     CHANNEL_SECTIONS_LIST_TOOL_NAME,
+    CHANNEL_SECTIONS_UPDATE_CALLER_EXAMPLES,
+    CHANNEL_SECTIONS_UPDATE_TOOL_NAME,
     ChannelSectionsInsertToolError,
     ChannelSectionsListToolError,
+    ChannelSectionsUpdateToolError,
     build_channel_sections_insert_contract,
     build_channel_sections_insert_tool_descriptor,
     build_channel_sections_list_contract,
     build_channel_sections_list_tool_descriptor,
+    build_channel_sections_update_contract,
+    build_channel_sections_update_tool_descriptor,
 )
 
 
@@ -299,6 +304,175 @@ def test_channel_sections_insert_contract_errors_do_not_leak_sensitive_context()
                 },
                 "onBehalfOfContentOwner": "cms-account",
                 "onBehalfOfContentOwnerChannel": "UC-secret",
+            }
+        )
+
+    error_text = f"{exc_info.value} {exc_info.value.details}"
+    assert exc_info.value.category == "authorization_failed"
+    assert "oauth-token" not in error_text
+    assert "cms-account" not in error_text
+    assert "UC-secret" not in error_text
+    assert "Traceback" not in error_text
+    assert "private channel" not in error_text
+
+
+def test_channel_sections_update_contract_exposes_identity_oauth_schema_and_boundary():
+    """Expose the public metadata required before updating channel sections."""
+    contract = build_channel_sections_update_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.tool_name == CHANNEL_SECTIONS_UPDATE_TOOL_NAME
+    assert contract.upstream_resource == "channelSections"
+    assert contract.upstream_method == "update"
+    assert contract.quota_cost == 50
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["upstream"]["operationKey"] == "channelSections.update"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert {"part", "body", "onBehalfOfContentOwner"}.issubset(metadata["inputContract"]["properties"])
+    assert "onBehalfOfContentOwnerChannel" not in metadata["inputContract"]["properties"]
+    assert metadata["inputContract"]["properties"]["body"]["required"] == ["id", "snippet"]
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert metadata["responseConvention"]["resourcePath"] == "item"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert "requestedParts" in metadata["responseBoundary"]["preservedUpstreamFields"]
+
+
+def test_channel_sections_update_descriptor_returns_updated_resource_shape():
+    """Build an executable update descriptor that preserves the updated resource."""
+    descriptor = build_channel_sections_update_tool_descriptor()
+    body = {
+        "id": "section-123",
+        "snippet": {"type": "singlePlaylist", "title": "Uploads", "position": 3},
+        "contentDetails": {"playlists": ["PL123"]},
+    }
+
+    result = descriptor["handler"]({"part": "snippet,contentDetails", "body": body})
+
+    assert descriptor["name"] == "channelSections_update"
+    assert "Quota cost: 50" in descriptor["description"]
+    assert descriptor["metadata"]["authMode"] == "oauth_required"
+    assert result["endpoint"] == "channelSections.update"
+    assert result["quotaCost"] == 50
+    assert result["updated"] is True
+    assert result["requestedParts"] == ["snippet", "contentDetails"]
+    assert result["item"]["kind"] == "youtube#channelSection"
+    assert result["item"]["id"] == "section-123"
+    assert result["item"]["snippet"] == body["snippet"]
+    assert result["item"]["contentDetails"] == body["contentDetails"]
+
+
+def test_channel_sections_update_descriptor_requires_oauth_for_execution():
+    """Keep updates behind OAuth-required authorization."""
+    descriptor = build_channel_sections_update_tool_descriptor(oauth_token=None)
+
+    with pytest.raises(ChannelSectionsUpdateToolError) as exc_info:
+        descriptor["handler"](
+            {"part": "snippet", "body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}}}
+        )
+
+    assert exc_info.value.category == "authentication_failed"
+
+
+def test_channel_sections_update_metadata_documents_cost_oauth_body_rules_and_boundaries():
+    """Expose caller-facing metadata needed before ``channelSections_update`` calls."""
+    descriptor = build_channel_sections_update_tool_descriptor()
+    metadata = descriptor["metadata"]
+    metadata_text = " ".join([descriptor["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert metadata["inputContract"]["properties"]["part"]["enum"] == ["contentDetails", "id", "snippet"]
+    assert metadata["inputContract"]["properties"]["body"]["required"] == ["id", "snippet"]
+    assert "onBehalfOfContentOwner" in metadata["inputContract"]["properties"]
+    assert "onBehalfOfContentOwnerChannel" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["supportedWritableParts"] == ["contentDetails", "id", "snippet"]
+    assert metadata["responseConvention"]["writableBodyFields"] == [
+        "body.id",
+        "body.snippet.type",
+        "body.snippet.title",
+        "body.snippet.position",
+        "body.contentDetails.playlists[]",
+        "body.contentDetails.channels[]",
+    ]
+    assert metadata["responseConvention"]["overwriteSensitive"] is True
+    assert "body.id" in metadata_text
+    assert "snippet.type" in metadata_text
+    assert "singlePlaylist" in metadata_text
+    assert "multiplePlaylists" in metadata_text
+    assert "multipleChannels" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "omitted" in metadata_text.lower()
+    assert "deleted" in metadata_text.lower()
+    assert "playlistItems.list" in metadata_text
+    assert "patch" in metadata_text.lower()
+
+
+def test_channel_sections_update_caller_examples_cover_supported_and_rejected_paths():
+    """Document successful updates, partner context, validation, overwrite, and boundaries."""
+    examples = {example["name"]: example for example in CHANNEL_SECTIONS_UPDATE_CALLER_EXAMPLES}
+
+    assert {
+        "authorized_title_position_update",
+        "authorized_playlist_section_update",
+        "authorized_channel_section_update",
+        "partner_context_update",
+        "missing_oauth",
+        "missing_section_id",
+        "missing_section_type",
+        "invalid_writable_field",
+        "invalid_content_structure",
+        "duplicate_references",
+        "missing_target_section",
+        "overwrite_sensitive_caveat",
+        "unsupported_higher_level_workflow",
+    }.issubset(examples)
+    assert examples["authorized_title_position_update"]["arguments"]["body"]["id"] == "section-123"
+    assert examples["authorized_playlist_section_update"]["arguments"]["body"]["snippet"]["type"] == "singlePlaylist"
+    assert examples["authorized_channel_section_update"]["arguments"]["body"]["snippet"]["type"] == "multipleChannels"
+    assert examples["partner_context_update"]["result"]["partnerContext"] == {"onBehalfOfContentOwner": True}
+    assert examples["missing_oauth"]["error"]["category"] == "authentication_failed"
+    assert examples["missing_section_id"]["error"]["field"] == "body.id"
+    assert examples["missing_section_type"]["error"]["field"] == "body.snippet.type"
+    assert examples["unsupported_higher_level_workflow"]["error"]["field"] == "patch"
+
+
+def test_channel_sections_update_contract_errors_do_not_leak_sensitive_context():
+    """Keep public update errors free of credentials, stack traces, and private owner data."""
+
+    class FailingWrapper:
+        """Raise an upstream error with intentionally unsafe details."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise the unsafe upstream error.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :raises NormalizedUpstreamError: Always raised for this contract check.
+            """
+            raise NormalizedUpstreamError(
+                message="private channel oauth-token cms-account UC-secret Traceback (most recent call last)",
+                category="auth",
+                retryable=False,
+                upstream_status=403,
+                details={"secret": "oauth-token", "cmsAccount": "cms-account", "channel": "UC-secret"},
+            )
+
+    descriptor = build_channel_sections_update_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(ChannelSectionsUpdateToolError) as exc_info:
+        descriptor["handler"](
+            {
+                "part": "snippet",
+                "body": {
+                    "id": "section-123",
+                    "snippet": {"type": "singlePlaylist"},
+                    "contentDetails": {"playlists": ["PL123"]},
+                },
+                "onBehalfOfContentOwner": "cms-account",
             }
         )
 

@@ -11,6 +11,7 @@ from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.channel_sections import (
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
+    build_channel_sections_update_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
@@ -24,6 +25,13 @@ CHANNEL_SECTIONS_INSERT_PLAYLIST_TYPES = ("singlePlaylist", "multiplePlaylists")
 CHANNEL_SECTIONS_INSERT_CHANNEL_TYPES = ("multipleChannels",)
 CHANNEL_SECTIONS_INSERT_TITLE_REQUIRED_TYPES = ("multipleChannels", "multiplePlaylists")
 CHANNEL_SECTIONS_INSERT_MAX_REFERENCES = 50
+CHANNEL_SECTIONS_UPDATE_TOOL_NAME = "channelSections_update"
+CHANNEL_SECTIONS_UPDATE_QUOTA_COST = 50
+CHANNEL_SECTIONS_UPDATE_SUPPORTED_PARTS = ("contentDetails", "id", "snippet")
+CHANNEL_SECTIONS_UPDATE_PLAYLIST_TYPES = CHANNEL_SECTIONS_INSERT_PLAYLIST_TYPES
+CHANNEL_SECTIONS_UPDATE_CHANNEL_TYPES = CHANNEL_SECTIONS_INSERT_CHANNEL_TYPES
+CHANNEL_SECTIONS_UPDATE_TITLE_REQUIRED_TYPES = CHANNEL_SECTIONS_INSERT_TITLE_REQUIRED_TYPES
+CHANNEL_SECTIONS_UPDATE_MAX_REFERENCES = CHANNEL_SECTIONS_INSERT_MAX_REFERENCES
 
 CHANNEL_SECTIONS_INSERT_INPUT_SCHEMA = {
     "type": "object",
@@ -191,6 +199,213 @@ CHANNEL_SECTIONS_INSERT_CALLER_EXAMPLES = (
     },
 )
 
+CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["part", "body"],
+    "properties": {
+        "part": {"type": "string", "minLength": 1, "enum": list(CHANNEL_SECTIONS_UPDATE_SUPPORTED_PARTS)},
+        "body": {
+            "type": "object",
+            "required": ["id", "snippet"],
+            "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "snippet": {
+                    "type": "object",
+                    "required": ["type"],
+                    "properties": {
+                        "type": {"type": "string", "minLength": 1},
+                        "title": {"type": "string", "minLength": 1},
+                        "position": {"type": "integer", "minimum": 0},
+                    },
+                    "additionalProperties": False,
+                },
+                "contentDetails": {
+                    "type": "object",
+                    "properties": {
+                        "playlists": {"type": "array", "items": {"type": "string", "minLength": 1}},
+                        "channels": {"type": "array", "items": {"type": "string", "minLength": 1}},
+                    },
+                    "additionalProperties": False,
+                },
+            },
+            "additionalProperties": False,
+        },
+        "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+CHANNEL_SECTIONS_UPDATE_DESCRIPTION = (
+    "Update a YouTube channel section. Endpoint: channelSections.update. "
+    "Quota cost: 50. Auth: oauth_required. Requires body.id and snippet.type."
+)
+CHANNEL_SECTIONS_UPDATE_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide part and a channel-section body with body.id.",
+    "Quota cost: 50. Supported part values are contentDetails, id, and snippet.",
+    "Quota cost: 50. The body requires body.id and body.snippet.type for the target existing section.",
+    "Quota cost: 50. Supported writable fields are body.id, body.snippet.type, body.snippet.title, body.snippet.position, body.contentDetails.playlists[], and body.contentDetails.channels[].",
+    "Quota cost: 50. singlePlaylist requires exactly one playlist reference.",
+    "Quota cost: 50. multiplePlaylists requires playlist references and a title.",
+    "Quota cost: 50. multipleChannels requires channel references and a title.",
+    "Quota cost: 50. onBehalfOfContentOwner is optional partner-only delegated context.",
+    "Quota cost: 50. This update is overwrite-sensitive: omitted writable fields in selected parts may be deleted by the upstream endpoint.",
+    "Quota cost: 50. This tool does not call playlistItems.list, perform patch behavior, create sections, delete sections, sort layouts, expand videos, or orchestrate higher-level workflows.",
+)
+CHANNEL_SECTIONS_UPDATE_CAVEATS = (
+    "Channel-section updates require eligible OAuth authorization for channel layout operations.",
+    "The request must identify the target section with body.id; missing or non-editable target sections fail safely.",
+    "Section content rules depend on body.snippet.type: singlePlaylist, multiplePlaylists, and multipleChannels each accept different contentDetails fields.",
+    "Updates replace writable content for the selected parts; omitted fields may be deleted, so include fields that should remain.",
+    "Partner delegated updates use onBehalfOfContentOwner only and never expose owner identifiers in public results or errors.",
+    "This low-level tool does not patch partial resource fields, call playlistItems.list, expand playlists or videos, or recommend layouts.",
+)
+CHANNEL_SECTIONS_UPDATE_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_title_position_update",
+        "arguments": {
+            "part": "snippet,contentDetails",
+            "body": {
+                "id": "section-123",
+                "snippet": {"type": "singlePlaylist", "title": "Uploads", "position": 3},
+                "contentDetails": {"playlists": ["PL123"]},
+            },
+        },
+        "result": {
+            "endpoint": "channelSections.update",
+            "quotaCost": 50,
+            "updated": True,
+            "requestedParts": ["snippet", "contentDetails"],
+            "item": {"id": "section-123"},
+        },
+        "notes": "Updates title and position for an existing section while preserving the target section identity.",
+    },
+    {
+        "name": "authorized_playlist_section_update",
+        "arguments": {
+            "part": "snippet,contentDetails",
+            "body": {
+                "id": "section-123",
+                "snippet": {"type": "singlePlaylist", "title": "Uploads"},
+                "contentDetails": {"playlists": ["PL123"]},
+            },
+        },
+        "result": {"endpoint": "channelSections.update", "quotaCost": 50, "updated": True},
+        "notes": "Updates a single-playlist section with exactly one playlist reference.",
+    },
+    {
+        "name": "authorized_channel_section_update",
+        "arguments": {
+            "part": "snippet,contentDetails",
+            "body": {
+                "id": "section-456",
+                "snippet": {"type": "multipleChannels", "title": "Related channels"},
+                "contentDetails": {"channels": ["UC456", "UC789"]},
+            },
+        },
+        "result": {"endpoint": "channelSections.update", "quotaCost": 50, "updated": True},
+        "notes": "Updates a channel-backed section when channel references match the section type.",
+    },
+    {
+        "name": "partner_context_update",
+        "arguments": {
+            "part": "snippet",
+            "onBehalfOfContentOwner": "content-owner-id",
+            "body": {
+                "id": "section-123",
+                "snippet": {"type": "multipleChannels", "title": "Network channels"},
+                "contentDetails": {"channels": ["UC456", "UC789"]},
+            },
+        },
+        "result": {
+            "endpoint": "channelSections.update",
+            "quotaCost": 50,
+            "partnerContext": {"onBehalfOfContentOwner": True},
+        },
+        "notes": "Delegated updates require eligible partner authorization without exposing owner identifiers.",
+    },
+    {
+        "name": "missing_oauth",
+        "arguments": {"part": "snippet", "body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}}},
+        "error": {"category": "authentication_failed", "field": "auth"},
+        "notes": "Channel-section updates require eligible OAuth authorization.",
+    },
+    {
+        "name": "missing_part",
+        "arguments": {"body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}}},
+        "error": {"category": "invalid_request", "field": "part"},
+        "notes": "part is required and must name supported writable resource parts.",
+    },
+    {
+        "name": "missing_section_id",
+        "arguments": {"part": "snippet", "body": {"snippet": {"type": "singlePlaylist"}}},
+        "error": {"category": "invalid_request", "field": "body.id"},
+        "notes": "body.id is required to identify the existing section.",
+    },
+    {
+        "name": "missing_section_type",
+        "arguments": {"part": "snippet", "body": {"id": "section-123", "snippet": {}}},
+        "error": {"category": "invalid_request", "field": "body.snippet.type"},
+        "notes": "body.snippet.type is required to determine content structure rules.",
+    },
+    {
+        "name": "invalid_writable_field",
+        "arguments": {
+            "part": "snippet",
+            "body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}, "status": {}},
+        },
+        "error": {"category": "invalid_request", "field": "body.status"},
+        "notes": "Read-only and unsupported body fields are rejected before update execution.",
+    },
+    {
+        "name": "invalid_content_structure",
+        "arguments": {
+            "part": "contentDetails",
+            "body": {
+                "id": "section-123",
+                "snippet": {"type": "multipleChannels", "title": "Related"},
+                "contentDetails": {"playlists": ["PL123"]},
+            },
+        },
+        "error": {"category": "invalid_request", "field": "body.contentDetails.playlists"},
+        "notes": "Channel-backed sections cannot supply playlist references.",
+    },
+    {
+        "name": "duplicate_references",
+        "arguments": {
+            "part": "contentDetails",
+            "body": {
+                "id": "section-123",
+                "snippet": {"type": "multiplePlaylists", "title": "Featured"},
+                "contentDetails": {"playlists": ["PL123", "PL123"]},
+            },
+        },
+        "error": {"category": "invalid_request", "field": "body.contentDetails.playlists"},
+        "notes": "Duplicate playlist or channel references are rejected before update execution.",
+    },
+    {
+        "name": "missing_target_section",
+        "arguments": {"part": "snippet", "body": {"id": "missing-section", "snippet": {"type": "singlePlaylist"}}},
+        "error": {"category": "resource_not_found", "reason": "missingTargetSection"},
+        "notes": "The upstream endpoint can reject updates when the target section is missing or not editable.",
+    },
+    {
+        "name": "overwrite_sensitive_caveat",
+        "arguments": {"part": "snippet", "body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}}},
+        "result": {"endpoint": "channelSections.update", "caveats": {"overwriteSensitive": True}},
+        "notes": "Omitted writable fields in selected parts may be deleted; this is not patch behavior.",
+    },
+    {
+        "name": "unsupported_higher_level_workflow",
+        "arguments": {
+            "part": "snippet",
+            "body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}},
+            "patch": {"title": "Only update one field"},
+        },
+        "error": {"category": "invalid_request", "field": "patch"},
+        "notes": "Patch orchestration belongs to a higher-level workflow, not this endpoint-backed update tool.",
+    },
+)
+
 CHANNEL_SECTIONS_LIST_TOOL_NAME = "channelSections_list"
 CHANNEL_SECTIONS_LIST_QUOTA_COST = 1
 CHANNEL_SECTIONS_LIST_SELECTORS = ("channelId", "id", "mine")
@@ -329,6 +544,21 @@ class ChannelSectionsInsertToolError(ValueError):
         self.details = details or {}
 
 
+class ChannelSectionsUpdateToolError(ValueError):
+    """Represent a safe caller-facing ``channelSections_update`` failure."""
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the safe channel-sections-update error.
+
+        :param message: Caller-facing error message.
+        :param category: Shared safe error category.
+        :param details: Safe diagnostic details for MCP error payloads.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = details or {}
+
+
 def _default_channel_sections_insert_transport(execution) -> dict[str, Any]:
     """Return a safe created channel-section resource for local execution.
 
@@ -348,6 +578,15 @@ def _default_channel_sections_insert_transport(execution) -> dict[str, Any]:
     return item
 
 
+def _default_channel_sections_update_transport(execution) -> dict[str, Any]:
+    """Return a safe updated channel-section resource for local execution.
+
+    :param execution: Layer 1 execution request containing validated arguments.
+    :return: Upstream-shaped updated channel-section resource.
+    """
+    return _default_channel_sections_insert_transport(execution)
+
+
 def _default_insert_executor() -> IntegrationExecutor:
     """Build the default Layer 1 executor used by ``channelSections_insert``.
 
@@ -355,6 +594,17 @@ def _default_insert_executor() -> IntegrationExecutor:
     """
     return IntegrationExecutor(
         transport=_default_channel_sections_insert_transport,
+        retry_policy=RetryPolicy(max_attempts=1),
+    )
+
+
+def _default_update_executor() -> IntegrationExecutor:
+    """Build the default Layer 1 executor used by ``channelSections_update``.
+
+    :return: Executor with a safe local transport for updated channel-section resources.
+    """
+    return IntegrationExecutor(
+        transport=_default_channel_sections_update_transport,
         retry_policy=RetryPolicy(max_attempts=1),
     )
 
@@ -482,6 +732,64 @@ def build_channel_sections_insert_contract() -> YouTubeToolContract:
     )
 
 
+def build_channel_sections_update_contract() -> YouTubeToolContract:
+    """Build the public contract metadata for ``channelSections_update``.
+
+    :return: Validated Layer 2 tool contract for ``channelSections_update``.
+    """
+    return YouTubeToolContract(
+        tool_name=CHANNEL_SECTIONS_UPDATE_TOOL_NAME,
+        upstream_resource="channelSections",
+        upstream_method="update",
+        operation_key="channelSections.update",
+        description=CHANNEL_SECTIONS_UPDATE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=CHANNEL_SECTIONS_UPDATE_QUOTA_COST,
+        resource_family="channel_sections",
+        input_contract=CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "updated_resource",
+            "resourcePath": "item",
+            "supportedWritableParts": list(CHANNEL_SECTIONS_UPDATE_SUPPORTED_PARTS),
+            "writableBodyFields": [
+                "body.id",
+                "body.snippet.type",
+                "body.snippet.title",
+                "body.snippet.position",
+                "body.contentDetails.playlists[]",
+                "body.contentDetails.channels[]",
+            ],
+            "overwriteSensitive": True,
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=("endpoint", "quotaCost", "updated", "item", "requestedParts", "partnerContext"),
+            preserved_upstream_fields=("kind", "etag", "id", "snippet", "contentDetails", "requestedParts"),
+            disallowed_behavior=(
+                "patch_update",
+                "channel_section_creation",
+                "channel_section_delete",
+                "playlist_item_expansion",
+                "video_expansion",
+                "layout_recommendation",
+                "cross_endpoint_aggregation",
+            ),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=CHANNEL_SECTIONS_UPDATE_USAGE_NOTES,
+        caveats=CHANNEL_SECTIONS_UPDATE_CAVEATS,
+    )
+
+
 def _active_selectors(arguments: dict[str, Any]) -> list[tuple[str, Any]]:
     """Return active channel-section selectors from one request.
 
@@ -582,6 +890,37 @@ def map_channel_sections_insert_result(response: dict[str, Any], arguments: dict
     return result
 
 
+def _safe_update_partner_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return safe partner-context flags for one update request.
+
+    :param arguments: Caller-supplied ``channelSections_update`` arguments.
+    :return: Safe partner-context flags without owner identifiers.
+    """
+    if "onBehalfOfContentOwner" in arguments:
+        return {"onBehalfOfContentOwner": True}
+    return {}
+
+
+def map_channel_sections_update_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map a Layer 1 channel-section update response to the public result shape.
+
+    :param response: Upstream-shaped updated channel-section resource.
+    :param arguments: Original validated tool arguments.
+    :return: Near-raw updated-resource result with light MCP clarity fields.
+    """
+    result: dict[str, Any] = {
+        "endpoint": "channelSections.update",
+        "quotaCost": CHANNEL_SECTIONS_UPDATE_QUOTA_COST,
+        "updated": True,
+        "item": response,
+        "requestedParts": _requested_parts(arguments),
+    }
+    partner_context = _safe_update_partner_context(arguments)
+    if partner_context:
+        result["partnerContext"] = partner_context
+    return result
+
+
 def _raise_insert_invalid(message: str, field: str, **details: Any) -> None:
     """Raise a safe invalid-request error for ``channelSections_insert`` validation.
 
@@ -593,6 +932,19 @@ def _raise_insert_invalid(message: str, field: str, **details: Any) -> None:
     safe_details = {"field": field}
     safe_details.update(details)
     raise ChannelSectionsInsertToolError(message, category="invalid_request", details=safe_details)
+
+
+def _raise_update_invalid(message: str, field: str, **details: Any) -> None:
+    """Raise a safe invalid-request error for ``channelSections_update`` validation.
+
+    :param message: Caller-facing validation message.
+    :param field: Request field or content rule that failed validation.
+    :param details: Additional safe diagnostic metadata.
+    :raises ChannelSectionsUpdateToolError: Always raised with a safe category.
+    """
+    safe_details = {"field": field}
+    safe_details.update(details)
+    raise ChannelSectionsUpdateToolError(message, category="invalid_request", details=safe_details)
 
 
 def _nonempty_text(value: Any) -> bool:
@@ -862,6 +1214,259 @@ def _map_insert_upstream_error(error: NormalizedUpstreamError) -> ChannelSection
     }
     category = categories.get(error.category, "upstream_failure")
     return ChannelSectionsInsertToolError(
+        messages[category],
+        category=category,
+        details={"upstreamStatus": error.upstream_status} if error.upstream_status else {},
+    )
+
+
+def _validate_update_parts(arguments: dict[str, Any]) -> None:
+    """Validate requested update parts against the supported part set.
+
+    :param arguments: Caller-supplied ``channelSections_update`` arguments.
+    :raises ChannelSectionsUpdateToolError: If the part selection is missing or unsupported.
+    """
+    parts = _requested_parts(arguments)
+    if not parts:
+        _raise_update_invalid("channelSections_update requires part.", "part")
+    unsupported = [part for part in parts if part not in CHANNEL_SECTIONS_UPDATE_SUPPORTED_PARTS]
+    if unsupported:
+        _raise_update_invalid("channelSections_update received an unsupported part.", "part")
+
+
+def _update_body(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return the channel-section update body after top-level shape checks.
+
+    :param arguments: Caller-supplied ``channelSections_update`` arguments.
+    :return: Validated body mapping.
+    :raises ChannelSectionsUpdateToolError: If body is missing or malformed.
+    """
+    body = arguments.get("body")
+    if not isinstance(body, dict):
+        _raise_update_invalid("channelSections_update requires a body object.", "body")
+    unsupported = [field for field in body if field not in {"id", "snippet", "contentDetails"}]
+    if unsupported:
+        _raise_update_invalid("channelSections_update body contains an unsupported field.", f"body.{unsupported[0]}")
+    if not _nonempty_text(body.get("id")):
+        _raise_update_invalid("channelSections_update requires body.id.", "body.id")
+    return body
+
+
+def _update_snippet(body: dict[str, Any]) -> dict[str, Any]:
+    """Return the channel-section update snippet after writable-field validation.
+
+    :param body: Validated update body mapping.
+    :return: Validated snippet mapping.
+    :raises ChannelSectionsUpdateToolError: If snippet fields are missing or unsupported.
+    """
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        _raise_update_invalid("channelSections_update requires body.snippet.", "body.snippet")
+    unsupported = [field for field in snippet if field not in {"type", "title", "position"}]
+    if unsupported:
+        _raise_update_invalid(
+            "channelSections_update body.snippet contains an unsupported field.",
+            f"body.snippet.{unsupported[0]}",
+        )
+    if not _nonempty_text(snippet.get("type")):
+        _raise_update_invalid("channelSections_update requires body.snippet.type.", "body.snippet.type")
+    position = snippet.get("position")
+    if position is not None and (not isinstance(position, int) or position < 0):
+        _raise_update_invalid("channelSections_update position must be a non-negative integer.", "body.snippet.position")
+    return snippet
+
+
+def _update_content_details(body: dict[str, Any]) -> dict[str, Any]:
+    """Return the channel-section update contentDetails mapping after shape checks.
+
+    :param body: Validated update body mapping.
+    :return: Content details mapping or an empty mapping.
+    :raises ChannelSectionsUpdateToolError: If contentDetails is malformed.
+    """
+    content_details = body.get("contentDetails", {})
+    if content_details is None:
+        return {}
+    if not isinstance(content_details, dict):
+        _raise_update_invalid("channelSections_update contentDetails must be an object.", "body.contentDetails")
+    unsupported = [field for field in content_details if field not in {"playlists", "channels"}]
+    if unsupported:
+        _raise_update_invalid(
+            "channelSections_update body.contentDetails contains an unsupported field.",
+            f"body.contentDetails.{unsupported[0]}",
+        )
+    return content_details
+
+
+def _update_reference_values(content_details: dict[str, Any], field: str) -> list[str]:
+    """Return validated channel-section update reference identifiers.
+
+    :param content_details: Request ``contentDetails`` mapping.
+    :param field: Reference field, such as ``playlists`` or ``channels``.
+    :return: Trimmed reference identifiers.
+    :raises ChannelSectionsUpdateToolError: If references are missing, malformed, duplicated, or too many.
+    """
+    raw_values = content_details.get(field)
+    details_field = f"body.contentDetails.{field}"
+    if not isinstance(raw_values, list) or not raw_values:
+        _raise_update_invalid("channelSections_update requires content references.", details_field)
+    values: list[str] = []
+    for value in raw_values:
+        if not _nonempty_text(value):
+            _raise_update_invalid("channelSections_update references must be non-empty strings.", details_field)
+        values.append(value.strip())
+    if len(values) != len(set(values)):
+        _raise_update_invalid(
+            "channelSections_update does not support duplicate references.",
+            details_field,
+            reason="duplicateReferences",
+        )
+    if len(values) > CHANNEL_SECTIONS_UPDATE_MAX_REFERENCES:
+        _raise_update_invalid(
+            "channelSections_update received too many references.",
+            details_field,
+            reason="tooManyReferences",
+        )
+    return values
+
+
+def _validate_update_content_rules(snippet: dict[str, Any], content_details: dict[str, Any]) -> None:
+    """Validate section-type-specific channel-section update content rules.
+
+    :param snippet: Validated body snippet mapping.
+    :param content_details: Validated contentDetails mapping.
+    :raises ChannelSectionsUpdateToolError: If content rules are not satisfied.
+    """
+    section_type = str(snippet["type"]).strip()
+    if section_type in CHANNEL_SECTIONS_UPDATE_TITLE_REQUIRED_TYPES and not _nonempty_text(snippet.get("title")):
+        _raise_update_invalid("channelSections_update requires title for this section type.", "body.snippet.title")
+
+    if section_type in CHANNEL_SECTIONS_UPDATE_PLAYLIST_TYPES:
+        if content_details.get("channels") not in (None, [], ()):
+            _raise_update_invalid(
+                "channelSections_update playlist-backed sections cannot include channels.",
+                "body.contentDetails.channels",
+            )
+        playlists = _update_reference_values(content_details, "playlists")
+        if section_type == "singlePlaylist" and len(playlists) != 1:
+            _raise_update_invalid(
+                "channelSections_update singlePlaylist requires exactly one playlist.",
+                "body.contentDetails.playlists",
+            )
+        return
+
+    if section_type in CHANNEL_SECTIONS_UPDATE_CHANNEL_TYPES:
+        if content_details.get("playlists") not in (None, [], ()):
+            _raise_update_invalid(
+                "channelSections_update channel-backed sections cannot include playlists.",
+                "body.contentDetails.playlists",
+            )
+        _update_reference_values(content_details, "channels")
+        return
+
+    if content_details.get("playlists") not in (None, [], ()):
+        _raise_update_invalid(
+            "channelSections_update section type does not accept playlists.",
+            "body.contentDetails.playlists",
+        )
+    if content_details.get("channels") not in (None, [], ()):
+        _raise_update_invalid(
+            "channelSections_update section type does not accept channels.",
+            "body.contentDetails.channels",
+        )
+
+
+def _validate_update_partner_context(arguments: dict[str, Any]) -> None:
+    """Validate delegated owner context without exposing identifiers.
+
+    :param arguments: Caller-supplied ``channelSections_update`` arguments.
+    :raises ChannelSectionsUpdateToolError: If partner context is empty.
+    """
+    if "onBehalfOfContentOwner" in arguments and not _nonempty_text(arguments["onBehalfOfContentOwner"]):
+        _raise_update_invalid(
+            "channelSections_update requires a non-empty onBehalfOfContentOwner.",
+            "onBehalfOfContentOwner",
+            partnerScoped=True,
+        )
+
+
+def validate_channel_sections_update_arguments(
+    arguments: dict[str, Any],
+    *,
+    oauth_token: str | None = None,
+) -> None:
+    """Validate foundational ``channelSections_update`` arguments.
+
+    :param arguments: Caller-supplied tool arguments.
+    :param oauth_token: OAuth token availability for channel-section updates.
+    :raises ChannelSectionsUpdateToolError: If required foundational fields are invalid.
+    """
+    supported_fields = set(CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA["properties"])
+    for field in arguments:
+        if field not in supported_fields:
+            raise ChannelSectionsUpdateToolError(
+                f"channelSections_update does not support {field}.",
+                category="invalid_request",
+                details={"field": field},
+            )
+
+    if not oauth_token:
+        raise ChannelSectionsUpdateToolError(
+            "channelSections_update requires eligible user authorization.",
+            category="authentication_failed",
+            details={"field": "auth"},
+        )
+    _validate_update_partner_context(arguments)
+    _validate_update_parts(arguments)
+    body = _update_body(arguments)
+    snippet = _update_snippet(body)
+    content_details = _update_content_details(body)
+    _validate_update_content_rules(snippet, content_details)
+
+
+def _update_auth_context(*, oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 auth context for ``channelSections_update``.
+
+    :param oauth_token: OAuth token available for the write request.
+    :return: Auth context suitable for the Layer 1 update wrapper.
+    :raises ChannelSectionsUpdateToolError: If OAuth credentials are unavailable.
+    """
+    if not oauth_token:
+        raise ChannelSectionsUpdateToolError(
+            "channelSections_update requires eligible user authorization.",
+            category="authentication_failed",
+            details={"field": "auth"},
+        )
+    return AuthContext(mode=Layer1AuthMode.OAUTH_REQUIRED, credentials=CredentialBundle(oauth_token=oauth_token))
+
+
+def _map_update_upstream_error(error: NormalizedUpstreamError) -> ChannelSectionsUpdateToolError:
+    """Map a normalized upstream update error to the public Layer 2 error model.
+
+    :param error: Normalized upstream failure raised by Layer 1 execution.
+    :return: Safe ``channelSections_update`` error.
+    """
+    categories = {
+        "auth": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "not_found": "resource_not_found",
+        "rate_limit": "quota_exhausted",
+        "rate_limited": "quota_exhausted",
+        "transient": "endpoint_unavailable",
+        "upstream_unavailable": "endpoint_unavailable",
+        "upstream_service": "upstream_failure",
+        "invalid_request": "invalid_request",
+        "validation": "invalid_request",
+    }
+    messages = {
+        "invalid_request": "channelSections_update request was rejected by the upstream endpoint.",
+        "authorization_failed": "channelSections_update was not authorized by the upstream endpoint.",
+        "quota_exhausted": "channelSections_update quota was exhausted by the upstream endpoint.",
+        "resource_not_found": "channelSections_update target was not found by the upstream endpoint.",
+        "endpoint_unavailable": "channelSections_update upstream endpoint is temporarily unavailable.",
+        "upstream_failure": "channelSections_update upstream execution failed.",
+    }
+    category = categories.get(error.category, "upstream_failure")
+    return ChannelSectionsUpdateToolError(
         messages[category],
         category=category,
         details={"upstreamStatus": error.upstream_status} if error.upstream_status else {},
@@ -1180,6 +1785,81 @@ def build_channel_sections_insert_tool_descriptor(
     }
 
 
+def build_channel_sections_update_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-channel-section-write",
+):
+    """Build the concrete ``channelSections_update`` handler.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for write requests.
+    :return: Callable dispatcher handler.
+    """
+    channel_sections_wrapper = wrapper or build_channel_sections_update_wrapper()
+    channel_sections_executor = executor or _default_update_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one ``channelSections_update`` request.
+
+        :param arguments: Validated dispatcher arguments.
+        :return: Public Layer 2 updated channel-section result.
+        :raises ChannelSectionsUpdateToolError: If validation, authorization, or upstream execution fails.
+        """
+        validate_channel_sections_update_arguments(arguments, oauth_token=oauth_token)
+        auth_context = _update_auth_context(oauth_token=oauth_token)
+        try:
+            response = channel_sections_wrapper.call(
+                channel_sections_executor,
+                arguments=arguments,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as error:
+            raise _map_update_upstream_error(error) from error
+        except ValueError as error:
+            raise ChannelSectionsUpdateToolError(
+                str(error),
+                category="invalid_request",
+            ) from error
+        except Exception as error:
+            raise ChannelSectionsUpdateToolError(
+                "channelSections_update upstream execution failed.",
+                category="upstream_failure",
+            ) from error
+        return map_channel_sections_update_result(response, arguments)
+
+    return handler
+
+
+def build_channel_sections_update_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-channel-section-write",
+) -> dict[str, Any]:
+    """Build the dispatcher descriptor for the ``channelSections_update`` tool.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for write requests.
+    :return: Dispatcher-compatible descriptor for the concrete Layer 2 tool.
+    """
+    contract = build_channel_sections_update_contract()
+    return {
+        "name": CHANNEL_SECTIONS_UPDATE_TOOL_NAME,
+        "description": CHANNEL_SECTIONS_UPDATE_DESCRIPTION,
+        "metadata": contract.to_tool_metadata(),
+        "inputSchema": CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA,
+        "handler": build_channel_sections_update_handler(
+            wrapper=wrapper,
+            executor=executor,
+            oauth_token=oauth_token,
+        ),
+    }
+
+
 __all__ = [
     "CHANNEL_SECTIONS_INSERT_CAVEATS",
     "CHANNEL_SECTIONS_INSERT_CALLER_EXAMPLES",
@@ -1197,16 +1877,30 @@ __all__ = [
     "CHANNEL_SECTIONS_LIST_SELECTORS",
     "CHANNEL_SECTIONS_LIST_TOOL_NAME",
     "CHANNEL_SECTIONS_LIST_USAGE_NOTES",
+    "CHANNEL_SECTIONS_UPDATE_CAVEATS",
+    "CHANNEL_SECTIONS_UPDATE_CALLER_EXAMPLES",
+    "CHANNEL_SECTIONS_UPDATE_DESCRIPTION",
+    "CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA",
+    "CHANNEL_SECTIONS_UPDATE_QUOTA_COST",
+    "CHANNEL_SECTIONS_UPDATE_SUPPORTED_PARTS",
+    "CHANNEL_SECTIONS_UPDATE_TOOL_NAME",
+    "CHANNEL_SECTIONS_UPDATE_USAGE_NOTES",
     "ChannelSectionsInsertToolError",
     "ChannelSectionsListToolError",
+    "ChannelSectionsUpdateToolError",
     "build_channel_sections_insert_contract",
     "build_channel_sections_insert_handler",
     "build_channel_sections_insert_tool_descriptor",
     "build_channel_sections_list_contract",
     "build_channel_sections_list_handler",
     "build_channel_sections_list_tool_descriptor",
+    "build_channel_sections_update_contract",
+    "build_channel_sections_update_handler",
+    "build_channel_sections_update_tool_descriptor",
     "map_channel_sections_insert_result",
     "map_channel_sections_list_result",
+    "map_channel_sections_update_result",
     "validate_channel_sections_insert_arguments",
     "validate_channel_sections_list_arguments",
+    "validate_channel_sections_update_arguments",
 ]
