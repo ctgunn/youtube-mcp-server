@@ -16,6 +16,7 @@ from mcp_server.tools.youtube_common import (
     build_channel_banners_insert_tool_descriptor,
     build_channel_sections_insert_tool_descriptor,
     build_channel_sections_list_tool_descriptor,
+    build_channel_sections_update_tool_descriptor,
     build_channels_list_tool_descriptor,
     build_channels_update_tool_descriptor,
 )
@@ -199,6 +200,7 @@ class InMemoryToolDispatcher:
             build_channel_banners_insert_tool_descriptor(),
             build_channel_sections_insert_tool_descriptor(),
             build_channel_sections_list_tool_descriptor(),
+            build_channel_sections_update_tool_descriptor(),
             build_channels_list_tool_descriptor(),
             build_channels_update_tool_descriptor(),
         ]

@@ -6,14 +6,19 @@ from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.youtube_common.channel_sections import (
     CHANNEL_SECTIONS_INSERT_INPUT_SCHEMA,
     CHANNEL_SECTIONS_LIST_INPUT_SCHEMA,
+    CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA,
     ChannelSectionsInsertToolError,
     ChannelSectionsListToolError,
+    ChannelSectionsUpdateToolError,
     build_channel_sections_insert_tool_descriptor,
     build_channel_sections_list_tool_descriptor,
+    build_channel_sections_update_tool_descriptor,
     map_channel_sections_insert_result,
     map_channel_sections_list_result,
+    map_channel_sections_update_result,
     validate_channel_sections_insert_arguments,
     validate_channel_sections_list_arguments,
+    validate_channel_sections_update_arguments,
 )
 
 
@@ -524,6 +529,315 @@ def test_channel_sections_insert_handler_maps_upstream_errors_safely(
                 "part": "snippet",
                 "body": {
                     "snippet": {"type": "singlePlaylist", "channelId": "UC123"},
+                    "contentDetails": {"playlists": ["PL123"]},
+                },
+            }
+        )
+
+    error_text = f"{exc_info.value} {exc_info.value.details}"
+    assert exc_info.value.category == safe_category
+    assert exc_info.value.details == {"upstreamStatus": upstream_status}
+    assert "oauth-token" not in error_text
+    assert "cms-account" not in error_text
+    assert "UC-secret" not in error_text
+    assert "Traceback" not in error_text
+
+
+def test_channel_sections_update_schema_preserves_parts_body_id_and_partner_context():
+    """Expose upstream-like request fields for ``channelSections_update``."""
+    properties = CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA["properties"]
+
+    assert CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA["required"] == ["part", "body"]
+    assert {"part", "body", "onBehalfOfContentOwner"}.issubset(properties)
+    assert "onBehalfOfContentOwnerChannel" not in properties
+    assert CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA["additionalProperties"] is False
+    assert CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA["properties"]["body"]["required"] == ["id", "snippet"]
+
+
+def test_map_channel_sections_update_result_preserves_updated_resource_parts_and_partner_flags():
+    """Preserve near-raw updated channel-section fields in the mapped result."""
+    upstream_item = {
+        "kind": "youtube#channelSection",
+        "etag": "etag-123",
+        "id": "section-123",
+        "snippet": {"type": "multiplePlaylists", "title": "Featured"},
+        "contentDetails": {"playlists": ["PL1", "PL2"]},
+    }
+
+    result = map_channel_sections_update_result(
+        upstream_item,
+        {
+            "part": "snippet, contentDetails",
+            "body": {"id": "section-123", "snippet": {"type": "multiplePlaylists"}},
+            "onBehalfOfContentOwner": "cms-secret-owner",
+        },
+    )
+
+    assert result["endpoint"] == "channelSections.update"
+    assert result["quotaCost"] == 50
+    assert result["updated"] is True
+    assert result["requestedParts"] == ["snippet", "contentDetails"]
+    assert result["item"] == upstream_item
+    assert result["partnerContext"] == {"onBehalfOfContentOwner": True}
+    assert "cms-secret-owner" not in str(result)
+
+
+def test_channel_sections_update_handler_invokes_wrapper_with_oauth_context():
+    """Call the injected Layer 1 update wrapper through the concrete handler."""
+    calls = []
+
+    class FakeWrapper:
+        """Capture Layer 1 wrapper calls made by the Layer 2 update handler."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one fake update call and return an updated resource.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :return: Upstream-shaped updated channel-section resource.
+            """
+            calls.append((executor, arguments, auth_context.mode.value, bool(auth_context.credentials.oauth_token)))
+            return {"kind": "youtube#channelSection", "id": arguments["body"]["id"]}
+
+    descriptor = build_channel_sections_update_tool_descriptor(
+        wrapper=FakeWrapper(),
+        executor=object(),
+        oauth_token="oauth-token",
+    )
+
+    arguments = {
+        "part": "snippet,contentDetails",
+        "body": {
+            "id": "section-123",
+            "snippet": {"type": "singlePlaylist"},
+            "contentDetails": {"playlists": ["PL123"]},
+        },
+    }
+    result = descriptor["handler"](arguments)
+
+    assert result["item"] == {"kind": "youtube#channelSection", "id": "section-123"}
+    assert calls == [(calls[0][0], arguments, "oauth_required", True)]
+
+
+def test_validate_channel_sections_update_requires_oauth():
+    """Reject channel-section updates when OAuth authorization is unavailable."""
+    with pytest.raises(ChannelSectionsUpdateToolError) as exc_info:
+        validate_channel_sections_update_arguments(
+            {"part": "snippet", "body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}}},
+            oauth_token=None,
+        )
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"field": "auth"}
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({"body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}}}, "part"),
+        (
+            {
+                "part": "snippet,status",
+                "body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}},
+            },
+            "part",
+        ),
+        ({"part": "snippet"}, "body"),
+        ({"part": "snippet", "body": "not-an-object"}, "body"),
+        ({"part": "snippet", "body": {"snippet": {"type": "singlePlaylist"}}}, "body.id"),
+        ({"part": "snippet", "body": {"id": "", "snippet": {"type": "singlePlaylist"}}}, "body.id"),
+        ({"part": "snippet", "body": {"id": "section-123", "contentDetails": {"playlists": ["PL123"]}}}, "body.snippet"),
+        ({"part": "snippet", "body": {"id": "section-123", "snippet": {}}}, "body.snippet.type"),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}, "status": {}},
+            },
+            "body.status",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "section-123", "snippet": {"type": "singlePlaylist", "description": "Nope"}},
+            },
+            "body.snippet.description",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}},
+                "playlistItems": {"list": True},
+            },
+            "playlistItems",
+        ),
+    ],
+)
+def test_validate_channel_sections_update_rejects_invalid_body_and_part_arguments(arguments, field):
+    """Reject malformed ``channelSections_update`` requests before Layer 1 execution."""
+    with pytest.raises(ChannelSectionsUpdateToolError) as exc_info:
+        validate_channel_sections_update_arguments(arguments, oauth_token="oauth-token")
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        (
+            {
+                "part": "contentDetails",
+                "body": {
+                    "id": "section-123",
+                    "snippet": {"type": "singlePlaylist"},
+                    "contentDetails": {"playlists": []},
+                },
+            },
+            "body.contentDetails.playlists",
+        ),
+        (
+            {
+                "part": "contentDetails",
+                "body": {
+                    "id": "section-123",
+                    "snippet": {"type": "singlePlaylist"},
+                    "contentDetails": {"playlists": ["PL1", "PL2"]},
+                },
+            },
+            "body.contentDetails.playlists",
+        ),
+        (
+            {
+                "part": "contentDetails",
+                "body": {
+                    "id": "section-123",
+                    "snippet": {"type": "multiplePlaylists"},
+                    "contentDetails": {"playlists": ["PL1"]},
+                },
+            },
+            "body.snippet.title",
+        ),
+        (
+            {
+                "part": "contentDetails",
+                "body": {
+                    "id": "section-123",
+                    "snippet": {"type": "multipleChannels", "title": "Related"},
+                    "contentDetails": {"playlists": ["PL1"]},
+                },
+            },
+            "body.contentDetails.playlists",
+        ),
+        (
+            {
+                "part": "contentDetails",
+                "body": {
+                    "id": "section-123",
+                    "snippet": {"type": "multipleChannels", "title": "Related"},
+                    "contentDetails": {"channels": ["UC1", "UC1"]},
+                },
+            },
+            "body.contentDetails.channels",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "section-123", "snippet": {"type": "multipleChannels", "title": "Related"}},
+            },
+            "body.contentDetails.channels",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "section-123", "snippet": {"type": "singlePlaylist", "position": -1}},
+            },
+            "body.snippet.position",
+        ),
+        (
+            {
+                "part": "contentDetails",
+                "body": {
+                    "id": "section-123",
+                    "snippet": {"type": "multipleChannels", "title": "Related"},
+                    "contentDetails": {"channels": [f"UC{i}" for i in range(51)]},
+                },
+            },
+            "body.contentDetails.channels",
+        ),
+    ],
+)
+def test_validate_channel_sections_update_rejects_invalid_content_rules(arguments, field):
+    """Reject update content mismatches, duplicates, and risky overwrite shapes."""
+    with pytest.raises(ChannelSectionsUpdateToolError) as exc_info:
+        validate_channel_sections_update_arguments(arguments, oauth_token="oauth-token")
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+
+
+def test_validate_channel_sections_update_rejects_invalid_partner_context():
+    """Reject malformed partner context without leaking identifiers."""
+    with pytest.raises(ChannelSectionsUpdateToolError) as exc_info:
+        validate_channel_sections_update_arguments(
+            {
+                "part": "snippet",
+                "onBehalfOfContentOwner": "",
+                "body": {"id": "section-123", "snippet": {"type": "singlePlaylist"}},
+            },
+            oauth_token="oauth-token",
+        )
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details == {"field": "onBehalfOfContentOwner", "partnerScoped": True}
+
+
+@pytest.mark.parametrize(
+    ("upstream_category", "upstream_status", "safe_category"),
+    [
+        ("auth", 403, "authorization_failed"),
+        ("not_found", 404, "resource_not_found"),
+        ("rate_limit", 429, "quota_exhausted"),
+        ("transient", 503, "endpoint_unavailable"),
+        ("upstream_service", 500, "upstream_failure"),
+        ("validation", 400, "invalid_request"),
+    ],
+)
+def test_channel_sections_update_handler_maps_upstream_errors_safely(
+    upstream_category,
+    upstream_status,
+    safe_category,
+):
+    """Map update failures to safe public categories without leaking secrets."""
+
+    class FakeWrapper:
+        """Raise one normalized upstream error for update mapping tests."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise a normalized upstream error containing unsafe text.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError(
+                message="private channel oauth-token cms-account UC-secret Traceback (most recent call last)",
+                category=upstream_category,
+                retryable=False,
+                upstream_status=upstream_status,
+                details={"token": "oauth-token", "owner": "cms-account", "channel": "UC-secret"},
+            )
+
+    descriptor = build_channel_sections_update_tool_descriptor(wrapper=FakeWrapper(), executor=object())
+
+    with pytest.raises(ChannelSectionsUpdateToolError) as exc_info:
+        descriptor["handler"](
+            {
+                "part": "snippet",
+                "body": {
+                    "id": "section-123",
+                    "snippet": {"type": "singlePlaylist"},
                     "contentDetails": {"playlists": ["PL123"]},
                 },
             }

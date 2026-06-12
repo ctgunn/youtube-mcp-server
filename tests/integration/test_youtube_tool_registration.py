@@ -210,6 +210,36 @@ def test_default_registry_includes_executable_channel_sections_insert_tool_with_
     assert "channels.update" in metadata_text
 
 
+def test_default_registry_includes_executable_channel_sections_update_tool_with_update_metadata():
+    """Register ``channelSections_update`` by default with update metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channelSections_update" in listed
+    metadata = listed["channelSections_update"]["metadata"]
+    description = listed["channelSections_update"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "channelSections.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert metadata["inputContract"]["properties"]["part"]["enum"] == ["contentDetails", "id", "snippet"]
+    assert metadata["inputContract"]["properties"]["body"]["required"] == ["id", "snippet"]
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert metadata["responseConvention"]["supportedWritableParts"] == ["contentDetails", "id", "snippet"]
+    assert metadata["responseConvention"]["overwriteSensitive"] is True
+    assert "body.id" in metadata_text
+    assert "snippet.type" in metadata_text
+    assert "singlePlaylist" in metadata_text
+    assert "multiplePlaylists" in metadata_text
+    assert "multipleChannels" in metadata_text
+    assert "omitted" in metadata_text.lower()
+    assert "deleted" in metadata_text.lower()
+    assert "patch" in metadata_text.lower()
+
+
 def test_default_registry_includes_executable_channels_update_tool_with_update_metadata():
     """Register ``channels_update`` by default with writable update metadata."""
     dispatcher = InMemoryToolDispatcher()
