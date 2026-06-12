@@ -12,6 +12,7 @@ def test_representative_examples_include_required_us1_shapes():
         "captions_insert",
         "captions_update",
         "channelBanners_insert",
+        "channelSections_insert",
         "channelSections_list",
         "channels_update",
         "playlists_insert",
@@ -202,6 +203,31 @@ def test_representative_channel_sections_list_example_aligns_with_concrete_contr
         "contentOwnerPartnerScoped",
         "paginationCompatibilityOnly",
     ]
+
+
+def test_representative_channel_sections_insert_example_aligns_with_concrete_contract():
+    """Keep the representative channel-section insert example aligned with YT-213."""
+    from mcp_server.tools.youtube_common.channel_sections import build_channel_sections_insert_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "channelSections_insert"
+    ]
+    concrete = build_channel_sections_insert_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == concrete.quota_cost
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.input_contract["properties"]["part"]["enum"] == ["contentDetails", "id", "snippet"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert representative.response_convention["supportedWritableParts"] == ["contentDetails", "id", "snippet"]
+    assert "snippet.type" in metadata_text
+    assert "maximum" in metadata_text.lower()
 
 
 def test_representative_channels_update_example_aligns_with_concrete_contract():

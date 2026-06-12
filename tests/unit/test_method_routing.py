@@ -170,6 +170,27 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertEqual(response["error"]["data"]["toolName"], "channelSections_list")
         self.assertNotIn("public-channel-section-access", str(response["error"]))
 
+    def test_channel_sections_insert_tools_call_invalid_request_returns_safe_error(self):
+        """Return a safe error for an invalid channelSections_insert body."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "req-channel-sections-insert-invalid",
+            "method": "tools/call",
+            "params": {
+                "name": "channelSections_insert",
+                "arguments": {
+                    "part": "snippet",
+                    "body": {"snippet": {"channelId": "UC-secret"}},
+                },
+            },
+        }
+        response = route_mcp_request(payload, self.dispatcher)
+        self.assertEqual(response["jsonrpc"], "2.0")
+        self.assertEqual(response["error"]["data"]["category"], "invalid_request")
+        self.assertEqual(response["error"]["data"]["toolName"], "channelSections_insert")
+        self.assertNotIn("authorized-channel-section-write", str(response["error"]))
+        self.assertNotIn("UC-secret", str(response["error"]))
+
     def test_captions_list_tools_call_success_returns_structured_result(self):
         """Return structured content for a valid captions_list call."""
         payload = {
