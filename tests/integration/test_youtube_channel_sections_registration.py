@@ -89,3 +89,30 @@ def test_default_registry_executes_channel_sections_update_result():
     assert result["item"]["id"] == "section-123"
     assert result["item"]["snippet"] == body["snippet"]
     assert result["item"]["contentDetails"] == body["contentDetails"]
+
+
+def test_default_registry_includes_executable_channel_sections_delete_tool():
+    """Register ``channelSections_delete`` by default with safe metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channelSections_delete" in listed
+    metadata = listed["channelSections_delete"]["metadata"]
+    assert metadata["upstream"]["operationKey"] == "channelSections.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+
+
+def test_default_registry_executes_channel_sections_delete_acknowledgment():
+    """Invoke the default ``channelSections_delete`` handler through the dispatcher."""
+    dispatcher = InMemoryToolDispatcher()
+
+    result = dispatcher.call_tool("channelSections_delete", {"id": "section-123"})
+
+    assert result["endpoint"] == "channelSections.delete"
+    assert result["quotaCost"] == 50
+    assert result["deleted"] is True
+    assert result["delete"] == {"id": "section-123"}
+    assert result["bodyPolicy"] == "no_upstream_body"
+    assert "item" not in result

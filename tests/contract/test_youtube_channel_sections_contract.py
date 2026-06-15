@@ -6,15 +6,20 @@ from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools import youtube_common
 from mcp_server.tools.youtube_common import AuthMode, AvailabilityState
 from mcp_server.tools.youtube_common.channel_sections import (
+    CHANNEL_SECTIONS_DELETE_CALLER_EXAMPLES,
+    CHANNEL_SECTIONS_DELETE_TOOL_NAME,
     CHANNEL_SECTIONS_INSERT_CALLER_EXAMPLES,
     CHANNEL_SECTIONS_INSERT_TOOL_NAME,
     CHANNEL_SECTIONS_LIST_CALLER_EXAMPLES,
     CHANNEL_SECTIONS_LIST_TOOL_NAME,
     CHANNEL_SECTIONS_UPDATE_CALLER_EXAMPLES,
     CHANNEL_SECTIONS_UPDATE_TOOL_NAME,
+    ChannelSectionsDeleteToolError,
     ChannelSectionsInsertToolError,
     ChannelSectionsListToolError,
     ChannelSectionsUpdateToolError,
+    build_channel_sections_delete_contract,
+    build_channel_sections_delete_tool_descriptor,
     build_channel_sections_insert_contract,
     build_channel_sections_insert_tool_descriptor,
     build_channel_sections_list_contract,
@@ -482,4 +487,165 @@ def test_channel_sections_update_contract_errors_do_not_leak_sensitive_context()
     assert "cms-account" not in error_text
     assert "UC-secret" not in error_text
     assert "Traceback" not in error_text
+    assert "private channel" not in error_text
+
+
+def test_channel_sections_delete_contract_exposes_identity_oauth_schema_and_boundary():
+    """Expose public metadata required before deleting channel sections."""
+    contract = build_channel_sections_delete_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.tool_name == CHANNEL_SECTIONS_DELETE_TOOL_NAME
+    assert contract.upstream_resource == "channelSections"
+    assert contract.upstream_method == "delete"
+    assert contract.quota_cost == 50
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["upstream"]["operationKey"] == "channelSections.delete"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert {"id", "onBehalfOfContentOwner"}.issubset(metadata["inputContract"]["properties"])
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["targetField"] == "id"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert "upstream" in metadata["responseBoundary"]["allowedWrapperFields"]
+
+
+def test_channel_sections_delete_descriptor_returns_no_body_acknowledgment_shape():
+    """Build an executable delete descriptor that acknowledges no-body success."""
+    descriptor = build_channel_sections_delete_tool_descriptor()
+
+    result = descriptor["handler"]({"id": "section-123"})
+
+    assert descriptor["name"] == "channelSections_delete"
+    assert "Quota cost: 50" in descriptor["description"]
+    assert descriptor["metadata"]["authMode"] == "oauth_required"
+    assert result["endpoint"] == "channelSections.delete"
+    assert result["quotaCost"] == 50
+    assert result["deleted"] is True
+    assert result["delete"] == {"id": "section-123"}
+    assert result["bodyPolicy"] == "no_upstream_body"
+    assert "item" not in result
+    assert "snippet" not in result
+
+
+def test_channel_sections_delete_descriptor_preserves_returned_upstream_body():
+    """Preserve returned upstream channel-section fields without fabricating them."""
+
+    class FakeWrapper:
+        """Return an upstream-shaped channel-section body for a delete request."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record the delete call surface and return an upstream body.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :return: Upstream-shaped channel-section resource returned by deletion.
+            """
+            return {"kind": "youtube#channelSection", "etag": "etag-123", "id": arguments["id"]}
+
+    descriptor = build_channel_sections_delete_tool_descriptor(wrapper=FakeWrapper(), executor=object())
+
+    result = descriptor["handler"]({"id": "section-123"})
+
+    assert result["deleted"] is True
+    assert result["delete"] == {"id": "section-123"}
+    assert result["upstream"] == {"kind": "youtube#channelSection", "etag": "etag-123", "id": "section-123"}
+    assert "bodyPolicy" not in result
+
+
+def test_channel_sections_delete_descriptor_requires_oauth_for_execution():
+    """Keep deletion behind OAuth-required authorization."""
+    descriptor = build_channel_sections_delete_tool_descriptor(oauth_token=None)
+
+    with pytest.raises(ChannelSectionsDeleteToolError) as exc_info:
+        descriptor["handler"]({"id": "section-123"})
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"field": "auth"}
+
+
+def test_channel_sections_delete_metadata_documents_cost_oauth_deletion_and_boundaries():
+    """Expose caller-facing metadata needed before ``channelSections_delete`` calls."""
+    descriptor = build_channel_sections_delete_tool_descriptor()
+    metadata = descriptor["metadata"]
+    metadata_text = " ".join([descriptor["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "onBehalfOfContentOwner" in metadata["inputContract"]["properties"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["mutation"] == "destructive_delete"
+    assert metadata["responseConvention"]["bodyPolicy"] == "preserve_returned_body_or_acknowledge_no_body"
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "id" in metadata_text
+    assert "destructive" in metadata_text.lower()
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "no request body" in metadata_text.lower()
+    assert "bulk" in metadata_text.lower()
+    assert "playlist" in metadata_text.lower()
+    assert "layout" in metadata_text.lower()
+
+
+def test_channel_sections_delete_caller_examples_cover_supported_and_rejected_paths():
+    """Document successful deletion, partner context, validation, and boundaries."""
+    examples = {example["name"]: example for example in CHANNEL_SECTIONS_DELETE_CALLER_EXAMPLES}
+
+    assert {
+        "authorized_delete",
+        "partner_context_delete",
+        "missing_id",
+        "invalid_id",
+        "unsupported_option",
+        "missing_target_section",
+        "missing_oauth",
+    }.issubset(examples)
+    assert examples["authorized_delete"]["arguments"]["id"] == "section-123"
+    assert examples["authorized_delete"]["result"]["quotaCost"] == 50
+    assert examples["partner_context_delete"]["result"]["partnerContext"] == {"onBehalfOfContentOwner": True}
+    assert examples["missing_id"]["error"]["category"] == "invalid_request"
+    assert examples["invalid_id"]["error"]["field"] == "id"
+    assert examples["unsupported_option"]["error"]["field"] == "body"
+    assert examples["missing_target_section"]["error"]["category"] == "resource_not_found"
+    assert examples["missing_oauth"]["error"]["category"] == "authentication_failed"
+
+
+def test_channel_sections_delete_contract_errors_do_not_leak_sensitive_context():
+    """Keep public delete errors free of credentials, stack traces, and owner data."""
+
+    class FailingWrapper:
+        """Raise an upstream error with intentionally unsafe details."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise the unsafe upstream error.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :raises NormalizedUpstreamError: Always raised for this contract check.
+            """
+            raise NormalizedUpstreamError(
+                message="private channel oauth-token cms-account UC-secret Traceback (most recent call last)",
+                category="auth",
+                retryable=False,
+                upstream_status=403,
+                details={"apiKey": "secret", "oauthToken": "oauth-token", "owner": "cms-account"},
+            )
+
+    descriptor = build_channel_sections_delete_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(ChannelSectionsDeleteToolError) as exc_info:
+        descriptor["handler"]({"id": "section-123", "onBehalfOfContentOwner": "cms-account"})
+
+    error_text = f"{exc_info.value} {exc_info.value.details}"
+    assert exc_info.value.category == "authorization_failed"
+    assert "oauth-token" not in error_text
+    assert "cms-account" not in error_text
+    assert "UC-secret" not in error_text
+    assert "Traceback" not in error_text
+    assert "apiKey" not in error_text
     assert "private channel" not in error_text

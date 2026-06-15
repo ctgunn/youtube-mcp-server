@@ -9,6 +9,7 @@ from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.channel_sections import (
+    build_channel_sections_delete_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
@@ -32,6 +33,93 @@ CHANNEL_SECTIONS_UPDATE_PLAYLIST_TYPES = CHANNEL_SECTIONS_INSERT_PLAYLIST_TYPES
 CHANNEL_SECTIONS_UPDATE_CHANNEL_TYPES = CHANNEL_SECTIONS_INSERT_CHANNEL_TYPES
 CHANNEL_SECTIONS_UPDATE_TITLE_REQUIRED_TYPES = CHANNEL_SECTIONS_INSERT_TITLE_REQUIRED_TYPES
 CHANNEL_SECTIONS_UPDATE_MAX_REFERENCES = CHANNEL_SECTIONS_INSERT_MAX_REFERENCES
+CHANNEL_SECTIONS_DELETE_TOOL_NAME = "channelSections_delete"
+CHANNEL_SECTIONS_DELETE_QUOTA_COST = 50
+
+CHANNEL_SECTIONS_DELETE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["id"],
+    "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+CHANNEL_SECTIONS_DELETE_DESCRIPTION = (
+    "Delete a YouTube channel section. Endpoint: channelSections.delete. "
+    "Quota cost: 50. Auth: oauth_required. Requires id."
+)
+CHANNEL_SECTIONS_DELETE_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide exactly one channel-section id.",
+    "Quota cost: 50. This is a destructive delete operation that removes the target channel section.",
+    "Quota cost: 50. onBehalfOfContentOwner is partner-only delegated context and requires eligible OAuth authorization.",
+    "Quota cost: 50. Do not provide a request body; channelSections.delete accepts query parameters only.",
+    "Quota cost: 50. Successful deletion may return an upstream channelSection body or a no request body acknowledgment depending on transport behavior.",
+    "Quota cost: 50. This tool does not perform bulk deletion, section lookup, section sorting, layout repair, playlist deletion, playlist cleanup, undo, recovery, enrichment, or recommendation workflows.",
+)
+CHANNEL_SECTIONS_DELETE_CAVEATS = (
+    "Channel-section deletion requires eligible OAuth authorization for channel layout operations.",
+    "This destructive operation removes the target section and does not provide undo or recovery behavior.",
+    "Partner delegated deletion uses onBehalfOfContentOwner and never exposes owner identifiers in public results or errors.",
+    "Missing, already deleted, or inaccessible target sections are surfaced through shared missing-resource or authorization errors.",
+    "This low-level tool does not look up, create, update, sort, repair, bulk delete, clean up playlists, enrich, or recommend channel sections.",
+)
+CHANNEL_SECTIONS_DELETE_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_delete",
+        "arguments": {"id": "section-123"},
+        "result": {
+            "endpoint": "channelSections.delete",
+            "quotaCost": 50,
+            "deleted": True,
+            "delete": {"id": "section-123"},
+            "bodyPolicy": "no_upstream_body",
+        },
+        "notes": "Quota cost: 50. Deletes one channel section with eligible OAuth authorization.",
+    },
+    {
+        "name": "partner_context_delete",
+        "arguments": {"id": "section-123", "onBehalfOfContentOwner": "content-owner-id"},
+        "result": {
+            "endpoint": "channelSections.delete",
+            "quotaCost": 50,
+            "deleted": True,
+            "partnerContext": {"onBehalfOfContentOwner": True},
+        },
+        "notes": "Quota cost: 50. Partner deletion requires eligible OAuth authorization.",
+    },
+    {
+        "name": "missing_id",
+        "arguments": {},
+        "error": {"category": "invalid_request", "field": "id"},
+        "notes": "Quota cost: 50. The channel-section id is required before deletion.",
+    },
+    {
+        "name": "invalid_id",
+        "arguments": {"id": ""},
+        "error": {"category": "invalid_request", "field": "id"},
+        "notes": "Quota cost: 50. Empty or malformed channel-section identifiers are rejected.",
+    },
+    {
+        "name": "unsupported_option",
+        "arguments": {"id": "section-123", "body": {"snippet": {"title": "No body allowed"}}},
+        "error": {"category": "invalid_request", "field": "body"},
+        "notes": "Quota cost: 50. Request bodies, bulk deletion, recovery, and layout repair options are unsupported.",
+    },
+    {
+        "name": "missing_target_section",
+        "arguments": {"id": "missing-section"},
+        "error": {"category": "resource_not_found", "reason": "channelSectionNotFound"},
+        "notes": "Quota cost: 50. Repeated deletion or missing target failures preserve the shared missing-resource signal.",
+    },
+    {
+        "name": "missing_oauth",
+        "arguments": {"id": "section-123"},
+        "error": {"category": "authentication_failed", "field": "auth"},
+        "notes": "Quota cost: 50. Channel-section deletion requires eligible OAuth authorization.",
+    },
+)
 
 CHANNEL_SECTIONS_INSERT_INPUT_SCHEMA = {
     "type": "object",
@@ -559,6 +647,21 @@ class ChannelSectionsUpdateToolError(ValueError):
         self.details = details or {}
 
 
+class ChannelSectionsDeleteToolError(ValueError):
+    """Represent a safe caller-facing ``channelSections_delete`` failure."""
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the safe channel-sections-delete error.
+
+        :param message: Caller-facing error message.
+        :param category: Shared safe error category.
+        :param details: Safe diagnostic details for MCP error payloads.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = details or {}
+
+
 def _default_channel_sections_insert_transport(execution) -> dict[str, Any]:
     """Return a safe created channel-section resource for local execution.
 
@@ -587,6 +690,15 @@ def _default_channel_sections_update_transport(execution) -> dict[str, Any]:
     return _default_channel_sections_insert_transport(execution)
 
 
+def _default_channel_sections_delete_transport(_execution) -> dict[str, Any]:
+    """Return a safe no-body delete acknowledgment for local execution.
+
+    :param _execution: Layer 1 execution request, unused by the default transport.
+    :return: Empty upstream-shaped delete acknowledgment for ``channelSections_delete``.
+    """
+    return {}
+
+
 def _default_insert_executor() -> IntegrationExecutor:
     """Build the default Layer 1 executor used by ``channelSections_insert``.
 
@@ -605,6 +717,17 @@ def _default_update_executor() -> IntegrationExecutor:
     """
     return IntegrationExecutor(
         transport=_default_channel_sections_update_transport,
+        retry_policy=RetryPolicy(max_attempts=1),
+    )
+
+
+def _default_delete_executor() -> IntegrationExecutor:
+    """Build the default Layer 1 executor used by ``channelSections_delete``.
+
+    :return: Executor with a safe local transport for deletion acknowledgments.
+    """
+    return IntegrationExecutor(
+        transport=_default_channel_sections_delete_transport,
         retry_policy=RetryPolicy(max_attempts=1),
     )
 
@@ -790,6 +913,70 @@ def build_channel_sections_update_contract() -> YouTubeToolContract:
     )
 
 
+def build_channel_sections_delete_contract() -> YouTubeToolContract:
+    """Build the public contract metadata for ``channelSections_delete``.
+
+    :return: Validated Layer 2 tool contract for ``channelSections_delete``.
+    """
+    return YouTubeToolContract(
+        tool_name=CHANNEL_SECTIONS_DELETE_TOOL_NAME,
+        upstream_resource="channelSections",
+        upstream_method="delete",
+        operation_key="channelSections.delete",
+        description=CHANNEL_SECTIONS_DELETE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=CHANNEL_SECTIONS_DELETE_QUOTA_COST,
+        resource_family="channel_sections",
+        input_contract=CHANNEL_SECTIONS_DELETE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "deletion_acknowledgment",
+            "successStatus": "204_or_upstream_body",
+            "bodyPolicy": "preserve_returned_body_or_acknowledge_no_body",
+            "targetField": "id",
+            "mutation": "destructive_delete",
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=(
+                "endpoint",
+                "quotaCost",
+                "deleted",
+                "delete",
+                "partnerContext",
+                "bodyPolicy",
+                "upstream",
+            ),
+            preserved_upstream_fields=("kind", "etag", "id", "snippet", "contentDetails"),
+            disallowed_behavior=(
+                "channel_section_lookup",
+                "channel_section_creation",
+                "channel_section_update",
+                "bulk_delete",
+                "layout_repair",
+                "playlist_deletion",
+                "playlist_item_cleanup",
+                "undo",
+                "recovery",
+                "enrichment",
+                "cross_endpoint_aggregation",
+            ),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "deprecated_endpoint",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=CHANNEL_SECTIONS_DELETE_USAGE_NOTES,
+        caveats=CHANNEL_SECTIONS_DELETE_CAVEATS,
+    )
+
+
 def _active_selectors(arguments: dict[str, Any]) -> list[tuple[str, Any]]:
     """Return active channel-section selectors from one request.
 
@@ -921,6 +1108,40 @@ def map_channel_sections_update_result(response: dict[str, Any], arguments: dict
     return result
 
 
+def _safe_delete_partner_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return safe partner-context flags for one delete request.
+
+    :param arguments: Caller-supplied ``channelSections_delete`` arguments.
+    :return: Safe partner-context flags without owner identifiers.
+    """
+    if "onBehalfOfContentOwner" in arguments:
+        return {"onBehalfOfContentOwner": True}
+    return {}
+
+
+def map_channel_sections_delete_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map a Layer 1 channel-section delete response to the public result shape.
+
+    :param response: Upstream-shaped deletion response or no-body acknowledgment.
+    :param arguments: Original validated ``channelSections_delete`` arguments.
+    :return: Near-raw deletion acknowledgment with safe operation context.
+    """
+    result: dict[str, Any] = {
+        "endpoint": "channelSections.delete",
+        "quotaCost": CHANNEL_SECTIONS_DELETE_QUOTA_COST,
+        "deleted": True,
+        "delete": {"id": str(arguments.get("id", "")).strip()},
+    }
+    partner_context = _safe_delete_partner_context(arguments)
+    if partner_context:
+        result["partnerContext"] = partner_context
+    if response:
+        result["upstream"] = response
+    else:
+        result["bodyPolicy"] = "no_upstream_body"
+    return result
+
+
 def _raise_insert_invalid(message: str, field: str, **details: Any) -> None:
     """Raise a safe invalid-request error for ``channelSections_insert`` validation.
 
@@ -945,6 +1166,19 @@ def _raise_update_invalid(message: str, field: str, **details: Any) -> None:
     safe_details = {"field": field}
     safe_details.update(details)
     raise ChannelSectionsUpdateToolError(message, category="invalid_request", details=safe_details)
+
+
+def _raise_delete_invalid(message: str, field: str, **details: Any) -> None:
+    """Raise a safe invalid-request error for ``channelSections_delete`` validation.
+
+    :param message: Caller-facing validation message.
+    :param field: Request field that failed validation.
+    :param details: Additional safe diagnostic metadata.
+    :raises ChannelSectionsDeleteToolError: Always raised with a safe category.
+    """
+    safe_details = {"field": field}
+    safe_details.update(details)
+    raise ChannelSectionsDeleteToolError(message, category="invalid_request", details=safe_details)
 
 
 def _nonempty_text(value: Any) -> bool:
@@ -1473,6 +1707,95 @@ def _map_update_upstream_error(error: NormalizedUpstreamError) -> ChannelSection
     )
 
 
+def validate_channel_sections_delete_arguments(
+    arguments: dict[str, Any],
+    *,
+    oauth_token: str | None = None,
+) -> None:
+    """Validate foundational ``channelSections_delete`` arguments.
+
+    :param arguments: Caller-supplied tool arguments.
+    :param oauth_token: OAuth token availability for channel-section deletion.
+    :raises ChannelSectionsDeleteToolError: If required delete fields are invalid.
+    """
+    supported_fields = set(CHANNEL_SECTIONS_DELETE_INPUT_SCHEMA["properties"])
+    for field in arguments:
+        if field not in supported_fields:
+            raise ChannelSectionsDeleteToolError(
+                f"channelSections_delete does not support {field}.",
+                category="invalid_request",
+                details={"field": field},
+            )
+
+    if not oauth_token:
+        raise ChannelSectionsDeleteToolError(
+            "channelSections_delete requires eligible user authorization.",
+            category="authentication_failed",
+            details={"field": "auth"},
+        )
+    if not _nonempty_text(arguments.get("id")):
+        _raise_delete_invalid("channelSections_delete requires id.", "id")
+    if "onBehalfOfContentOwner" in arguments and not _nonempty_text(arguments["onBehalfOfContentOwner"]):
+        _raise_delete_invalid(
+            "channelSections_delete requires a non-empty onBehalfOfContentOwner.",
+            "onBehalfOfContentOwner",
+            partnerScoped=True,
+        )
+
+
+def _delete_auth_context(*, oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 auth context for ``channelSections_delete``.
+
+    :param oauth_token: OAuth token available for the destructive delete request.
+    :return: Auth context suitable for the Layer 1 delete wrapper.
+    :raises ChannelSectionsDeleteToolError: If OAuth credentials are unavailable.
+    """
+    if not oauth_token:
+        raise ChannelSectionsDeleteToolError(
+            "channelSections_delete requires eligible user authorization.",
+            category="authentication_failed",
+            details={"field": "auth"},
+        )
+    return AuthContext(mode=Layer1AuthMode.OAUTH_REQUIRED, credentials=CredentialBundle(oauth_token=oauth_token))
+
+
+def _map_delete_upstream_error(error: NormalizedUpstreamError) -> ChannelSectionsDeleteToolError:
+    """Map a normalized upstream delete error to the public Layer 2 error model.
+
+    :param error: Normalized upstream failure raised by Layer 1 execution.
+    :return: Safe ``channelSections_delete`` error.
+    """
+    categories = {
+        "auth": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "not_found": "resource_not_found",
+        "rate_limit": "quota_exhausted",
+        "rate_limited": "quota_exhausted",
+        "transient": "endpoint_unavailable",
+        "upstream_unavailable": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+        "deprecated_endpoint": "deprecated_endpoint",
+        "upstream_service": "upstream_failure",
+        "invalid_request": "invalid_request",
+        "validation": "invalid_request",
+    }
+    messages = {
+        "invalid_request": "channelSections_delete request was rejected by the upstream endpoint.",
+        "authorization_failed": "channelSections_delete was not authorized by the upstream endpoint.",
+        "quota_exhausted": "channelSections_delete quota was exhausted by the upstream endpoint.",
+        "resource_not_found": "channelSections_delete target was not found by the upstream endpoint.",
+        "deprecated_endpoint": "channelSections_delete upstream endpoint is deprecated.",
+        "endpoint_unavailable": "channelSections_delete upstream endpoint is temporarily unavailable.",
+        "upstream_failure": "channelSections_delete upstream execution failed.",
+    }
+    category = categories.get(error.category, "upstream_failure")
+    return ChannelSectionsDeleteToolError(
+        messages[category],
+        category=category,
+        details={"upstreamStatus": error.upstream_status} if error.upstream_status else {},
+    )
+
+
 def validate_channel_sections_list_arguments(
     arguments: dict[str, Any],
     *,
@@ -1860,7 +2183,89 @@ def build_channel_sections_update_tool_descriptor(
     }
 
 
+def build_channel_sections_delete_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-channel-section-write",
+):
+    """Build the concrete ``channelSections_delete`` handler.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for destructive delete requests.
+    :return: Callable dispatcher handler.
+    """
+    channel_sections_wrapper = wrapper or build_channel_sections_delete_wrapper()
+    channel_sections_executor = executor or _default_delete_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one ``channelSections_delete`` request.
+
+        :param arguments: Validated dispatcher arguments.
+        :return: Public Layer 2 deletion acknowledgment result.
+        :raises ChannelSectionsDeleteToolError: If validation, authorization, or upstream execution fails.
+        """
+        validate_channel_sections_delete_arguments(arguments, oauth_token=oauth_token)
+        auth_context = _delete_auth_context(oauth_token=oauth_token)
+        try:
+            response = channel_sections_wrapper.call(
+                channel_sections_executor,
+                arguments=arguments,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as error:
+            raise _map_delete_upstream_error(error) from error
+        except ValueError as error:
+            raise ChannelSectionsDeleteToolError(
+                str(error),
+                category="invalid_request",
+            ) from error
+        except Exception as error:
+            raise ChannelSectionsDeleteToolError(
+                "channelSections_delete upstream execution failed.",
+                category="upstream_failure",
+            ) from error
+        return map_channel_sections_delete_result(response, arguments)
+
+    return handler
+
+
+def build_channel_sections_delete_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-channel-section-write",
+) -> dict[str, Any]:
+    """Build the dispatcher descriptor for the ``channelSections_delete`` tool.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for destructive delete requests.
+    :return: Dispatcher-compatible descriptor for the concrete Layer 2 tool.
+    """
+    contract = build_channel_sections_delete_contract()
+    return {
+        "name": CHANNEL_SECTIONS_DELETE_TOOL_NAME,
+        "description": CHANNEL_SECTIONS_DELETE_DESCRIPTION,
+        "metadata": contract.to_tool_metadata(),
+        "inputSchema": CHANNEL_SECTIONS_DELETE_INPUT_SCHEMA,
+        "handler": build_channel_sections_delete_handler(
+            wrapper=wrapper,
+            executor=executor,
+            oauth_token=oauth_token,
+        ),
+    }
+
+
 __all__ = [
+    "CHANNEL_SECTIONS_DELETE_CAVEATS",
+    "CHANNEL_SECTIONS_DELETE_CALLER_EXAMPLES",
+    "CHANNEL_SECTIONS_DELETE_DESCRIPTION",
+    "CHANNEL_SECTIONS_DELETE_INPUT_SCHEMA",
+    "CHANNEL_SECTIONS_DELETE_QUOTA_COST",
+    "CHANNEL_SECTIONS_DELETE_TOOL_NAME",
+    "CHANNEL_SECTIONS_DELETE_USAGE_NOTES",
     "CHANNEL_SECTIONS_INSERT_CAVEATS",
     "CHANNEL_SECTIONS_INSERT_CALLER_EXAMPLES",
     "CHANNEL_SECTIONS_INSERT_DESCRIPTION",
@@ -1885,9 +2290,13 @@ __all__ = [
     "CHANNEL_SECTIONS_UPDATE_SUPPORTED_PARTS",
     "CHANNEL_SECTIONS_UPDATE_TOOL_NAME",
     "CHANNEL_SECTIONS_UPDATE_USAGE_NOTES",
+    "ChannelSectionsDeleteToolError",
     "ChannelSectionsInsertToolError",
     "ChannelSectionsListToolError",
     "ChannelSectionsUpdateToolError",
+    "build_channel_sections_delete_contract",
+    "build_channel_sections_delete_handler",
+    "build_channel_sections_delete_tool_descriptor",
     "build_channel_sections_insert_contract",
     "build_channel_sections_insert_handler",
     "build_channel_sections_insert_tool_descriptor",
@@ -1897,9 +2306,11 @@ __all__ = [
     "build_channel_sections_update_contract",
     "build_channel_sections_update_handler",
     "build_channel_sections_update_tool_descriptor",
+    "map_channel_sections_delete_result",
     "map_channel_sections_insert_result",
     "map_channel_sections_list_result",
     "map_channel_sections_update_result",
+    "validate_channel_sections_delete_arguments",
     "validate_channel_sections_insert_arguments",
     "validate_channel_sections_list_arguments",
     "validate_channel_sections_update_arguments",

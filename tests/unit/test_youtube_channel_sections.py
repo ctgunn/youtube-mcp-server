@@ -4,18 +4,23 @@ import pytest
 
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.youtube_common.channel_sections import (
+    CHANNEL_SECTIONS_DELETE_INPUT_SCHEMA,
     CHANNEL_SECTIONS_INSERT_INPUT_SCHEMA,
     CHANNEL_SECTIONS_LIST_INPUT_SCHEMA,
     CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA,
+    ChannelSectionsDeleteToolError,
     ChannelSectionsInsertToolError,
     ChannelSectionsListToolError,
     ChannelSectionsUpdateToolError,
+    build_channel_sections_delete_tool_descriptor,
     build_channel_sections_insert_tool_descriptor,
     build_channel_sections_list_tool_descriptor,
     build_channel_sections_update_tool_descriptor,
+    map_channel_sections_delete_result,
     map_channel_sections_insert_result,
     map_channel_sections_list_result,
     map_channel_sections_update_result,
+    validate_channel_sections_delete_arguments,
     validate_channel_sections_insert_arguments,
     validate_channel_sections_list_arguments,
     validate_channel_sections_update_arguments,
@@ -29,6 +34,16 @@ def test_channel_sections_list_schema_preserves_parts_selectors_and_caveat_input
     assert CHANNEL_SECTIONS_LIST_INPUT_SCHEMA["required"] == ["part"]
     assert {"part", "channelId", "id", "mine", "hl", "onBehalfOfContentOwner"}.issubset(properties)
     assert CHANNEL_SECTIONS_LIST_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_channel_sections_delete_schema_preserves_id_and_partner_context():
+    """Expose upstream-like request fields for ``channelSections_delete``."""
+    properties = CHANNEL_SECTIONS_DELETE_INPUT_SCHEMA["properties"]
+
+    assert CHANNEL_SECTIONS_DELETE_INPUT_SCHEMA["required"] == ["id"]
+    assert {"id", "onBehalfOfContentOwner"}.issubset(properties)
+    assert "body" not in properties
+    assert CHANNEL_SECTIONS_DELETE_INPUT_SCHEMA["additionalProperties"] is False
 
 
 def test_map_channel_sections_list_result_preserves_items_parts_selector_and_caveats():
@@ -61,6 +76,38 @@ def test_map_channel_sections_list_result_preserves_empty_collection_success():
     assert result["items"] == []
     assert result["requestedParts"] == ["snippet"]
     assert result["selector"] == {"name": "id"}
+
+
+def test_map_channel_sections_delete_result_preserves_no_body_acknowledgment():
+    """Preserve safe delete context when upstream returns no resource body."""
+    result = map_channel_sections_delete_result({}, {"id": "section-123"})
+
+    assert result["endpoint"] == "channelSections.delete"
+    assert result["quotaCost"] == 50
+    assert result["deleted"] is True
+    assert result["delete"] == {"id": "section-123"}
+    assert result["bodyPolicy"] == "no_upstream_body"
+    assert "item" not in result
+    assert "snippet" not in result
+
+
+def test_map_channel_sections_delete_result_preserves_upstream_body_and_partner_flags():
+    """Preserve returned upstream body and safe partner flags for delete results."""
+    upstream = {"kind": "youtube#channelSection", "etag": "etag-123", "id": "section-123"}
+
+    result = map_channel_sections_delete_result(
+        upstream,
+        {"id": "section-123", "onBehalfOfContentOwner": "cms-secret-owner"},
+    )
+
+    assert result["endpoint"] == "channelSections.delete"
+    assert result["quotaCost"] == 50
+    assert result["deleted"] is True
+    assert result["delete"] == {"id": "section-123"}
+    assert result["upstream"] == upstream
+    assert result["partnerContext"] == {"onBehalfOfContentOwner": True}
+    assert "cms-secret-owner" not in str(result)
+    assert "bodyPolicy" not in result
 
 
 def test_channel_sections_list_handler_invokes_wrapper_for_public_request():
@@ -177,6 +224,34 @@ def test_channel_sections_list_handler_uses_oauth_for_owner_scoped_lookup():
     assert result["items"] == []
     assert result["selector"] == {"name": "mine"}
     assert calls == [({"part": "snippet", "mine": True}, "oauth_required", True)]
+
+
+def test_channel_sections_delete_handler_invokes_wrapper_for_authorized_request():
+    """Call the injected Layer 1 delete wrapper through the concrete handler."""
+    calls = []
+
+    class FakeWrapper:
+        """Capture Layer 1 wrapper calls made by the Layer 2 delete handler."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one fake delete call and return no-body success.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :return: Upstream-shaped no-body delete acknowledgment.
+            """
+            calls.append((executor, arguments, auth_context.mode.value, bool(auth_context.credentials.oauth_token)))
+            return {}
+
+    executor = object()
+    descriptor = build_channel_sections_delete_tool_descriptor(wrapper=FakeWrapper(), executor=executor)
+
+    result = descriptor["handler"]({"id": "section-123"})
+
+    assert result["endpoint"] == "channelSections.delete"
+    assert result["delete"] == {"id": "section-123"}
+    assert calls == [(executor, {"id": "section-123"}, "oauth_required", True)]
 
 
 @pytest.mark.parametrize(
@@ -842,6 +917,110 @@ def test_channel_sections_update_handler_maps_upstream_errors_safely(
                 },
             }
         )
+
+    error_text = f"{exc_info.value} {exc_info.value.details}"
+    assert exc_info.value.category == safe_category
+    assert exc_info.value.details == {"upstreamStatus": upstream_status}
+    assert "oauth-token" not in error_text
+    assert "cms-account" not in error_text
+    assert "UC-secret" not in error_text
+    assert "Traceback" not in error_text
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({}, "id"),
+        ({"id": ""}, "id"),
+        ({"id": "   "}, "id"),
+        ({"id": 123}, "id"),
+        ({"id": "section-123", "onBehalfOfContentOwner": ""}, "onBehalfOfContentOwner"),
+        ({"id": "section-123", "body": {}}, "body"),
+        ({"id": "section-123", "part": "snippet"}, "part"),
+        ({"id": "section-123", "ids": ["section-123"]}, "ids"),
+        ({"id": "section-123", "bulkDelete": True}, "bulkDelete"),
+        ({"id": "section-123", "cascade": True}, "cascade"),
+        ({"id": "section-123", "playlistCleanup": True}, "playlistCleanup"),
+        ({"id": "section-123", "recovery": True}, "recovery"),
+        ({"id": "section-123", "undo": True}, "undo"),
+        ({"id": "section-123", "layoutRepair": True}, "layoutRepair"),
+    ],
+)
+def test_validate_channel_sections_delete_rejects_invalid_arguments(arguments, field):
+    """Reject malformed ``channelSections_delete`` requests before Layer 1 execution."""
+    with pytest.raises(ChannelSectionsDeleteToolError) as exc_info:
+        validate_channel_sections_delete_arguments(arguments, oauth_token="oauth-token")
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+
+
+def test_validate_channel_sections_delete_rejects_missing_oauth():
+    """Reject deletion requests without eligible OAuth authorization."""
+    with pytest.raises(ChannelSectionsDeleteToolError) as exc_info:
+        validate_channel_sections_delete_arguments({"id": "section-123"}, oauth_token=None)
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"field": "auth"}
+
+
+def test_validate_channel_sections_delete_rejects_invalid_partner_context_safely():
+    """Reject malformed delete partner context without leaking identifiers."""
+    with pytest.raises(ChannelSectionsDeleteToolError) as exc_info:
+        validate_channel_sections_delete_arguments(
+            {"id": "section-123", "onBehalfOfContentOwner": ""},
+            oauth_token="oauth-token",
+        )
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details == {"field": "onBehalfOfContentOwner", "partnerScoped": True}
+
+
+@pytest.mark.parametrize(
+    ("upstream_category", "upstream_status", "safe_category"),
+    [
+        ("auth", 403, "authorization_failed"),
+        ("forbidden", 403, "authorization_failed"),
+        ("not_found", 404, "resource_not_found"),
+        ("rate_limit", 429, "quota_exhausted"),
+        ("rate_limited", 429, "quota_exhausted"),
+        ("transient", 503, "endpoint_unavailable"),
+        ("upstream_unavailable", 503, "endpoint_unavailable"),
+        ("deprecated", 410, "deprecated_endpoint"),
+        ("upstream_service", 500, "upstream_failure"),
+        ("validation", 400, "invalid_request"),
+    ],
+)
+def test_channel_sections_delete_handler_maps_upstream_errors_safely(
+    upstream_category,
+    upstream_status,
+    safe_category,
+):
+    """Map delete failures to safe public categories without leaking secrets."""
+
+    class FakeWrapper:
+        """Raise one normalized upstream error for delete mapping tests."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise a normalized upstream error containing unsafe text.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError(
+                message="private channel oauth-token cms-account UC-secret Traceback (most recent call last)",
+                category=upstream_category,
+                retryable=False,
+                upstream_status=upstream_status,
+                details={"token": "oauth-token", "owner": "cms-account", "channel": "UC-secret"},
+            )
+
+    descriptor = build_channel_sections_delete_tool_descriptor(wrapper=FakeWrapper(), executor=object())
+
+    with pytest.raises(ChannelSectionsDeleteToolError) as exc_info:
+        descriptor["handler"]({"id": "section-123"})
 
     error_text = f"{exc_info.value} {exc_info.value.details}"
     assert exc_info.value.category == safe_category

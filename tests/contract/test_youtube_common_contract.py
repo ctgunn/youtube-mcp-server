@@ -300,6 +300,27 @@ def test_captions_delete_public_metadata_is_safe_and_complete():
     assert "raw_media" not in str(metadata)
 
 
+def test_channel_sections_delete_public_metadata_is_safe_and_complete():
+    """Expose safe quota, auth, destructive delete, and acknowledgment metadata."""
+    from mcp_server.tools.youtube_common.channel_sections import build_channel_sections_delete_contract
+
+    metadata = build_channel_sections_delete_contract().to_tool_metadata()
+
+    assert metadata["name"] == "channelSections_delete"
+    assert metadata["upstream"]["operationKey"] == "channelSections.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "onBehalfOfContentOwner" in metadata["inputContract"]["properties"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["bodyPolicy"] == "preserve_returned_body_or_acknowledge_no_body"
+    assert any("destructive" in caveat.lower() for caveat in metadata["caveats"])
+    assert "token" not in str(metadata).lower()
+    assert "apiKey" not in str(metadata)
+    assert "raw_media" not in str(metadata)
+
+
 def test_channel_banners_insert_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, media, URL, and activation-boundary metadata."""
     from mcp_server.tools.youtube_common.channel_banners import build_channel_banners_insert_contract
