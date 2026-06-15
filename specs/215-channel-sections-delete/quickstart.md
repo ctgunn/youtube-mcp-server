@@ -83,3 +83,13 @@ ruff check .
 ```
 
 Review evidence should include passing focused output, full-suite output, lint output, and confirmation that all new or changed Python functions have reStructuredText docstrings.
+
+## Verification Evidence
+
+Recorded 2026-06-14.
+
+- Focused delete checks: `PYTHONPATH=src python3 -m pytest tests/contract/test_youtube_channel_sections_contract.py tests/unit/test_youtube_channel_sections.py tests/integration/test_youtube_channel_sections_registration.py -k delete` passed with 39 selected tests.
+- Focused feature checks: `PYTHONPATH=src python3 -m pytest tests/contract/test_youtube_channel_sections_contract.py tests/unit/test_youtube_channel_sections.py tests/integration/test_youtube_channel_sections_registration.py tests/contract/test_youtube_common_contract.py tests/unit/test_youtube_common_scaffolding.py` passed with 199 tests.
+- Lint: `python3 -m ruff check .` passed.
+- Full suite: `PYTHONPATH=src python3 -m pytest` passed with 2017 tests.
+- Docstring review: new and changed `channelSections_delete` functions and test fake wrapper methods include reStructuredText docstrings.
