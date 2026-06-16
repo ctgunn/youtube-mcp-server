@@ -321,6 +321,29 @@ def test_channel_sections_delete_public_metadata_is_safe_and_complete():
     assert "raw_media" not in str(metadata)
 
 
+def test_comments_list_public_metadata_is_safe_and_complete():
+    """Expose safe quota, auth, selector, pagination, and list metadata."""
+    from mcp_server.tools.youtube_common.comments import build_comments_list_contract
+
+    metadata = build_comments_list_contract().to_tool_metadata()
+
+    assert metadata["name"] == "comments_list"
+    assert metadata["upstream"]["operationKey"] == "comments.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert {"id", "parentId", "maxResults", "pageToken", "textFormat"}.issubset(
+        metadata["inputContract"]["properties"]
+    )
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["emptyResultPolicy"] == "empty_success_when_upstream_returns_empty_items"
+    assert any("parentId" in note for note in metadata["usageNotes"])
+    assert any("maxResults" in caveat for caveat in metadata["caveats"])
+    assert "oauthToken" not in str(metadata)
+    assert "apiKey" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+
+
 def test_channel_banners_insert_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, media, URL, and activation-boundary metadata."""
     from mcp_server.tools.youtube_common.channel_banners import build_channel_banners_insert_contract
