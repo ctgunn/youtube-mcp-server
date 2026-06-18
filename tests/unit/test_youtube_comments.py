@@ -4,10 +4,15 @@ import pytest
 
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.youtube_common.comments import (
+    COMMENTS_INSERT_INPUT_SCHEMA,
+    CommentsInsertToolError,
     COMMENTS_LIST_INPUT_SCHEMA,
     CommentsListToolError,
+    build_comments_insert_tool_descriptor,
     build_comments_list_tool_descriptor,
+    map_comments_insert_result,
     map_comments_list_result,
+    validate_comments_insert_arguments,
     validate_comments_list_arguments,
 )
 
@@ -19,6 +24,99 @@ def test_comments_list_schema_preserves_selectors_pagination_and_format_inputs()
     assert COMMENTS_LIST_INPUT_SCHEMA["required"] == ["part"]
     assert {"part", "id", "parentId", "maxResults", "pageToken", "textFormat"}.issubset(properties)
     assert COMMENTS_LIST_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_comments_insert_schema_preserves_reply_create_inputs():
+    """Expose the upstream-like request fields for ``comments_insert``."""
+    properties = COMMENTS_INSERT_INPUT_SCHEMA["properties"]
+
+    assert COMMENTS_INSERT_INPUT_SCHEMA["required"] == ["part", "body"]
+    assert {"part", "body", "onBehalfOfContentOwner"}.issubset(properties)
+    assert properties["body"]["properties"]["snippet"]["required"] == ["parentId", "textOriginal"]
+    assert COMMENTS_INSERT_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_validate_comments_insert_arguments_accepts_reply_request():
+    """Map a public reply-create request to parent and text values."""
+    selected = validate_comments_insert_arguments(
+        {
+            "part": "snippet",
+            "body": {"snippet": {"parentId": "comment-parent-123", "textOriginal": "Reply text"}},
+        }
+    )
+
+    assert selected == ("comment-parent-123", "Reply text")
+
+
+def test_map_comments_insert_result_preserves_created_item_parts_and_context():
+    """Preserve near-raw created comment fields for reply creation."""
+    result = map_comments_insert_result(
+        {
+            "kind": "youtube#comment",
+            "etag": "etag-123",
+            "id": "created-comment-123",
+            "snippet": {"parentId": "comment-parent-123", "textOriginal": "Reply text"},
+        },
+        {
+            "part": "id,snippet",
+            "body": {"snippet": {"parentId": "comment-parent-123", "textOriginal": "Reply text"}},
+        },
+    )
+
+    assert result["endpoint"] == "comments.insert"
+    assert result["quotaCost"] == 50
+    assert result["created"] is True
+    assert result["requestedParts"] == ["id", "snippet"]
+    assert result["item"]["id"] == "created-comment-123"
+    assert result["item"]["snippet"]["parentId"] == "comment-parent-123"
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["kind"] == "youtube#comment"
+    assert result["etag"] == "etag-123"
+
+
+def test_map_comments_insert_result_preserves_delegation_context():
+    """Preserve safe delegated owner context without exposing credentials."""
+    result = map_comments_insert_result(
+        {"id": "created-comment-123"},
+        {
+            "part": "snippet",
+            "onBehalfOfContentOwner": "content-owner-id",
+            "body": {"snippet": {"parentId": "comment-parent-123", "textOriginal": "Reply text"}},
+        },
+    )
+
+    assert result["delegation"] == {"onBehalfOfContentOwner": True}
+
+
+def test_comments_insert_handler_invokes_wrapper_for_reply_request():
+    """Call the injected Layer 1 wrapper through the insert handler."""
+    calls = []
+
+    class FakeWrapper:
+        """Capture Layer 1 wrapper calls made by the Layer 2 insert handler."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one fake Layer 1 call and return a created comment.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :return: Upstream-shaped created comment response.
+            """
+            calls.append((executor, arguments, auth_context.mode.value))
+            return {"id": "created-comment-123"}
+
+    descriptor = build_comments_insert_tool_descriptor(wrapper=FakeWrapper(), executor=object())
+    arguments = {
+        "part": "snippet",
+        "body": {"snippet": {"parentId": "comment-parent-123", "textOriginal": "Reply text"}},
+    }
+
+    result = descriptor["handler"](arguments)
+
+    assert result["item"] == {"id": "created-comment-123"}
+    assert calls[0][1] == arguments
+    assert calls[0][2] == "oauth_required"
 
 
 def test_validate_comments_list_arguments_accepts_id_request():
@@ -134,6 +232,47 @@ def test_validate_comments_list_arguments_rejects_invalid_requests(arguments, ma
 
 
 @pytest.mark.parametrize(
+    ("arguments", "match"),
+    [
+        ({"body": {"snippet": {"parentId": "comment-parent-123", "textOriginal": "Reply text"}}}, "requires part"),
+        ({"part": "snippet"}, "requires body"),
+        ({"part": "snippet", "body": {}}, "requires body.snippet"),
+        ({"part": "snippet", "body": {"snippet": {"textOriginal": "Reply text"}}}, "parentId"),
+        ({"part": "snippet", "body": {"snippet": {"parentId": "comment-parent-123"}}}, "textOriginal"),
+        (
+            {"part": "snippet", "body": {"snippet": {"parentId": "comment-parent-123", "textOriginal": ""}}},
+            "textOriginal",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {
+                    "snippet": {
+                        "parentId": "comment-parent-123",
+                        "textOriginal": "Reply text",
+                        "topLevelComment": {},
+                    }
+                },
+            },
+            "topLevelComment",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"snippet": {"parentId": "comment-parent-123", "textOriginal": "Reply text"}},
+                "moderationStatus": "published",
+            },
+            "moderationStatus",
+        ),
+    ],
+)
+def test_validate_comments_insert_arguments_rejects_invalid_requests(arguments, match):
+    """Reject invalid or unsupported ``comments_insert`` request shapes."""
+    with pytest.raises(CommentsInsertToolError, match=match):
+        validate_comments_insert_arguments(arguments)
+
+
+@pytest.mark.parametrize(
     ("category", "expected"),
     [
         ("invalid_request", "invalid_request"),
@@ -165,6 +304,49 @@ def test_comments_list_handler_maps_upstream_errors(category, expected):
 
     with pytest.raises(CommentsListToolError) as exc_info:
         descriptor["handler"]({"part": "snippet", "id": "comment-123"})
+
+    assert exc_info.value.category == expected
+    assert exc_info.value.details == {"upstreamStatus": 400}
+
+
+@pytest.mark.parametrize(
+    ("category", "expected"),
+    [
+        ("invalid_request", "invalid_request"),
+        ("auth", "authorization_failed"),
+        ("authentication", "authentication_failed"),
+        ("not_found", "resource_not_found"),
+        ("rate_limit", "quota_exhausted"),
+        ("deprecated", "deprecated_endpoint"),
+        ("transient", "endpoint_unavailable"),
+        ("upstream_service", "upstream_failure"),
+    ],
+)
+def test_comments_insert_handler_maps_upstream_errors(category, expected):
+    """Map normalized upstream insert failures to public Layer 2 categories."""
+
+    class FailingWrapper:
+        """Raise one normalized upstream error for insert handler tests."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise the configured fake upstream insert failure.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError("upstream failed", category=category, retryable=False, upstream_status=400)
+
+    descriptor = build_comments_insert_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(CommentsInsertToolError) as exc_info:
+        descriptor["handler"](
+            {
+                "part": "snippet",
+                "body": {"snippet": {"parentId": "comment-parent-123", "textOriginal": "Reply text"}},
+            }
+        )
 
     assert exc_info.value.category == expected
     assert exc_info.value.details == {"upstreamStatus": 400}

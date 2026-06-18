@@ -259,6 +259,26 @@ def test_captions_update_public_metadata_is_safe_and_complete():
     assert "apiKey" not in str(metadata)
 
 
+def test_comments_insert_public_metadata_is_safe_and_complete():
+    """Expose safe quota, auth, and reply metadata for ``comments_insert``."""
+    from mcp_server.tools.youtube_common.comments import build_comments_insert_contract
+
+    metadata = build_comments_insert_contract().to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["name"] == "comments_insert"
+    assert metadata["upstream"]["operationKey"] == "comments.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert "body" in metadata["inputContract"]["properties"]
+    assert "body.snippet.parentId" in metadata_text
+    assert "body.snippet.textOriginal" in metadata_text
+    assert "commentThreads.insert" in metadata_text
+    assert "token" not in str(metadata).lower()
+    assert "apiKey" not in str(metadata)
+
+
 def test_captions_download_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, permission, and conversion metadata for ``captions_download``."""
     from mcp_server.tools.youtube_common.captions import build_captions_download_contract
