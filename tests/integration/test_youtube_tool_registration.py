@@ -105,6 +105,27 @@ def test_default_registry_includes_executable_captions_delete_tool():
     assert any("destructive" in caveat.lower() for caveat in metadata["caveats"])
 
 
+def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
+    """Register ``comments_insert`` by default with create metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "comments_insert" in listed
+    metadata = listed["comments_insert"]["metadata"]
+    description = listed["comments_insert"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "comments.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert metadata["responseConvention"]["resultKind"] == "created_resource"
+    assert "body.snippet.parentId" in metadata_text
+    assert "body.snippet.textOriginal" in metadata_text
+    assert "commentThreads.insert" in metadata_text
+
+
 def test_default_registry_includes_executable_channel_banners_insert_tool_with_upload_metadata():
     """Register ``channelBanners_insert`` by default with upload metadata."""
     dispatcher = InMemoryToolDispatcher()
