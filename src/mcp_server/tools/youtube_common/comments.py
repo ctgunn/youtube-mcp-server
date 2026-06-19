@@ -9,6 +9,7 @@ from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.comments import (
+    build_comments_delete_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
     build_comments_set_moderation_status_wrapper,
@@ -31,6 +32,8 @@ COMMENTS_UPDATE_SUPPORTED_PARTS = ("snippet",)
 COMMENTS_SET_MODERATION_STATUS_TOOL_NAME = "comments_setModerationStatus"
 COMMENTS_SET_MODERATION_STATUS_QUOTA_COST = 50
 COMMENTS_SET_MODERATION_STATUS_SUPPORTED_STATUSES = ("heldForReview", "published", "rejected")
+COMMENTS_DELETE_TOOL_NAME = "comments_delete"
+COMMENTS_DELETE_QUOTA_COST = 50
 
 COMMENTS_LIST_INPUT_SCHEMA = {
     "type": "object",
@@ -111,6 +114,16 @@ COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA = {
         },
         "moderationStatus": {"type": "string", "enum": list(COMMENTS_SET_MODERATION_STATUS_SUPPORTED_STATUSES)},
         "banAuthor": {"type": "boolean"},
+        "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+COMMENTS_DELETE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["id"],
+    "properties": {
+        "id": {"type": "string", "minLength": 1},
         "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
     },
     "additionalProperties": False,
@@ -547,6 +560,95 @@ COMMENTS_SET_MODERATION_STATUS_CALLER_EXAMPLES = (
     },
 )
 
+COMMENTS_DELETE_DESCRIPTION = (
+    "Delete a YouTube comment. Endpoint: comments.delete. "
+    "Quota cost: 50. Auth: oauth_required. Requires one target id and returns a deletion acknowledgment."
+)
+COMMENTS_DELETE_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide one id for the comment being deleted.",
+    "Quota cost: 50. comments.delete accepts query-only inputs and no request body.",
+    "Quota cost: 50. Successful deletion returns a 204 No Content acknowledgment without a deleted comment resource.",
+    "Quota cost: 50. onBehalfOfContentOwner is optional delegated owner context when supported by eligible OAuth authorization.",
+)
+COMMENTS_DELETE_CAVEATS = (
+    "comments_delete is a destructive operation and requires eligible OAuth authorization.",
+    "The request accepts exactly one target comment id; listing, multi-target deletion, and discovery belong outside this tool boundary.",
+    "Missing, already deleted, inaccessible, private, or ineligible target comments are surfaced as safe validation, authorization, or missing-resource failures.",
+    "The tool does not perform comment listing, reply creation, comment editing, moderation status changes, deletion recovery, automated moderation, sentiment analysis, ranking, summarization, enrichment, or cross-endpoint aggregation.",
+)
+COMMENTS_DELETE_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_comment_deletion",
+        "description": "Quota cost: 50. Delete one existing comment with eligible OAuth.",
+        "arguments": {"id": "comment-123"},
+        "result": {"endpoint": "comments.delete", "quotaCost": 50, "deleted": True},
+        "quotaCost": 50,
+    },
+    {
+        "name": "delegated_owner_context",
+        "description": "Quota cost: 50. Delete a comment with safe delegated owner context.",
+        "arguments": {"id": "comment-123", "onBehalfOfContentOwner": "content-owner-id"},
+        "result": {"endpoint": "comments.delete", "delegation": {"onBehalfOfContentOwner": True}},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_oauth",
+        "description": "Quota cost: 50. Reject deletion when eligible OAuth is unavailable.",
+        "arguments": {"id": "comment-123"},
+        "error": {"category": "authentication_failed", "field": "auth"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_target",
+        "description": "Quota cost: 50. Reject deletion without a target comment id.",
+        "arguments": {},
+        "error": {"category": "invalid_request", "field": "id"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "empty_target",
+        "description": "Quota cost: 50. Reject empty target comment ids.",
+        "arguments": {"id": ""},
+        "error": {"category": "invalid_request", "field": "id"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "conflicting_target_shape",
+        "description": "Quota cost: 50. Reject multi-target delete shapes.",
+        "arguments": {"id": ["comment-123", "comment-456"]},
+        "error": {"category": "invalid_request", "field": "id"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "unsupported_body",
+        "description": "Quota cost: 50. Reject request body fields; deletion uses query-only inputs.",
+        "arguments": {"id": "comment-123", "body": {}},
+        "error": {"category": "invalid_request", "field": "body"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "unsupported_option",
+        "description": "Quota cost: 50. Reject unsupported moderation, update, recovery, search, or analysis options.",
+        "arguments": {"id": "comment-123", "moderationStatus": "rejected"},
+        "error": {"category": "invalid_request", "field": "moderationStatus"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "inaccessible_target",
+        "description": "Quota cost: 50. Preserve inaccessible target failures as safe public errors.",
+        "arguments": {"id": "inaccessible-comment"},
+        "error": {"category": "authorization_failed", "reason": "forbidden"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "already_deleted_target",
+        "description": "Quota cost: 50. Preserve already deleted target failures as safe missing-resource errors.",
+        "arguments": {"id": "already-deleted-comment"},
+        "error": {"category": "resource_not_found", "reason": "commentNotFound"},
+        "quotaCost": 50,
+    },
+)
+
 
 class CommentsListToolError(ValueError):
     """Represent a safe caller-facing ``comments_list`` failure."""
@@ -598,6 +700,21 @@ class CommentsSetModerationStatusToolError(ValueError):
 
     def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
         """Initialize the safe comments moderation error.
+
+        :param message: Caller-facing error message.
+        :param category: Shared safe error category.
+        :param details: Safe diagnostic details for MCP error payloads.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = details or {}
+
+
+class CommentsDeleteToolError(ValueError):
+    """Represent a safe caller-facing ``comments_delete`` failure."""
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the safe comments-delete error.
 
         :param message: Caller-facing error message.
         :param category: Shared safe error category.
@@ -742,6 +859,41 @@ def _default_comments_transport(execution) -> dict[str, Any]:
                 retryable=False,
                 upstream_status=403,
                 details={"reason": "forbidden"},
+            )
+        return {}
+    if execution.metadata.operation_name == "delete":
+        comment_id = arguments.get("id")
+        if comment_id in {"missing-comment", "already-deleted-comment"}:
+            raise NormalizedUpstreamError(
+                "comment not found",
+                category="not_found",
+                retryable=False,
+                upstream_status=404,
+                details={"reason": "commentNotFound"},
+            )
+        if comment_id in {"forbidden-comment", "inaccessible-comment"}:
+            raise NormalizedUpstreamError(
+                "forbidden",
+                category="auth",
+                retryable=False,
+                upstream_status=403,
+                details={"reason": "forbidden"},
+            )
+        if comment_id == "quota-exhausted-comment":
+            raise NormalizedUpstreamError(
+                "quota exceeded",
+                category="rate_limit",
+                retryable=False,
+                upstream_status=403,
+                details={"reason": "quotaExceeded"},
+            )
+        if comment_id == "processing-failure-comment":
+            raise NormalizedUpstreamError(
+                "processing failure",
+                category="invalid_request",
+                retryable=False,
+                upstream_status=400,
+                details={"reason": "processingFailure"},
             )
         return {}
     if arguments.get("id") == "comment-empty" or arguments.get("parentId") == "comment-parent-without-replies":
@@ -1038,6 +1190,71 @@ def build_comments_set_moderation_status_contract() -> YouTubeToolContract:
     )
 
 
+def build_comments_delete_contract() -> YouTubeToolContract:
+    """Build public contract metadata for ``comments_delete``.
+
+    :return: Validated Layer 2 tool contract for destructive comment deletion.
+    """
+    return YouTubeToolContract(
+        tool_name=COMMENTS_DELETE_TOOL_NAME,
+        upstream_resource="comments",
+        upstream_method="delete",
+        operation_key="comments.delete",
+        description=COMMENTS_DELETE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=COMMENTS_DELETE_QUOTA_COST,
+        resource_family="comments",
+        input_contract=COMMENTS_DELETE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "deletion_acknowledgment",
+            "successStatus": 204,
+            "bodyPolicy": "no_upstream_body",
+            "targetFields": ["id"],
+            "requiredFields": ["id"],
+            "delegationFields": ["onBehalfOfContentOwner"],
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=(
+                "endpoint",
+                "quotaCost",
+                "deleted",
+                "targetId",
+                "auth",
+                "delegation",
+                "statusCode",
+            ),
+            preserved_upstream_fields=(),
+            disallowed_behavior=(
+                "comment_listing",
+                "reply_creation",
+                "comment_editing",
+                "comment_moderation",
+                "comment_recovery",
+                "automated_moderation",
+                "sentiment_analysis",
+                "ranking",
+                "summarization",
+                "enrichment",
+                "cross_endpoint_aggregation",
+            ),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "deprecated_endpoint",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=COMMENTS_DELETE_USAGE_NOTES,
+        caveats=COMMENTS_DELETE_CAVEATS,
+    )
+
+
 def _requested_parts(arguments: dict[str, Any]) -> list[str]:
     """Return normalized requested comment part names.
 
@@ -1115,6 +1332,19 @@ def _raise_set_moderation_status_invalid(message: str, field: str, **details: An
     raise CommentsSetModerationStatusToolError(message, category="invalid_request", details=payload)
 
 
+def _raise_delete_invalid(message: str, field: str, **details: Any) -> None:
+    """Raise a safe invalid-request error for delete validation.
+
+    :param message: Caller-facing validation message.
+    :param field: Request field responsible for the failure.
+    :param details: Additional safe details to expose with the error.
+    :raises CommentsDeleteToolError: Always raised with ``invalid_request``.
+    """
+    payload = {"field": field}
+    payload.update(details)
+    raise CommentsDeleteToolError(message, category="invalid_request", details=payload)
+
+
 def _normalized_moderation_target_ids(raw_ids: Any) -> tuple[str, ...]:
     """Return validated moderation target ids.
 
@@ -1143,6 +1373,23 @@ def _normalized_moderation_target_ids(raw_ids: Any) -> tuple[str, ...]:
     if not normalized_ids:
         _raise_set_moderation_status_invalid("comments_setModerationStatus requires id.", "id")
     return tuple(normalized_ids)
+
+
+def _normalized_delete_target_id(raw_id: Any) -> str:
+    """Return the validated delete target comment id.
+
+    :param raw_id: Caller-supplied ``id`` value.
+    :return: Stripped target comment id.
+    :raises CommentsDeleteToolError: If the target id is missing, empty, or multi-valued.
+    """
+    if not isinstance(raw_id, str) or not raw_id.strip():
+        _raise_delete_invalid("comments_delete requires id.", "id")
+    if "," in raw_id:
+        _raise_delete_invalid(
+            "comments_delete accepts exactly one target comment id.",
+            "id",
+        )
+    return raw_id.strip()
 
 
 def validate_comments_list_arguments(arguments: dict[str, Any]) -> tuple[str, str]:
@@ -1427,6 +1674,46 @@ def _comments_set_moderation_status_auth_context(*, oauth_token: str | None) -> 
     return AuthContext(mode=Layer1AuthMode.OAUTH_REQUIRED, credentials=CredentialBundle(oauth_token=oauth_token))
 
 
+def validate_comments_delete_arguments(arguments: dict[str, Any]) -> str:
+    """Validate delete arguments and return the target comment id.
+
+    :param arguments: Caller-supplied delete arguments.
+    :return: Target comment id after validation.
+    :raises CommentsDeleteToolError: If arguments are invalid or unsupported.
+    """
+    allowed = set(COMMENTS_DELETE_INPUT_SCHEMA["properties"])
+    for field in arguments:
+        if field not in allowed:
+            _raise_delete_invalid(f"comments_delete does not support {field}.", field)
+
+    target_id = _normalized_delete_target_id(arguments.get("id"))
+
+    delegated_owner = arguments.get("onBehalfOfContentOwner")
+    if delegated_owner is not None and (not isinstance(delegated_owner, str) or not delegated_owner.strip()):
+        _raise_delete_invalid(
+            "comments_delete requires a non-empty onBehalfOfContentOwner.",
+            "onBehalfOfContentOwner",
+        )
+
+    return target_id
+
+
+def _comments_delete_auth_context(*, oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 auth context for comment deletion.
+
+    :param oauth_token: OAuth token available for destructive comment deletion.
+    :return: Auth context suitable for the Layer 1 wrapper.
+    :raises CommentsDeleteToolError: If OAuth credentials are unavailable.
+    """
+    if not oauth_token:
+        raise CommentsDeleteToolError(
+            "comments_delete requires OAuth access.",
+            category="authentication_failed",
+            details={"field": "auth", "authMode": "oauth_required"},
+        )
+    return AuthContext(mode=Layer1AuthMode.OAUTH_REQUIRED, credentials=CredentialBundle(oauth_token=oauth_token))
+
+
 def map_comments_list_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     """Map a Layer 1 comment response to the public Layer 2 result shape.
 
@@ -1556,6 +1843,38 @@ def map_comments_set_moderation_status_result(response: dict[str, Any], argument
     return result
 
 
+def _safe_delete_delegation_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return safe delegation flags for one delete request.
+
+    :param arguments: Caller-supplied ``comments_delete`` arguments.
+    :return: Safe delegation flags without owner identifiers.
+    """
+    if "onBehalfOfContentOwner" in arguments:
+        return {"onBehalfOfContentOwner": True}
+    return {}
+
+
+def map_comments_delete_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map a deletion success response to the public acknowledgment shape.
+
+    :param response: Empty upstream-shaped no-content response.
+    :param arguments: Original validated tool arguments.
+    :return: Safe deletion acknowledgment with target context.
+    """
+    result: dict[str, Any] = {
+        "endpoint": "comments.delete",
+        "quotaCost": COMMENTS_DELETE_QUOTA_COST,
+        "deleted": True,
+        "targetId": _normalized_delete_target_id(arguments.get("id")),
+        "auth": {"mode": "oauth_required"},
+        "statusCode": 204,
+    }
+    delegation_context = _safe_delete_delegation_context(arguments)
+    if delegation_context:
+        result["delegation"] = delegation_context
+    return result
+
+
 def _map_comments_list_upstream_error(error: NormalizedUpstreamError) -> CommentsListToolError:
     """Map a normalized upstream error to the public Layer 2 error model.
 
@@ -1660,6 +1979,33 @@ def _map_comments_set_moderation_status_upstream_error(
     if error.upstream_status:
         details["upstreamStatus"] = error.upstream_status
     return CommentsSetModerationStatusToolError(
+        str(error),
+        category=categories.get(error.category, "upstream_failure"),
+        details=sanitize_error_details(details),
+    )
+
+
+def _map_comments_delete_upstream_error(error: NormalizedUpstreamError) -> CommentsDeleteToolError:
+    """Map a normalized upstream error to the public delete error model.
+
+    :param error: Normalized upstream failure raised by Layer 1 execution.
+    :return: Safe ``comments_delete`` error.
+    """
+    categories = {
+        "invalid_request": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "not_found": "resource_not_found",
+        "rate_limit": "quota_exhausted",
+        "deprecated": "deprecated_endpoint",
+        "transient": "endpoint_unavailable",
+        "upstream_service": "upstream_failure",
+    }
+    details = dict(error.details or {})
+    if error.upstream_status:
+        details["upstreamStatus"] = error.upstream_status
+    return CommentsDeleteToolError(
         str(error),
         category=categories.get(error.category, "upstream_failure"),
         details=sanitize_error_details(details),
@@ -1841,6 +2187,51 @@ def build_comments_set_moderation_status_handler(
     return handler
 
 
+def build_comments_delete_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-comment-delete",
+):
+    """Build the concrete ``comments_delete`` handler.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for destructive comment deletion.
+    :return: Callable dispatcher handler.
+    """
+    comments_wrapper = wrapper or build_comments_delete_wrapper()
+    comments_executor = executor or _default_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one ``comments_delete`` request.
+
+        :param arguments: Validated dispatcher arguments.
+        :return: Public Layer 2 deletion acknowledgment result.
+        :raises CommentsDeleteToolError: If validation, authorization, or upstream execution fails.
+        """
+        validate_comments_delete_arguments(arguments)
+        auth_context = _comments_delete_auth_context(oauth_token=oauth_token)
+        try:
+            response = comments_wrapper.call(comments_executor, arguments=arguments, auth_context=auth_context)
+        except NormalizedUpstreamError as error:
+            raise _map_comments_delete_upstream_error(error) from error
+        except ValueError as error:
+            raise CommentsDeleteToolError(
+                str(error),
+                category="invalid_request",
+                details={"field": "id"},
+            ) from error
+        except Exception as error:
+            raise CommentsDeleteToolError(
+                "comments_delete upstream execution failed.",
+                category="upstream_failure",
+            ) from error
+        return map_comments_delete_result(response, arguments)
+
+    return handler
+
+
 def build_comments_list_tool_descriptor(
     *,
     wrapper=None,
@@ -1937,7 +2328,37 @@ def build_comments_set_moderation_status_tool_descriptor(
     }
 
 
+def build_comments_delete_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-comment-delete",
+) -> dict[str, Any]:
+    """Build the dispatcher descriptor for ``comments_delete``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for destructive comment deletion.
+    :return: Dispatcher-compatible descriptor for the concrete Layer 2 tool.
+    """
+    contract = build_comments_delete_contract()
+    return {
+        "name": COMMENTS_DELETE_TOOL_NAME,
+        "description": COMMENTS_DELETE_DESCRIPTION,
+        "metadata": contract.to_tool_metadata(),
+        "inputSchema": COMMENTS_DELETE_INPUT_SCHEMA,
+        "handler": build_comments_delete_handler(wrapper=wrapper, executor=executor, oauth_token=oauth_token),
+    }
+
+
 __all__ = [
+    "COMMENTS_DELETE_CALLER_EXAMPLES",
+    "COMMENTS_DELETE_CAVEATS",
+    "COMMENTS_DELETE_DESCRIPTION",
+    "COMMENTS_DELETE_INPUT_SCHEMA",
+    "COMMENTS_DELETE_QUOTA_COST",
+    "COMMENTS_DELETE_TOOL_NAME",
+    "COMMENTS_DELETE_USAGE_NOTES",
     "COMMENTS_INSERT_CALLER_EXAMPLES",
     "COMMENTS_INSERT_CAVEATS",
     "COMMENTS_INSERT_DESCRIPTION",
@@ -1971,9 +2392,13 @@ __all__ = [
     "COMMENTS_LIST_TOOL_NAME",
     "COMMENTS_LIST_USAGE_NOTES",
     "CommentsInsertToolError",
+    "CommentsDeleteToolError",
     "CommentsListToolError",
     "CommentsSetModerationStatusToolError",
     "CommentsUpdateToolError",
+    "build_comments_delete_contract",
+    "build_comments_delete_handler",
+    "build_comments_delete_tool_descriptor",
     "build_comments_insert_contract",
     "build_comments_insert_handler",
     "build_comments_insert_tool_descriptor",
@@ -1986,10 +2411,12 @@ __all__ = [
     "build_comments_list_contract",
     "build_comments_list_handler",
     "build_comments_list_tool_descriptor",
+    "map_comments_delete_result",
     "map_comments_insert_result",
     "map_comments_set_moderation_status_result",
     "map_comments_update_result",
     "map_comments_list_result",
+    "validate_comments_delete_arguments",
     "validate_comments_insert_arguments",
     "validate_comments_set_moderation_status_arguments",
     "validate_comments_update_arguments",

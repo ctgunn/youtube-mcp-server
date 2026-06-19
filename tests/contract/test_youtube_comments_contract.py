@@ -6,6 +6,9 @@ from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools import youtube_common
 from mcp_server.tools.youtube_common import AuthMode, AvailabilityState
 from mcp_server.tools.youtube_common.comments import (
+    COMMENTS_DELETE_CALLER_EXAMPLES,
+    COMMENTS_DELETE_INPUT_SCHEMA,
+    COMMENTS_DELETE_TOOL_NAME,
     COMMENTS_INSERT_CALLER_EXAMPLES,
     COMMENTS_INSERT_INPUT_SCHEMA,
     COMMENTS_INSERT_TOOL_NAME,
@@ -18,10 +21,13 @@ from mcp_server.tools.youtube_common.comments import (
     COMMENTS_LIST_CALLER_EXAMPLES,
     COMMENTS_LIST_INPUT_SCHEMA,
     COMMENTS_LIST_TOOL_NAME,
+    CommentsDeleteToolError,
     CommentsInsertToolError,
     CommentsListToolError,
     CommentsSetModerationStatusToolError,
     CommentsUpdateToolError,
+    build_comments_delete_contract,
+    build_comments_delete_tool_descriptor,
     build_comments_insert_contract,
     build_comments_insert_tool_descriptor,
     build_comments_set_moderation_status_contract,
@@ -49,6 +55,167 @@ def test_concrete_comments_module_exports_public_tool_contract():
     assert comments.COMMENTS_SET_MODERATION_STATUS_TOOL_NAME == "comments_setModerationStatus"
     assert youtube_common.COMMENTS_SET_MODERATION_STATUS_TOOL_NAME == "comments_setModerationStatus"
     assert callable(comments.build_comments_set_moderation_status_tool_descriptor)
+    assert comments.COMMENTS_DELETE_TOOL_NAME == "comments_delete"
+    assert youtube_common.COMMENTS_DELETE_TOOL_NAME == "comments_delete"
+    assert callable(comments.build_comments_delete_tool_descriptor)
+
+
+def test_comments_delete_contract_exposes_identity_quota_auth_and_target_rules():
+    """Expose public metadata required before ``comments_delete`` invocation."""
+    contract = build_comments_delete_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.tool_name == COMMENTS_DELETE_TOOL_NAME
+    assert contract.upstream_resource == "comments"
+    assert contract.upstream_method == "delete"
+    assert contract.quota_cost == 50
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["upstream"]["operationKey"] == "comments.delete"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert any("Quota cost: 50" in note for note in metadata["usageNotes"])
+
+
+def test_comments_delete_descriptor_matches_contract_and_schema():
+    """Build a dispatcher descriptor that matches the public delete contract."""
+    descriptor = build_comments_delete_tool_descriptor()
+
+    assert descriptor["name"] == "comments_delete"
+    assert "Quota cost: 50" in descriptor["description"]
+    assert descriptor["metadata"]["upstream"]["operationKey"] == "comments.delete"
+    assert descriptor["inputSchema"]["required"] == ["id"]
+    assert {"id", "onBehalfOfContentOwner"}.issubset(descriptor["inputSchema"]["properties"])
+    assert "body" not in descriptor["inputSchema"]["properties"]
+    assert callable(descriptor["handler"])
+
+
+def test_comments_delete_contract_documents_successful_acknowledgment_shape():
+    """Require successful deletion results to preserve safe acknowledgment context."""
+    result = build_comments_delete_tool_descriptor()["handler"]({"id": "comment-123"})
+
+    assert result["endpoint"] == "comments.delete"
+    assert result["quotaCost"] == 50
+    assert result["deleted"] is True
+    assert result["targetId"] == "comment-123"
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["statusCode"] == 204
+    assert "item" not in result
+    assert "items" not in result
+
+
+def test_comments_delete_contract_documents_delegated_context():
+    """Preserve safe delegated context for authorized comment deletion."""
+    result = build_comments_delete_tool_descriptor()["handler"](
+        {"id": "comment-123", "onBehalfOfContentOwner": "content-owner-id"}
+    )
+
+    assert result["endpoint"] == "comments.delete"
+    assert result["delegation"] == {"onBehalfOfContentOwner": True}
+
+
+def test_comments_delete_input_schema_preserves_contract_shape():
+    """Expose the endpoint-like request shape for ``comments_delete``."""
+    properties = COMMENTS_DELETE_INPUT_SCHEMA["properties"]
+
+    assert COMMENTS_DELETE_INPUT_SCHEMA["required"] == ["id"]
+    assert {"id", "onBehalfOfContentOwner"}.issubset(properties)
+    assert properties["id"]["type"] == "string"
+    assert "body" not in properties
+    assert COMMENTS_DELETE_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_comments_delete_metadata_exposes_cost_oauth_destructive_rules_and_caveats():
+    """Expose quota, OAuth, no-body, destructive behavior, delegation, and exclusions."""
+    metadata = build_comments_delete_contract().to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert metadata["responseConvention"]["bodyPolicy"] == "no_upstream_body"
+    assert metadata["responseConvention"]["targetFields"] == ["id"]
+    assert metadata["responseConvention"]["delegationFields"] == ["onBehalfOfContentOwner"]
+    assert "destructive" in metadata_text.lower()
+    assert "request body" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "comment editing" in metadata_text
+    assert "moderation status" in metadata_text
+    assert "deletion recovery" in metadata_text
+
+
+def test_comments_delete_caller_examples_cover_success_and_failure_modes():
+    """Expose representative examples for every required delete scenario."""
+    examples = {example["name"]: example for example in COMMENTS_DELETE_CALLER_EXAMPLES}
+
+    assert {
+        "authorized_comment_deletion",
+        "delegated_owner_context",
+        "missing_oauth",
+        "missing_target",
+        "empty_target",
+        "conflicting_target_shape",
+        "unsupported_body",
+        "unsupported_option",
+        "inaccessible_target",
+        "already_deleted_target",
+    }.issubset(examples)
+    assert all(
+        example.get("quotaCost") == 50 or "Quota cost: 50" in str(example)
+        for example in COMMENTS_DELETE_CALLER_EXAMPLES
+    )
+
+
+def test_comments_delete_public_metadata_is_safe():
+    """Avoid exposing credentials or unsafe diagnostics in delete metadata."""
+    metadata = build_comments_delete_contract().to_tool_metadata()
+
+    assert "oauthToken" not in str(metadata)
+    assert "apiKey" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+    assert "rawRequestBody" not in str(metadata)
+
+
+def test_comments_delete_safe_errors_do_not_leak_secret_details():
+    """Avoid leaking credentials, raw bodies, or diagnostics from delete errors."""
+
+    class FailingWrapper:
+        """Raise a normalized upstream error with unsafe-looking details."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise one fake upstream authorization failure.
+
+            :param executor: Executor passed by the handler.
+            :param arguments: Arguments forwarded to the wrapper.
+            :param auth_context: Auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError(
+                "forbidden",
+                category="auth",
+                retryable=False,
+                upstream_status=403,
+                details={
+                    "apiKey": "secret",
+                    "oauthToken": "secret",
+                    "stackTrace": "traceback",
+                    "rawRequestBody": {"id": "secret-comment"},
+                },
+            )
+
+    descriptor = build_comments_delete_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(CommentsDeleteToolError) as exc_info:
+        descriptor["handler"]({"id": "comment-123"})
+
+    assert exc_info.value.category == "authorization_failed"
+    assert "api" not in str(exc_info.value.details).lower()
+    assert "token" not in str(exc_info.value.details).lower()
+    assert "stack" not in str(exc_info.value.details).lower()
+    assert "raw" not in str(exc_info.value.details).lower()
 
 
 def test_comments_set_moderation_status_contract_exposes_identity_quota_auth_and_status_rules():
