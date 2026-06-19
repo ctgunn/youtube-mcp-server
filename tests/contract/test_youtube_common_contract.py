@@ -259,6 +259,52 @@ def test_captions_update_public_metadata_is_safe_and_complete():
     assert "apiKey" not in str(metadata)
 
 
+def test_comments_update_public_metadata_is_safe_and_complete():
+    """Expose safe quota, auth, and update metadata for ``comments_update``."""
+    from mcp_server.tools.youtube_common.comments import build_comments_update_contract
+
+    metadata = build_comments_update_contract().to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["name"] == "comments_update"
+    assert metadata["upstream"]["operationKey"] == "comments.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert "body.id" in metadata_text
+    assert "body.snippet.textOriginal" in metadata_text
+    assert "read-only" in metadata_text
+    assert "token" not in str(metadata).lower()
+    assert "apiKey" not in str(metadata)
+
+
+def test_comments_update_representative_metadata_aligns_with_shared_safety_rules():
+    """Keep public representative metadata aligned with concrete update safety."""
+    from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
+    from mcp_server.tools.youtube_common.comments import build_comments_update_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "comments_update"
+    ].to_tool_metadata()
+    concrete = build_comments_update_contract().to_tool_metadata()
+    representative_text = " ".join(
+        [representative["description"], *representative["usageNotes"], *representative["caveats"]]
+    )
+
+    assert representative["quotaCost"] == concrete["quotaCost"] == 50
+    assert representative["authMode"] == concrete["authMode"] == "oauth_required"
+    assert representative["availabilityState"] == concrete["availabilityState"] == "active"
+    assert representative["inputContract"]["required"] == ["part", "body"]
+    assert representative["responseConvention"]["resultKind"] == "updated_resource"
+    assert representative["responseConvention"]["supportedWritableParts"] == ["snippet"]
+    assert "body.id" in representative_text
+    assert "body.snippet.textOriginal" in representative_text
+    assert "read-only" in representative_text
+    assert "oauthToken" not in str(representative)
+    assert "apiKey" not in str(representative)
+
+
 def test_comments_insert_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, and reply metadata for ``comments_insert``."""
     from mcp_server.tools.youtube_common.comments import build_comments_insert_contract

@@ -8,7 +8,11 @@ from mcp_server.integrations.auth import AuthContext, CredentialBundle
 from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
-from mcp_server.integrations.resources.comments import build_comments_insert_wrapper, build_comments_list_wrapper
+from mcp_server.integrations.resources.comments import (
+    build_comments_insert_wrapper,
+    build_comments_list_wrapper,
+    build_comments_update_wrapper,
+)
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
@@ -20,6 +24,9 @@ COMMENTS_LIST_SELECTORS = ("id", "parentId")
 COMMENTS_LIST_TEXT_FORMATS = ("html", "plainText")
 COMMENTS_INSERT_TOOL_NAME = "comments_insert"
 COMMENTS_INSERT_QUOTA_COST = 50
+COMMENTS_UPDATE_TOOL_NAME = "comments_update"
+COMMENTS_UPDATE_QUOTA_COST = 50
+COMMENTS_UPDATE_SUPPORTED_PARTS = ("snippet",)
 
 COMMENTS_LIST_INPUT_SCHEMA = {
     "type": "object",
@@ -50,6 +57,32 @@ COMMENTS_INSERT_INPUT_SCHEMA = {
                     "required": ["parentId", "textOriginal"],
                     "properties": {
                         "parentId": {"type": "string", "minLength": 1},
+                        "textOriginal": {"type": "string", "minLength": 1},
+                    },
+                    "additionalProperties": False,
+                },
+            },
+            "additionalProperties": False,
+        },
+        "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+COMMENTS_UPDATE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["part", "body"],
+    "properties": {
+        "part": {"type": "string", "minLength": 1},
+        "body": {
+            "type": "object",
+            "required": ["id", "snippet"],
+            "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "snippet": {
+                    "type": "object",
+                    "required": ["textOriginal"],
+                    "properties": {
                         "textOriginal": {"type": "string", "minLength": 1},
                     },
                     "additionalProperties": False,
@@ -274,6 +307,118 @@ COMMENTS_INSERT_CALLER_EXAMPLES = (
     },
 )
 
+COMMENTS_UPDATE_DESCRIPTION = (
+    "Update an existing YouTube comment. Endpoint: comments.update. "
+    "Quota cost: 50. Auth: oauth_required. Requires part, body.id, and body.snippet.textOriginal."
+)
+COMMENTS_UPDATE_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide part and an update body.",
+    "Quota cost: 50. body.id identifies the existing comment being updated.",
+    "Quota cost: 50. body.snippet.textOriginal is the only supported writable comment field.",
+    "Quota cost: 50. onBehalfOfContentOwner is optional delegated owner context when supported by eligible OAuth authorization.",
+)
+COMMENTS_UPDATE_CAVEATS = (
+    "comments_update edits the text of an existing comment and requires eligible OAuth authorization.",
+    "Only the snippet part is supported for writable updates; read-only fields such as author, published time, parentId, moderation status, and like counts are outside this tool boundary.",
+    "Missing, inaccessible, ineligible, or non-editable target comments are surfaced as safe validation, authorization, or missing-resource failures.",
+    "The tool does not perform comment listing, reply creation, top-level comment-thread creation via commentThreads.insert, moderation status changes, deletion, generated rewrites, search, sentiment analysis, ranking, summarization, enrichment, or cross-endpoint aggregation.",
+)
+COMMENTS_UPDATE_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_comment_update",
+        "description": "Quota cost: 50. Update an existing comment's text with eligible OAuth.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}},
+        },
+        "result": {"endpoint": "comments.update", "quotaCost": 50, "updated": True},
+        "quotaCost": 50,
+    },
+    {
+        "name": "delegated_owner_context",
+        "description": "Quota cost: 50. Update a comment with safe delegated owner context.",
+        "arguments": {
+            "part": "snippet",
+            "onBehalfOfContentOwner": "content-owner-id",
+            "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated by channel team."}},
+        },
+        "result": {"endpoint": "comments.update", "quotaCost": 50, "delegation": {"onBehalfOfContentOwner": True}},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_oauth",
+        "description": "Quota cost: 50. Reject comment updates when eligible OAuth is unavailable.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}},
+        },
+        "error": {"category": "authentication_failed", "field": "auth"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_part",
+        "description": "Quota cost: 50. Reject requests without part selection.",
+        "arguments": {"body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}}},
+        "error": {"category": "invalid_request", "field": "part"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_target_comment_id",
+        "description": "Quota cost: 50. Reject requests without body.id.",
+        "arguments": {"part": "snippet", "body": {"snippet": {"textOriginal": "Updated comment text."}}},
+        "error": {"category": "invalid_request", "field": "body.id"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_updated_text",
+        "description": "Quota cost: 50. Reject requests without body.snippet.textOriginal.",
+        "arguments": {"part": "snippet", "body": {"id": "comment-123", "snippet": {}}},
+        "error": {"category": "invalid_request", "field": "body.snippet.textOriginal"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "unsupported_writable_part",
+        "description": "Quota cost: 50. Reject update parts other than snippet.",
+        "arguments": {
+            "part": "statistics",
+            "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}},
+        },
+        "error": {"category": "invalid_request", "field": "part"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "read_only_field_failure",
+        "description": "Quota cost: 50. Reject read-only or immutable body fields such as parentId.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"id": "comment-123", "snippet": {"parentId": "comment-parent-123", "textOriginal": "Text"}},
+        },
+        "error": {"category": "invalid_request", "field": "body.snippet.parentId"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "unsupported_option",
+        "description": "Quota cost: 50. Reject unsupported listing, moderation, delete, search, or generated rewrite options.",
+        "arguments": {
+            "part": "snippet",
+            "moderationStatus": "published",
+            "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}},
+        },
+        "error": {"category": "invalid_request", "field": "moderationStatus"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "target_comment_failure",
+        "description": "Quota cost: 50. Preserve missing target comment failures as safe public errors.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"id": "missing-comment", "snippet": {"textOriginal": "Updated comment text."}},
+        },
+        "error": {"category": "resource_not_found", "reason": "commentNotFound"},
+        "quotaCost": 50,
+    },
+)
+
 
 class CommentsListToolError(ValueError):
     """Represent a safe caller-facing ``comments_list`` failure."""
@@ -295,6 +440,21 @@ class CommentsInsertToolError(ValueError):
 
     def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
         """Initialize the safe comments-insert error.
+
+        :param message: Caller-facing error message.
+        :param category: Shared safe error category.
+        :param details: Safe diagnostic details for MCP error payloads.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = details or {}
+
+
+class CommentsUpdateToolError(ValueError):
+    """Represent a safe caller-facing ``comments_update`` failure."""
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the safe comments-update error.
 
         :param message: Caller-facing error message.
         :param category: Shared safe error category.
@@ -361,6 +521,49 @@ def _default_comments_transport(execution) -> dict[str, Any]:
             "snippet": {
                 "parentId": parent_id or "comment-parent-123",
                 "textOriginal": arguments.get("body", {}).get("snippet", {}).get("textOriginal", "Reply text"),
+            },
+        }
+    if execution.metadata.operation_name == "update":
+        body = arguments.get("body", {})
+        comment_id = body.get("id")
+        if comment_id == "missing-comment":
+            raise NormalizedUpstreamError(
+                "comment not found",
+                category="not_found",
+                retryable=False,
+                upstream_status=404,
+                details={"reason": "commentNotFound"},
+            )
+        if comment_id == "inaccessible-comment":
+            raise NormalizedUpstreamError(
+                "forbidden",
+                category="auth",
+                retryable=False,
+                upstream_status=403,
+                details={"reason": "forbidden"},
+            )
+        if comment_id == "ineligible-account-comment":
+            raise NormalizedUpstreamError(
+                "ineligible account",
+                category="auth",
+                retryable=False,
+                upstream_status=403,
+                details={"reason": "ineligibleAccount"},
+            )
+        if comment_id == "quota-exhausted-comment":
+            raise NormalizedUpstreamError(
+                "quota exceeded",
+                category="rate_limit",
+                retryable=False,
+                upstream_status=403,
+                details={"reason": "quotaExceeded"},
+            )
+        return {
+            "kind": "youtube#comment",
+            "etag": "etag-123",
+            "id": comment_id or "comment-123",
+            "snippet": {
+                "textOriginal": body.get("snippet", {}).get("textOriginal", "Updated comment text."),
             },
         }
     if arguments.get("id") == "comment-empty" or arguments.get("parentId") == "comment-parent-without-replies":
@@ -520,6 +723,75 @@ def build_comments_insert_contract() -> YouTubeToolContract:
     )
 
 
+def build_comments_update_contract() -> YouTubeToolContract:
+    """Build the public contract metadata for ``comments_update``.
+
+    :return: Validated Layer 2 tool contract for ``comments_update``.
+    """
+    return YouTubeToolContract(
+        tool_name=COMMENTS_UPDATE_TOOL_NAME,
+        upstream_resource="comments",
+        upstream_method="update",
+        operation_key="comments.update",
+        description=COMMENTS_UPDATE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=COMMENTS_UPDATE_QUOTA_COST,
+        resource_family="comments",
+        input_contract=COMMENTS_UPDATE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "updated_resource",
+            "resourcePath": "item",
+            "requiredBodyFields": ["body.id", "body.snippet.textOriginal"],
+            "supportedWritableParts": list(COMMENTS_UPDATE_SUPPORTED_PARTS),
+            "writableBodyFields": ["body.snippet.textOriginal"],
+            "delegationFields": ["onBehalfOfContentOwner"],
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=(
+                "endpoint",
+                "quotaCost",
+                "updated",
+                "requestedParts",
+                "writableFields",
+                "item",
+                "auth",
+                "delegation",
+                "kind",
+                "etag",
+            ),
+            preserved_upstream_fields=("kind", "etag", "id", "snippet"),
+            disallowed_behavior=(
+                "comment_listing",
+                "reply_creation",
+                "top_level_thread_creation",
+                "comment_moderation",
+                "comment_delete",
+                "generated_rewrites",
+                "comment_search",
+                "sentiment_analysis",
+                "ranking",
+                "summarization",
+                "enrichment",
+                "cross_endpoint_aggregation",
+            ),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "deprecated_endpoint",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=COMMENTS_UPDATE_USAGE_NOTES,
+        caveats=COMMENTS_UPDATE_CAVEATS,
+    )
+
+
 def _requested_parts(arguments: dict[str, Any]) -> list[str]:
     """Return normalized requested comment part names.
 
@@ -569,6 +841,19 @@ def _raise_insert_invalid(message: str, field: str, **details: Any) -> None:
     payload = {"field": field}
     payload.update(details)
     raise CommentsInsertToolError(message, category="invalid_request", details=payload)
+
+
+def _raise_update_invalid(message: str, field: str, **details: Any) -> None:
+    """Raise a safe invalid-request error for ``comments_update`` validation.
+
+    :param message: Caller-facing validation message.
+    :param field: Request field responsible for the failure.
+    :param details: Additional safe details to expose with the error.
+    :raises CommentsUpdateToolError: Always raised with ``invalid_request``.
+    """
+    payload = {"field": field}
+    payload.update(details)
+    raise CommentsUpdateToolError(message, category="invalid_request", details=payload)
 
 
 def validate_comments_list_arguments(arguments: dict[str, Any]) -> tuple[str, str]:
@@ -708,6 +993,85 @@ def _comments_insert_auth_context(*, oauth_token: str | None) -> AuthContext:
     return AuthContext(mode=Layer1AuthMode.OAUTH_REQUIRED, credentials=CredentialBundle(oauth_token=oauth_token))
 
 
+def validate_comments_update_arguments(arguments: dict[str, Any]) -> tuple[str, str]:
+    """Validate ``comments_update`` arguments and return update context.
+
+    :param arguments: Caller-supplied tool arguments.
+    :return: Target comment id and updated text after whitespace validation.
+    :raises CommentsUpdateToolError: If arguments are invalid or unsupported.
+    """
+    allowed = set(COMMENTS_UPDATE_INPUT_SCHEMA["properties"])
+    for field in arguments:
+        if field not in allowed:
+            _raise_update_invalid(f"comments_update does not support {field}.", field)
+
+    requested_parts = _requested_parts(arguments)
+    if not requested_parts:
+        _raise_update_invalid("comments_update requires part.", "part")
+    unsupported_parts = [part for part in requested_parts if part not in COMMENTS_UPDATE_SUPPORTED_PARTS]
+    if unsupported_parts:
+        _raise_update_invalid(
+            "comments_update supports only the snippet part.",
+            "part",
+            allowed=list(COMMENTS_UPDATE_SUPPORTED_PARTS),
+            requested=unsupported_parts,
+        )
+
+    body = arguments.get("body")
+    if not isinstance(body, dict):
+        _raise_update_invalid("comments_update requires body.", "body")
+
+    body_allowed = set(COMMENTS_UPDATE_INPUT_SCHEMA["properties"]["body"]["properties"])
+    for field in body:
+        if field not in body_allowed:
+            _raise_update_invalid(f"comments_update does not support body.{field}.", f"body.{field}")
+
+    comment_id = body.get("id")
+    if not isinstance(comment_id, str) or not comment_id.strip():
+        _raise_update_invalid("comments_update requires body.id.", "body.id")
+
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        _raise_update_invalid("comments_update requires body.snippet.", "body.snippet")
+
+    snippet_allowed = set(COMMENTS_UPDATE_INPUT_SCHEMA["properties"]["body"]["properties"]["snippet"]["properties"])
+    for field in snippet:
+        if field not in snippet_allowed:
+            _raise_update_invalid(
+                f"comments_update does not support body.snippet.{field}.",
+                f"body.snippet.{field}",
+            )
+
+    updated_text = snippet.get("textOriginal")
+    if not isinstance(updated_text, str) or not updated_text.strip():
+        _raise_update_invalid("comments_update requires body.snippet.textOriginal.", "body.snippet.textOriginal")
+
+    delegated_owner = arguments.get("onBehalfOfContentOwner")
+    if delegated_owner is not None and (not isinstance(delegated_owner, str) or not delegated_owner.strip()):
+        _raise_update_invalid(
+            "comments_update requires a non-empty onBehalfOfContentOwner.",
+            "onBehalfOfContentOwner",
+        )
+
+    return comment_id.strip(), updated_text.strip()
+
+
+def _comments_update_auth_context(*, oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 auth context for ``comments_update``.
+
+    :param oauth_token: OAuth token available for comment editing.
+    :return: Auth context suitable for the Layer 1 wrapper.
+    :raises CommentsUpdateToolError: If OAuth credentials are unavailable.
+    """
+    if not oauth_token:
+        raise CommentsUpdateToolError(
+            "comments_update requires OAuth access.",
+            category="authentication_failed",
+            details={"field": "auth", "authMode": "oauth_required"},
+        )
+    return AuthContext(mode=Layer1AuthMode.OAUTH_REQUIRED, credentials=CredentialBundle(oauth_token=oauth_token))
+
+
 def map_comments_list_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     """Map a Layer 1 comment response to the public Layer 2 result shape.
 
@@ -765,6 +1129,42 @@ def map_comments_insert_result(response: dict[str, Any], arguments: dict[str, An
     return result
 
 
+def _safe_update_delegation_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return safe delegation flags for one update request.
+
+    :param arguments: Caller-supplied ``comments_update`` arguments.
+    :return: Safe delegation flags without owner identifiers.
+    """
+    if "onBehalfOfContentOwner" in arguments:
+        return {"onBehalfOfContentOwner": True}
+    return {}
+
+
+def map_comments_update_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map a Layer 1 comment update response to the public result shape.
+
+    :param response: Upstream-shaped updated comment resource.
+    :param arguments: Original validated tool arguments.
+    :return: Near-raw updated comment result with safe MCP clarity fields.
+    """
+    result: dict[str, Any] = {
+        "endpoint": "comments.update",
+        "quotaCost": COMMENTS_UPDATE_QUOTA_COST,
+        "updated": True,
+        "requestedParts": _requested_parts(arguments),
+        "writableFields": ["body.snippet.textOriginal"],
+        "item": response,
+        "auth": {"mode": "oauth_required"},
+    }
+    delegation_context = _safe_update_delegation_context(arguments)
+    if delegation_context:
+        result["delegation"] = delegation_context
+    for field in ("kind", "etag"):
+        if field in response:
+            result[field] = response[field]
+    return result
+
+
 def _map_comments_list_upstream_error(error: NormalizedUpstreamError) -> CommentsListToolError:
     """Map a normalized upstream error to the public Layer 2 error model.
 
@@ -813,6 +1213,33 @@ def _map_comments_insert_upstream_error(error: NormalizedUpstreamError) -> Comme
     if error.upstream_status:
         details["upstreamStatus"] = error.upstream_status
     return CommentsInsertToolError(
+        str(error),
+        category=categories.get(error.category, "upstream_failure"),
+        details=sanitize_error_details(details),
+    )
+
+
+def _map_comments_update_upstream_error(error: NormalizedUpstreamError) -> CommentsUpdateToolError:
+    """Map a normalized upstream error to the public update error model.
+
+    :param error: Normalized upstream failure raised by Layer 1 execution.
+    :return: Safe ``comments_update`` error.
+    """
+    categories = {
+        "invalid_request": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "not_found": "resource_not_found",
+        "rate_limit": "quota_exhausted",
+        "deprecated": "deprecated_endpoint",
+        "transient": "endpoint_unavailable",
+        "upstream_service": "upstream_failure",
+    }
+    details = dict(error.details or {})
+    if error.upstream_status:
+        details["upstreamStatus"] = error.upstream_status
+    return CommentsUpdateToolError(
         str(error),
         category=categories.get(error.category, "upstream_failure"),
         details=sanitize_error_details(details),
@@ -904,6 +1331,51 @@ def build_comments_insert_handler(
     return handler
 
 
+def build_comments_update_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-comment-write",
+):
+    """Build the concrete ``comments_update`` handler.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for comment editing.
+    :return: Callable dispatcher handler.
+    """
+    comments_wrapper = wrapper or build_comments_update_wrapper()
+    comments_executor = executor or _default_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one ``comments_update`` request.
+
+        :param arguments: Validated dispatcher arguments.
+        :return: Public Layer 2 updated comment result.
+        :raises CommentsUpdateToolError: If validation, authorization, or upstream execution fails.
+        """
+        validate_comments_update_arguments(arguments)
+        auth_context = _comments_update_auth_context(oauth_token=oauth_token)
+        try:
+            response = comments_wrapper.call(comments_executor, arguments=arguments, auth_context=auth_context)
+        except NormalizedUpstreamError as error:
+            raise _map_comments_update_upstream_error(error) from error
+        except ValueError as error:
+            raise CommentsUpdateToolError(
+                str(error),
+                category="invalid_request",
+                details={"field": "body"},
+            ) from error
+        except Exception as error:
+            raise CommentsUpdateToolError(
+                "comments_update upstream execution failed.",
+                category="upstream_failure",
+            ) from error
+        return map_comments_update_result(response, arguments)
+
+    return handler
+
+
 def build_comments_list_tool_descriptor(
     *,
     wrapper=None,
@@ -950,6 +1422,29 @@ def build_comments_insert_tool_descriptor(
     }
 
 
+def build_comments_update_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-comment-write",
+) -> dict[str, Any]:
+    """Build the dispatcher descriptor for the ``comments_update`` tool.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for comment editing.
+    :return: Dispatcher-compatible descriptor for the concrete Layer 2 tool.
+    """
+    contract = build_comments_update_contract()
+    return {
+        "name": COMMENTS_UPDATE_TOOL_NAME,
+        "description": COMMENTS_UPDATE_DESCRIPTION,
+        "metadata": contract.to_tool_metadata(),
+        "inputSchema": COMMENTS_UPDATE_INPUT_SCHEMA,
+        "handler": build_comments_update_handler(wrapper=wrapper, executor=executor, oauth_token=oauth_token),
+    }
+
+
 __all__ = [
     "COMMENTS_INSERT_CALLER_EXAMPLES",
     "COMMENTS_INSERT_CAVEATS",
@@ -958,6 +1453,14 @@ __all__ = [
     "COMMENTS_INSERT_QUOTA_COST",
     "COMMENTS_INSERT_TOOL_NAME",
     "COMMENTS_INSERT_USAGE_NOTES",
+    "COMMENTS_UPDATE_CALLER_EXAMPLES",
+    "COMMENTS_UPDATE_CAVEATS",
+    "COMMENTS_UPDATE_DESCRIPTION",
+    "COMMENTS_UPDATE_INPUT_SCHEMA",
+    "COMMENTS_UPDATE_QUOTA_COST",
+    "COMMENTS_UPDATE_SUPPORTED_PARTS",
+    "COMMENTS_UPDATE_TOOL_NAME",
+    "COMMENTS_UPDATE_USAGE_NOTES",
     "COMMENTS_LIST_CALLER_EXAMPLES",
     "COMMENTS_LIST_CAVEATS",
     "COMMENTS_LIST_DESCRIPTION",
@@ -969,14 +1472,20 @@ __all__ = [
     "COMMENTS_LIST_USAGE_NOTES",
     "CommentsInsertToolError",
     "CommentsListToolError",
+    "CommentsUpdateToolError",
     "build_comments_insert_contract",
     "build_comments_insert_handler",
     "build_comments_insert_tool_descriptor",
+    "build_comments_update_contract",
+    "build_comments_update_handler",
+    "build_comments_update_tool_descriptor",
     "build_comments_list_contract",
     "build_comments_list_handler",
     "build_comments_list_tool_descriptor",
     "map_comments_insert_result",
+    "map_comments_update_result",
     "map_comments_list_result",
     "validate_comments_insert_arguments",
+    "validate_comments_update_arguments",
     "validate_comments_list_arguments",
 ]

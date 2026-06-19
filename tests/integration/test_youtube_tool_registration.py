@@ -126,6 +126,27 @@ def test_default_registry_includes_executable_comments_insert_tool_with_create_m
     assert "commentThreads.insert" in metadata_text
 
 
+def test_default_registry_includes_executable_comments_update_tool_with_update_metadata():
+    """Register ``comments_update`` by default with update metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "comments_update" in listed
+    metadata = listed["comments_update"]["metadata"]
+    description = listed["comments_update"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "comments.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert "body.id" in metadata_text
+    assert "body.snippet.textOriginal" in metadata_text
+    assert "read-only" in metadata_text
+
+
 def test_default_registry_includes_executable_channel_banners_insert_tool_with_upload_metadata():
     """Register ``channelBanners_insert`` by default with upload metadata."""
     dispatcher = InMemoryToolDispatcher()
