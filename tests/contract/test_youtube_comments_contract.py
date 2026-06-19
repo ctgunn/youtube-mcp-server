@@ -9,6 +9,9 @@ from mcp_server.tools.youtube_common.comments import (
     COMMENTS_INSERT_CALLER_EXAMPLES,
     COMMENTS_INSERT_INPUT_SCHEMA,
     COMMENTS_INSERT_TOOL_NAME,
+    COMMENTS_SET_MODERATION_STATUS_CALLER_EXAMPLES,
+    COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA,
+    COMMENTS_SET_MODERATION_STATUS_TOOL_NAME,
     COMMENTS_UPDATE_CALLER_EXAMPLES,
     COMMENTS_UPDATE_INPUT_SCHEMA,
     COMMENTS_UPDATE_TOOL_NAME,
@@ -17,9 +20,12 @@ from mcp_server.tools.youtube_common.comments import (
     COMMENTS_LIST_TOOL_NAME,
     CommentsInsertToolError,
     CommentsListToolError,
+    CommentsSetModerationStatusToolError,
     CommentsUpdateToolError,
     build_comments_insert_contract,
     build_comments_insert_tool_descriptor,
+    build_comments_set_moderation_status_contract,
+    build_comments_set_moderation_status_tool_descriptor,
     build_comments_update_contract,
     build_comments_update_tool_descriptor,
     build_comments_list_contract,
@@ -40,6 +46,186 @@ def test_concrete_comments_module_exports_public_tool_contract():
     assert comments.COMMENTS_UPDATE_TOOL_NAME == "comments_update"
     assert youtube_common.COMMENTS_UPDATE_TOOL_NAME == "comments_update"
     assert callable(comments.build_comments_update_tool_descriptor)
+    assert comments.COMMENTS_SET_MODERATION_STATUS_TOOL_NAME == "comments_setModerationStatus"
+    assert youtube_common.COMMENTS_SET_MODERATION_STATUS_TOOL_NAME == "comments_setModerationStatus"
+    assert callable(comments.build_comments_set_moderation_status_tool_descriptor)
+
+
+def test_comments_set_moderation_status_contract_exposes_identity_quota_auth_and_status_rules():
+    """Expose public metadata required before moderation invocation."""
+    contract = build_comments_set_moderation_status_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.tool_name == COMMENTS_SET_MODERATION_STATUS_TOOL_NAME
+    assert contract.upstream_resource == "comments"
+    assert contract.upstream_method == "setModerationStatus"
+    assert contract.quota_cost == 50
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["upstream"]["operationKey"] == "comments.setModerationStatus"
+    assert metadata["inputContract"]["required"] == ["id", "moderationStatus"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert any("Quota cost: 50" in note for note in metadata["usageNotes"])
+
+
+def test_comments_set_moderation_status_descriptor_matches_contract_and_schema():
+    """Build a dispatcher descriptor that matches the public moderation contract."""
+    descriptor = build_comments_set_moderation_status_tool_descriptor()
+
+    assert descriptor["name"] == "comments_setModerationStatus"
+    assert "Quota cost: 50" in descriptor["description"]
+    assert descriptor["metadata"]["upstream"]["operationKey"] == "comments.setModerationStatus"
+    assert descriptor["inputSchema"]["required"] == ["id", "moderationStatus"]
+    assert {"id", "moderationStatus", "banAuthor", "onBehalfOfContentOwner"}.issubset(
+        descriptor["inputSchema"]["properties"]
+    )
+    assert "body" not in descriptor["inputSchema"]["properties"]
+    assert callable(descriptor["handler"])
+
+
+def test_comments_set_moderation_status_contract_documents_successful_acknowledgment_shape():
+    """Require successful moderation results to preserve safe acknowledgment context."""
+    result = build_comments_set_moderation_status_tool_descriptor()["handler"](
+        {"id": ["comment-123"], "moderationStatus": "published"}
+    )
+
+    assert result["endpoint"] == "comments.setModerationStatus"
+    assert result["quotaCost"] == 50
+    assert result["moderated"] is True
+    assert result["targetIds"] == ["comment-123"]
+    assert result["moderationStatus"] == "published"
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["statusCode"] == 204
+    assert "item" not in result
+    assert "items" not in result
+
+
+def test_comments_set_moderation_status_contract_documents_delegated_and_ban_author_context():
+    """Preserve safe delegated and optional author-ban context for moderation."""
+    result = build_comments_set_moderation_status_tool_descriptor()["handler"](
+        {
+            "id": ["comment-123"],
+            "moderationStatus": "rejected",
+            "banAuthor": True,
+            "onBehalfOfContentOwner": "content-owner-id",
+        }
+    )
+
+    assert result["endpoint"] == "comments.setModerationStatus"
+    assert result["banAuthor"] is True
+    assert result["delegation"] == {"onBehalfOfContentOwner": True}
+
+
+def test_comments_set_moderation_status_input_schema_preserves_contract_shape():
+    """Expose the endpoint-like request shape for moderation."""
+    properties = COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA["properties"]
+
+    assert COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA["required"] == ["id", "moderationStatus"]
+    assert {"id", "moderationStatus", "banAuthor", "onBehalfOfContentOwner"}.issubset(properties)
+    assert properties["moderationStatus"]["enum"] == ["heldForReview", "published", "rejected"]
+    assert properties["banAuthor"]["type"] == "boolean"
+    assert "body" not in properties
+    assert COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_comments_set_moderation_status_metadata_exposes_cost_oauth_status_rules_and_caveats():
+    """Expose quota, OAuth, moderation-state rules, delegation, and exclusions."""
+    metadata = build_comments_set_moderation_status_contract().to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["responseConvention"]["resultKind"] == "mutation_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert metadata["responseConvention"]["bodyPolicy"] == "no_upstream_body"
+    assert metadata["responseConvention"]["supportedModerationStatuses"] == [
+        "heldForReview",
+        "published",
+        "rejected",
+    ]
+    assert metadata["responseConvention"]["delegationFields"] == ["onBehalfOfContentOwner"]
+    assert "heldForReview" in metadata_text
+    assert "published" in metadata_text
+    assert "rejected" in metadata_text
+    assert "banAuthor" in metadata_text
+    assert "request body" in metadata_text
+    assert "comment editing" in metadata_text
+    assert "automated moderation" in metadata_text
+
+
+def test_comments_set_moderation_status_caller_examples_cover_success_and_failure_modes():
+    """Expose representative examples for every required moderation scenario."""
+    examples = {example["name"]: example for example in COMMENTS_SET_MODERATION_STATUS_CALLER_EXAMPLES}
+
+    assert {
+        "authorized_publish",
+        "authorized_hold_for_review",
+        "authorized_rejection_with_ban_author",
+        "delegated_owner_context",
+        "missing_oauth",
+        "missing_target",
+        "duplicate_target",
+        "missing_status",
+        "unsupported_status",
+        "incompatible_ban_author",
+        "unsupported_body",
+        "target_comment_failure",
+    }.issubset(examples)
+    assert all(
+        example.get("quotaCost") == 50 or "Quota cost: 50" in str(example)
+        for example in COMMENTS_SET_MODERATION_STATUS_CALLER_EXAMPLES
+    )
+
+
+def test_comments_set_moderation_status_public_metadata_is_safe():
+    """Avoid exposing credentials or unsafe diagnostics in moderation metadata."""
+    metadata = build_comments_set_moderation_status_contract().to_tool_metadata()
+
+    assert "oauthToken" not in str(metadata)
+    assert "apiKey" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+    assert "rawRequestBody" not in str(metadata)
+
+
+def test_comments_set_moderation_status_safe_errors_do_not_leak_secret_details():
+    """Avoid leaking credentials, raw bodies, or diagnostics from moderation errors."""
+
+    class FailingWrapper:
+        """Raise a normalized upstream error with unsafe-looking details."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise one fake upstream authorization failure.
+
+            :param executor: Executor passed by the handler.
+            :param arguments: Arguments forwarded to the wrapper.
+            :param auth_context: Auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError(
+                "forbidden",
+                category="auth",
+                retryable=False,
+                upstream_status=403,
+                details={
+                    "apiKey": "secret",
+                    "oauthToken": "secret",
+                    "stackTrace": "traceback",
+                    "rawRequestBody": {"id": ["secret-comment"]},
+                },
+            )
+
+    descriptor = build_comments_set_moderation_status_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(CommentsSetModerationStatusToolError) as exc_info:
+        descriptor["handler"]({"id": ["comment-123"], "moderationStatus": "published"})
+
+    assert exc_info.value.category == "authorization_failed"
+    assert "api" not in str(exc_info.value.details).lower()
+    assert "token" not in str(exc_info.value.details).lower()
+    assert "stack" not in str(exc_info.value.details).lower()
+    assert "raw" not in str(exc_info.value.details).lower()
 
 
 def test_comments_update_contract_exposes_identity_quota_auth_and_body_rules():

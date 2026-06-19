@@ -11,6 +11,7 @@ from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.comments import (
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
+    build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
@@ -27,6 +28,9 @@ COMMENTS_INSERT_QUOTA_COST = 50
 COMMENTS_UPDATE_TOOL_NAME = "comments_update"
 COMMENTS_UPDATE_QUOTA_COST = 50
 COMMENTS_UPDATE_SUPPORTED_PARTS = ("snippet",)
+COMMENTS_SET_MODERATION_STATUS_TOOL_NAME = "comments_setModerationStatus"
+COMMENTS_SET_MODERATION_STATUS_QUOTA_COST = 50
+COMMENTS_SET_MODERATION_STATUS_SUPPORTED_STATUSES = ("heldForReview", "published", "rejected")
 
 COMMENTS_LIST_INPUT_SCHEMA = {
     "type": "object",
@@ -90,6 +94,23 @@ COMMENTS_UPDATE_INPUT_SCHEMA = {
             },
             "additionalProperties": False,
         },
+        "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["id", "moderationStatus"],
+    "properties": {
+        "id": {
+            "oneOf": [
+                {"type": "string", "minLength": 1},
+                {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+            ]
+        },
+        "moderationStatus": {"type": "string", "enum": list(COMMENTS_SET_MODERATION_STATUS_SUPPORTED_STATUSES)},
+        "banAuthor": {"type": "boolean"},
         "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
     },
     "additionalProperties": False,
@@ -419,6 +440,113 @@ COMMENTS_UPDATE_CALLER_EXAMPLES = (
     },
 )
 
+COMMENTS_SET_MODERATION_STATUS_DESCRIPTION = (
+    "Set YouTube comment moderation status. Endpoint: comments.setModerationStatus. "
+    "Quota cost: 50. Auth: oauth_required. Requires id and moderationStatus."
+)
+COMMENTS_SET_MODERATION_STATUS_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide one or more id values and one moderationStatus.",
+    "Quota cost: 50. moderationStatus must be heldForReview, published, or rejected.",
+    "Quota cost: 50. banAuthor is optional and only valid when moderationStatus is rejected.",
+    "Quota cost: 50. onBehalfOfContentOwner is optional delegated owner context when supported by eligible OAuth authorization.",
+)
+COMMENTS_SET_MODERATION_STATUS_CAVEATS = (
+    "comments_setModerationStatus changes moderation state for existing comments and requires eligible OAuth authorization.",
+    "The request uses query-only fields; a request body is outside this tool boundary.",
+    "Missing, duplicate, inaccessible, unsupported, or already ineligible target comments are surfaced as safe validation, authorization, or missing-resource failures.",
+    "The tool does not perform comment listing, reply creation, comment editing, deletion, automated moderation, sentiment analysis, ranking, summarization, enrichment, or cross-endpoint aggregation.",
+)
+COMMENTS_SET_MODERATION_STATUS_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_publish",
+        "description": "Quota cost: 50. Publish a held comment with eligible OAuth.",
+        "arguments": {"id": ["comment-123"], "moderationStatus": "published"},
+        "result": {"endpoint": "comments.setModerationStatus", "quotaCost": 50, "moderated": True},
+        "quotaCost": 50,
+    },
+    {
+        "name": "authorized_hold_for_review",
+        "description": "Quota cost: 50. Move one or more comments to heldForReview.",
+        "arguments": {"id": ["comment-123", "comment-456"], "moderationStatus": "heldForReview"},
+        "result": {"endpoint": "comments.setModerationStatus", "quotaCost": 50, "moderationStatus": "heldForReview"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "authorized_rejection_with_ban_author",
+        "description": "Quota cost: 50. Reject a comment and request author ban handling.",
+        "arguments": {"id": ["comment-123"], "moderationStatus": "rejected", "banAuthor": True},
+        "result": {"endpoint": "comments.setModerationStatus", "quotaCost": 50, "banAuthor": True},
+        "quotaCost": 50,
+    },
+    {
+        "name": "delegated_owner_context",
+        "description": "Quota cost: 50. Moderate a comment with safe delegated owner context.",
+        "arguments": {
+            "id": ["comment-123"],
+            "moderationStatus": "published",
+            "onBehalfOfContentOwner": "content-owner-id",
+        },
+        "result": {"endpoint": "comments.setModerationStatus", "delegation": {"onBehalfOfContentOwner": True}},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_oauth",
+        "description": "Quota cost: 50. Reject moderation when eligible OAuth is unavailable.",
+        "arguments": {"id": ["comment-123"], "moderationStatus": "published"},
+        "error": {"category": "authentication_failed", "field": "auth"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_target",
+        "description": "Quota cost: 50. Reject moderation without a target comment id.",
+        "arguments": {"moderationStatus": "published"},
+        "error": {"category": "invalid_request", "field": "id"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "duplicate_target",
+        "description": "Quota cost: 50. Reject duplicate target comment ids.",
+        "arguments": {"id": ["comment-123", "comment-123"], "moderationStatus": "rejected"},
+        "error": {"category": "invalid_request", "field": "id"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_status",
+        "description": "Quota cost: 50. Reject moderation without moderationStatus.",
+        "arguments": {"id": ["comment-123"]},
+        "error": {"category": "invalid_request", "field": "moderationStatus"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "unsupported_status",
+        "description": "Quota cost: 50. Reject moderationStatus values outside heldForReview, published, or rejected.",
+        "arguments": {"id": ["comment-123"], "moderationStatus": "spam"},
+        "error": {"category": "invalid_request", "field": "moderationStatus"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "incompatible_ban_author",
+        "description": "Quota cost: 50. Reject banAuthor unless moderationStatus is rejected.",
+        "arguments": {"id": ["comment-123"], "moderationStatus": "published", "banAuthor": True},
+        "error": {"category": "invalid_request", "field": "banAuthor"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "unsupported_body",
+        "description": "Quota cost: 50. Reject request body fields; moderation uses query-only inputs.",
+        "arguments": {"id": ["comment-123"], "moderationStatus": "rejected", "body": {}},
+        "error": {"category": "invalid_request", "field": "body"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "target_comment_failure",
+        "description": "Quota cost: 50. Preserve missing target comment failures as safe public errors.",
+        "arguments": {"id": ["missing-comment"], "moderationStatus": "published"},
+        "error": {"category": "resource_not_found", "reason": "commentNotFound"},
+        "quotaCost": 50,
+    },
+)
+
 
 class CommentsListToolError(ValueError):
     """Represent a safe caller-facing ``comments_list`` failure."""
@@ -455,6 +583,21 @@ class CommentsUpdateToolError(ValueError):
 
     def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
         """Initialize the safe comments-update error.
+
+        :param message: Caller-facing error message.
+        :param category: Shared safe error category.
+        :param details: Safe diagnostic details for MCP error payloads.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = details or {}
+
+
+class CommentsSetModerationStatusToolError(ValueError):
+    """Represent a safe caller-facing ``comments_setModerationStatus`` failure."""
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the safe comments moderation error.
 
         :param message: Caller-facing error message.
         :param category: Shared safe error category.
@@ -566,6 +709,41 @@ def _default_comments_transport(execution) -> dict[str, Any]:
                 "textOriginal": body.get("snippet", {}).get("textOriginal", "Updated comment text."),
             },
         }
+    if execution.metadata.operation_name == "setModerationStatus":
+        target_ids = _normalized_moderation_target_ids(arguments.get("id"))
+        if "missing-comment" in target_ids:
+            raise NormalizedUpstreamError(
+                "comment not found",
+                category="not_found",
+                retryable=False,
+                upstream_status=404,
+                details={"reason": "commentNotFound"},
+            )
+        if "limited-moderation-comment" in target_ids:
+            raise NormalizedUpstreamError(
+                "operation not supported",
+                category="invalid_request",
+                retryable=False,
+                upstream_status=400,
+                details={"reason": "operationNotSupported"},
+            )
+        if "quota-exhausted-comment" in target_ids:
+            raise NormalizedUpstreamError(
+                "quota exceeded",
+                category="rate_limit",
+                retryable=False,
+                upstream_status=403,
+                details={"reason": "quotaExceeded"},
+            )
+        if "forbidden-comment" in target_ids or "inaccessible-comment" in target_ids:
+            raise NormalizedUpstreamError(
+                "forbidden",
+                category="auth",
+                retryable=False,
+                upstream_status=403,
+                details={"reason": "forbidden"},
+            )
+        return {}
     if arguments.get("id") == "comment-empty" or arguments.get("parentId") == "comment-parent-without-replies":
         return {"items": []}
     if arguments.get("parentId"):
@@ -792,6 +970,74 @@ def build_comments_update_contract() -> YouTubeToolContract:
     )
 
 
+def build_comments_set_moderation_status_contract() -> YouTubeToolContract:
+    """Build public contract metadata for ``comments_setModerationStatus``.
+
+    :return: Validated Layer 2 tool contract for comment moderation.
+    """
+    return YouTubeToolContract(
+        tool_name=COMMENTS_SET_MODERATION_STATUS_TOOL_NAME,
+        upstream_resource="comments",
+        upstream_method="setModerationStatus",
+        operation_key="comments.setModerationStatus",
+        description=COMMENTS_SET_MODERATION_STATUS_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=COMMENTS_SET_MODERATION_STATUS_QUOTA_COST,
+        resource_family="comments",
+        input_contract=COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "mutation_acknowledgment",
+            "successStatus": 204,
+            "bodyPolicy": "no_upstream_body",
+            "targetFields": ["id"],
+            "requiredFields": ["id", "moderationStatus"],
+            "supportedModerationStatuses": list(COMMENTS_SET_MODERATION_STATUS_SUPPORTED_STATUSES),
+            "optionalFlagRules": {"banAuthor": "only_with_rejected"},
+            "delegationFields": ["onBehalfOfContentOwner"],
+        },
+        response_boundary=ResponseBoundary(
+            boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+            allowed_wrapper_fields=(
+                "endpoint",
+                "quotaCost",
+                "moderated",
+                "targetIds",
+                "moderationStatus",
+                "banAuthor",
+                "auth",
+                "delegation",
+                "statusCode",
+            ),
+            preserved_upstream_fields=(),
+            disallowed_behavior=(
+                "comment_listing",
+                "reply_creation",
+                "comment_editing",
+                "comment_delete",
+                "automated_moderation",
+                "sentiment_analysis",
+                "ranking",
+                "summarization",
+                "enrichment",
+                "cross_endpoint_aggregation",
+            ),
+        ).to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "deprecated_endpoint",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=COMMENTS_SET_MODERATION_STATUS_USAGE_NOTES,
+        caveats=COMMENTS_SET_MODERATION_STATUS_CAVEATS,
+    )
+
+
 def _requested_parts(arguments: dict[str, Any]) -> list[str]:
     """Return normalized requested comment part names.
 
@@ -854,6 +1100,49 @@ def _raise_update_invalid(message: str, field: str, **details: Any) -> None:
     payload = {"field": field}
     payload.update(details)
     raise CommentsUpdateToolError(message, category="invalid_request", details=payload)
+
+
+def _raise_set_moderation_status_invalid(message: str, field: str, **details: Any) -> None:
+    """Raise a safe invalid-request error for moderation validation.
+
+    :param message: Caller-facing validation message.
+    :param field: Request field responsible for the failure.
+    :param details: Additional safe details to expose with the error.
+    :raises CommentsSetModerationStatusToolError: Always raised with ``invalid_request``.
+    """
+    payload = {"field": field}
+    payload.update(details)
+    raise CommentsSetModerationStatusToolError(message, category="invalid_request", details=payload)
+
+
+def _normalized_moderation_target_ids(raw_ids: Any) -> tuple[str, ...]:
+    """Return validated moderation target ids.
+
+    :param raw_ids: Caller-supplied ``id`` value as a string or sequence.
+    :return: Ordered, stripped comment ids.
+    :raises CommentsSetModerationStatusToolError: If ids are missing, empty, or duplicated.
+    """
+    if isinstance(raw_ids, str):
+        values = [raw_ids]
+    elif isinstance(raw_ids, list | tuple):
+        values = list(raw_ids)
+    else:
+        _raise_set_moderation_status_invalid("comments_setModerationStatus requires id.", "id")
+
+    normalized_ids: list[str] = []
+    for raw_value in values:
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            _raise_set_moderation_status_invalid("comments_setModerationStatus requires id.", "id")
+        normalized = raw_value.strip()
+        if normalized in normalized_ids:
+            _raise_set_moderation_status_invalid(
+                "comments_setModerationStatus does not support duplicate target ids.",
+                "id",
+            )
+        normalized_ids.append(normalized)
+    if not normalized_ids:
+        _raise_set_moderation_status_invalid("comments_setModerationStatus requires id.", "id")
+    return tuple(normalized_ids)
 
 
 def validate_comments_list_arguments(arguments: dict[str, Any]) -> tuple[str, str]:
@@ -1072,6 +1361,72 @@ def _comments_update_auth_context(*, oauth_token: str | None) -> AuthContext:
     return AuthContext(mode=Layer1AuthMode.OAUTH_REQUIRED, credentials=CredentialBundle(oauth_token=oauth_token))
 
 
+def validate_comments_set_moderation_status_arguments(arguments: dict[str, Any]) -> tuple[tuple[str, ...], str]:
+    """Validate moderation arguments and return target ids and status.
+
+    :param arguments: Caller-supplied moderation arguments.
+    :return: Target comment ids and moderation status after validation.
+    :raises CommentsSetModerationStatusToolError: If arguments are invalid or unsupported.
+    """
+    allowed = set(COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA["properties"])
+    for field in arguments:
+        if field not in allowed:
+            _raise_set_moderation_status_invalid(
+                f"comments_setModerationStatus does not support {field}.",
+                field,
+            )
+
+    target_ids = _normalized_moderation_target_ids(arguments.get("id"))
+
+    moderation_status = arguments.get("moderationStatus")
+    if not isinstance(moderation_status, str) or not moderation_status.strip():
+        _raise_set_moderation_status_invalid(
+            "comments_setModerationStatus requires moderationStatus.",
+            "moderationStatus",
+        )
+    moderation_status = moderation_status.strip()
+    if moderation_status not in COMMENTS_SET_MODERATION_STATUS_SUPPORTED_STATUSES:
+        _raise_set_moderation_status_invalid(
+            f"unsupported moderationStatus: {moderation_status}",
+            "moderationStatus",
+            allowed=list(COMMENTS_SET_MODERATION_STATUS_SUPPORTED_STATUSES),
+        )
+
+    ban_author = arguments.get("banAuthor")
+    if ban_author is not None and not isinstance(ban_author, bool):
+        _raise_set_moderation_status_invalid("banAuthor must be a boolean when provided.", "banAuthor")
+    if ban_author and moderation_status != "rejected":
+        _raise_set_moderation_status_invalid(
+            "banAuthor is only supported when moderationStatus is rejected.",
+            "banAuthor",
+        )
+
+    delegated_owner = arguments.get("onBehalfOfContentOwner")
+    if delegated_owner is not None and (not isinstance(delegated_owner, str) or not delegated_owner.strip()):
+        _raise_set_moderation_status_invalid(
+            "comments_setModerationStatus requires a non-empty onBehalfOfContentOwner.",
+            "onBehalfOfContentOwner",
+        )
+
+    return target_ids, moderation_status
+
+
+def _comments_set_moderation_status_auth_context(*, oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 auth context for comment moderation.
+
+    :param oauth_token: OAuth token available for moderation status changes.
+    :return: Auth context suitable for the Layer 1 wrapper.
+    :raises CommentsSetModerationStatusToolError: If OAuth credentials are unavailable.
+    """
+    if not oauth_token:
+        raise CommentsSetModerationStatusToolError(
+            "comments_setModerationStatus requires OAuth access.",
+            category="authentication_failed",
+            details={"field": "auth", "authMode": "oauth_required"},
+        )
+    return AuthContext(mode=Layer1AuthMode.OAUTH_REQUIRED, credentials=CredentialBundle(oauth_token=oauth_token))
+
+
 def map_comments_list_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     """Map a Layer 1 comment response to the public Layer 2 result shape.
 
@@ -1165,6 +1520,42 @@ def map_comments_update_result(response: dict[str, Any], arguments: dict[str, An
     return result
 
 
+def _safe_set_moderation_status_delegation_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return safe delegation flags for one moderation request.
+
+    :param arguments: Caller-supplied moderation arguments.
+    :return: Safe delegation flags without owner identifiers.
+    """
+    if "onBehalfOfContentOwner" in arguments:
+        return {"onBehalfOfContentOwner": True}
+    return {}
+
+
+def map_comments_set_moderation_status_result(response: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map a moderation success response to the public acknowledgment shape.
+
+    :param response: Empty upstream-shaped no-content response.
+    :param arguments: Original validated tool arguments.
+    :return: Safe mutation acknowledgment with target and status context.
+    """
+    target_ids = _normalized_moderation_target_ids(arguments.get("id"))
+    result: dict[str, Any] = {
+        "endpoint": "comments.setModerationStatus",
+        "quotaCost": COMMENTS_SET_MODERATION_STATUS_QUOTA_COST,
+        "moderated": True,
+        "targetIds": list(target_ids),
+        "moderationStatus": str(arguments.get("moderationStatus", "")).strip(),
+        "auth": {"mode": "oauth_required"},
+        "statusCode": 204,
+    }
+    if "banAuthor" in arguments:
+        result["banAuthor"] = bool(arguments["banAuthor"])
+    delegation_context = _safe_set_moderation_status_delegation_context(arguments)
+    if delegation_context:
+        result["delegation"] = delegation_context
+    return result
+
+
 def _map_comments_list_upstream_error(error: NormalizedUpstreamError) -> CommentsListToolError:
     """Map a normalized upstream error to the public Layer 2 error model.
 
@@ -1240,6 +1631,35 @@ def _map_comments_update_upstream_error(error: NormalizedUpstreamError) -> Comme
     if error.upstream_status:
         details["upstreamStatus"] = error.upstream_status
     return CommentsUpdateToolError(
+        str(error),
+        category=categories.get(error.category, "upstream_failure"),
+        details=sanitize_error_details(details),
+    )
+
+
+def _map_comments_set_moderation_status_upstream_error(
+    error: NormalizedUpstreamError,
+) -> CommentsSetModerationStatusToolError:
+    """Map a normalized upstream error to the public moderation error model.
+
+    :param error: Normalized upstream failure raised by Layer 1 execution.
+    :return: Safe ``comments_setModerationStatus`` error.
+    """
+    categories = {
+        "invalid_request": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "not_found": "resource_not_found",
+        "rate_limit": "quota_exhausted",
+        "deprecated": "deprecated_endpoint",
+        "transient": "endpoint_unavailable",
+        "upstream_service": "upstream_failure",
+    }
+    details = dict(error.details or {})
+    if error.upstream_status:
+        details["upstreamStatus"] = error.upstream_status
+    return CommentsSetModerationStatusToolError(
         str(error),
         category=categories.get(error.category, "upstream_failure"),
         details=sanitize_error_details(details),
@@ -1376,6 +1796,51 @@ def build_comments_update_handler(
     return handler
 
 
+def build_comments_set_moderation_status_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-comment-moderation",
+):
+    """Build the concrete ``comments_setModerationStatus`` handler.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for moderation status changes.
+    :return: Callable dispatcher handler.
+    """
+    comments_wrapper = wrapper or build_comments_set_moderation_status_wrapper()
+    comments_executor = executor or _default_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one ``comments_setModerationStatus`` request.
+
+        :param arguments: Validated dispatcher arguments.
+        :return: Public Layer 2 moderation acknowledgment result.
+        :raises CommentsSetModerationStatusToolError: If validation, authorization, or upstream execution fails.
+        """
+        validate_comments_set_moderation_status_arguments(arguments)
+        auth_context = _comments_set_moderation_status_auth_context(oauth_token=oauth_token)
+        try:
+            response = comments_wrapper.call(comments_executor, arguments=arguments, auth_context=auth_context)
+        except NormalizedUpstreamError as error:
+            raise _map_comments_set_moderation_status_upstream_error(error) from error
+        except ValueError as error:
+            raise CommentsSetModerationStatusToolError(
+                str(error),
+                category="invalid_request",
+                details={"field": "id"},
+            ) from error
+        except Exception as error:
+            raise CommentsSetModerationStatusToolError(
+                "comments_setModerationStatus upstream execution failed.",
+                category="upstream_failure",
+            ) from error
+        return map_comments_set_moderation_status_result(response, arguments)
+
+    return handler
+
+
 def build_comments_list_tool_descriptor(
     *,
     wrapper=None,
@@ -1445,6 +1910,33 @@ def build_comments_update_tool_descriptor(
     }
 
 
+def build_comments_set_moderation_status_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | None = None,
+    oauth_token: str | None = "authorized-comment-moderation",
+) -> dict[str, Any]:
+    """Build the dispatcher descriptor for ``comments_setModerationStatus``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token availability for moderation status changes.
+    :return: Dispatcher-compatible descriptor for the concrete Layer 2 tool.
+    """
+    contract = build_comments_set_moderation_status_contract()
+    return {
+        "name": COMMENTS_SET_MODERATION_STATUS_TOOL_NAME,
+        "description": COMMENTS_SET_MODERATION_STATUS_DESCRIPTION,
+        "metadata": contract.to_tool_metadata(),
+        "inputSchema": COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA,
+        "handler": build_comments_set_moderation_status_handler(
+            wrapper=wrapper,
+            executor=executor,
+            oauth_token=oauth_token,
+        ),
+    }
+
+
 __all__ = [
     "COMMENTS_INSERT_CALLER_EXAMPLES",
     "COMMENTS_INSERT_CAVEATS",
@@ -1453,6 +1945,14 @@ __all__ = [
     "COMMENTS_INSERT_QUOTA_COST",
     "COMMENTS_INSERT_TOOL_NAME",
     "COMMENTS_INSERT_USAGE_NOTES",
+    "COMMENTS_SET_MODERATION_STATUS_CALLER_EXAMPLES",
+    "COMMENTS_SET_MODERATION_STATUS_CAVEATS",
+    "COMMENTS_SET_MODERATION_STATUS_DESCRIPTION",
+    "COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA",
+    "COMMENTS_SET_MODERATION_STATUS_QUOTA_COST",
+    "COMMENTS_SET_MODERATION_STATUS_SUPPORTED_STATUSES",
+    "COMMENTS_SET_MODERATION_STATUS_TOOL_NAME",
+    "COMMENTS_SET_MODERATION_STATUS_USAGE_NOTES",
     "COMMENTS_UPDATE_CALLER_EXAMPLES",
     "COMMENTS_UPDATE_CAVEATS",
     "COMMENTS_UPDATE_DESCRIPTION",
@@ -1472,10 +1972,14 @@ __all__ = [
     "COMMENTS_LIST_USAGE_NOTES",
     "CommentsInsertToolError",
     "CommentsListToolError",
+    "CommentsSetModerationStatusToolError",
     "CommentsUpdateToolError",
     "build_comments_insert_contract",
     "build_comments_insert_handler",
     "build_comments_insert_tool_descriptor",
+    "build_comments_set_moderation_status_contract",
+    "build_comments_set_moderation_status_handler",
+    "build_comments_set_moderation_status_tool_descriptor",
     "build_comments_update_contract",
     "build_comments_update_handler",
     "build_comments_update_tool_descriptor",
@@ -1483,9 +1987,11 @@ __all__ = [
     "build_comments_list_handler",
     "build_comments_list_tool_descriptor",
     "map_comments_insert_result",
+    "map_comments_set_moderation_status_result",
     "map_comments_update_result",
     "map_comments_list_result",
     "validate_comments_insert_arguments",
+    "validate_comments_set_moderation_status_arguments",
     "validate_comments_update_arguments",
     "validate_comments_list_arguments",
 ]

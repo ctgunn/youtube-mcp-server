@@ -13,6 +13,7 @@ from mcp_server.tools.youtube_common.channels import build_channels_list_contrac
 from mcp_server.tools.youtube_common.comments import (
     build_comments_insert_contract,
     build_comments_list_contract,
+    build_comments_set_moderation_status_contract,
     build_comments_update_contract,
 )
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract, derive_tool_name
@@ -256,23 +257,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
             "sync is deprecated and should not be used as the normal path.",
         ),
     ),
-    _contract(
-        resource="comments",
-        method="setModerationStatus",
-        description=(
-            "Set comment moderation status. Endpoint: comments.setModerationStatus. "
-            "Quota cost: 50. Auth: oauth_required."
-        ),
-        auth_mode=AuthMode.OAUTH_REQUIRED,
-        quota_cost=50,
-        resource_family="comments",
-        input_contract={
-            "required": ["id", "moderationStatus"],
-            "properties": {"id": {"type": "string"}, "moderationStatus": {"type": "string"}},
-        },
-        response_convention={"resultKind": "mutation_acknowledgment"},
-        error_categories=("invalid_request", "authorization_failed", "resource_not_found"),
-    ),
+    build_comments_set_moderation_status_contract(),
     _contract(
         resource="videos",
         method="getRating",

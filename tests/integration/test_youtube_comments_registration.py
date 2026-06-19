@@ -3,6 +3,7 @@
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.comments import (
     build_comments_insert_tool_descriptor,
+    build_comments_set_moderation_status_tool_descriptor,
     build_comments_update_tool_descriptor,
     build_comments_list_tool_descriptor,
 )
@@ -50,6 +51,20 @@ def _register_comments_update(**descriptor_kwargs) -> InMemoryToolDispatcher:
     return dispatcher
 
 
+def _register_comments_set_moderation_status(**descriptor_kwargs) -> InMemoryToolDispatcher:
+    """Register the concrete comments moderation tool in a fresh dispatcher."""
+    descriptor = build_comments_set_moderation_status_tool_descriptor(**descriptor_kwargs)
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
 def _valid_insert_arguments() -> dict:
     """Return a representative valid ``comments_insert`` request."""
     return {
@@ -64,6 +79,11 @@ def _valid_update_arguments() -> dict:
         "part": "snippet",
         "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}},
     }
+
+
+def _valid_set_moderation_status_arguments() -> dict:
+    """Return a representative valid ``comments_setModerationStatus`` request."""
+    return {"id": ["comment-123"], "moderationStatus": "published"}
 
 
 def test_comments_list_descriptor_registers_as_executable_tool_for_id_lookup():
@@ -289,6 +309,50 @@ def test_comments_update_dispatcher_maps_missing_target_comment_safely():
         assert "comment not found" in str(error)
     else:  # pragma: no cover - failure path
         raise AssertionError("expected missing target comment to fail")
+
+
+def test_comments_set_moderation_status_descriptor_registers_as_executable_tool():
+    """Register and execute ``comments_setModerationStatus`` moderation."""
+    dispatcher = _register_comments_set_moderation_status()
+
+    result = dispatcher.call_tool("comments_setModerationStatus", _valid_set_moderation_status_arguments())
+
+    assert result["endpoint"] == "comments.setModerationStatus"
+    assert result["quotaCost"] == 50
+    assert result["moderated"] is True
+    assert result["targetIds"] == ["comment-123"]
+    assert result["moderationStatus"] == "published"
+
+
+def test_comments_set_moderation_status_dispatcher_rejects_missing_oauth():
+    """Reject missing OAuth context through dispatcher invocation."""
+    dispatcher = _register_comments_set_moderation_status(oauth_token=None)
+
+    try:
+        dispatcher.call_tool("comments_setModerationStatus", _valid_set_moderation_status_arguments())
+    except ValueError as error:
+        assert "requires OAuth" in str(error)
+    else:  # pragma: no cover - failure path
+        raise AssertionError("expected missing OAuth to fail")
+
+
+def test_comments_set_moderation_status_registration_exposes_metadata_and_usage_notes():
+    """Expose quota, OAuth, moderation statuses, and caveats in registration."""
+    dispatcher = _register_comments_set_moderation_status()
+
+    [listed] = dispatcher.list_tools()
+    metadata = listed["metadata"]
+    metadata_text = " ".join([listed["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["name"] == "comments_setModerationStatus"
+    assert metadata["upstream"]["operationKey"] == "comments.setModerationStatus"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id", "moderationStatus"]
+    assert "heldForReview" in metadata_text
+    assert "published" in metadata_text
+    assert "rejected" in metadata_text
+    assert "banAuthor" in metadata_text
 
 
 def test_default_registry_includes_executable_comments_insert_tool():

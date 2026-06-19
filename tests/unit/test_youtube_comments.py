@@ -5,18 +5,23 @@ import pytest
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.youtube_common.comments import (
     COMMENTS_INSERT_INPUT_SCHEMA,
+    COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA,
     COMMENTS_UPDATE_INPUT_SCHEMA,
     CommentsInsertToolError,
+    CommentsSetModerationStatusToolError,
     CommentsUpdateToolError,
     COMMENTS_LIST_INPUT_SCHEMA,
     CommentsListToolError,
     build_comments_insert_tool_descriptor,
+    build_comments_set_moderation_status_tool_descriptor,
     build_comments_update_tool_descriptor,
+    map_comments_set_moderation_status_result,
     build_comments_list_tool_descriptor,
     map_comments_insert_result,
     map_comments_update_result,
     map_comments_list_result,
     validate_comments_insert_arguments,
+    validate_comments_set_moderation_status_arguments,
     validate_comments_update_arguments,
     validate_comments_list_arguments,
 )
@@ -52,6 +57,17 @@ def test_comments_update_schema_preserves_comment_edit_inputs():
     assert COMMENTS_UPDATE_INPUT_SCHEMA["additionalProperties"] is False
 
 
+def test_comments_set_moderation_status_schema_preserves_moderation_inputs():
+    """Expose the upstream-like request fields for moderation status changes."""
+    properties = COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA["properties"]
+
+    assert COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA["required"] == ["id", "moderationStatus"]
+    assert {"id", "moderationStatus", "banAuthor", "onBehalfOfContentOwner"}.issubset(properties)
+    assert "body" not in properties
+    assert properties["moderationStatus"]["enum"] == ["heldForReview", "published", "rejected"]
+    assert COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA["additionalProperties"] is False
+
+
 def test_validate_comments_insert_arguments_accepts_reply_request():
     """Map a public reply-create request to parent and text values."""
     selected = validate_comments_insert_arguments(
@@ -74,6 +90,15 @@ def test_validate_comments_update_arguments_accepts_comment_edit_request():
     )
 
     assert selected == ("comment-123", "Updated comment text.")
+
+
+def test_validate_comments_set_moderation_status_arguments_accepts_moderation_request():
+    """Map a public moderation request to target IDs and status."""
+    selected = validate_comments_set_moderation_status_arguments(
+        {"id": ["comment-123", "comment-456"], "moderationStatus": "rejected", "banAuthor": True}
+    )
+
+    assert selected == (("comment-123", "comment-456"), "rejected")
 
 
 def test_map_comments_insert_result_preserves_created_item_parts_and_context():
@@ -129,6 +154,23 @@ def test_map_comments_update_result_preserves_updated_item_parts_and_context():
     assert result["etag"] == "etag-123"
 
 
+def test_map_comments_set_moderation_status_result_preserves_acknowledgment_context():
+    """Preserve safe moderation acknowledgment context."""
+    result = map_comments_set_moderation_status_result(
+        {},
+        {"id": ["comment-123", "comment-456"], "moderationStatus": "heldForReview"},
+    )
+
+    assert result["endpoint"] == "comments.setModerationStatus"
+    assert result["quotaCost"] == 50
+    assert result["moderated"] is True
+    assert result["targetIds"] == ["comment-123", "comment-456"]
+    assert result["moderationStatus"] == "heldForReview"
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["statusCode"] == 204
+    assert "item" not in result
+
+
 def test_map_comments_insert_result_preserves_delegation_context():
     """Preserve safe delegated owner context without exposing credentials."""
     result = map_comments_insert_result(
@@ -154,6 +196,22 @@ def test_map_comments_update_result_preserves_delegation_context():
         },
     )
 
+    assert result["delegation"] == {"onBehalfOfContentOwner": True}
+
+
+def test_map_comments_set_moderation_status_result_preserves_delegation_and_ban_context():
+    """Preserve safe delegated and author-ban context without exposing credentials."""
+    result = map_comments_set_moderation_status_result(
+        {},
+        {
+            "id": ["comment-123"],
+            "moderationStatus": "rejected",
+            "banAuthor": True,
+            "onBehalfOfContentOwner": "content-owner-id",
+        },
+    )
+
+    assert result["banAuthor"] is True
     assert result["delegation"] == {"onBehalfOfContentOwner": True}
 
 
@@ -215,6 +273,35 @@ def test_comments_update_handler_invokes_wrapper_for_comment_edit_request():
     result = descriptor["handler"](arguments)
 
     assert result["item"] == {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}}
+    assert calls[0][1] == arguments
+    assert calls[0][2] == "oauth_required"
+
+
+def test_comments_set_moderation_status_handler_invokes_wrapper_for_moderation_request():
+    """Call the injected Layer 1 wrapper through the moderation handler."""
+    calls = []
+
+    class FakeWrapper:
+        """Capture Layer 1 wrapper calls made by the moderation handler."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one fake Layer 1 call and return no-content success.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :return: Empty upstream-shaped moderation response.
+            """
+            calls.append((executor, arguments, auth_context.mode.value))
+            return {}
+
+    descriptor = build_comments_set_moderation_status_tool_descriptor(wrapper=FakeWrapper(), executor=object())
+    arguments = {"id": ["comment-123"], "moderationStatus": "published"}
+
+    result = descriptor["handler"](arguments)
+
+    assert result["targetIds"] == ["comment-123"]
+    assert result["moderationStatus"] == "published"
     assert calls[0][1] == arguments
     assert calls[0][2] == "oauth_required"
 
@@ -459,6 +546,39 @@ def test_validate_comments_update_arguments_rejects_invalid_requests(arguments, 
 
 
 @pytest.mark.parametrize(
+    ("arguments", "match"),
+    [
+        ({"moderationStatus": "published"}, "requires id"),
+        ({"id": "", "moderationStatus": "published"}, "requires id"),
+        ({"id": ["comment-123", "comment-123"], "moderationStatus": "rejected"}, "duplicate"),
+        ({"id": ["comment-123"]}, "moderationStatus"),
+        ({"id": ["comment-123"], "moderationStatus": "spam"}, "unsupported moderationStatus"),
+        ({"id": ["comment-123"], "moderationStatus": "rejected", "banAuthor": "yes"}, "banAuthor"),
+        (
+            {"id": ["comment-123"], "moderationStatus": "published", "banAuthor": True},
+            "banAuthor is only supported",
+        ),
+        (
+            {"id": ["comment-123"], "moderationStatus": "rejected", "body": {}},
+            "body",
+        ),
+        (
+            {"id": ["comment-123"], "moderationStatus": "rejected", "part": "snippet"},
+            "part",
+        ),
+        (
+            {"id": ["comment-123"], "moderationStatus": "rejected", "onBehalfOfContentOwner": ""},
+            "onBehalfOfContentOwner",
+        ),
+    ],
+)
+def test_validate_comments_set_moderation_status_arguments_rejects_invalid_requests(arguments, match):
+    """Reject invalid or unsupported moderation request shapes."""
+    with pytest.raises(CommentsSetModerationStatusToolError, match=match):
+        validate_comments_set_moderation_status_arguments(arguments)
+
+
+@pytest.mark.parametrize(
     ("category", "expected"),
     [
         ("invalid_request", "invalid_request"),
@@ -576,6 +696,44 @@ def test_comments_update_handler_maps_upstream_errors(category, expected):
                 "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated text"}},
             }
         )
+
+    assert exc_info.value.category == expected
+    assert exc_info.value.details == {"upstreamStatus": 400}
+
+
+@pytest.mark.parametrize(
+    ("category", "expected"),
+    [
+        ("invalid_request", "invalid_request"),
+        ("auth", "authorization_failed"),
+        ("authentication", "authentication_failed"),
+        ("not_found", "resource_not_found"),
+        ("rate_limit", "quota_exhausted"),
+        ("deprecated", "deprecated_endpoint"),
+        ("transient", "endpoint_unavailable"),
+        ("upstream_service", "upstream_failure"),
+    ],
+)
+def test_comments_set_moderation_status_handler_maps_upstream_errors(category, expected):
+    """Map normalized upstream moderation failures to public Layer 2 categories."""
+
+    class FailingWrapper:
+        """Raise one normalized upstream error for moderation handler tests."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise the configured fake upstream moderation failure.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError("upstream failed", category=category, retryable=False, upstream_status=400)
+
+    descriptor = build_comments_set_moderation_status_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(CommentsSetModerationStatusToolError) as exc_info:
+        descriptor["handler"]({"id": ["comment-123"], "moderationStatus": "published"})
 
     assert exc_info.value.category == expected
     assert exc_info.value.details == {"upstreamStatus": 400}
