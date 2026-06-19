@@ -286,6 +286,21 @@ def test_comments_set_moderation_status_scaffolding_exports_concrete_layer2_symb
     assert callable(youtube_common.build_comments_set_moderation_status_tool_descriptor)
 
 
+def test_comments_delete_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``comments_delete`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import comments
+
+    comments_family = youtube_common.get_resource_family("comments")
+
+    assert comments_family.definition_location.endswith("src/mcp_server/tools/youtube_common/comments.py")
+    assert comments.COMMENTS_DELETE_TOOL_NAME == "comments_delete"
+    assert youtube_common.COMMENTS_DELETE_TOOL_NAME == "comments_delete"
+    assert youtube_common.COMMENTS_DELETE_QUOTA_COST == 50
+    assert callable(comments.build_comments_delete_contract)
+    assert callable(youtube_common.build_comments_delete_tool_descriptor)
+
+
 def test_representative_captions_insert_metadata_exposes_upload_and_sync_caveats():
     """Expose safe caller-facing metadata for the captions insert endpoint."""
     from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS

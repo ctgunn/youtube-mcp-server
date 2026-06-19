@@ -2,6 +2,7 @@
 
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.comments import (
+    build_comments_delete_tool_descriptor,
     build_comments_insert_tool_descriptor,
     build_comments_set_moderation_status_tool_descriptor,
     build_comments_update_tool_descriptor,
@@ -65,6 +66,20 @@ def _register_comments_set_moderation_status(**descriptor_kwargs) -> InMemoryToo
     return dispatcher
 
 
+def _register_comments_delete(**descriptor_kwargs) -> InMemoryToolDispatcher:
+    """Register the concrete comments delete tool in a fresh dispatcher."""
+    descriptor = build_comments_delete_tool_descriptor(**descriptor_kwargs)
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
 def _valid_insert_arguments() -> dict:
     """Return a representative valid ``comments_insert`` request."""
     return {
@@ -84,6 +99,11 @@ def _valid_update_arguments() -> dict:
 def _valid_set_moderation_status_arguments() -> dict:
     """Return a representative valid ``comments_setModerationStatus`` request."""
     return {"id": ["comment-123"], "moderationStatus": "published"}
+
+
+def _valid_delete_arguments() -> dict:
+    """Return a representative valid ``comments_delete`` request."""
+    return {"id": "comment-123"}
 
 
 def test_comments_list_descriptor_registers_as_executable_tool_for_id_lookup():
@@ -353,6 +373,77 @@ def test_comments_set_moderation_status_registration_exposes_metadata_and_usage_
     assert "published" in metadata_text
     assert "rejected" in metadata_text
     assert "banAuthor" in metadata_text
+
+
+def test_comments_delete_descriptor_registers_as_executable_tool():
+    """Register and execute ``comments_delete`` deletion."""
+    dispatcher = _register_comments_delete()
+
+    result = dispatcher.call_tool("comments_delete", _valid_delete_arguments())
+
+    assert result["endpoint"] == "comments.delete"
+    assert result["quotaCost"] == 50
+    assert result["deleted"] is True
+    assert result["targetId"] == "comment-123"
+    assert result["statusCode"] == 204
+
+
+def test_comments_delete_descriptor_executes_with_injected_wrapper():
+    """Register and execute ``comments_delete`` with an injected wrapper."""
+    calls = []
+
+    class FakeWrapper:
+        """Capture delete calls made through the registered descriptor."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one fake delete call and return no-content success.
+
+            :param executor: Executor passed by the registered handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the handler.
+            :return: Empty upstream-shaped delete response.
+            """
+            calls.append((executor, arguments, auth_context.mode.value))
+            return {}
+
+    executor = object()
+    dispatcher = _register_comments_delete(wrapper=FakeWrapper(), executor=executor)
+
+    result = dispatcher.call_tool("comments_delete", _valid_delete_arguments())
+
+    assert result["deleted"] is True
+    assert calls == [(executor, {"id": "comment-123"}, "oauth_required")]
+
+
+def test_comments_delete_dispatcher_rejects_missing_oauth():
+    """Reject missing OAuth context through dispatcher invocation."""
+    dispatcher = _register_comments_delete(oauth_token=None)
+
+    try:
+        dispatcher.call_tool("comments_delete", _valid_delete_arguments())
+    except ValueError as error:
+        assert "requires OAuth" in str(error)
+    else:  # pragma: no cover - failure path
+        raise AssertionError("expected missing OAuth to fail")
+
+
+def test_comments_delete_registration_exposes_metadata_and_usage_notes():
+    """Expose quota, OAuth, destructive behavior, and caveats in registration."""
+    dispatcher = _register_comments_delete()
+
+    [listed] = dispatcher.list_tools()
+    metadata = listed["metadata"]
+    metadata_text = " ".join([listed["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["name"] == "comments_delete"
+    assert metadata["upstream"]["operationKey"] == "comments.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert "destructive" in metadata_text.lower()
+    assert "request body" in metadata_text
 
 
 def test_default_registry_includes_executable_comments_insert_tool():

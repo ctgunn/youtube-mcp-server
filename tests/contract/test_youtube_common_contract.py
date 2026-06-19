@@ -357,6 +357,54 @@ def test_comments_set_moderation_status_representative_metadata_aligns_with_shar
     assert "apiKey" not in str(representative)
 
 
+def test_comments_delete_public_metadata_is_safe_and_complete():
+    """Expose safe quota, auth, destructive delete, and no-body metadata."""
+    from mcp_server.tools.youtube_common.comments import build_comments_delete_contract
+
+    metadata = build_comments_delete_contract().to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["name"] == "comments_delete"
+    assert metadata["upstream"]["operationKey"] == "comments.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "onBehalfOfContentOwner" in metadata["inputContract"]["properties"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert metadata["responseConvention"]["bodyPolicy"] == "no_upstream_body"
+    assert "destructive" in metadata_text.lower()
+    assert "request body" in metadata_text
+    assert "token" not in str(metadata).lower()
+    assert "apiKey" not in str(metadata)
+
+
+def test_comments_delete_representative_metadata_aligns_with_shared_safety_rules():
+    """Keep public representative metadata aligned with concrete delete safety."""
+    from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
+    from mcp_server.tools.youtube_common.comments import build_comments_delete_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "comments_delete"
+    ].to_tool_metadata()
+    concrete = build_comments_delete_contract().to_tool_metadata()
+    representative_text = " ".join(
+        [representative["description"], *representative["usageNotes"], *representative["caveats"]]
+    )
+
+    assert representative["quotaCost"] == concrete["quotaCost"] == 50
+    assert representative["authMode"] == concrete["authMode"] == "oauth_required"
+    assert representative["availabilityState"] == concrete["availabilityState"] == "active"
+    assert representative["inputContract"]["required"] == ["id"]
+    assert representative["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert representative["responseConvention"]["successStatus"] == 204
+    assert "destructive" in representative_text.lower()
+    assert "request body" in representative_text
+    assert "oauthToken" not in str(representative)
+    assert "apiKey" not in str(representative)
+
+
 def test_comments_insert_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, and reply metadata for ``comments_insert``."""
     from mcp_server.tools.youtube_common.comments import build_comments_insert_contract

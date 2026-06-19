@@ -171,6 +171,28 @@ def test_default_registry_includes_executable_comments_set_moderation_status_too
     assert "banAuthor" in metadata_text
 
 
+def test_default_registry_includes_executable_comments_delete_tool_with_metadata():
+    """Register ``comments_delete`` by default with destructive delete metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "comments_delete" in listed
+    metadata = listed["comments_delete"]["metadata"]
+    description = listed["comments_delete"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "comments.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert "destructive" in metadata_text.lower()
+    assert "request body" in metadata_text
+
+
 def test_default_registry_includes_executable_channel_banners_insert_tool_with_upload_metadata():
     """Register ``channelBanners_insert`` by default with upload metadata."""
     dispatcher = InMemoryToolDispatcher()

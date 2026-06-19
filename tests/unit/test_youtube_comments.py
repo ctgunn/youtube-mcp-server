@@ -4,22 +4,27 @@ import pytest
 
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.youtube_common.comments import (
+    COMMENTS_DELETE_INPUT_SCHEMA,
     COMMENTS_INSERT_INPUT_SCHEMA,
     COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA,
     COMMENTS_UPDATE_INPUT_SCHEMA,
+    CommentsDeleteToolError,
     CommentsInsertToolError,
     CommentsSetModerationStatusToolError,
     CommentsUpdateToolError,
     COMMENTS_LIST_INPUT_SCHEMA,
     CommentsListToolError,
+    build_comments_delete_tool_descriptor,
     build_comments_insert_tool_descriptor,
     build_comments_set_moderation_status_tool_descriptor,
     build_comments_update_tool_descriptor,
+    map_comments_delete_result,
     map_comments_set_moderation_status_result,
     build_comments_list_tool_descriptor,
     map_comments_insert_result,
     map_comments_update_result,
     map_comments_list_result,
+    validate_comments_delete_arguments,
     validate_comments_insert_arguments,
     validate_comments_set_moderation_status_arguments,
     validate_comments_update_arguments,
@@ -68,6 +73,17 @@ def test_comments_set_moderation_status_schema_preserves_moderation_inputs():
     assert COMMENTS_SET_MODERATION_STATUS_INPUT_SCHEMA["additionalProperties"] is False
 
 
+def test_comments_delete_schema_preserves_delete_inputs():
+    """Expose the upstream-like request fields for ``comments_delete``."""
+    properties = COMMENTS_DELETE_INPUT_SCHEMA["properties"]
+
+    assert COMMENTS_DELETE_INPUT_SCHEMA["required"] == ["id"]
+    assert {"id", "onBehalfOfContentOwner"}.issubset(properties)
+    assert properties["id"]["type"] == "string"
+    assert "body" not in properties
+    assert COMMENTS_DELETE_INPUT_SCHEMA["additionalProperties"] is False
+
+
 def test_validate_comments_insert_arguments_accepts_reply_request():
     """Map a public reply-create request to parent and text values."""
     selected = validate_comments_insert_arguments(
@@ -99,6 +115,13 @@ def test_validate_comments_set_moderation_status_arguments_accepts_moderation_re
     )
 
     assert selected == (("comment-123", "comment-456"), "rejected")
+
+
+def test_validate_comments_delete_arguments_accepts_delete_request():
+    """Map a public delete request to one target comment ID."""
+    selected = validate_comments_delete_arguments({"id": "comment-123"})
+
+    assert selected == "comment-123"
 
 
 def test_map_comments_insert_result_preserves_created_item_parts_and_context():
@@ -171,6 +194,19 @@ def test_map_comments_set_moderation_status_result_preserves_acknowledgment_cont
     assert "item" not in result
 
 
+def test_map_comments_delete_result_preserves_acknowledgment_context():
+    """Preserve safe deletion acknowledgment context."""
+    result = map_comments_delete_result({}, {"id": "comment-123"})
+
+    assert result["endpoint"] == "comments.delete"
+    assert result["quotaCost"] == 50
+    assert result["deleted"] is True
+    assert result["targetId"] == "comment-123"
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["statusCode"] == 204
+    assert "item" not in result
+
+
 def test_map_comments_insert_result_preserves_delegation_context():
     """Preserve safe delegated owner context without exposing credentials."""
     result = map_comments_insert_result(
@@ -212,6 +248,16 @@ def test_map_comments_set_moderation_status_result_preserves_delegation_and_ban_
     )
 
     assert result["banAuthor"] is True
+    assert result["delegation"] == {"onBehalfOfContentOwner": True}
+
+
+def test_map_comments_delete_result_preserves_delegation_context():
+    """Preserve safe delegated owner context without exposing credentials."""
+    result = map_comments_delete_result(
+        {},
+        {"id": "comment-123", "onBehalfOfContentOwner": "content-owner-id"},
+    )
+
     assert result["delegation"] == {"onBehalfOfContentOwner": True}
 
 
@@ -302,6 +348,35 @@ def test_comments_set_moderation_status_handler_invokes_wrapper_for_moderation_r
 
     assert result["targetIds"] == ["comment-123"]
     assert result["moderationStatus"] == "published"
+    assert calls[0][1] == arguments
+    assert calls[0][2] == "oauth_required"
+
+
+def test_comments_delete_handler_invokes_wrapper_for_delete_request():
+    """Call the injected Layer 1 wrapper through the delete handler."""
+    calls = []
+
+    class FakeWrapper:
+        """Capture Layer 1 wrapper calls made by the delete handler."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one fake Layer 1 call and return no-content success.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :return: Empty upstream-shaped delete response.
+            """
+            calls.append((executor, arguments, auth_context.mode.value))
+            return {}
+
+    descriptor = build_comments_delete_tool_descriptor(wrapper=FakeWrapper(), executor=object())
+    arguments = {"id": "comment-123"}
+
+    result = descriptor["handler"](arguments)
+
+    assert result["targetId"] == "comment-123"
+    assert result["deleted"] is True
     assert calls[0][1] == arguments
     assert calls[0][2] == "oauth_required"
 
@@ -579,6 +654,30 @@ def test_validate_comments_set_moderation_status_arguments_rejects_invalid_reque
 
 
 @pytest.mark.parametrize(
+    ("arguments", "match"),
+    [
+        ({}, "requires id"),
+        ({"id": ""}, "requires id"),
+        ({"id": "   "}, "requires id"),
+        ({"id": ["comment-123"]}, "requires id"),
+        ({"id": "comment-123,comment-456"}, "exactly one target"),
+        ({"id": "comment-123", "body": {}}, "body"),
+        ({"id": "comment-123", "moderationStatus": "rejected"}, "moderationStatus"),
+        ({"id": "comment-123", "part": "snippet"}, "part"),
+        ({"id": "comment-123", "delete": True}, "delete"),
+        ({"id": "comment-123", "recover": True}, "recover"),
+        ({"id": "comment-123", "recommendReplacement": True}, "recommendReplacement"),
+        ({"id": "comment-123", "searchTerms": "needle"}, "searchTerms"),
+        ({"id": "comment-123", "onBehalfOfContentOwner": ""}, "onBehalfOfContentOwner"),
+    ],
+)
+def test_validate_comments_delete_arguments_rejects_invalid_requests(arguments, match):
+    """Reject invalid or unsupported ``comments_delete`` request shapes."""
+    with pytest.raises(CommentsDeleteToolError, match=match):
+        validate_comments_delete_arguments(arguments)
+
+
+@pytest.mark.parametrize(
     ("category", "expected"),
     [
         ("invalid_request", "invalid_request"),
@@ -613,6 +712,76 @@ def test_comments_list_handler_maps_upstream_errors(category, expected):
 
     assert exc_info.value.category == expected
     assert exc_info.value.details == {"upstreamStatus": 400}
+
+
+@pytest.mark.parametrize(
+    ("category", "expected"),
+    [
+        ("invalid_request", "invalid_request"),
+        ("auth", "authorization_failed"),
+        ("authentication", "authentication_failed"),
+        ("not_found", "resource_not_found"),
+        ("rate_limit", "quota_exhausted"),
+        ("deprecated", "deprecated_endpoint"),
+        ("transient", "endpoint_unavailable"),
+        ("upstream_service", "upstream_failure"),
+        ("unknown", "upstream_failure"),
+    ],
+)
+def test_comments_delete_handler_maps_upstream_errors(category, expected):
+    """Map normalized upstream delete failures to public Layer 2 categories."""
+
+    class FailingWrapper:
+        """Raise one normalized upstream error for delete handler tests."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise the configured fake upstream delete failure.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError("upstream failed", category=category, retryable=False, upstream_status=400)
+
+    descriptor = build_comments_delete_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(CommentsDeleteToolError) as exc_info:
+        descriptor["handler"]({"id": "comment-123"})
+
+    assert exc_info.value.category == expected
+    assert exc_info.value.details == {"upstreamStatus": 400}
+
+
+def test_comments_delete_handler_rejects_missing_oauth():
+    """Report missing OAuth credentials without invoking deletion."""
+    descriptor = build_comments_delete_tool_descriptor(oauth_token=None)
+
+    with pytest.raises(CommentsDeleteToolError) as exc_info:
+        descriptor["handler"]({"id": "comment-123"})
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"field": "auth", "authMode": "oauth_required"}
+
+
+@pytest.mark.parametrize(
+    ("target_id", "expected"),
+    [
+        ("missing-comment", "resource_not_found"),
+        ("already-deleted-comment", "resource_not_found"),
+        ("inaccessible-comment", "authorization_failed"),
+        ("quota-exhausted-comment", "quota_exhausted"),
+        ("processing-failure-comment", "invalid_request"),
+    ],
+)
+def test_comments_delete_default_wrapper_maps_representative_target_failures(target_id, expected):
+    """Map default wrapper delete target failures to stable public categories."""
+    descriptor = build_comments_delete_tool_descriptor()
+
+    with pytest.raises(CommentsDeleteToolError) as exc_info:
+        descriptor["handler"]({"id": target_id})
+
+    assert exc_info.value.category == expected
 
 
 @pytest.mark.parametrize(

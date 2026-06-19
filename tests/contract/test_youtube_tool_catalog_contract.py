@@ -20,6 +20,7 @@ def test_representative_examples_include_required_us1_shapes():
         "comments_insert",
         "comments_update",
         "comments_setModerationStatus",
+        "comments_delete",
         "videos_getRating",
         "videos_reportAbuse",
         "watermarks_unset",
@@ -215,6 +216,31 @@ def test_representative_comments_set_moderation_status_example_aligns_with_concr
     assert "published" in metadata_text
     assert "rejected" in metadata_text
     assert "banAuthor" in metadata_text
+
+
+def test_representative_comments_delete_example_aligns_with_concrete_contract():
+    """Keep the representative comments-delete example aligned with YT-220."""
+    from mcp_server.tools.youtube_common.comments import build_comments_delete_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "comments_delete"
+    ]
+    concrete = build_comments_delete_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 50
+    assert representative.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == "deletion_acknowledgment"
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert representative.response_convention["successStatus"] == 204
+    assert "destructive" in metadata_text.lower()
+    assert "request body" in metadata_text
 
 
 def test_representative_channel_banners_insert_example_aligns_with_concrete_contract():

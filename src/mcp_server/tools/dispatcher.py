@@ -20,6 +20,7 @@ from mcp_server.tools.youtube_common import (
     build_channel_sections_update_tool_descriptor,
     build_channels_list_tool_descriptor,
     build_channels_update_tool_descriptor,
+    build_comments_delete_tool_descriptor,
     build_comments_insert_tool_descriptor,
     build_comments_list_tool_descriptor,
     build_comments_set_moderation_status_tool_descriptor,
@@ -213,6 +214,7 @@ class InMemoryToolDispatcher:
             build_comments_insert_tool_descriptor(),
             build_comments_update_tool_descriptor(),
             build_comments_set_moderation_status_tool_descriptor(),
+            build_comments_delete_tool_descriptor(),
         ]
 
     def _normalize_server_metadata(self, server_metadata):

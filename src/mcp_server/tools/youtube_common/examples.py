@@ -11,6 +11,7 @@ from mcp_server.tools.youtube_common.channel_sections import (
 )
 from mcp_server.tools.youtube_common.channels import build_channels_list_contract, build_channels_update_contract
 from mcp_server.tools.youtube_common.comments import (
+    build_comments_delete_contract,
     build_comments_insert_contract,
     build_comments_list_contract,
     build_comments_set_moderation_status_contract,
@@ -258,6 +259,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         ),
     ),
     build_comments_set_moderation_status_contract(),
+    build_comments_delete_contract(),
     _contract(
         resource="videos",
         method="getRating",
