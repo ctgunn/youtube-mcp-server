@@ -271,6 +271,21 @@ def test_comments_update_scaffolding_exports_concrete_layer2_symbols():
     assert callable(youtube_common.build_comments_update_tool_descriptor)
 
 
+def test_comments_set_moderation_status_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``comments_setModerationStatus`` symbols."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import comments
+
+    comments_family = youtube_common.get_resource_family("comments")
+
+    assert comments_family.definition_location.endswith("src/mcp_server/tools/youtube_common/comments.py")
+    assert comments.COMMENTS_SET_MODERATION_STATUS_TOOL_NAME == "comments_setModerationStatus"
+    assert youtube_common.COMMENTS_SET_MODERATION_STATUS_TOOL_NAME == "comments_setModerationStatus"
+    assert youtube_common.COMMENTS_SET_MODERATION_STATUS_QUOTA_COST == 50
+    assert callable(comments.build_comments_set_moderation_status_contract)
+    assert callable(youtube_common.build_comments_set_moderation_status_tool_descriptor)
+
+
 def test_representative_captions_insert_metadata_exposes_upload_and_sync_caveats():
     """Expose safe caller-facing metadata for the captions insert endpoint."""
     from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
