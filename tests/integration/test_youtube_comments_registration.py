@@ -3,6 +3,7 @@
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.comments import (
     build_comments_insert_tool_descriptor,
+    build_comments_update_tool_descriptor,
     build_comments_list_tool_descriptor,
 )
 
@@ -35,11 +36,33 @@ def _register_comments_insert(**descriptor_kwargs) -> InMemoryToolDispatcher:
     return dispatcher
 
 
+def _register_comments_update(**descriptor_kwargs) -> InMemoryToolDispatcher:
+    """Register the concrete comments update tool in a fresh dispatcher."""
+    descriptor = build_comments_update_tool_descriptor(**descriptor_kwargs)
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
 def _valid_insert_arguments() -> dict:
     """Return a representative valid ``comments_insert`` request."""
     return {
         "part": "snippet",
         "body": {"snippet": {"parentId": "comment-parent-123", "textOriginal": "Reply text"}},
+    }
+
+
+def _valid_update_arguments() -> dict:
+    """Return a representative valid ``comments_update`` request."""
+    return {
+        "part": "snippet",
+        "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}},
     }
 
 
@@ -171,6 +194,101 @@ def test_comments_insert_dispatcher_rejects_missing_oauth():
         assert "requires OAuth" in str(error)
     else:  # pragma: no cover - failure path
         raise AssertionError("expected missing OAuth to fail")
+
+
+def test_comments_update_descriptor_registers_as_executable_tool_for_comment_edit():
+    """Register and execute ``comments_update`` comment editing."""
+    dispatcher = _register_comments_update()
+
+    result = dispatcher.call_tool("comments_update", _valid_update_arguments())
+
+    assert result["endpoint"] == "comments.update"
+    assert result["quotaCost"] == 50
+    assert result["updated"] is True
+    assert result["item"]["id"] == "comment-123"
+    assert result["item"]["snippet"]["textOriginal"] == "Updated comment text."
+    assert result["requestedParts"] == ["snippet"]
+
+
+def test_comments_update_dispatcher_rejects_missing_oauth():
+    """Reject missing OAuth context through dispatcher invocation."""
+    dispatcher = _register_comments_update(oauth_token=None)
+
+    try:
+        dispatcher.call_tool("comments_update", _valid_update_arguments())
+    except ValueError as error:
+        assert "requires OAuth" in str(error)
+    else:  # pragma: no cover - failure path
+        raise AssertionError("expected missing OAuth to fail")
+
+
+def test_comments_update_dispatcher_rejects_invalid_update_body():
+    """Reject invalid update bodies through dispatcher invocation."""
+    dispatcher = _register_comments_update()
+
+    try:
+        dispatcher.call_tool("comments_update", {"part": "snippet", "body": {"id": ""}})
+    except ValueError as error:
+        assert "body.id" in str(error)
+    else:  # pragma: no cover - failure path
+        raise AssertionError("expected invalid update body to fail")
+
+
+def test_comments_update_dispatcher_rejects_unsupported_writable_part():
+    """Reject unsupported update parts through dispatcher invocation."""
+    dispatcher = _register_comments_update()
+
+    try:
+        dispatcher.call_tool(
+            "comments_update",
+            {
+                "part": "statistics",
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated text"}},
+            },
+        )
+    except ValueError as error:
+        assert "snippet part" in str(error)
+    else:  # pragma: no cover - failure path
+        raise AssertionError("expected unsupported writable part to fail")
+
+
+def test_comments_update_dispatcher_rejects_read_only_field_update():
+    """Reject read-only update body fields through dispatcher invocation."""
+    dispatcher = _register_comments_update()
+
+    try:
+        dispatcher.call_tool(
+            "comments_update",
+            {
+                "part": "snippet",
+                "body": {
+                    "id": "comment-123",
+                    "snippet": {"textOriginal": "Updated text", "parentId": "comment-parent-123"},
+                },
+            },
+        )
+    except ValueError as error:
+        assert "parentId" in str(error)
+    else:  # pragma: no cover - failure path
+        raise AssertionError("expected read-only field update to fail")
+
+
+def test_comments_update_dispatcher_maps_missing_target_comment_safely():
+    """Map missing target comment failures through dispatcher invocation."""
+    dispatcher = _register_comments_update()
+
+    try:
+        dispatcher.call_tool(
+            "comments_update",
+            {
+                "part": "snippet",
+                "body": {"id": "missing-comment", "snippet": {"textOriginal": "Updated text"}},
+            },
+        )
+    except ValueError as error:
+        assert "comment not found" in str(error)
+    else:  # pragma: no cover - failure path
+        raise AssertionError("expected missing target comment to fail")
 
 
 def test_default_registry_includes_executable_comments_insert_tool():

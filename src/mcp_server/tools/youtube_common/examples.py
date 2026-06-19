@@ -10,7 +10,11 @@ from mcp_server.tools.youtube_common.channel_sections import (
     build_channel_sections_update_contract,
 )
 from mcp_server.tools.youtube_common.channels import build_channels_list_contract, build_channels_update_contract
-from mcp_server.tools.youtube_common.comments import build_comments_insert_contract, build_comments_list_contract
+from mcp_server.tools.youtube_common.comments import (
+    build_comments_insert_contract,
+    build_comments_list_contract,
+    build_comments_update_contract,
+)
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract, derive_tool_name
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
 
@@ -487,6 +491,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_channels_update_contract(),
     build_comments_list_contract(),
     build_comments_insert_contract(),
+    build_comments_update_contract(),
     _contract(
         resource="search",
         method="list",

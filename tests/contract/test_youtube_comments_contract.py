@@ -9,13 +9,19 @@ from mcp_server.tools.youtube_common.comments import (
     COMMENTS_INSERT_CALLER_EXAMPLES,
     COMMENTS_INSERT_INPUT_SCHEMA,
     COMMENTS_INSERT_TOOL_NAME,
+    COMMENTS_UPDATE_CALLER_EXAMPLES,
+    COMMENTS_UPDATE_INPUT_SCHEMA,
+    COMMENTS_UPDATE_TOOL_NAME,
     COMMENTS_LIST_CALLER_EXAMPLES,
     COMMENTS_LIST_INPUT_SCHEMA,
     COMMENTS_LIST_TOOL_NAME,
     CommentsInsertToolError,
     CommentsListToolError,
+    CommentsUpdateToolError,
     build_comments_insert_contract,
     build_comments_insert_tool_descriptor,
+    build_comments_update_contract,
+    build_comments_update_tool_descriptor,
     build_comments_list_contract,
     build_comments_list_tool_descriptor,
 )
@@ -31,6 +37,130 @@ def test_concrete_comments_module_exports_public_tool_contract():
     assert comments.COMMENTS_INSERT_TOOL_NAME == "comments_insert"
     assert youtube_common.COMMENTS_INSERT_TOOL_NAME == "comments_insert"
     assert callable(comments.build_comments_insert_tool_descriptor)
+    assert comments.COMMENTS_UPDATE_TOOL_NAME == "comments_update"
+    assert youtube_common.COMMENTS_UPDATE_TOOL_NAME == "comments_update"
+    assert callable(comments.build_comments_update_tool_descriptor)
+
+
+def test_comments_update_contract_exposes_identity_quota_auth_and_body_rules():
+    """Expose public metadata required before ``comments_update`` invocation."""
+    contract = build_comments_update_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.tool_name == COMMENTS_UPDATE_TOOL_NAME
+    assert contract.upstream_resource == "comments"
+    assert contract.upstream_method == "update"
+    assert contract.quota_cost == 50
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["upstream"]["operationKey"] == "comments.update"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert "body" in metadata["inputContract"]["properties"]
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert any("Quota cost: 50" in note for note in metadata["usageNotes"])
+
+
+def test_comments_update_descriptor_matches_contract_and_schema():
+    """Build a dispatcher descriptor that matches the public update contract."""
+    descriptor = build_comments_update_tool_descriptor()
+
+    assert descriptor["name"] == "comments_update"
+    assert "Quota cost: 50" in descriptor["description"]
+    assert descriptor["metadata"]["upstream"]["operationKey"] == "comments.update"
+    assert descriptor["inputSchema"]["required"] == ["part", "body"]
+    assert {"part", "body", "onBehalfOfContentOwner"}.issubset(descriptor["inputSchema"]["properties"])
+    assert callable(descriptor["handler"])
+
+
+def test_comments_update_contract_documents_successful_updated_result_shape():
+    """Require successful update results to preserve updated comment fields."""
+    result = build_comments_update_tool_descriptor()["handler"](
+        {
+            "part": "snippet",
+            "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}},
+        }
+    )
+
+    assert result["endpoint"] == "comments.update"
+    assert result["quotaCost"] == 50
+    assert result["updated"] is True
+    assert result["requestedParts"] == ["snippet"]
+    assert result["writableFields"] == ["body.snippet.textOriginal"]
+    assert result["item"]["id"] == "comment-123"
+    assert result["item"]["snippet"]["textOriginal"] == "Updated comment text."
+    assert result["auth"] == {"mode": "oauth_required"}
+
+
+def test_comments_update_contract_documents_delegated_result_shape():
+    """Preserve safe delegated context for authorized comment updates."""
+    result = build_comments_update_tool_descriptor()["handler"](
+        {
+            "part": "snippet",
+            "onBehalfOfContentOwner": "content-owner-id",
+            "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated by channel team."}},
+        }
+    )
+
+    assert result["endpoint"] == "comments.update"
+    assert result["delegation"] == {"onBehalfOfContentOwner": True}
+
+
+def test_comments_update_input_schema_preserves_contract_shape():
+    """Expose the endpoint-like request shape for ``comments_update``."""
+    properties = COMMENTS_UPDATE_INPUT_SCHEMA["properties"]
+
+    assert COMMENTS_UPDATE_INPUT_SCHEMA["required"] == ["part", "body"]
+    assert {"part", "body", "onBehalfOfContentOwner"}.issubset(properties)
+    body = properties["body"]
+    assert body["required"] == ["id", "snippet"]
+    assert body["properties"]["snippet"]["required"] == ["textOriginal"]
+    assert COMMENTS_UPDATE_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_comments_update_metadata_exposes_cost_oauth_writable_rules_and_caveats():
+    """Expose quota, OAuth, update-body rules, delegation, and exclusions."""
+    metadata = build_comments_update_contract().to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert metadata["responseConvention"]["requiredBodyFields"] == [
+        "body.id",
+        "body.snippet.textOriginal",
+    ]
+    assert metadata["responseConvention"]["supportedWritableParts"] == ["snippet"]
+    assert metadata["responseConvention"]["writableBodyFields"] == ["body.snippet.textOriginal"]
+    assert metadata["responseConvention"]["delegationFields"] == ["onBehalfOfContentOwner"]
+    assert "body.id" in metadata_text
+    assert "body.snippet.textOriginal" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "read-only" in metadata_text
+    assert "commentThreads.insert" in metadata_text
+    assert "generated rewrites" in metadata_text
+
+
+def test_comments_update_caller_examples_cover_success_and_failure_modes():
+    """Expose representative examples for every required update scenario."""
+    examples = {example["name"]: example for example in COMMENTS_UPDATE_CALLER_EXAMPLES}
+
+    assert {
+        "authorized_comment_update",
+        "delegated_owner_context",
+        "missing_oauth",
+        "missing_part",
+        "missing_target_comment_id",
+        "missing_updated_text",
+        "unsupported_writable_part",
+        "read_only_field_failure",
+        "unsupported_option",
+        "target_comment_failure",
+    }.issubset(examples)
+    assert all(
+        example.get("quotaCost") == 50 or "Quota cost: 50" in str(example)
+        for example in COMMENTS_UPDATE_CALLER_EXAMPLES
+    )
 
 
 def test_comments_insert_contract_exposes_identity_quota_auth_and_body_rules():
@@ -359,6 +489,60 @@ def test_comments_list_safe_errors_do_not_leak_secret_details():
     assert "api" not in str(exc_info.value.details).lower()
     assert "token" not in str(exc_info.value.details).lower()
     assert "stack" not in str(exc_info.value.details).lower()
+
+
+def test_comments_update_public_metadata_is_safe():
+    """Avoid exposing credentials or unsafe diagnostics in update metadata."""
+    metadata = build_comments_update_contract().to_tool_metadata()
+
+    assert "oauthToken" not in str(metadata)
+    assert "apiKey" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+    assert "raw_media" not in str(metadata).lower()
+
+
+def test_comments_update_safe_errors_do_not_leak_secret_details():
+    """Avoid leaking credentials, raw bodies, or diagnostics from update errors."""
+
+    class FailingWrapper:
+        """Raise a normalized upstream error with unsafe-looking details."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise one fake upstream authorization failure.
+
+            :param executor: Executor passed by the handler.
+            :param arguments: Arguments forwarded to the wrapper.
+            :param auth_context: Auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError(
+                "forbidden",
+                category="auth",
+                retryable=False,
+                upstream_status=403,
+                details={
+                    "apiKey": "secret",
+                    "oauthToken": "secret",
+                    "stackTrace": "traceback",
+                    "rawRequestBody": {"body": {"snippet": {"textOriginal": "secret draft"}}},
+                },
+            )
+
+    descriptor = build_comments_update_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(CommentsUpdateToolError) as exc_info:
+        descriptor["handler"](
+            {
+                "part": "snippet",
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated text"}},
+            }
+        )
+
+    assert exc_info.value.category == "authorization_failed"
+    assert "api" not in str(exc_info.value.details).lower()
+    assert "token" not in str(exc_info.value.details).lower()
+    assert "stack" not in str(exc_info.value.details).lower()
+    assert "raw" not in str(exc_info.value.details).lower()
 
 
 def test_comments_list_input_schema_preserves_contract_shape():

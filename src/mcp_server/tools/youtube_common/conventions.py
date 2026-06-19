@@ -174,7 +174,19 @@ class ResponseBoundary:
         }
 
 
-UNSAFE_DETAIL_MARKERS = ("api_key", "apikey", "token", "secret", "stack", "raw_media", "signed_url")
+UNSAFE_DETAIL_MARKERS = (
+    "api_key",
+    "apikey",
+    "token",
+    "secret",
+    "stack",
+    "raw_media",
+    "raw_request",
+    "rawrequest",
+    "raw_body",
+    "rawbody",
+    "signed_url",
+)
 
 
 def sanitize_error_details(details: dict[str, Any]) -> dict[str, Any]:

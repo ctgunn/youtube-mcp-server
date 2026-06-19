@@ -5,14 +5,19 @@ import pytest
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.youtube_common.comments import (
     COMMENTS_INSERT_INPUT_SCHEMA,
+    COMMENTS_UPDATE_INPUT_SCHEMA,
     CommentsInsertToolError,
+    CommentsUpdateToolError,
     COMMENTS_LIST_INPUT_SCHEMA,
     CommentsListToolError,
     build_comments_insert_tool_descriptor,
+    build_comments_update_tool_descriptor,
     build_comments_list_tool_descriptor,
     map_comments_insert_result,
+    map_comments_update_result,
     map_comments_list_result,
     validate_comments_insert_arguments,
+    validate_comments_update_arguments,
     validate_comments_list_arguments,
 )
 
@@ -36,6 +41,17 @@ def test_comments_insert_schema_preserves_reply_create_inputs():
     assert COMMENTS_INSERT_INPUT_SCHEMA["additionalProperties"] is False
 
 
+def test_comments_update_schema_preserves_comment_edit_inputs():
+    """Expose the upstream-like request fields for ``comments_update``."""
+    properties = COMMENTS_UPDATE_INPUT_SCHEMA["properties"]
+
+    assert COMMENTS_UPDATE_INPUT_SCHEMA["required"] == ["part", "body"]
+    assert {"part", "body", "onBehalfOfContentOwner"}.issubset(properties)
+    assert properties["body"]["required"] == ["id", "snippet"]
+    assert properties["body"]["properties"]["snippet"]["required"] == ["textOriginal"]
+    assert COMMENTS_UPDATE_INPUT_SCHEMA["additionalProperties"] is False
+
+
 def test_validate_comments_insert_arguments_accepts_reply_request():
     """Map a public reply-create request to parent and text values."""
     selected = validate_comments_insert_arguments(
@@ -46,6 +62,18 @@ def test_validate_comments_insert_arguments_accepts_reply_request():
     )
 
     assert selected == ("comment-parent-123", "Reply text")
+
+
+def test_validate_comments_update_arguments_accepts_comment_edit_request():
+    """Map a public comment update request to target comment and text values."""
+    selected = validate_comments_update_arguments(
+        {
+            "part": "snippet",
+            "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}},
+        }
+    )
+
+    assert selected == ("comment-123", "Updated comment text.")
 
 
 def test_map_comments_insert_result_preserves_created_item_parts_and_context():
@@ -74,6 +102,33 @@ def test_map_comments_insert_result_preserves_created_item_parts_and_context():
     assert result["etag"] == "etag-123"
 
 
+def test_map_comments_update_result_preserves_updated_item_parts_and_context():
+    """Preserve near-raw updated comment fields for comment edits."""
+    result = map_comments_update_result(
+        {
+            "kind": "youtube#comment",
+            "etag": "etag-123",
+            "id": "comment-123",
+            "snippet": {"textOriginal": "Updated comment text."},
+        },
+        {
+            "part": "id,snippet",
+            "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}},
+        },
+    )
+
+    assert result["endpoint"] == "comments.update"
+    assert result["quotaCost"] == 50
+    assert result["updated"] is True
+    assert result["requestedParts"] == ["id", "snippet"]
+    assert result["writableFields"] == ["body.snippet.textOriginal"]
+    assert result["item"]["id"] == "comment-123"
+    assert result["item"]["snippet"]["textOriginal"] == "Updated comment text."
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["kind"] == "youtube#comment"
+    assert result["etag"] == "etag-123"
+
+
 def test_map_comments_insert_result_preserves_delegation_context():
     """Preserve safe delegated owner context without exposing credentials."""
     result = map_comments_insert_result(
@@ -82,6 +137,20 @@ def test_map_comments_insert_result_preserves_delegation_context():
             "part": "snippet",
             "onBehalfOfContentOwner": "content-owner-id",
             "body": {"snippet": {"parentId": "comment-parent-123", "textOriginal": "Reply text"}},
+        },
+    )
+
+    assert result["delegation"] == {"onBehalfOfContentOwner": True}
+
+
+def test_map_comments_update_result_preserves_delegation_context():
+    """Preserve safe delegated owner context without exposing credentials."""
+    result = map_comments_update_result(
+        {"id": "comment-123"},
+        {
+            "part": "snippet",
+            "onBehalfOfContentOwner": "content-owner-id",
+            "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}},
         },
     )
 
@@ -115,6 +184,37 @@ def test_comments_insert_handler_invokes_wrapper_for_reply_request():
     result = descriptor["handler"](arguments)
 
     assert result["item"] == {"id": "created-comment-123"}
+    assert calls[0][1] == arguments
+    assert calls[0][2] == "oauth_required"
+
+
+def test_comments_update_handler_invokes_wrapper_for_comment_edit_request():
+    """Call the injected Layer 1 wrapper through the update handler."""
+    calls = []
+
+    class FakeWrapper:
+        """Capture Layer 1 wrapper calls made by the Layer 2 update handler."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one fake Layer 1 call and return an updated comment.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :return: Upstream-shaped updated comment response.
+            """
+            calls.append((executor, arguments, auth_context.mode.value))
+            return {"id": "comment-123", "snippet": {"textOriginal": arguments["body"]["snippet"]["textOriginal"]}}
+
+    descriptor = build_comments_update_tool_descriptor(wrapper=FakeWrapper(), executor=object())
+    arguments = {
+        "part": "snippet",
+        "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}},
+    }
+
+    result = descriptor["handler"](arguments)
+
+    assert result["item"] == {"id": "comment-123", "snippet": {"textOriginal": "Updated comment text."}}
     assert calls[0][1] == arguments
     assert calls[0][2] == "oauth_required"
 
@@ -273,6 +373,92 @@ def test_validate_comments_insert_arguments_rejects_invalid_requests(arguments, 
 
 
 @pytest.mark.parametrize(
+    ("arguments", "match"),
+    [
+        (
+            {"body": {"id": "comment-123", "snippet": {"textOriginal": "Updated text"}}},
+            "requires part",
+        ),
+        ({"part": "snippet"}, "requires body"),
+        ({"part": "snippet", "body": {"snippet": {"textOriginal": "Updated text"}}}, "body.id"),
+        ({"part": "snippet", "body": {"id": "comment-123"}}, "body.snippet"),
+        (
+            {"part": "snippet", "body": {"id": "comment-123", "snippet": {"textOriginal": ""}}},
+            "textOriginal",
+        ),
+        (
+            {"part": "statistics", "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated text"}}},
+            "snippet part",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {
+                    "id": "comment-123",
+                    "snippet": {"textOriginal": "Updated text", "authorDisplayName": "Read-only"},
+                },
+            },
+            "authorDisplayName",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {
+                    "id": "comment-123",
+                    "snippet": {"textOriginal": "Updated text", "parentId": "comment-parent-123"},
+                },
+            },
+            "parentId",
+        ),
+        (
+            {
+                "part": "snippet",
+                "moderationStatus": "published",
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated text"}},
+            },
+            "moderationStatus",
+        ),
+        (
+            {
+                "part": "snippet",
+                "delete": True,
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated text"}},
+            },
+            "delete",
+        ),
+        (
+            {
+                "part": "snippet",
+                "parentId": "comment-parent-123",
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated text"}},
+            },
+            "parentId",
+        ),
+        (
+            {
+                "part": "snippet",
+                "searchTerms": "needle",
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated text"}},
+            },
+            "searchTerms",
+        ),
+        (
+            {
+                "part": "snippet",
+                "rewriteTone": "friendly",
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated text"}},
+            },
+            "rewriteTone",
+        ),
+    ],
+)
+def test_validate_comments_update_arguments_rejects_invalid_requests(arguments, match):
+    """Reject invalid or unsupported ``comments_update`` request shapes."""
+    with pytest.raises(CommentsUpdateToolError, match=match):
+        validate_comments_update_arguments(arguments)
+
+
+@pytest.mark.parametrize(
     ("category", "expected"),
     [
         ("invalid_request", "invalid_request"),
@@ -345,6 +531,49 @@ def test_comments_insert_handler_maps_upstream_errors(category, expected):
             {
                 "part": "snippet",
                 "body": {"snippet": {"parentId": "comment-parent-123", "textOriginal": "Reply text"}},
+            }
+        )
+
+    assert exc_info.value.category == expected
+    assert exc_info.value.details == {"upstreamStatus": 400}
+
+
+@pytest.mark.parametrize(
+    ("category", "expected"),
+    [
+        ("invalid_request", "invalid_request"),
+        ("auth", "authorization_failed"),
+        ("authentication", "authentication_failed"),
+        ("not_found", "resource_not_found"),
+        ("rate_limit", "quota_exhausted"),
+        ("deprecated", "deprecated_endpoint"),
+        ("transient", "endpoint_unavailable"),
+        ("upstream_service", "upstream_failure"),
+    ],
+)
+def test_comments_update_handler_maps_upstream_errors(category, expected):
+    """Map normalized upstream update failures to public Layer 2 categories."""
+
+    class FailingWrapper:
+        """Raise one normalized upstream error for update handler tests."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise the configured fake upstream update failure.
+
+            :param executor: Executor passed by the Layer 2 handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: Auth context selected by the Layer 2 handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError("upstream failed", category=category, retryable=False, upstream_status=400)
+
+    descriptor = build_comments_update_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(CommentsUpdateToolError) as exc_info:
+        descriptor["handler"](
+            {
+                "part": "snippet",
+                "body": {"id": "comment-123", "snippet": {"textOriginal": "Updated text"}},
             }
         )
 
