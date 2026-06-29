@@ -23,6 +23,7 @@ from mcp_server.tools.youtube_common.comment_threads import (
 )
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract, derive_tool_name
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
+from mcp_server.tools.youtube_common.guide_categories import build_guide_categories_list_contract
 
 
 def _contract(
@@ -511,17 +512,5 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         availability_state=AvailabilityState.OWNER_ONLY,
         caveats=("Abuse reporting requires authorized caller context and endpoint-specific validation.",),
     ),
-    _contract(
-        resource="guideCategories",
-        method="list",
-        description="List guide categories. Endpoint: guideCategories.list. Quota cost: 1. Auth: api_key.",
-        auth_mode=AuthMode.API_KEY,
-        quota_cost=1,
-        resource_family="guide_categories",
-        input_contract={"required": ["part"], "properties": {"regionCode": {"type": "string"}}},
-        response_convention={"resultKind": "lookup", "itemsPath": "items"},
-        error_categories=("invalid_request", "deprecated_endpoint", "endpoint_unavailable"),
-        availability_state=AvailabilityState.DEPRECATED,
-        caveats=("Endpoint is deprecated or availability-constrained in current upstream documentation.",),
-    ),
+    build_guide_categories_list_contract(),
 )

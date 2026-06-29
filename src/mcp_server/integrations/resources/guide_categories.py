@@ -10,8 +10,9 @@ class GuideCategoriesListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `guideCategories.list`.
 
     Official quota cost: ``1`` quota unit. The wrapper supports one
-    region-scoped lookup using ``part`` plus ``regionCode`` on public API-key
-    requests while keeping deprecated lifecycle caveats visible for reviewers.
+    legacy lookup using ``part`` plus exactly one of ``regionCode`` or ``id``
+    on public API-key requests. Optional ``hl`` localization is accepted when
+    upstream legacy behavior supports localized guide-category text.
     """
 
     def call(
@@ -36,9 +37,11 @@ class GuideCategoriesListWrapper(RepresentativeEndpointWrapper):
 def build_guide_categories_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `guideCategories.list`.
 
-    Official quota cost: ``1`` quota unit. The wrapper supports one
-    region-scoped lookup through ``part`` plus ``regionCode`` on API-key
-    requests and keeps deprecated-or-unavailable lifecycle guidance visible.
+    Official quota cost: ``1`` quota unit. The wrapper supports one legacy
+    lookup through ``part`` plus exactly one of ``regionCode`` or ``id`` on
+    API-key requests and accepts optional ``hl`` localization where upstream
+    behavior supports it. Deprecated-or-unavailable lifecycle guidance remains
+    visible.
 
     :return: Representative wrapper configured for `guideCategories.list`.
     """
@@ -48,7 +51,9 @@ def build_guide_categories_list_wrapper() -> RepresentativeEndpointWrapper:
         http_method="GET",
         path_shape="/youtube/v3/guideCategories",
         request_shape=EndpointRequestShape(
-            required_fields=("part", "regionCode"),
+            required_fields=("part",),
+            optional_fields=("regionCode", "id", "hl"),
+            exactly_one_of=("regionCode", "id"),
         ),
         auth_mode=AuthMode.API_KEY,
         quota_cost=1,
@@ -59,10 +64,11 @@ def build_guide_categories_list_wrapper() -> RepresentativeEndpointWrapper:
             "shape is otherwise valid."
         ),
         notes=(
-            "Requires `part` plus `regionCode` for one deterministic "
-            "region-scoped lookup, rejects undocumented modifiers, preserves "
-            "empty result sets as successful outcomes, and keeps lifecycle "
-            "caveats visible for reuse decisions."
+            "Requires `part` plus exactly one of `regionCode` or `id` for one "
+            "deterministic legacy lookup, accepts optional `hl` localization, "
+            "rejects undocumented modifiers, preserves empty result sets as "
+            "successful outcomes, and keeps lifecycle caveats visible for "
+            "reuse decisions."
         ),
     )
     return GuideCategoriesListWrapper(metadata=metadata)

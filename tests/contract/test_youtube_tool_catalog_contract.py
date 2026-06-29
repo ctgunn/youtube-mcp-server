@@ -23,6 +23,7 @@ def test_representative_examples_include_required_us1_shapes():
         "comments_delete",
         "commentThreads_list",
         "commentThreads_insert",
+        "guideCategories_list",
         "videos_getRating",
         "videos_reportAbuse",
         "watermarks_unset",
@@ -437,6 +438,30 @@ def test_representative_channels_update_example_aligns_with_concrete_contract():
     assert representative.input_contract["properties"]["part"]["enum"] == ["brandingSettings", "localizations"]
     assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
     assert representative.response_convention["supportedWritableParts"] == ["brandingSettings", "localizations"]
+
+
+def test_representative_guideCategories_list_example_aligns_with_concrete_contract():
+    """Keep the representative guideCategories-list example aligned with YT-223."""
+    from mcp_server.tools.youtube_common.guide_categories import build_guide_categories_list_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "guideCategories_list"
+    ]
+    concrete = build_guide_categories_list_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 1
+    assert representative.auth_mode is AuthMode.API_KEY
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert "regionCode" in metadata_text
+    assert "deprecated" in metadata_text.lower()
 
 
 def test_representative_examples_expose_complete_metadata_standard():

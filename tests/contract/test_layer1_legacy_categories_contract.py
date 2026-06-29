@@ -39,8 +39,27 @@ class Layer1LegacyCategoriesContractTests(unittest.TestCase):
         self.assertEqual(review_surface["operationKey"], "guideCategories.list")
         self.assertEqual(review_surface["quotaCost"], 1)
         self.assertEqual(review_surface["authMode"], "api_key")
-        self.assertEqual(review_surface["requiredFields"], ("part", "regionCode"))
+        self.assertEqual(review_surface["requiredFields"], ("part",))
+        self.assertEqual(review_surface["optionalFields"], ("regionCode", "id", "hl"))
+        self.assertEqual(review_surface["exclusiveSelectors"], ("regionCode", "id"))
         self.assertEqual(review_surface["lifecycleState"], "deprecated")
+
+    def test_guide_categories_list_wrapper_accepts_region_or_id_with_optional_localization(self):
+        wrapper = build_guide_categories_list_wrapper()
+
+        wrapper.metadata.request_shape.validate_arguments(
+            {"part": "snippet", "regionCode": "US", "hl": "es"}
+        )
+        wrapper.metadata.request_shape.validate_arguments(
+            {"part": "snippet", "id": "GCQmVzdCBvZiBZb3VUdWJl"}
+        )
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector"):
+            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+        with self.assertRaisesRegex(ValueError, "exactly one selector"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "regionCode": "US", "id": "GCQmVzdCBvZiBZb3VUdWJl"}
+            )
 
     def test_contract_documents_request_boundaries_and_invalid_request_rules(self):
         with open(

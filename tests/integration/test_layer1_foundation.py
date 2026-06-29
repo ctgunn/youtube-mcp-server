@@ -506,14 +506,14 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         self.assertEqual(result["items"], [])
         self.assertEqual(result["regionCode"], "US")
 
-    def test_guide_categories_list_wrapper_rejects_missing_region_requests(self):
+    def test_guide_categories_list_wrapper_rejects_missing_selector_requests(self):
         wrapper = build_guide_categories_list_wrapper()
         executor = IntegrationExecutor(
             transport=lambda _execution: {"items": []},
             retry_policy=RetryPolicy(max_attempts=1),
         )
 
-        with self.assertRaisesRegex(ValueError, "missing required field: regionCode"):
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
             wrapper.call(
                 executor,
                 arguments={"part": "snippet"},
