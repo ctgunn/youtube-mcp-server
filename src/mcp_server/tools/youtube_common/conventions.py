@@ -180,6 +180,7 @@ UNSAFE_DETAIL_MARKERS = (
     "token",
     "secret",
     "stack",
+    "credential",
     "raw_media",
     "raw_request",
     "rawrequest",
@@ -200,5 +201,10 @@ def sanitize_error_details(details: dict[str, Any]) -> dict[str, Any]:
         normalized = key.lower()
         if any(marker in normalized for marker in UNSAFE_DETAIL_MARKERS):
             continue
-        safe[key] = value
+        if isinstance(value, dict):
+            safe[key] = sanitize_error_details(value)
+        elif isinstance(value, list):
+            safe[key] = [sanitize_error_details(item) if isinstance(item, dict) else item for item in value]
+        else:
+            safe[key] = value
     return safe

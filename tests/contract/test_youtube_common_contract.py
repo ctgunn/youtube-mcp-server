@@ -534,6 +534,51 @@ def test_comment_threads_list_public_metadata_is_safe_and_complete():
     assert "stack" not in str(metadata).lower()
 
 
+def test_commentThreads_insert_public_metadata_is_safe_and_complete():
+    """Expose safe quota, OAuth, target, and top-level body metadata."""
+    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_insert_contract
+
+    metadata = build_comment_threads_insert_contract().to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["name"] == "commentThreads_insert"
+    assert metadata["upstream"]["operationKey"] == "commentThreads.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert "body" in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["resultKind"] == "created_resource"
+    assert "body.snippet.channelId" in metadata_text
+    assert "body.snippet.videoId" in metadata_text
+    assert "body.snippet.topLevelComment.snippet.textOriginal" in metadata_text
+    assert "comments_insert" in metadata_text
+    assert "token" not in str(metadata).lower()
+    assert "apiKey" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+
+
+def test_commentThreads_insert_shared_metadata_exposes_examples_and_safe_boundaries():
+    """Keep shared metadata complete enough for clients to choose this write tool safely."""
+    from mcp_server.tools.youtube_common.comment_threads import (
+        COMMENT_THREADS_INSERT_CALLER_EXAMPLES,
+        build_comment_threads_insert_contract,
+    )
+
+    metadata = build_comment_threads_insert_contract().to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+    example_names = {example["name"] for example in COMMENT_THREADS_INSERT_CALLER_EXAMPLES}
+
+    assert {"invalid_target_context", "unsupported_option"}.issubset(example_names)
+    assert "Quota cost: 50" in metadata["description"]
+    assert any("Auth: oauth_required" in note for note in metadata["usageNotes"])
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "near_raw" in str(metadata["responseBoundary"])
+    assert "generated responses" in metadata_text
+    assert "oauthToken" not in str(metadata)
+    assert "apiKey" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+
+
 def test_channel_banners_insert_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, media, URL, and activation-boundary metadata."""
     from mcp_server.tools.youtube_common.channel_banners import build_channel_banners_insert_contract

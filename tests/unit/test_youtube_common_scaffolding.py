@@ -258,6 +258,23 @@ def test_comment_threads_list_scaffolding_exports_concrete_layer2_symbols():
     assert callable(youtube_common.build_comment_threads_list_tool_descriptor)
 
 
+def test_commentThreads_insert_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``commentThreads_insert`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import comment_threads
+
+    comment_threads_family = youtube_common.get_resource_family("comment_threads")
+
+    assert comment_threads_family.definition_location.endswith(
+        "src/mcp_server/tools/youtube_common/comment_threads.py"
+    )
+    assert comment_threads.COMMENT_THREADS_INSERT_TOOL_NAME == "commentThreads_insert"
+    assert youtube_common.COMMENT_THREADS_INSERT_TOOL_NAME == "commentThreads_insert"
+    assert youtube_common.COMMENT_THREADS_INSERT_QUOTA_COST == 50
+    assert callable(comment_threads.build_comment_threads_insert_contract)
+    assert callable(youtube_common.build_comment_threads_insert_tool_descriptor)
+
+
 def test_comments_insert_scaffolding_exports_concrete_layer2_symbols():
     """Expose foundational ``comments_insert`` symbols from the shared package."""
     from mcp_server.tools import youtube_common

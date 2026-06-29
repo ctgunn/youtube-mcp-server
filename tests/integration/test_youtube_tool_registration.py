@@ -259,6 +259,28 @@ def test_default_registry_includes_executable_comment_threads_list_tool():
     assert "moderationStatus" in metadata_text
 
 
+def test_default_registry_includes_executable_commentThreads_insert_tool():
+    """Register ``commentThreads_insert`` by default with create metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "commentThreads_insert" in listed
+    metadata = listed["commentThreads_insert"]["metadata"]
+    description = listed["commentThreads_insert"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "commentThreads.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert metadata["responseConvention"]["resultKind"] == "created_resource"
+    assert "body.snippet.channelId" in metadata_text
+    assert "body.snippet.videoId" in metadata_text
+    assert "body.snippet.topLevelComment.snippet.textOriginal" in metadata_text
+    assert "comments_insert" in metadata_text
+
+
 def test_default_registry_includes_executable_channel_sections_list_tool_with_caveat_metadata():
     """Register ``channelSections_list`` by default with selector and caveat metadata."""
     dispatcher = InMemoryToolDispatcher()

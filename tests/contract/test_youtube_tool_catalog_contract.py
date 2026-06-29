@@ -22,6 +22,7 @@ def test_representative_examples_include_required_us1_shapes():
         "comments_setModerationStatus",
         "comments_delete",
         "commentThreads_list",
+        "commentThreads_insert",
         "videos_getRating",
         "videos_reportAbuse",
         "watermarks_unset",
@@ -214,6 +215,37 @@ def test_representative_comment_threads_list_example_aligns_with_concrete_contra
     assert "allThreadsRelatedToChannelId" in metadata_text
     assert "moderationStatus" in metadata_text
     assert "read-only" in metadata_text
+
+
+def test_representative_commentThreads_insert_example_aligns_with_concrete_contract():
+    """Keep the representative commentThreads-insert example aligned with YT-222."""
+    from mcp_server.tools.youtube_common.comment_threads import (
+        COMMENT_THREADS_INSERT_CALLER_EXAMPLES,
+        build_comment_threads_insert_contract,
+    )
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "commentThreads_insert"
+    ]
+    concrete = build_comment_threads_insert_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 50
+    assert representative.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert "body.snippet.channelId" in metadata_text
+    assert "body.snippet.videoId" in metadata_text
+    assert "body.snippet.topLevelComment.snippet.textOriginal" in metadata_text
+    assert "comments_insert" in metadata_text
+
+    example_names = {example["name"] for example in COMMENT_THREADS_INSERT_CALLER_EXAMPLES}
+    assert {"invalid_target_context", "unsupported_option"}.issubset(example_names)
 
 
 def test_representative_comments_set_moderation_status_example_aligns_with_concrete_contract():
