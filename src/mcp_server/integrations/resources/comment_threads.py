@@ -101,6 +101,7 @@ def build_comment_threads_list_wrapper() -> RepresentativeEndpointWrapper:
                 "id",
                 "pageToken",
                 "maxResults",
+                "moderationStatus",
                 "order",
                 "searchTerms",
                 "textFormat",
@@ -114,8 +115,9 @@ def build_comment_threads_list_wrapper() -> RepresentativeEndpointWrapper:
             "`allThreadsRelatedToChannelId` for channel-related thread lookup, "
             "use `id` for direct thread lookup, treat selector combinations as "
             "mutually exclusive, allow `pageToken`, `maxResults`, `order`, "
-            "`searchTerms`, and `textFormat` as optional near-raw modifiers, "
-            "and preserve empty result sets as successful no-match outcomes."
+            "`searchTerms`, `moderationStatus`, and `textFormat` as optional "
+            "near-raw modifiers, and preserve empty result sets as successful "
+            "no-match outcomes."
         ),
     )
     return CommentThreadsListWrapper(metadata=metadata)

@@ -510,6 +510,30 @@ def test_comments_list_public_metadata_is_safe_and_complete():
     assert "stack" not in str(metadata).lower()
 
 
+def test_comment_threads_list_public_metadata_is_safe_and_complete():
+    """Expose safe quota, auth, selector, pagination, and list metadata."""
+    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_list_contract
+
+    metadata = build_comment_threads_list_contract().to_tool_metadata()
+
+    assert metadata["name"] == "commentThreads_list"
+    assert metadata["upstream"]["operationKey"] == "commentThreads.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert {"videoId", "allThreadsRelatedToChannelId", "id", "maxResults", "pageToken", "textFormat"}.issubset(
+        metadata["inputContract"]["properties"]
+    )
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["emptyResultPolicy"] == "empty_success_when_upstream_returns_empty_items"
+    assert any("videoId" in note for note in metadata["usageNotes"])
+    assert any("allThreadsRelatedToChannelId" in note for note in metadata["usageNotes"])
+    assert any("maxResults" in caveat for caveat in metadata["caveats"])
+    assert "oauthToken" not in str(metadata)
+    assert "apiKey" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+
+
 def test_channel_banners_insert_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, media, URL, and activation-boundary metadata."""
     from mcp_server.tools.youtube_common.channel_banners import build_channel_banners_insert_contract
