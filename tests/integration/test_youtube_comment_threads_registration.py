@@ -1,5 +1,7 @@
 """Integration tests for registering concrete Layer 2 ``commentThreads`` tools."""
 
+import pytest
+
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_list_tool_descriptor
 
@@ -16,6 +18,36 @@ def _register_comment_threads_list(**descriptor_kwargs) -> InMemoryToolDispatche
         metadata=descriptor["metadata"],
     )
     return dispatcher
+
+
+def _register_commentThreads_insert(**descriptor_kwargs) -> InMemoryToolDispatcher:
+    """Register the concrete comment-thread insert tool in a fresh dispatcher."""
+    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_insert_tool_descriptor
+
+    descriptor = build_comment_threads_insert_tool_descriptor(**descriptor_kwargs)
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
+def _valid_commentThreads_insert_arguments() -> dict:
+    """Return a representative valid ``commentThreads_insert`` request."""
+    return {
+        "part": "snippet",
+        "body": {
+            "snippet": {
+                "channelId": "channel-123",
+                "videoId": "video-123",
+                "topLevelComment": {"snippet": {"textOriginal": "Great walkthrough."}},
+            }
+        },
+    }
 
 
 def test_comment_threads_list_registration_exposes_metadata_and_usage_notes():
@@ -36,6 +68,71 @@ def test_comment_threads_list_registration_exposes_metadata_and_usage_notes():
     )
     assert "allThreadsRelatedToChannelId" in metadata_text
     assert "moderationStatus" in metadata_text
+
+
+def test_commentThreads_insert_registration_exposes_metadata_and_usage_notes():
+    """Expose quota, OAuth, target, body, and caveats in registration."""
+    dispatcher = _register_commentThreads_insert()
+
+    [listed] = dispatcher.list_tools()
+    metadata = listed["metadata"]
+    metadata_text = " ".join([listed["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["name"] == "commentThreads_insert"
+    assert metadata["upstream"]["operationKey"] == "commentThreads.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert "body.snippet.channelId" in metadata_text
+    assert "body.snippet.videoId" in metadata_text
+
+
+def test_commentThreads_insert_descriptor_registers_as_executable_tool_for_top_level_create():
+    """Register and execute ``commentThreads_insert`` through the dispatcher."""
+    dispatcher = _register_commentThreads_insert()
+
+    result = dispatcher.call_tool("commentThreads_insert", _valid_commentThreads_insert_arguments())
+
+    assert result["endpoint"] == "commentThreads.insert"
+    assert result["quotaCost"] == 50
+    assert result["created"] is True
+    assert result["requestedParts"] == ["snippet"]
+    assert result["target"] == {"channelId": "channel-123", "videoId": "video-123"}
+    assert result["item"]["id"] == "thread-video-123"
+
+
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (lambda arguments: arguments["body"]["snippet"].pop("channelId"), "body.snippet.channelId"),
+        (lambda arguments: arguments["body"]["snippet"].pop("videoId"), "body.snippet.videoId"),
+        (
+            lambda arguments: arguments["body"]["snippet"]["topLevelComment"]["snippet"].update(
+                {"textOriginal": " "}
+            ),
+            "body.snippet.topLevelComment.snippet.textOriginal",
+        ),
+        (lambda arguments: arguments["body"]["snippet"].update({"parentId": "comment-parent-123"}), "parentId"),
+        (lambda arguments: arguments.update({"moderationStatus": "published"}), "unsupported field"),
+        (lambda arguments: arguments.update({"part": "contentDetails"}), "part"),
+    ],
+)
+def test_commentThreads_insert_dispatcher_rejects_invalid_create_shapes(mutator, match):
+    """Reject invalid ``commentThreads_insert`` shapes through dispatcher invocation."""
+    dispatcher = _register_commentThreads_insert()
+    arguments = _valid_commentThreads_insert_arguments()
+    mutator(arguments)
+
+    with pytest.raises(ValueError, match=match):
+        dispatcher.call_tool("commentThreads_insert", arguments)
+
+
+def test_commentThreads_insert_dispatcher_rejects_missing_oauth():
+    """Reject ``commentThreads_insert`` calls when OAuth access is unavailable."""
+    dispatcher = _register_commentThreads_insert(oauth_token=None)
+
+    with pytest.raises(ValueError, match="requires OAuth access"):
+        dispatcher.call_tool("commentThreads_insert", _valid_commentThreads_insert_arguments())
 
 
 def test_comment_threads_list_descriptor_registers_as_executable_tool_for_video_lookup():

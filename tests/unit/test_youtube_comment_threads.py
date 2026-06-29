@@ -205,3 +205,182 @@ def test_comment_threads_list_handler_maps_upstream_errors(category, expected):
     assert exc_info.value.category == expected
     assert "api" not in str(exc_info.value.details).lower()
     assert "stack" not in str(exc_info.value.details).lower()
+
+
+def _valid_comment_threads_insert_arguments() -> dict:
+    """Return a representative valid ``commentThreads_insert`` request."""
+    return {
+        "part": "snippet",
+        "body": {
+            "snippet": {
+                "channelId": "channel-123",
+                "videoId": "video-123",
+                "topLevelComment": {"snippet": {"textOriginal": "Great walkthrough."}},
+            }
+        },
+    }
+
+
+def test_commentThreads_insert_schema_preserves_top_level_create_inputs():
+    """Expose the upstream-like request fields for ``commentThreads_insert``."""
+    from mcp_server.tools.youtube_common.comment_threads import COMMENT_THREADS_INSERT_INPUT_SCHEMA
+
+    properties = COMMENT_THREADS_INSERT_INPUT_SCHEMA["properties"]
+
+    assert COMMENT_THREADS_INSERT_INPUT_SCHEMA["required"] == ["part", "body"]
+    assert {"part", "body", "onBehalfOfContentOwner"}.issubset(properties)
+    assert COMMENT_THREADS_INSERT_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_validate_commentThreads_insert_arguments_accepts_top_level_request():
+    """Accept authorized top-level comment-thread creation arguments."""
+    from mcp_server.tools.youtube_common.comment_threads import validate_comment_threads_insert_arguments
+
+    target = validate_comment_threads_insert_arguments(_valid_comment_threads_insert_arguments())
+
+    assert target == ("channel-123", "video-123")
+
+
+def test_map_commentThreads_insert_result_preserves_created_item_parts_and_target():
+    """Map upstream insert results into a safe near-raw created-thread result."""
+    from mcp_server.tools.youtube_common.comment_threads import map_comment_threads_insert_result
+
+    result = map_comment_threads_insert_result(
+        {"id": "thread-video-123", "snippet": {"videoId": "video-123"}},
+        _valid_comment_threads_insert_arguments(),
+    )
+
+    assert result["endpoint"] == "commentThreads.insert"
+    assert result["quotaCost"] == 50
+    assert result["created"] is True
+    assert result["item"] == {"id": "thread-video-123", "snippet": {"videoId": "video-123"}}
+    assert result["requestedParts"] == ["snippet"]
+    assert result["target"] == {"channelId": "channel-123", "videoId": "video-123"}
+    assert result["auth"] == {"mode": "oauth_required"}
+
+
+def test_commentThreads_insert_handler_invokes_wrapper_for_top_level_request():
+    """Execute one valid top-level create request through the descriptor handler."""
+    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_insert_tool_descriptor
+
+    class FakeWrapper:
+        """Capture wrapper call arguments for ``commentThreads_insert``."""
+
+        def __init__(self):
+            """Initialize an empty call log."""
+            self.calls = []
+
+        def call(self, executor, *, arguments, auth_context):
+            """Return a representative created comment-thread response.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: OAuth auth context selected by the handler.
+            :return: Fake upstream created-thread response.
+            """
+            self.calls.append((executor, arguments, auth_context))
+            return {"id": "thread-video-123", "snippet": {"videoId": arguments["body"]["snippet"]["videoId"]}}
+
+    wrapper = FakeWrapper()
+    descriptor = build_comment_threads_insert_tool_descriptor(wrapper=wrapper, executor=object())
+    arguments = _valid_comment_threads_insert_arguments()
+    result = descriptor["handler"](arguments)
+
+    assert result["item"] == {"id": "thread-video-123", "snippet": {"videoId": "video-123"}}
+    assert wrapper.calls[0][1] == arguments
+    assert wrapper.calls[0][2].mode.value == "oauth_required"
+
+
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (lambda arguments: arguments.pop("part"), "requires part"),
+        (lambda arguments: arguments.update({"part": "contentDetails"}), "part"),
+        (lambda arguments: arguments.pop("body"), "requires body"),
+        (lambda arguments: arguments["body"]["snippet"].pop("channelId"), "body.snippet.channelId"),
+        (lambda arguments: arguments["body"]["snippet"].pop("videoId"), "body.snippet.videoId"),
+        (
+            lambda arguments: arguments["body"]["snippet"]["topLevelComment"]["snippet"].pop("textOriginal"),
+            "body.snippet.topLevelComment.snippet.textOriginal",
+        ),
+        (
+            lambda arguments: arguments["body"]["snippet"]["topLevelComment"]["snippet"].update(
+                {"textOriginal": " "}
+            ),
+            "body.snippet.topLevelComment.snippet.textOriginal",
+        ),
+        (lambda arguments: arguments["body"]["snippet"].update({"parentId": "comment-parent-123"}), "parentId"),
+        (lambda arguments: arguments.update({"moderationStatus": "published"}), "moderationStatus"),
+    ],
+)
+def test_validate_commentThreads_insert_arguments_rejects_invalid_create_shapes(mutator, match):
+    """Reject invalid and unsupported ``commentThreads_insert`` request shapes."""
+    from mcp_server.tools.youtube_common.comment_threads import (
+        CommentThreadsInsertToolError,
+        validate_comment_threads_insert_arguments,
+    )
+
+    arguments = _valid_comment_threads_insert_arguments()
+    mutator(arguments)
+
+    with pytest.raises(CommentThreadsInsertToolError, match=match):
+        validate_comment_threads_insert_arguments(arguments)
+
+
+@pytest.mark.parametrize(
+    ("category", "reason", "expected"),
+    [
+        ("invalid_request", "commentsDisabled", "invalid_request"),
+        ("authentication", "loginRequired", "authentication_failed"),
+        ("auth", "forbidden", "authorization_failed"),
+        ("authorization", "insufficientPermissions", "authorization_failed"),
+        ("rate_limit", "quotaExceeded", "quota_exhausted"),
+        ("not_found", "channelNotFound", "resource_not_found"),
+        ("not_found", "videoNotFound", "resource_not_found"),
+        ("transient", "backendError", "endpoint_unavailable"),
+        ("deprecated", "endpointDeprecated", "deprecated_endpoint"),
+        ("unexpected", "unexpectedFailure", "upstream_failure"),
+    ],
+)
+def test_commentThreads_insert_handler_maps_upstream_errors(category, reason, expected):
+    """Map normalized insert failures into safe public categories and details."""
+    from mcp_server.tools.youtube_common.comment_threads import (
+        CommentThreadsInsertToolError,
+        build_comment_threads_insert_tool_descriptor,
+    )
+
+    class FailingWrapper:
+        """Raise one normalized upstream insert error."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise a fake upstream insert error.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Arguments forwarded to the wrapper.
+            :param auth_context: OAuth auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this test.
+            """
+            raise NormalizedUpstreamError(
+                "upstream insert failed",
+                category=category,
+                retryable=False,
+                upstream_status=403,
+                details={
+                    "reason": reason,
+                    "oauthToken": "secret",
+                    "apiKey": "secret",
+                    "stackTrace": "traceback",
+                },
+            )
+
+    descriptor = build_comment_threads_insert_tool_descriptor(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(CommentThreadsInsertToolError) as exc_info:
+        descriptor["handler"](_valid_comment_threads_insert_arguments())
+
+    assert exc_info.value.category == expected
+    assert exc_info.value.details["reason"] == reason
+    assert "upstreamStatus" in exc_info.value.details
+    assert "token" not in str(exc_info.value.details).lower()
+    assert "apikey" not in str(exc_info.value.details).lower()
+    assert "stack" not in str(exc_info.value.details).lower()

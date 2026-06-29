@@ -17,7 +17,10 @@ from mcp_server.tools.youtube_common.comments import (
     build_comments_set_moderation_status_contract,
     build_comments_update_contract,
 )
-from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_list_contract
+from mcp_server.tools.youtube_common.comment_threads import (
+    build_comment_threads_insert_contract,
+    build_comment_threads_list_contract,
+)
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract, derive_tool_name
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
 
@@ -479,6 +482,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_channels_update_contract(),
     build_comments_list_contract(),
     build_comment_threads_list_contract(),
+    build_comment_threads_insert_contract(),
     build_comments_insert_contract(),
     build_comments_update_contract(),
     _contract(

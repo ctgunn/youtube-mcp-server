@@ -57,7 +57,9 @@ def _require_comment_threads_insert_body(arguments: dict[str, object]) -> None:
             f"{unsupported_top_level_snippet_fields[0]} is read-only or unsupported"
         )
 
-    unsupported_snippet_fields = [field for field in snippet if field not in {"videoId", "topLevelComment"}]
+    unsupported_snippet_fields = [
+        field for field in snippet if field not in {"channelId", "videoId", "topLevelComment"}
+    ]
     if unsupported_snippet_fields:
         raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
 
