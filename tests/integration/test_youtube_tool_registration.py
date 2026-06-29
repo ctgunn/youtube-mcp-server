@@ -239,6 +239,26 @@ def test_default_registry_includes_executable_channels_list_tool_with_selector_m
     assert "empty" in metadata_text.lower()
 
 
+def test_default_registry_includes_executable_comment_threads_list_tool():
+    """Register ``commentThreads_list`` by default with safe selector metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "commentThreads_list" in listed
+    metadata = listed["commentThreads_list"]["metadata"]
+    description = listed["commentThreads_list"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "commentThreads.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert {"videoId", "allThreadsRelatedToChannelId", "id"}.issubset(
+        metadata["inputContract"]["properties"]
+    )
+    assert "moderationStatus" in metadata_text
+
+
 def test_default_registry_includes_executable_channel_sections_list_tool_with_caveat_metadata():
     """Register ``channelSections_list`` by default with selector and caveat metadata."""
     dispatcher = InMemoryToolDispatcher()
