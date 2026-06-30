@@ -596,22 +596,27 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
         self.assertEqual(result["items"], [])
         self.assertEqual(result["hl"], "en_US")
 
-    def test_i18n_languages_list_wrapper_rejects_missing_display_language_requests(self):
+    def test_i18n_languages_list_wrapper_accepts_default_display_language_requests(self):
         wrapper = build_i18n_languages_list_wrapper()
         executor = IntegrationExecutor(
-            transport=lambda _execution: {"items": []},
+            transport=lambda execution: {
+                "items": [{"id": "en", "kind": "youtube#i18nLanguage"}],
+                "arguments": execution.arguments,
+            },
             retry_policy=RetryPolicy(max_attempts=1),
         )
 
-        with self.assertRaisesRegex(ValueError, "missing required field: hl"):
-            wrapper.call(
-                executor,
-                arguments={"part": "snippet"},
-                auth_context=AuthContext(
-                    mode=AuthMode.API_KEY,
-                    credentials=CredentialBundle(api_key="key-123"),
-                ),
-            )
+        result = wrapper.call(
+            executor,
+            arguments={"part": "snippet"},
+            auth_context=AuthContext(
+                mode=AuthMode.API_KEY,
+                credentials=CredentialBundle(api_key="key-123"),
+            ),
+        )
+
+        self.assertEqual(result["items"][0]["id"], "en")
+        self.assertEqual(result["arguments"], {"part": "snippet"})
 
     def test_i18n_regions_list_wrapper_executes_display_language_requests_through_shared_executor(self):
         wrapper = build_i18n_regions_list_wrapper()

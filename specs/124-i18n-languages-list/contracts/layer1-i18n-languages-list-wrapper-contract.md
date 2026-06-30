@@ -37,7 +37,7 @@ The wrapper must keep request boundaries, localization guidance, and quota visib
 
 The wrapper contract must make the supported request boundary clear enough that a maintainer can tell:
 
-- that `part` and `hl` are required for supported lookup requests
+- that required `part` and optional `hl` define supported lookup requests
 - that the wrapper supports one localization-language view per request
 - that undocumented modifiers or extra top-level fields are outside the wrapper boundary
 - that unsupported fields are rejected or clearly flagged before execution
@@ -58,7 +58,7 @@ The wrapper must preserve source operation, quota visibility, and display-langua
 The feature must prove that maintainers can:
 
 - identify `i18nLanguages.list` identity, quota cost, and API-key access in one review pass
-- determine the supported `part` plus `hl` request boundary without reading implementation code
+- determine the supported required `part` and optional `hl` request boundary without reading implementation code
 - understand the localization-lookup purpose and empty-result interpretation for downstream reuse
 - determine that public Layer 2 exposure is outside this slice
 

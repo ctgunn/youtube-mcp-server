@@ -9,7 +9,7 @@ Define how maintainers and future higher-layer authors should interpret `i18nLan
 Higher-layer planning and review consumers may rely on:
 
 - visible API-key access behavior for the supported localization lookup path
-- explicit `part` plus `hl` guidance for the supported request shape
+- explicit required `part` and optional `hl` guidance for the supported request shape
 - review surfaces that keep `authMode`, `quotaCost`, endpoint identity, and request-boundary notes visible together
 - successful empty results remaining distinct from invalid requests
 
@@ -23,8 +23,8 @@ Higher-layer planning and review consumers must not rely on:
 
 Required behavior:
 
-- the supported lookup path for this slice uses one `hl` value per request
-- every supported request must include non-empty `part` and `hl` values
+- the supported lookup path may use one `hl` value per request when display-language localization is requested
+- every supported request must include a non-empty `part` value, while omitting `hl` remains valid
 - the wrapper must reject undocumented top-level request fields instead of passing them through silently
 - maintainers must be able to determine from feature artifacts that the lookup remains deterministic and display-language specific
 
@@ -43,7 +43,8 @@ The contract must treat request validation as deterministic.
 
 Required behavior:
 
-- callers may not omit `part` or `hl`; missing `part` or `hl` must remain explicit invalid-request conditions
+- callers may not omit `part`; missing `part` must remain an explicit invalid-request condition
+- callers may omit `hl`; malformed non-empty `hl` values must remain explicit invalid-request conditions
 - callers may not supply unsupported request modifiers or undocumented fields and still expect supported wrapper behavior
 - contract and test artifacts must keep these boundaries reviewable without reading implementation code
 

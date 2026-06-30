@@ -32,6 +32,7 @@ def test_derive_tool_name_covers_representative_youtube_inventory_names():
         ("captions", "download"): "captions_download",
         ("search", "list"): "search_list",
         ("guideCategories", "list"): "guideCategories_list",
+        ("i18nLanguages", "list"): "i18nLanguages_list",
         ("watermarks", "unset"): "watermarks_unset",
     }
 
@@ -333,6 +334,32 @@ def test_comments_delete_scaffolding_exports_concrete_layer2_symbols():
     assert youtube_common.COMMENTS_DELETE_QUOTA_COST == 50
     assert callable(comments.build_comments_delete_contract)
     assert callable(youtube_common.build_comments_delete_tool_descriptor)
+
+
+def test_localization_resource_family_points_to_concrete_layer2_module():
+    """Expose the concrete localization family placement for YT-224."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    localization = get_resource_family("localization")
+
+    assert localization.definition_location.endswith("src/mcp_server/tools/youtube_common/localization.py")
+    assert localization.handler_location.endswith("src/mcp_server/tools/youtube_common/localization.py")
+    assert localization.schema_location.endswith("src/mcp_server/tools/youtube_common/localization.py")
+
+
+def test_i18n_languages_list_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``i18nLanguages_list`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import localization
+
+    localization_family = youtube_common.get_resource_family("localization")
+
+    assert localization_family.definition_location.endswith("src/mcp_server/tools/youtube_common/localization.py")
+    assert localization.I18N_LANGUAGES_LIST_TOOL_NAME == "i18nLanguages_list"
+    assert youtube_common.I18N_LANGUAGES_LIST_TOOL_NAME == "i18nLanguages_list"
+    assert youtube_common.I18N_LANGUAGES_LIST_QUOTA_COST == 1
+    assert callable(localization.build_i18n_languages_list_contract)
+    assert callable(youtube_common.build_i18n_languages_list_tool_descriptor)
 
 
 def test_representative_captions_insert_metadata_exposes_upload_and_sync_caveats():

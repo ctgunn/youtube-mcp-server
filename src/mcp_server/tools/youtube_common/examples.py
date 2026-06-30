@@ -24,6 +24,7 @@ from mcp_server.tools.youtube_common.comment_threads import (
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract, derive_tool_name
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
 from mcp_server.tools.youtube_common.guide_categories import build_guide_categories_list_contract
+from mcp_server.tools.youtube_common.localization import build_i18n_languages_list_contract
 
 
 def _contract(
@@ -513,4 +514,5 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         caveats=("Abuse reporting requires authorized caller context and endpoint-specific validation.",),
     ),
     build_guide_categories_list_contract(),
+    build_i18n_languages_list_contract(),
 )
