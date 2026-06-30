@@ -187,6 +187,7 @@ UNSAFE_DETAIL_MARKERS = (
     "raw_body",
     "rawbody",
     "signed_url",
+    "signedurl",
 )
 
 

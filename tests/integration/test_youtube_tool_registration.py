@@ -281,6 +281,27 @@ def test_default_registry_includes_executable_commentThreads_insert_tool():
     assert "comments_insert" in metadata_text
 
 
+def test_default_registry_includes_executable_guideCategories_list_tool():
+    """Register ``guideCategories_list`` by default with legacy lookup metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "guideCategories_list" in listed
+    metadata = listed["guideCategories_list"]["metadata"]
+    description = listed["guideCategories_list"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "guideCategories.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["availabilityState"] == "deprecated"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert {"regionCode", "id", "hl"}.issubset(metadata["inputContract"]["properties"])
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert "deprecated" in metadata_text.lower()
+    assert "video categories" in metadata_text
+
+
 def test_default_registry_includes_executable_channel_sections_list_tool_with_caveat_metadata():
     """Register ``channelSections_list`` by default with selector and caveat metadata."""
     dispatcher = InMemoryToolDispatcher()

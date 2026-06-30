@@ -432,11 +432,14 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["operationKey"], "guideCategories.list")
         self.assertEqual(review_surface["quotaCost"], 1)
         self.assertEqual(review_surface["authMode"], "api_key")
-        self.assertEqual(review_surface["requiredFields"], ("part", "regionCode"))
-        self.assertEqual(review_surface["optionalFields"], ())
+        self.assertEqual(review_surface["requiredFields"], ("part",))
+        self.assertEqual(review_surface["optionalFields"], ("regionCode", "id", "hl"))
+        self.assertEqual(review_surface["exclusiveSelectors"], ("regionCode", "id"))
         self.assertEqual(review_surface["lifecycleState"], "deprecated")
         self.assertIn("deprecated", review_surface["caveatNote"])
         self.assertIn("regionCode", review_surface["notes"])
+        self.assertIn("id", review_surface["notes"])
+        self.assertIn("hl", review_surface["notes"])
 
     def test_i18n_languages_list_review_surface_exposes_identity_quota_and_lookup_notes(self):
         review_surface = build_i18n_languages_list_wrapper().review_surface()

@@ -632,22 +632,30 @@ class Layer1FoundationUnitTests(unittest.TestCase):
         self.assertEqual(wrapper.metadata.quota_cost, 1)
         self.assertEqual(wrapper.metadata.review_auth_mode, "api_key")
         self.assertEqual(wrapper.metadata.lifecycle_state, "deprecated")
-        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "regionCode"))
-        self.assertEqual(wrapper.metadata.request_shape.optional_fields, ())
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part",))
+        self.assertEqual(wrapper.metadata.request_shape.optional_fields, ("regionCode", "id", "hl"))
+        self.assertEqual(wrapper.metadata.request_shape.exactly_one_of, ("regionCode", "id"))
         self.assertIn("deprecated", wrapper.metadata.caveat_note)
         self.assertIn("regionCode", wrapper.metadata.notes)
+        self.assertIn("id", wrapper.metadata.notes)
+        self.assertIn("hl", wrapper.metadata.notes)
 
     def test_guide_categories_list_wrapper_is_exported_from_integrations_package(self):
         self.assertTrue(callable(integrations_package.build_guide_categories_list_wrapper))
 
-    def test_guide_categories_list_wrapper_requires_part_and_region_code(self):
+    def test_guide_categories_list_wrapper_requires_part_and_one_selector(self):
         wrapper = build_guide_categories_list_wrapper()
 
         with self.assertRaisesRegex(ValueError, "missing required field: part"):
             wrapper.metadata.request_shape.validate_arguments({"regionCode": "US"})
 
-        with self.assertRaisesRegex(ValueError, "missing required field: regionCode"):
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
             wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+
+        with self.assertRaisesRegex(ValueError, "exactly one selector is required"):
+            wrapper.metadata.request_shape.validate_arguments(
+                {"part": "snippet", "regionCode": "US", "id": "GCQmVzdCBvZiBZb3VUdWJl"}
+            )
 
     def test_guide_categories_list_wrapper_rejects_unexpected_request_fields(self):
         wrapper = build_guide_categories_list_wrapper()
