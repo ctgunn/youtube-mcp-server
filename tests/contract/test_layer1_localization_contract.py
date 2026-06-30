@@ -37,7 +37,7 @@ class Layer1LocalizationContractTests(unittest.TestCase):
             localization_contract = handle.read()
 
         self.assertIn("quota cost (`1`)", wrapper_contract)
-        self.assertIn("`part` plus `hl`", wrapper_contract)
+        self.assertIn("required `part` and optional `hl`", wrapper_contract)
         self.assertIn("localization lookup", localization_contract.lower())
         self.assertIn("successful empty results", localization_contract.lower())
 
@@ -49,7 +49,8 @@ class Layer1LocalizationContractTests(unittest.TestCase):
         self.assertEqual(review_surface["operationKey"], "i18nLanguages.list")
         self.assertEqual(review_surface["quotaCost"], 1)
         self.assertEqual(review_surface["authMode"], "api_key")
-        self.assertEqual(review_surface["requiredFields"], ("part", "hl"))
+        self.assertEqual(review_surface["requiredFields"], ("part",))
+        self.assertEqual(review_surface["optionalFields"], ("hl",))
         self.assertEqual(review_surface["lifecycleState"], "active")
 
     def test_contract_documents_request_boundaries_and_invalid_request_rules(self):
@@ -60,7 +61,7 @@ class Layer1LocalizationContractTests(unittest.TestCase):
         ) as handle:
             wrapper_contract = handle.read()
 
-        self.assertIn("`part` and `hl` are required", wrapper_contract)
+        self.assertIn("required `part` and optional `hl`", wrapper_contract)
         self.assertIn("undocumented modifiers", wrapper_contract)
         self.assertIn("silently rewritten", wrapper_contract)
 
@@ -77,7 +78,8 @@ class Layer1LocalizationContractTests(unittest.TestCase):
 
         self.assertIn("successful empty results", localization_contract.lower())
         self.assertIn("invalid requests", localization_contract.lower())
-        self.assertIn("missing `part` or `hl`", localization_contract)
+        self.assertIn("missing `part`", localization_contract)
+        self.assertIn("omitting `hl` remains valid", localization_contract)
 
     def test_region_contract_artifacts_define_wrapper_and_region_guidance(self):
         root = self._region_feature_contract_root()

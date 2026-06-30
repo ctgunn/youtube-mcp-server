@@ -10,8 +10,9 @@ class I18nLanguagesListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `i18nLanguages.list`.
 
     Official quota cost: ``1`` quota unit. The wrapper supports one
-    localization-language lookup using ``part`` plus ``hl`` on public API-key
-    requests and keeps localization guidance visible for reviewers.
+    localization-language lookup using required ``part`` and optional ``hl``
+    on public API-key requests and keeps localization guidance visible for
+    reviewers.
     """
 
     def call(
@@ -65,8 +66,8 @@ def build_i18n_languages_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `i18nLanguages.list`.
 
     Official quota cost: ``1`` quota unit. The wrapper supports one
-    localization-language lookup through ``part`` plus ``hl`` on API-key
-    requests and keeps localization guidance visible.
+    localization-language lookup through required ``part`` and optional
+    ``hl`` on API-key requests and keeps localization guidance visible.
 
     :return: Representative wrapper configured for `i18nLanguages.list`.
     """
@@ -76,15 +77,16 @@ def build_i18n_languages_list_wrapper() -> RepresentativeEndpointWrapper:
         http_method="GET",
         path_shape="/youtube/v3/i18nLanguages",
         request_shape=EndpointRequestShape(
-            required_fields=("part", "hl"),
+            required_fields=("part",),
+            optional_fields=("hl",),
         ),
         auth_mode=AuthMode.API_KEY,
         quota_cost=1,
         notes=(
-            "Requires `part` plus `hl` for one deterministic localization "
-            "lookup, rejects undocumented modifiers, preserves empty result "
-            "sets as successful outcomes, and keeps localization guidance "
-            "visible for reuse decisions."
+            "Requires `part` and accepts optional `hl` for one deterministic "
+            "localization lookup, rejects undocumented modifiers, preserves "
+            "empty result sets as successful outcomes, and keeps localization "
+            "guidance visible for reuse decisions."
         ),
     )
     return I18nLanguagesListWrapper(metadata=metadata)
