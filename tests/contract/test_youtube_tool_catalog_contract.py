@@ -506,6 +506,48 @@ def test_representative_i18nLanguages_list_metadata_exposes_localization_usage()
     assert "translate" in metadata_text or "translation" in metadata_text
 
 
+def test_representative_i18nRegions_list_example_aligns_with_concrete_contract():
+    """Keep the representative i18nRegions-list example aligned with YT-225."""
+    from mcp_server.tools.youtube_common.localization import build_i18n_regions_list_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "i18nRegions_list"
+    ]
+    concrete = build_i18n_regions_list_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 1
+    assert representative.auth_mode is AuthMode.API_KEY
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert "hl" in metadata["inputContract"]["properties"]
+    assert "language lookup" in metadata_text
+    assert "geotarget" in metadata_text
+
+
+def test_representative_i18nRegions_list_metadata_exposes_region_usage():
+    """Expose quota, auth, and region guidance in the representative catalog."""
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "i18nRegions_list"
+    ]
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["properties"]["part"]["enum"] == ["snippet"]
+    assert "hl" in metadata["inputContract"]["properties"]
+    assert "localization-region" in metadata_text
+    assert "geotarget" in metadata_text
+
+
 def test_representative_examples_expose_complete_metadata_standard():
     """Require representative examples to expose the YT-202 metadata standard."""
     assert len(REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS) >= 10

@@ -10,7 +10,7 @@ The representative implementation for this contract remains under `/Users/ctgunn
 
 - Internal-only Layer 1 wrapper behavior for `i18nRegions.list`
 - Maintainer-visible endpoint identity and quota cost (`1`)
-- Deterministic request boundary for supported `part` plus `hl` lookups
+- Deterministic request boundary for supported required `part` and optional `hl` lookups
 - API-key behavior for localization-region retrieval
 - Reviewable region guidance for downstream reuse
 - Normalized success and failure boundaries suitable for later Layer 2 and Layer 3 localization work
@@ -37,7 +37,8 @@ The wrapper must keep request boundaries, region guidance, and quota visibility 
 
 The wrapper contract must make the supported request boundary clear enough that a maintainer can tell:
 
-- that `part` and `hl` are required for supported lookup requests
+- that required `part` and optional `hl` are supported for lookup requests
+- that omitting `hl` remains valid and preserves upstream default display-language behavior
 - that the wrapper supports one localization-region view per request
 - that undocumented modifiers or extra top-level fields are outside the wrapper boundary
 - that unsupported fields are rejected or clearly flagged before execution
@@ -58,7 +59,7 @@ The wrapper must preserve source operation, quota visibility, and display-langua
 The feature must prove that maintainers can:
 
 - identify `i18nRegions.list` identity, quota cost, and API-key access in one review pass
-- determine the supported `part` plus `hl` request boundary without reading implementation code
+- determine the supported required `part` and optional `hl` request boundary without reading implementation code
 - understand the region-lookup purpose and empty-result interpretation for downstream reuse
 - determine that public Layer 2 exposure is outside this slice
 

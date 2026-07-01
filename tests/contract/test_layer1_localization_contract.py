@@ -97,7 +97,7 @@ class Layer1LocalizationContractTests(unittest.TestCase):
             region_contract = handle.read()
 
         self.assertIn("quota cost (`1`)", wrapper_contract)
-        self.assertIn("`part` plus `hl`", wrapper_contract)
+        self.assertIn("required `part` and optional `hl`", wrapper_contract)
         self.assertIn("region lookup", region_contract.lower())
         self.assertIn("empty-result", region_contract.lower())
 
@@ -109,7 +109,8 @@ class Layer1LocalizationContractTests(unittest.TestCase):
         self.assertEqual(review_surface["operationKey"], "i18nRegions.list")
         self.assertEqual(review_surface["quotaCost"], 1)
         self.assertEqual(review_surface["authMode"], "api_key")
-        self.assertEqual(review_surface["requiredFields"], ("part", "hl"))
+        self.assertEqual(review_surface["requiredFields"], ("part",))
+        self.assertEqual(review_surface["optionalFields"], ("hl",))
         self.assertEqual(review_surface["lifecycleState"], "active")
 
     def test_region_contract_documents_request_boundaries_and_invalid_request_rules(self):
@@ -123,7 +124,7 @@ class Layer1LocalizationContractTests(unittest.TestCase):
         ) as handle:
             wrapper_contract = handle.read()
 
-        self.assertIn("`part` and `hl` are required", wrapper_contract)
+        self.assertIn("required `part` and optional `hl`", wrapper_contract)
         self.assertIn("undocumented modifiers", wrapper_contract)
         self.assertIn("silently rewritten", wrapper_contract)
 
@@ -139,7 +140,8 @@ class Layer1LocalizationContractTests(unittest.TestCase):
             region_contract = handle.read()
 
         self.assertIn("api-key access", region_contract.lower())
-        self.assertIn("`part` plus `hl`", region_contract)
+        self.assertIn("required `part` and optional `hl`", region_contract)
+        self.assertIn("omitting `hl` remains valid", region_contract)
         self.assertIn("downstream callers", region_contract.lower())
 
     def test_video_abuse_report_reasons_contract_artifacts_define_wrapper_and_localization_guidance(self):

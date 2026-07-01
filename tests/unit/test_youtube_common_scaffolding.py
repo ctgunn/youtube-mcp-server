@@ -362,6 +362,21 @@ def test_i18n_languages_list_scaffolding_exports_concrete_layer2_symbols():
     assert callable(youtube_common.build_i18n_languages_list_tool_descriptor)
 
 
+def test_i18n_regions_list_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``i18nRegions_list`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import localization
+
+    localization_family = youtube_common.get_resource_family("localization")
+
+    assert localization_family.definition_location.endswith("src/mcp_server/tools/youtube_common/localization.py")
+    assert localization.I18N_REGIONS_LIST_TOOL_NAME == "i18nRegions_list"
+    assert youtube_common.I18N_REGIONS_LIST_TOOL_NAME == "i18nRegions_list"
+    assert youtube_common.I18N_REGIONS_LIST_QUOTA_COST == 1
+    assert callable(localization.build_i18n_regions_list_contract)
+    assert callable(youtube_common.build_i18n_regions_list_tool_descriptor)
+
+
 def test_representative_captions_insert_metadata_exposes_upload_and_sync_caveats():
     """Expose safe caller-facing metadata for the captions insert endpoint."""
     from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS

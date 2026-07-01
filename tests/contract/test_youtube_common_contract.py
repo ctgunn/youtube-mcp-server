@@ -273,6 +273,24 @@ def test_i18n_languages_list_public_metadata_is_safe_and_complete():
     assert metadata["inputContract"]["required"] == ["part"]
     assert metadata["inputContract"]["properties"]["part"]["enum"] == ["snippet"]
     assert "hl" in metadata["inputContract"]["properties"]
+
+
+def test_i18n_regions_list_public_metadata_is_safe_and_complete():
+    """Expose safe quota, auth, and active metadata for ``i18nRegions_list``."""
+    from mcp_server.tools.youtube_common.localization import build_i18n_regions_list_contract
+
+    metadata = build_i18n_regions_list_contract().to_tool_metadata()
+
+    assert metadata["name"] == "i18nRegions_list"
+    assert metadata["upstream"]["operationKey"] == "i18nRegions.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert metadata["inputContract"]["properties"]["part"]["enum"] == ["snippet"]
+    assert "hl" in metadata["inputContract"]["properties"]
+    assert "apiKey" not in str(metadata)
+    assert "oauthToken" not in str(metadata)
     assert "token" not in str(metadata).lower()
     assert "apiKey" not in str(metadata)
 

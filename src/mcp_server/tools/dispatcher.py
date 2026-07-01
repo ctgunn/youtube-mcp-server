@@ -29,6 +29,7 @@ from mcp_server.tools.youtube_common import (
     build_comment_threads_list_tool_descriptor,
     build_guide_categories_list_tool_descriptor,
     build_i18n_languages_list_tool_descriptor,
+    build_i18n_regions_list_tool_descriptor,
 )
 
 BASELINE_TOOL_SCHEMAS = {
@@ -223,6 +224,7 @@ class InMemoryToolDispatcher:
             build_comments_delete_tool_descriptor(),
             build_guide_categories_list_tool_descriptor(),
             build_i18n_languages_list_tool_descriptor(),
+            build_i18n_regions_list_tool_descriptor(),
         ]
 
     def _normalize_server_metadata(self, server_metadata):
