@@ -546,6 +546,30 @@ def test_comments_list_public_metadata_is_safe_and_complete():
     assert "stack" not in str(metadata).lower()
 
 
+def test_members_list_public_metadata_is_safe_and_complete():
+    """Expose safe quota, auth, owner access, and list metadata."""
+    from mcp_server.tools.youtube_common.members import build_members_list_contract
+
+    metadata = build_members_list_contract().to_tool_metadata()
+
+    assert metadata["name"] == "members_list"
+    assert metadata["upstream"]["operationKey"] == "members.list"
+    assert metadata["quotaCost"] == 2
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "mode"]
+    assert metadata["inputContract"]["properties"]["part"]["enum"] == ["snippet"]
+    assert metadata["inputContract"]["properties"]["mode"]["enum"] == ["all_current", "updates"]
+    assert {"pageToken", "maxResults"}.issubset(metadata["inputContract"]["properties"])
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["emptyResultPolicy"] == "empty_success_when_upstream_returns_empty_items"
+    assert any("owner" in note.lower() for note in metadata["usageNotes"])
+    assert any("channel-membership" in caveat.lower() for caveat in metadata["caveats"])
+    assert "oauthToken" not in str(metadata)
+    assert "apiKey" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+
+
 def test_comment_threads_list_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, selector, pagination, and list metadata."""
     from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_list_contract

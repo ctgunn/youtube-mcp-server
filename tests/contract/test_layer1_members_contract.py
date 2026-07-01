@@ -26,7 +26,7 @@ class Layer1MembersContractTests(unittest.TestCase):
         ) as handle:
             owner_contract = handle.read()
 
-        self.assertIn("quota cost (`1`)", wrapper_contract)
+        self.assertIn("quota cost (`2`)", wrapper_contract)
         self.assertIn("`part` plus `mode`", wrapper_contract)
         self.assertIn("owner-only", owner_contract.lower())
         self.assertIn("unsupported delegation", owner_contract.lower())
@@ -37,7 +37,7 @@ class Layer1MembersContractTests(unittest.TestCase):
         self.assertEqual(review_surface["resourceName"], "members")
         self.assertEqual(review_surface["operationName"], "list")
         self.assertEqual(review_surface["operationKey"], "members.list")
-        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["quotaCost"], 2)
         self.assertEqual(review_surface["authMode"], "oauth_required")
         self.assertEqual(review_surface["requiredFields"], ("part", "mode"))
         self.assertEqual(review_surface["optionalFields"], ("pageToken", "maxResults"))

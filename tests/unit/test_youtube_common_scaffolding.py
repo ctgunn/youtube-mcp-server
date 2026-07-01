@@ -242,6 +242,21 @@ def test_comments_list_scaffolding_exports_concrete_layer2_symbols():
     assert callable(youtube_common.build_comments_list_tool_descriptor)
 
 
+def test_members_list_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``members_list`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import members
+
+    members_family = youtube_common.get_resource_family("members")
+
+    assert members_family.definition_location.endswith("src/mcp_server/tools/youtube_common/members.py")
+    assert members.MEMBERS_LIST_TOOL_NAME == "members_list"
+    assert youtube_common.MEMBERS_LIST_TOOL_NAME == "members_list"
+    assert youtube_common.MEMBERS_LIST_QUOTA_COST == 2
+    assert callable(members.build_members_list_contract)
+    assert callable(youtube_common.build_members_list_tool_descriptor)
+
+
 def test_comment_threads_list_scaffolding_exports_concrete_layer2_symbols():
     """Expose foundational ``commentThreads_list`` symbols from the shared package."""
     from mcp_server.tools import youtube_common

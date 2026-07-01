@@ -25,6 +25,7 @@ def test_representative_examples_include_required_us1_shapes():
         "commentThreads_insert",
         "guideCategories_list",
         "i18nLanguages_list",
+        "members_list",
         "videos_getRating",
         "videos_reportAbuse",
         "watermarks_unset",
@@ -546,6 +547,70 @@ def test_representative_i18nRegions_list_metadata_exposes_region_usage():
     assert "hl" in metadata["inputContract"]["properties"]
     assert "localization-region" in metadata_text
     assert "geotarget" in metadata_text
+
+
+def test_representative_members_list_example_aligns_with_concrete_contract():
+    """Keep the representative members-list example aligned with YT-226."""
+    from mcp_server.tools.youtube_common.members import build_members_list_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "members_list"
+    ]
+    concrete = build_members_list_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 2
+    assert representative.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert "owner" in metadata_text.lower()
+    assert "channel-membership" in metadata_text.lower()
+
+
+def test_representative_members_list_metadata_exposes_membership_usage():
+    """Expose quota, auth, owner access, and membership guidance in the catalog."""
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "members_list"
+    ]
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["quotaCost"] == 2
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["properties"]["part"]["enum"] == ["snippet"]
+    assert metadata["inputContract"]["properties"]["mode"]["enum"] == ["all_current", "updates"]
+    assert {"pageToken", "maxResults"}.issubset(metadata["inputContract"]["properties"])
+    assert "subscriber lookup" in metadata_text
+    assert "membership-level" in metadata_text
+
+
+def test_representative_members_list_descriptor_examples_cover_boundaries():
+    """Expose representative members-list examples for success and safe failure boundaries."""
+    from mcp_server.tools.youtube_common.members import build_members_list_tool_descriptor
+
+    descriptor = build_members_list_tool_descriptor()
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert {
+        "current_members_listing",
+        "membership_updates_listing",
+        "paged_members_listing",
+        "empty_success",
+        "missing_part",
+        "missing_mode",
+        "unsupported_mode",
+        "invalid_max_results",
+        "unsupported_option",
+        "access_or_membership_eligibility_failure",
+        "out_of_scope_subscriber_or_analytics_request",
+    }.issubset(example_names)
 
 
 def test_representative_examples_expose_complete_metadata_standard():

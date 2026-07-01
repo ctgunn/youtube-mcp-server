@@ -9,7 +9,7 @@ from mcp_server.integrations.resources.base import *  # noqa: F403
 class MembersListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `members.list`.
 
-    Official quota cost: ``1`` quota unit. The wrapper supports one
+    Official quota cost: ``2`` quota units. The wrapper supports one
     owner-only membership lookup using ``part`` plus ``mode`` on OAuth-backed
     requests and keeps owner-visibility guidance visible for reviewers.
     """
@@ -36,7 +36,7 @@ class MembersListWrapper(RepresentativeEndpointWrapper):
 def build_members_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `members.list`.
 
-    Official quota cost: ``1`` quota unit. The wrapper supports one
+    Official quota cost: ``2`` quota units. The wrapper supports one
     owner-only membership lookup through ``part`` plus ``mode`` on
     OAuth-required requests and keeps delegation boundaries visible.
 
@@ -52,7 +52,7 @@ def build_members_list_wrapper() -> RepresentativeEndpointWrapper:
             optional_fields=("pageToken", "maxResults"),
         ),
         auth_mode=AuthMode.OAUTH_REQUIRED,
-        quota_cost=1,
+        quota_cost=2,
         notes=(
             "Requires `part` plus `mode` for one deterministic owner-only "
             "membership lookup, allows optional `pageToken` and `maxResults` "

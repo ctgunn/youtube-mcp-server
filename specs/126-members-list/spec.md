@@ -26,13 +26,13 @@ A platform developer can invoke an internal `members.list` capability with the s
 
 A maintainer or higher-layer author can review the `members.list` contract and understand its quota cost, OAuth requirement, and owner-only visibility limits before reusing it in another workflow.
 
-**Why this priority**: The seed explicitly requires the 1-unit quota cost and owner-only visibility requirements to be documented. Reuse is risky if callers cannot tell that membership retrieval is not a public lookup and depends on authorized owner access.
+**Why this priority**: The feature now aligns with the current 2-unit quota cost and owner-only visibility requirements to be documented. Reuse is risky if callers cannot tell that membership retrieval is not a public lookup and depends on authorized owner access.
 
 **Independent Test**: Can be fully tested by reviewing the wrapper contract and confirming it clearly exposes the quota cost, OAuth requirement, owner-only visibility constraints, and supported request boundary in maintainer-facing artifacts.
 
 **Acceptance Scenarios**:
 
-1. **Given** a maintainer reviews the `members.list` wrapper contract, **When** the maintainer inspects the capability metadata and adjacent documentation, **Then** the official quota cost of 1 unit is visible and consistent.
+1. **Given** a maintainer reviews the `members.list` wrapper contract, **When** the maintainer inspects the capability metadata and adjacent documentation, **Then** the official quota cost of 2 units is visible and consistent.
 2. **Given** a higher-layer author wants to compose membership retrieval into another workflow, **When** the author reviews the same contract, **Then** the author can determine that the wrapper requires OAuth-backed owner access and is not intended for public or API-key-only retrieval.
 
 ---
@@ -75,8 +75,8 @@ A downstream tool author can distinguish invalid membership requests from inelig
 
 - **FR-001**: System MUST provide a typed internal Layer 1 wrapper for the YouTube `members.list` retrieval operation.
 - **FR-002**: System MUST identify the wrapper as representing the `members` resource and the `list` method in maintainer-visible wrapper metadata.
-- **FR-003**: System MUST record the `GET /members` path shape and the official quota-unit cost of `1` for this wrapper.
-- **FR-004**: System MUST make the quota-unit cost of `1` visible in the wrapper's docstring, signature-adjacent documentation, or equivalent maintainer-facing artifact.
+- **FR-003**: System MUST record the `GET /members` path shape and the official quota-unit cost of `2` for this wrapper.
+- **FR-004**: System MUST make the quota-unit cost of `2` visible in the wrapper's docstring, signature-adjacent documentation, or equivalent maintainer-facing artifact.
 - **FR-005**: System MUST record that `members.list` requires OAuth authorization and MUST make that requirement reviewable in maintainer-facing wrapper artifacts.
 - **FR-006**: System MUST document that `members.list` is limited to owner-only visibility and MUST make that visibility constraint reviewable without requiring implementation inspection.
 - **FR-007**: System MUST define the supported `members.list` request contract, including the required retrieval inputs for one membership lookup.
@@ -119,7 +119,7 @@ A downstream tool author can distinguish invalid membership requests from inelig
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of `members.list` wrapper artifacts produced by this feature display the official quota-unit cost of `1` in maintainer-visible metadata or documentation.
+- **SC-001**: 100% of `members.list` wrapper artifacts produced by this feature display the official quota-unit cost of `2` in maintainer-visible metadata or documentation.
 - **SC-002**: A maintainer can determine in under 1 minute that `members.list` requires OAuth-backed owner access, which retrieval inputs it supports, and whether delegation-related inputs are supported by reading the wrapper contract alone.
 - **SC-003**: In verification coverage, 100% of supported `members.list` retrieval patterns for this slice are represented by at least one passing successful retrieval scenario.
 - **SC-004**: In verification coverage, 100% of tested requests with missing required inputs, unsupported modifiers, or ineligible owner visibility fail with explicit normalized outcomes distinct from successful empty membership results.
