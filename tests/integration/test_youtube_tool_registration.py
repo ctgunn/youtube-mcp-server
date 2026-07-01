@@ -329,6 +329,33 @@ def test_default_registry_includes_executable_i18nLanguages_list_tool():
     }
 
 
+def test_default_registry_includes_executable_i18nRegions_list_tool():
+    """Register ``i18nRegions_list`` by default with localization-region metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "i18nRegions_list" in listed
+    metadata = listed["i18nRegions_list"]["metadata"]
+    description = listed["i18nRegions_list"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "i18nRegions.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert metadata["inputContract"]["properties"]["part"]["enum"] == ["snippet"]
+    assert "hl" in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert "language lookup" in metadata_text
+    assert "geotarget" in metadata_text
+    assert {example["name"] for example in metadata["examples"]} >= {
+        "default_region_listing",
+        "display_language_region_listing",
+        "empty_success",
+    }
+
+
 def test_default_registry_includes_executable_channel_sections_list_tool_with_caveat_metadata():
     """Register ``channelSections_list`` by default with selector and caveat metadata."""
     dispatcher = InMemoryToolDispatcher()

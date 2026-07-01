@@ -740,22 +740,22 @@ class Layer1FoundationUnitTests(unittest.TestCase):
         self.assertEqual(wrapper.metadata.quota_cost, 1)
         self.assertEqual(wrapper.metadata.review_auth_mode, "api_key")
         self.assertEqual(wrapper.metadata.lifecycle_state, "active")
-        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "hl"))
-        self.assertEqual(wrapper.metadata.request_shape.optional_fields, ())
+        self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part",))
+        self.assertEqual(wrapper.metadata.request_shape.optional_fields, ("hl",))
         self.assertIn("hl", wrapper.metadata.notes)
         self.assertIn("region", wrapper.metadata.notes)
 
     def test_i18n_regions_list_wrapper_is_exported_from_integrations_package(self):
         self.assertTrue(callable(integrations_package.build_i18n_regions_list_wrapper))
 
-    def test_i18n_regions_list_wrapper_requires_part_and_hl(self):
+    def test_i18n_regions_list_wrapper_requires_part_and_accepts_optional_hl(self):
         wrapper = build_i18n_regions_list_wrapper()
 
         with self.assertRaisesRegex(ValueError, "missing required field: part"):
             wrapper.metadata.request_shape.validate_arguments({"hl": "en_US"})
 
-        with self.assertRaisesRegex(ValueError, "missing required field: hl"):
-            wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+        wrapper.metadata.request_shape.validate_arguments({"part": "snippet"})
+        wrapper.metadata.request_shape.validate_arguments({"part": "snippet", "hl": "en_US"})
 
     def test_i18n_regions_list_wrapper_executes_successful_calls(self):
         wrapper = build_i18n_regions_list_wrapper()
