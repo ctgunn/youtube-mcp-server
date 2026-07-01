@@ -706,7 +706,7 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(result["mode"], "updates")
         self.assertEqual(result["sourceOperation"], "members.list")
         self.assertEqual(result["sourceAuthMode"], "oauth_required")
-        self.assertEqual(result["sourceQuotaCost"], 1)
+        self.assertEqual(result["sourceQuotaCost"], 2)
         self.assertIn("owner-only", result["sourceNotes"])
 
     def test_consumer_can_summarize_memberships_levels_results_for_higher_layers(self):

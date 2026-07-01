@@ -80,7 +80,7 @@
 
 **Goal**: Make the `members.list` wrapper reviewable enough that maintainers can see quota, OAuth-required access, owner-only visibility, request boundaries, and unsupported delegation guidance without reading implementation internals
 
-**Independent Test**: Review the wrapper metadata, feature-local contracts, and higher-layer summary output to confirm quota cost `1`, OAuth-required access, owner-only visibility, `part` plus `mode` rules, and unsupported delegation guidance are visible and consistent
+**Independent Test**: Review the wrapper metadata, feature-local contracts, and higher-layer summary output to confirm quota cost `2`, OAuth-required access, owner-only visibility, `part` plus `mode` rules, and unsupported delegation guidance are visible and consistent
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 

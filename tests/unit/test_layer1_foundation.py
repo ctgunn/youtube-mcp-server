@@ -1174,7 +1174,7 @@ class Layer1FoundationUnitTests(unittest.TestCase):
 
         self.assertEqual(wrapper.metadata.operation_key, "members.list")
         self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/members")
-        self.assertEqual(wrapper.metadata.quota_cost, 1)
+        self.assertEqual(wrapper.metadata.quota_cost, 2)
         self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
         self.assertEqual(wrapper.metadata.lifecycle_state, "active")
         self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "mode"))

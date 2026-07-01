@@ -52,7 +52,7 @@ ruff check .
 
 ## 5. Review readiness checklist
 
-- `members.list` wrapper metadata shows endpoint identity and quota cost `1`
+- `members.list` wrapper metadata shows endpoint identity and quota cost `2`
 - Supported request inputs and deterministic validation rules are clear
 - OAuth-required and owner-only visibility expectations are visible without reading implementation code
 - Unsupported delegation-related inputs are explicit in wrapper and contract surfaces

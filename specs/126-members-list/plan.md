@@ -92,7 +92,7 @@ tests/
 
 - Decide the minimum supported `members.list` request shape for owner-scoped membership retrieval.
 - Decide whether pagination inputs should be supported immediately or held behind an explicit wrapper boundary.
-- Decide how quota cost `1`, OAuth-required access, and owner-only visibility should be represented in wrapper metadata and contract artifacts.
+- Decide how quota cost `2`, OAuth-required access, and owner-only visibility should be represented in wrapper metadata and contract artifacts.
 - Decide whether delegation-related inputs are in scope for this slice.
 - Decide how valid empty results should be interpreted relative to invalid requests and access-related failures for this endpoint.
 - Decide the smallest implementation seam and regression scope by following existing Layer 1 list-wrapper and owner-scoped endpoint patterns.
@@ -138,7 +138,7 @@ tests/
 
 ### User Story 2 - Review Quota, OAuth, and Owner-Only Visibility Before Reuse
 
-- **Red**: Add failing contract and integration checks proving maintainer-facing artifacts do not yet clearly express quota cost `1`, OAuth-required access, owner-only visibility, and the supported membership retrieval boundary.
+- **Red**: Add failing contract and integration checks proving maintainer-facing artifacts do not yet clearly express quota cost `2`, OAuth-required access, owner-only visibility, and the supported membership retrieval boundary.
 - **Green**: Implement the smallest metadata, consumer-summary, and documentation changes needed to model `members.list` as a deterministic internal wrapper with explicit owner-visibility guidance.
 - **Refactor**: Remove duplicated owner-access and reuse wording across docstrings and contracts, then rerun targeted and full repository suites.
 

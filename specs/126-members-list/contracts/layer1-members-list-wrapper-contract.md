@@ -9,7 +9,7 @@ The representative implementation for this contract remains under `/Users/ctgunn
 ## Contract Scope
 
 - Internal-only Layer 1 wrapper behavior for `members.list`
-- Maintainer-visible endpoint identity and quota cost (`1`)
+- Maintainer-visible endpoint identity and quota cost (`2`)
 - Deterministic request boundary for supported `part` plus `mode` lookups
 - Optional paging behavior through explicitly documented `pageToken` and `maxResults`
 - OAuth-required behavior for owner-scoped membership retrieval
@@ -29,7 +29,7 @@ The `members.list` wrapper must expose:
 - `path_shape`
 - `request_shape`
 - `auth_mode` as OAuth-required access
-- `quota_cost` as `1`
+- `quota_cost` as `2`
 - maintainer-facing notes describing membership-mode usage, owner-only visibility, unsupported delegation inputs, and empty-result interpretation
 
 The wrapper must keep request boundaries, owner-only guidance, and quota visibility in one review surface.

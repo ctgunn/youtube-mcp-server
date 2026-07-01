@@ -28,6 +28,7 @@ from mcp_server.tools.youtube_common.localization import (
     build_i18n_languages_list_contract,
     build_i18n_regions_list_contract,
 )
+from mcp_server.tools.youtube_common.members import build_members_list_contract
 
 
 def _contract(
@@ -516,6 +517,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         availability_state=AvailabilityState.OWNER_ONLY,
         caveats=("Abuse reporting requires authorized caller context and endpoint-specific validation.",),
     ),
+    build_members_list_contract(),
     build_guide_categories_list_contract(),
     build_i18n_languages_list_contract(),
     build_i18n_regions_list_contract(),

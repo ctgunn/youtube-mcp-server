@@ -665,7 +665,7 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertEqual(review_surface["resourceName"], "members")
         self.assertEqual(review_surface["operationName"], "list")
         self.assertEqual(review_surface["operationKey"], "members.list")
-        self.assertEqual(review_surface["quotaCost"], 1)
+        self.assertEqual(review_surface["quotaCost"], 2)
         self.assertEqual(review_surface["authMode"], "oauth_required")
         self.assertEqual(review_surface["requiredFields"], ("part", "mode"))
         self.assertEqual(review_surface["optionalFields"], ("pageToken", "maxResults"))

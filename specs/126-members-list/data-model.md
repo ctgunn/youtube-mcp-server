@@ -13,7 +13,7 @@
 - `path_shape`: Upstream route pattern for this wrapper
 - `request_shape`: Supported request fields and endpoint-specific validators for one membership lookup
 - `auth_mode`: Stable auth mode for this wrapper, expected to remain OAuth-required access
-- `quota_cost`: Official quota-unit cost of `1`
+- `quota_cost`: Official quota-unit cost of `2`
 - `notes`: Maintainer-facing notes covering membership-mode usage, owner-only visibility, unsupported delegation inputs, and empty-result interpretation
 
 **Validation Rules**:
