@@ -384,6 +384,34 @@ def test_default_registry_includes_executable_members_list_tool():
     }
 
 
+def test_default_registry_includes_executable_membershipsLevels_list_tool():
+    """Register ``membershipsLevels_list`` by default with membership-level metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "membershipsLevels_list" in listed
+    metadata = listed["membershipsLevels_list"]["metadata"]
+    description = listed["membershipsLevels_list"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "membershipsLevels.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert metadata["inputContract"]["properties"]["part"]["enum"] == ["snippet"]
+    assert "pageToken" not in metadata["inputContract"]["properties"]
+    assert "maxResults" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert "owner" in metadata_text.lower()
+    assert "channel-membership" in metadata_text.lower()
+    assert {example["name"] for example in metadata["examples"]} >= {
+        "membership_levels_listing",
+        "empty_success",
+        "missing_part",
+    }
+
+
 def test_default_registry_includes_executable_channel_sections_list_tool_with_caveat_metadata():
     """Register ``channelSections_list`` by default with selector and caveat metadata."""
     dispatcher = InMemoryToolDispatcher()
