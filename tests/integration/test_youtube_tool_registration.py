@@ -439,6 +439,53 @@ def test_default_registry_includes_executable_playlistImages_list_tool():
     }
 
 
+def test_default_registry_includes_executable_playlistImages_insert_tool():
+    """Register ``playlistImages_insert`` by default with playlist-image upload metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlistImages_insert" in listed
+    metadata = listed["playlistImages_insert"]["metadata"]
+    description = listed["playlistImages_insert"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "playlistImages.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body", "media"]
+    assert {"part", "body", "media"}.issubset(metadata["inputContract"]["properties"])
+    assert metadata["responseConvention"]["resultKind"] == "created_resource"
+    assert "media" in metadata_text
+    assert "body" in metadata_text
+    assert "thumbnail replacement" in metadata_text
+    assert {example["name"] for example in metadata["examples"]} >= {
+        "authorized_playlist_image_insert",
+        "missing_media",
+        "unsupported_media",
+    }
+
+
+def test_server_list_tools_preserves_playlistImages_insert_metadata():
+    """Expose ``playlistImages_insert`` discovery metadata through the public registry tool."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.call_tool("server_list_tools", {})}
+    metadata = listed["playlistImages_insert"]["metadata"]
+
+    assert metadata["upstream"]["operationKey"] == "playlistImages.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["part", "body", "media"]
+    assert metadata["inputContract"]["properties"]["media"]["required"] == ["mimeType", "content"]
+    assert metadata["responseConvention"]["resultKind"] == "created_resource"
+    assert {example["name"] for example in metadata["examples"]} >= {
+        "authorized_playlist_image_insert",
+        "invalid_body",
+        "quota_or_upstream_insert_failure",
+        "out_of_scope_image_management_request",
+    }
+
+
 def test_default_registry_includes_executable_channel_sections_list_tool_with_caveat_metadata():
     """Register ``channelSections_list`` by default with selector and caveat metadata."""
     dispatcher = InMemoryToolDispatcher()

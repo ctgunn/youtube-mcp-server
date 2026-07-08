@@ -8,6 +8,7 @@ from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.playlist_images import (
     PlaylistImagesListToolError,
+    build_playlist_images_insert_tool_descriptor,
     build_playlist_images_list_tool_descriptor,
 )
 
@@ -15,6 +16,20 @@ from mcp_server.tools.youtube_common.playlist_images import (
 def _register_playlist_images_list(**descriptor_kwargs) -> InMemoryToolDispatcher:
     """Register the concrete playlist-images list tool in a fresh dispatcher."""
     descriptor = build_playlist_images_list_tool_descriptor(**descriptor_kwargs)
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
+def _register_playlist_images_insert(**descriptor_kwargs) -> InMemoryToolDispatcher:
+    """Register the concrete playlist-images insert tool in a fresh dispatcher."""
+    descriptor = build_playlist_images_insert_tool_descriptor(**descriptor_kwargs)
     dispatcher = InMemoryToolDispatcher(tools=[])
     dispatcher.register_tool(
         name=descriptor["name"],
@@ -38,6 +53,29 @@ def test_playlist_images_list_descriptor_registers_as_executable_tool():
     assert result["selector"] == {"name": "playlistId", "value": "PL123"}
     assert result["auth"] == {"mode": "oauth_required"}
     assert result["items"][0]["id"] == "playlist-image-123"
+
+
+def test_playlist_images_insert_descriptor_registers_as_executable_tool():
+    """Register and execute ``playlistImages_insert`` for playlist-image creation."""
+    dispatcher = _register_playlist_images_insert()
+
+    result = dispatcher.call_tool(
+        "playlistImages_insert",
+        {
+            "part": "snippet",
+            "body": {"snippet": {"playlistId": "PL123", "type": "medium"}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+    )
+
+    assert result["endpoint"] == "playlistImages.insert"
+    assert result["quotaCost"] == 50
+    assert result["requestedParts"] == ["snippet"]
+    assert result["bodyContext"] == {"hasSnippet": True, "playlistId": "PL123"}
+    assert result["mediaContext"] == {"mimeType": "image/jpeg", "contentProvided": True}
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["item"]["id"] == "playlist-image-123"
+    assert "fake-image-content" not in str(result)
 
 
 def test_playlist_images_list_descriptor_executes_direct_id_lookup():
