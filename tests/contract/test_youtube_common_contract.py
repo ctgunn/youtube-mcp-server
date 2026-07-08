@@ -259,6 +259,37 @@ def test_captions_update_public_metadata_is_safe_and_complete():
     assert "apiKey" not in str(metadata)
 
 
+def test_playlist_images_list_public_metadata_is_safe_and_complete():
+    """Expose safe quota, auth, selector, and paging metadata for ``playlistImages_list``."""
+    from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_list_contract
+
+    metadata = build_playlist_images_list_contract().to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["name"] == "playlistImages_list"
+    assert metadata["upstream"]["operationKey"] == "playlistImages.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert {"playlistId", "id", "pageToken", "maxResults"}.issubset(metadata["inputContract"]["properties"])
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["selectorFields"] == ["playlistId", "id"]
+    assert metadata["responseConvention"]["pagingFields"] == [
+        "pageToken",
+        "maxResults",
+        "nextPageToken",
+        "prevPageToken",
+        "pageInfo",
+    ]
+    assert "playlistId" in metadata_text
+    assert "id" in metadata_text
+    assert "pageToken" in metadata_text
+    assert "maxResults" in metadata_text
+    assert "token" not in str(metadata).lower().replace("pagetoken", "").replace("nextpagetoken", "")
+    assert "apiKey" not in str(metadata)
+
+
 def test_i18n_languages_list_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, and active metadata for ``i18nLanguages_list``."""
     from mcp_server.tools.youtube_common.localization import build_i18n_languages_list_contract

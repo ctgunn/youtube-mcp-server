@@ -412,6 +412,33 @@ def test_default_registry_includes_executable_membershipsLevels_list_tool():
     }
 
 
+def test_default_registry_includes_executable_playlistImages_list_tool():
+    """Register ``playlistImages_list`` by default with playlist-image metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlistImages_list" in listed
+    metadata = listed["playlistImages_list"]["metadata"]
+    description = listed["playlistImages_list"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "playlistImages.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert {"playlistId", "id", "pageToken", "maxResults"}.issubset(metadata["inputContract"]["properties"])
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["selectorFields"] == ["playlistId", "id"]
+    assert "playlistId" in metadata_text
+    assert "thumbnail replacement" in metadata_text
+    assert {example["name"] for example in metadata["examples"]} >= {
+        "playlist_scoped_image_listing",
+        "direct_image_lookup",
+        "empty_success",
+    }
+
+
 def test_default_registry_includes_executable_channel_sections_list_tool_with_caveat_metadata():
     """Register ``channelSections_list`` by default with selector and caveat metadata."""
     dispatcher = InMemoryToolDispatcher()
