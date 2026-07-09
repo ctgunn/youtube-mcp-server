@@ -676,6 +676,30 @@ def test_default_registry_includes_executable_channel_sections_update_tool_with_
     assert "patch" in metadata_text.lower()
 
 
+def test_default_registry_includes_executable_playlist_items_list_tool_with_list_metadata():
+    """Register ``playlistItems_list`` by default with list metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlistItems_list" in listed
+    metadata = listed["playlistItems_list"]["metadata"]
+    description = listed["playlistItems_list"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "playlistItems.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert {"playlistId", "id", "pageToken", "maxResults"}.issubset(metadata["inputContract"]["properties"])
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["selectorFields"] == ["playlistId", "id"]
+    assert "API-key" in metadata_text or "api_key" in metadata_text
+    assert "playlistItems.list" in metadata_text
+    assert "empty" in metadata_text.lower()
+    assert "playlist item mutation" in metadata_text
+
+
 def test_default_registry_includes_executable_channels_update_tool_with_update_metadata():
     """Register ``channels_update`` by default with writable update metadata."""
     dispatcher = InMemoryToolDispatcher()
