@@ -7,8 +7,10 @@ import pytest
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.playlist_images import (
+    PlaylistImagesDeleteToolError,
     PlaylistImagesUpdateToolError,
     PlaylistImagesListToolError,
+    build_playlist_images_delete_tool_descriptor,
     build_playlist_images_insert_tool_descriptor,
     build_playlist_images_list_tool_descriptor,
     build_playlist_images_update_tool_descriptor,
@@ -46,6 +48,20 @@ def _register_playlist_images_insert(**descriptor_kwargs) -> InMemoryToolDispatc
 def _register_playlist_images_update(**descriptor_kwargs) -> InMemoryToolDispatcher:
     """Register the concrete playlist-images update tool in a fresh dispatcher."""
     descriptor = build_playlist_images_update_tool_descriptor(**descriptor_kwargs)
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
+def _register_playlist_images_delete(**descriptor_kwargs) -> InMemoryToolDispatcher:
+    """Register the concrete playlist-images delete tool in a fresh dispatcher."""
+    descriptor = build_playlist_images_delete_tool_descriptor(**descriptor_kwargs)
     dispatcher = InMemoryToolDispatcher(tools=[])
     dispatcher.register_tool(
         name=descriptor["name"],
@@ -115,6 +131,24 @@ def test_playlist_images_update_descriptor_registers_as_executable_tool():
     assert result["auth"] == {"mode": "oauth_required"}
     assert result["item"]["id"] == "playlist-image-123"
     assert "fake-image-content" not in str(result)
+
+
+def test_playlist_images_delete_descriptor_registers_as_executable_tool():
+    """Register and execute ``playlistImages_delete`` for playlist-image deletion."""
+    dispatcher = _register_playlist_images_delete()
+
+    result = dispatcher.call_tool("playlistImages_delete", {"id": "playlist-image-123"})
+
+    assert result["endpoint"] == "playlistImages.delete"
+    assert result["quotaCost"] == 50
+    assert result["target"] == {"id": "playlist-image-123"}
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["deleted"] is True
+    assert result["acknowledged"] is True
+    assert result["statusCode"] == 204
+    assert result["sourceOperation"] == "playlistImages.delete"
+    assert "body" not in result
+    assert "media" not in result
 
 
 def test_playlist_images_list_descriptor_executes_direct_id_lookup():
@@ -195,3 +229,45 @@ def test_playlist_images_update_dispatcher_propagates_safe_validation_failures()
     assert exc_info.value.category == "invalid_request"
     assert "fake-image-content" not in str(exc_info.value.details)
     assert "stack" not in str(exc_info.value.details).lower()
+
+
+def test_playlist_images_delete_dispatcher_propagates_safe_validation_failures():
+    """Propagate safe handler validation failures for malformed delete targets."""
+    dispatcher = _register_playlist_images_delete()
+
+    with pytest.raises(PlaylistImagesDeleteToolError) as exc_info:
+        dispatcher.call_tool("playlistImages_delete", {"id": "   "})
+
+    assert exc_info.value.category == "invalid_request"
+    assert "id" in str(exc_info.value) or "id" in str(exc_info.value.details)
+    assert "stack" not in str(exc_info.value.details).lower()
+
+
+def test_playlist_images_delete_dispatcher_propagates_safe_access_failures():
+    """Propagate safe upstream access failures from the registered delete handler."""
+    class FailingWrapper:
+        """Raise an access failure from a registered dispatcher delete tool."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise a normalized access failure with unsafe details.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: OAuth auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this fake wrapper.
+            """
+            raise NormalizedUpstreamError(
+                message="playlist image delete access required",
+                category="auth",
+                retryable=False,
+                upstream_status=403,
+                details={"field": "id", "oauth_token": "secret"},
+            )
+
+    dispatcher = _register_playlist_images_delete(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(PlaylistImagesDeleteToolError) as exc_info:
+        dispatcher.call_tool("playlistImages_delete", {"id": "playlist-image-123"})
+
+    assert exc_info.value.category == "authorization_failed"
+    assert exc_info.value.details == {"field": "id"}

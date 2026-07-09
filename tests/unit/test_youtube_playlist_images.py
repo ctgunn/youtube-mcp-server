@@ -6,20 +6,26 @@ import pytest
 
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.youtube_common.playlist_images import (
+    PLAYLIST_IMAGES_DELETE_INPUT_SCHEMA,
     PLAYLIST_IMAGES_INSERT_INPUT_SCHEMA,
     PLAYLIST_IMAGES_LIST_INPUT_SCHEMA,
     PLAYLIST_IMAGES_UPDATE_INPUT_SCHEMA,
+    PlaylistImagesDeleteToolError,
     PlaylistImagesInsertToolError,
     PlaylistImagesListToolError,
     PlaylistImagesUpdateToolError,
+    build_playlist_images_delete_handler,
+    build_playlist_images_delete_tool_descriptor,
     build_playlist_images_insert_handler,
     build_playlist_images_insert_tool_descriptor,
     build_playlist_images_list_tool_descriptor,
     build_playlist_images_update_handler,
     build_playlist_images_update_tool_descriptor,
+    map_playlist_images_delete_result,
     map_playlist_images_insert_result,
     map_playlist_images_list_result,
     map_playlist_images_update_result,
+    validate_playlist_images_delete_arguments,
     validate_playlist_images_insert_arguments,
     validate_playlist_images_list_arguments,
     validate_playlist_images_update_arguments,
@@ -90,6 +96,38 @@ class FakePlaylistImagesUpdateWrapper:
         return self.response
 
 
+class FakePlaylistImagesDeleteWrapper:
+    """Capture wrapper calls for ``playlistImages_delete`` tests.
+
+    The fake returns a representative no-content deletion summary and exposes
+    call arguments for assertions without performing network I/O.
+    """
+
+    def __init__(self, response: dict | None = None):
+        """Initialize the fake wrapper call log and response.
+
+        :param response: Optional upstream-shaped response to return.
+        """
+        self.calls = []
+        self.response = response or {
+            "playlistImageId": "playlist-image-123",
+            "isDeleted": True,
+            "upstreamBodyState": "empty",
+            "sourceOperation": "playlistImages.delete",
+        }
+
+    def call(self, executor, *, arguments, auth_context):
+        """Record call arguments and return the configured response.
+
+        :param executor: Executor supplied by the Layer 2 handler.
+        :param arguments: Validated arguments forwarded to Layer 1.
+        :param auth_context: OAuth auth context selected by the handler.
+        :return: Configured upstream-shaped response.
+        """
+        self.calls.append((executor, arguments, auth_context))
+        return self.response
+
+
 def test_playlist_images_list_schema_preserves_required_selector_inputs():
     """Expose required part, supported selectors, and playlist-scoped paging controls."""
     properties = PLAYLIST_IMAGES_LIST_INPUT_SCHEMA["properties"]
@@ -120,6 +158,18 @@ def test_playlist_images_update_schema_preserves_required_upload_inputs():
     assert properties["body"]["required"] == ["id", "snippet"]
     assert properties["media"]["required"] == ["mimeType", "content"]
     assert PLAYLIST_IMAGES_UPDATE_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_playlist_images_delete_schema_preserves_target_only_input():
+    """Expose required id and no metadata or media inputs for playlist-image deletion."""
+    properties = PLAYLIST_IMAGES_DELETE_INPUT_SCHEMA["properties"]
+
+    assert PLAYLIST_IMAGES_DELETE_INPUT_SCHEMA["required"] == ["id"]
+    assert properties["id"] == {"type": "string", "minLength": 1}
+    assert "part" not in properties
+    assert "body" not in properties
+    assert "media" not in properties
+    assert PLAYLIST_IMAGES_DELETE_INPUT_SCHEMA["additionalProperties"] is False
 
 
 def test_validate_playlist_images_insert_arguments_accepts_upload_request():
@@ -154,6 +204,13 @@ def test_validate_playlist_images_update_arguments_accepts_upload_request():
         "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123", "type": "medium"}},
         "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
     }
+
+
+def test_validate_playlist_images_delete_arguments_accepts_target_id():
+    """Accept one supported OAuth-backed playlist-image deletion request."""
+    selected = validate_playlist_images_delete_arguments({"id": " playlist-image-123 "})
+
+    assert selected == {"id": "playlist-image-123"}
 
 
 def test_map_playlist_images_insert_result_preserves_resource_and_safe_context():
@@ -210,6 +267,30 @@ def test_map_playlist_images_update_result_preserves_resource_and_safe_context()
     assert "fake-image-content" not in str(result)
 
 
+def test_map_playlist_images_delete_result_preserves_acknowledgment_and_safe_target():
+    """Map a playlist-image deletion response into a safe acknowledgment result."""
+    result = map_playlist_images_delete_result(
+        {
+            "playlistImageId": "playlist-image-123",
+            "isDeleted": True,
+            "upstreamBodyState": "empty",
+            "sourceOperation": "playlistImages.delete",
+        },
+        {"id": "playlist-image-123"},
+    )
+
+    assert result["endpoint"] == "playlistImages.delete"
+    assert result["quotaCost"] == 50
+    assert result["target"] == {"id": "playlist-image-123"}
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["deleted"] is True
+    assert result["acknowledged"] is True
+    assert result["statusCode"] == 204
+    assert result["sourceOperation"] == "playlistImages.delete"
+    assert "body" not in result
+    assert "media" not in result
+
+
 def test_playlist_images_insert_handler_invokes_wrapper_once_for_oauth_request():
     """Execute one valid playlist-image insertion through the descriptor handler."""
     wrapper = FakePlaylistImagesInsertWrapper()
@@ -244,6 +325,22 @@ def test_playlist_images_update_handler_invokes_wrapper_once_for_oauth_request()
     assert result["endpoint"] == "playlistImages.update"
     assert result["quotaCost"] == 50
     assert result["item"]["id"] == "playlist-image-123"
+    assert wrapper.calls[0][1] == arguments
+    assert wrapper.calls[0][2].mode.value == "oauth_required"
+
+
+def test_playlist_images_delete_handler_invokes_wrapper_once_for_oauth_request():
+    """Execute one valid playlist-image deletion through the descriptor handler."""
+    wrapper = FakePlaylistImagesDeleteWrapper()
+    descriptor = build_playlist_images_delete_tool_descriptor(wrapper=wrapper, executor=object())
+    arguments = {"id": "playlist-image-123"}
+
+    result = descriptor["handler"](arguments)
+
+    assert result["endpoint"] == "playlistImages.delete"
+    assert result["quotaCost"] == 50
+    assert result["target"] == {"id": "playlist-image-123"}
+    assert result["deleted"] is True
     assert wrapper.calls[0][1] == arguments
     assert wrapper.calls[0][2].mode.value == "oauth_required"
 
@@ -531,6 +628,40 @@ def test_playlist_images_update_handler_requires_oauth_access():
 
 
 @pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"id": ""},
+        {"id": "   "},
+        {"id": []},
+        {"id": "playlist-image-123", "part": "snippet"},
+        {"id": "playlist-image-123", "body": {"snippet": {}}},
+        {"id": "playlist-image-123", "media": {"mimeType": "image/jpeg", "content": "fake-image-content"}},
+        {"id": "playlist-image-123", "thumbnailReplacement": True},
+        {"id": "playlist-image-123", "rankBy": "views"},
+    ],
+)
+def test_validate_playlist_images_delete_arguments_rejects_unsupported_requests(arguments):
+    """Reject malformed delete inputs, unsupported fields, body, media, and analytics shapes."""
+    with pytest.raises(PlaylistImagesDeleteToolError) as exc_info:
+        validate_playlist_images_delete_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert "fake-image-content" not in str(exc_info.value.details)
+    assert "oauth" not in str(exc_info.value.details).lower()
+    assert "stack" not in str(exc_info.value.details).lower()
+
+
+def test_playlist_images_delete_handler_requires_oauth_access():
+    """Reject delete handler construction when OAuth access is unavailable."""
+    with pytest.raises(PlaylistImagesDeleteToolError) as exc_info:
+        build_playlist_images_delete_handler(wrapper=FakePlaylistImagesDeleteWrapper(), executor=object(), oauth_token=None)
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"field": "auth"}
+
+
+@pytest.mark.parametrize(
     ("upstream_category", "expected_category"),
     [
         ("authentication", "authentication_failed"),
@@ -581,6 +712,53 @@ def test_playlist_images_update_handler_maps_upstream_failures_safely(upstream_c
 
     assert exc_info.value.category == expected_category
     assert exc_info.value.details == {"field": "media"}
+
+
+@pytest.mark.parametrize(
+    ("upstream_category", "expected_category"),
+    [
+        ("invalid_request", "invalid_request"),
+        ("authentication", "authentication_failed"),
+        ("authorization", "authorization_failed"),
+        ("quota", "quota_exhausted"),
+        ("not_found", "resource_not_found"),
+        ("transient", "endpoint_unavailable"),
+        ("unexpected", "upstream_failure"),
+    ],
+)
+def test_playlist_images_delete_handler_maps_upstream_failures_safely(upstream_category, expected_category):
+    """Map upstream delete failures into shared safe categories."""
+    class FailingWrapper:
+        """Raise one normalized upstream failure for delete handler coverage."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise a configured upstream failure.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: OAuth auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this fake wrapper.
+            """
+            raise NormalizedUpstreamError(
+                message="playlist image delete failed",
+                category=upstream_category,
+                retryable=False,
+                upstream_status=403,
+                details={
+                    "field": "id",
+                    "oauth_token": "secret-token",
+                    "raw_request": {"body": "unsafe"},
+                    "stack": "traceback",
+                },
+            )
+
+    handler = build_playlist_images_delete_handler(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(PlaylistImagesDeleteToolError) as exc_info:
+        handler({"id": "playlist-image-123"})
+
+    assert exc_info.value.category == expected_category
+    assert exc_info.value.details == {"field": "id"}
 
 
 def test_validate_playlist_images_list_arguments_accepts_playlist_selector():

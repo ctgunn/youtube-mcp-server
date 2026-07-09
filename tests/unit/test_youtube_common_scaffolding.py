@@ -319,6 +319,21 @@ def test_playlist_images_update_scaffolding_exports_concrete_layer2_symbols():
     assert callable(youtube_common.build_playlist_images_update_tool_descriptor)
 
 
+def test_playlist_images_delete_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``playlistImages_delete`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import playlist_images
+
+    playlist_images_family = youtube_common.get_resource_family("playlist_images")
+
+    assert playlist_images_family.definition_location.endswith("src/mcp_server/tools/youtube_common/playlist_images.py")
+    assert playlist_images.PLAYLIST_IMAGES_DELETE_TOOL_NAME == "playlistImages_delete"
+    assert youtube_common.PLAYLIST_IMAGES_DELETE_TOOL_NAME == "playlistImages_delete"
+    assert youtube_common.PLAYLIST_IMAGES_DELETE_QUOTA_COST == 50
+    assert callable(playlist_images.build_playlist_images_delete_contract)
+    assert callable(youtube_common.build_playlist_images_delete_tool_descriptor)
+
+
 def test_comment_threads_list_scaffolding_exports_concrete_layer2_symbols():
     """Expose foundational ``commentThreads_list`` symbols from the shared package."""
     from mcp_server.tools import youtube_common

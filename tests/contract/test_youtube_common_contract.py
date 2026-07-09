@@ -243,6 +243,17 @@ def test_validate_safe_public_metadata_rejects_secret_bearing_details():
     assert safe["upstream"]["resource"] == "videos"
 
 
+def test_playlist_images_delete_public_contract_uses_existing_resource_family():
+    """Keep ``playlistImages_delete`` anchored to the shared playlist-images family."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    playlist_images = get_resource_family("playlist_images")
+
+    assert playlist_images.definition_location.endswith("src/mcp_server/tools/youtube_common/playlist_images.py")
+    assert playlist_images.handler_location.endswith("src/mcp_server/tools/youtube_common/playlist_images.py")
+    assert playlist_images.schema_location.endswith("src/mcp_server/tools/youtube_common/playlist_images.py")
+
+
 def test_captions_update_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, and update metadata for ``captions_update``."""
     from mcp_server.tools.youtube_common.captions import build_captions_update_contract
