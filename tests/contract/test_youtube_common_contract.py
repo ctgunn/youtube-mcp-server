@@ -49,6 +49,22 @@ def test_youtube_tool_contract_requires_public_metadata():
     assert metadata["resourceFamily"] == "videos"
 
 
+def test_playlist_items_list_contract_uses_existing_resource_family():
+    """Expose the concrete ``playlistItems_list`` contract in the playlist-items family."""
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_list_contract
+
+    playlist_items = get_resource_family("playlist_items")
+    contract = build_playlist_items_list_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert playlist_items.definition_location.endswith("src/mcp_server/tools/youtube_common/playlist_items.py")
+    assert playlist_items.layer1_dependency == "mcp_server.integrations.resources.playlist_items"
+    assert metadata["name"] == "playlistItems_list"
+    assert metadata["resourceFamily"] == "playlist_items"
+    assert metadata["upstream"]["operationKey"] == "playlistItems.list"
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

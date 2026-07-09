@@ -730,6 +730,64 @@ def test_representative_playlist_images_list_example_aligns_with_concrete_contra
     assert "thumbnail replacement" in metadata_text
 
 
+def test_representative_playlist_items_list_example_aligns_with_concrete_contract():
+    """Keep the representative playlistItems-list example aligned with YT-232."""
+    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_list_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "playlistItems_list"
+    ]
+    concrete = build_playlist_items_list_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 1
+    assert representative.auth_mode is AuthMode.API_KEY
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert {"playlistId", "id", "pageToken", "maxResults"}.issubset(representative.input_contract["properties"])
+    assert "playlistItems.list" in metadata_text
+    assert "playlist item mutation" in metadata_text
+
+
+def test_representative_playlist_items_list_descriptor_examples_cover_boundaries():
+    """Expose representative playlistItems-list examples for success and safe failures."""
+    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_list_tool_descriptor
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "playlistItems_list"
+    ]
+    metadata = representative.to_tool_metadata()
+    descriptor = build_playlist_items_list_tool_descriptor()
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["inputContract"]["properties"]["part"]["enum"] == [
+        "contentDetails",
+        "id",
+        "snippet",
+        "status",
+    ]
+    assert {"pageToken", "maxResults"}.issubset(metadata["inputContract"]["properties"])
+    assert {
+        "playlist_scoped_item_listing",
+        "direct_item_lookup",
+        "paged_playlist_item_listing",
+        "empty_success",
+        "missing_selector",
+        "conflicting_selector",
+        "paging_with_id",
+        "access_failure",
+        "out_of_scope_playlist_item_workflow",
+    }.issubset(example_names)
+
+
 def test_representative_playlist_images_list_descriptor_examples_cover_boundaries():
     """Expose representative playlistImages-list examples for success and safe failures."""
     from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_list_tool_descriptor
