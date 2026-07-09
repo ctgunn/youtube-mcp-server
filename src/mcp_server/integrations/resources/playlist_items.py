@@ -177,10 +177,11 @@ def build_playlist_items_insert_wrapper() -> RepresentativeEndpointWrapper:
         notes=(
             "Requires oauth_required auth. Use `body.snippet.playlistId` for "
             "the target playlist, use `body.snippet.resourceId.videoId` for "
-            "the referenced video, keep the minimum writable `snippet` "
-            "boundary visible for review, and reject unsupported optional "
-            "placement or content-details fields unless explicitly added to "
-            "the contract."
+            "the referenced video, accept optional non-negative "
+            "`body.snippet.position` placement, keep the minimum writable "
+            "`snippet` boundary visible for review, and reject unsupported "
+            "optional content-details fields unless explicitly added to the "
+            "contract."
         ),
     )
     return PlaylistItemsInsertWrapper(metadata=metadata)
