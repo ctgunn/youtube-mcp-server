@@ -9,6 +9,7 @@ from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.playlist_images import (
+    build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
     build_playlist_images_update_wrapper,
@@ -450,6 +451,94 @@ PLAYLIST_IMAGES_UPDATE_CALLER_EXAMPLES = (
     },
 )
 
+PLAYLIST_IMAGES_DELETE_TOOL_NAME = "playlistImages_delete"
+PLAYLIST_IMAGES_DELETE_QUOTA_COST = 50
+
+PLAYLIST_IMAGES_DELETE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["id"],
+    "properties": {
+        "id": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+PLAYLIST_IMAGES_DELETE_DESCRIPTION = (
+    "Delete a YouTube playlist image resource. Endpoint: playlistImages.delete. "
+    "Quota cost: 50. Auth: oauth_required. Requires playlist image id; deletion is destructive."
+)
+
+PLAYLIST_IMAGES_DELETE_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide id for the playlist image to delete.",
+    "Quota cost: 50. playlistImages.delete accepts no request body and returns a 204 No Content acknowledgment.",
+    "Quota cost: 50. Successful results expose only deletion acknowledgment and safe target context.",
+)
+
+PLAYLIST_IMAGES_DELETE_CAVEATS = (
+    "Playlist image deletion requires eligible OAuth authorization for the target playlist image.",
+    "Playlist image deletion is destructive and does not provide undo or deleted-resource recovery behavior.",
+    "This tool accepts no request body, part selection, media upload, paging, or alternate selector inputs.",
+    "Playlist image listing, insertion, update, media upload, thumbnail replacement, playlist management, analytics, ranking, summarization, and enrichment are out of scope.",
+)
+
+PLAYLIST_IMAGES_DELETE_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_playlist_image_delete",
+        "description": "Quota cost: 50. Delete one playlist image by id and receive a 204-style acknowledgment.",
+        "arguments": {"id": "playlist-image-123"},
+        "result": {
+            "endpoint": "playlistImages.delete",
+            "quotaCost": 50,
+            "target": {"id": "playlist-image-123"},
+            "deleted": True,
+            "acknowledged": True,
+        },
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_id",
+        "description": "Reject deletion requests that omit the required playlist image id.",
+        "arguments": {},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "invalid_id",
+        "description": "Reject deletion requests with a blank or non-string playlist image id.",
+        "arguments": {"id": ""},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "unsupported_body",
+        "description": "Reject request body metadata because playlistImages.delete accepts no request body.",
+        "arguments": {"id": "playlist-image-123", "body": {"snippet": {"playlistId": "PL123"}}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "unsupported_media",
+        "description": "Reject media inputs because playlistImages.delete performs no media upload.",
+        "arguments": {"id": "playlist-image-123", "media": {"content": "<image content omitted>"}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "access_failure",
+        "description": "Map missing or insufficient OAuth access to safe authentication or authorization errors.",
+        "arguments": {"id": "playlist-image-123"},
+        "errorCategory": "authorization_failed",
+    },
+    {
+        "name": "quota_or_upstream_delete_failure",
+        "description": "Map quota, missing-resource, and upstream deletion failures to safe shared categories.",
+        "arguments": {"id": "playlist-image-123"},
+        "errorCategory": "quota_exhausted",
+    },
+    {
+        "name": "out_of_scope_image_management_request",
+        "description": "Thumbnail replacement, upload, playlist management, and analytics requests are out of scope.",
+        "arguments": {"id": "playlist-image-123", "thumbnailReplacement": True},
+        "errorCategory": "invalid_request",
+    },
+)
+
 
 class PlaylistImagesListToolError(ValueError):
     """Represent a safe caller-facing ``playlistImages_list`` failure.
@@ -501,6 +590,26 @@ class PlaylistImagesUpdateToolError(ValueError):
 
     def __init__(self, message: str, *, category: str = "invalid_request", details: dict[str, Any] | None = None):
         """Initialize the safe update tool error.
+
+        :param message: Caller-facing error message.
+        :param category: Shared Layer 2 error category.
+        :param details: Safe diagnostic details.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = sanitize_error_details(details or {})
+
+
+class PlaylistImagesDeleteToolError(ValueError):
+    """Represent a safe caller-facing ``playlistImages_delete`` failure.
+
+    :param message: Caller-facing error message.
+    :param category: Shared Layer 2 error category.
+    :param details: Safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str = "invalid_request", details: dict[str, Any] | None = None):
+        """Initialize the safe delete tool error.
 
         :param message: Caller-facing error message.
         :param category: Shared Layer 2 error category.
@@ -820,6 +929,33 @@ def validate_playlist_images_update_arguments(arguments: dict[str, Any]) -> dict
     }
 
 
+def validate_playlist_images_delete_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate a ``playlistImages_delete`` request and return normalized arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized caller arguments for execution and result mapping.
+    :raises PlaylistImagesDeleteToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise PlaylistImagesDeleteToolError("playlistImages_delete arguments must be an object")
+
+    allowed = {"id"}
+    unsupported = sorted(set(arguments) - allowed)
+    if unsupported:
+        raise PlaylistImagesDeleteToolError(
+            f"unsupported field for playlistImages_delete: {unsupported[0]}",
+            details={"field": unsupported[0]},
+        )
+
+    image_id = arguments.get("id")
+    if not isinstance(image_id, str) or not image_id.strip():
+        raise PlaylistImagesDeleteToolError(
+            "playlistImages_delete requires id",
+            details={"field": "id"},
+        )
+    return {"id": image_id.strip()}
+
+
 def map_playlist_images_list_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     """Map an upstream playlist-image payload to the public Layer 2 result.
 
@@ -943,6 +1079,36 @@ def map_playlist_images_update_result(payload: dict[str, Any], arguments: dict[s
     }
 
 
+def _playlist_images_delete_target_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Build safe target context for a playlist-image delete result.
+
+    :param arguments: Validated playlist-image delete arguments.
+    :return: Safe target summary for public result surfaces.
+    """
+    return {"id": arguments["id"]}
+
+
+def map_playlist_images_delete_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream delete payload to the public Layer 2 result.
+
+    :param payload: Upstream or Layer 1 playlist-image delete payload.
+    :param arguments: Validated caller arguments used for the request.
+    :return: Near-raw deletion acknowledgment with safe target context.
+    """
+    normalized = validate_playlist_images_delete_arguments(arguments)
+    result: dict[str, Any] = {
+        "endpoint": "playlistImages.delete",
+        "quotaCost": PLAYLIST_IMAGES_DELETE_QUOTA_COST,
+        "target": _playlist_images_delete_target_context(normalized),
+        "auth": {"mode": "oauth_required"},
+        "deleted": bool(payload.get("isDeleted", True)),
+        "acknowledged": True,
+        "statusCode": 204,
+        "sourceOperation": payload.get("sourceOperation", "playlistImages.delete"),
+    }
+    return result
+
+
 def _map_playlist_images_list_upstream_error(error: NormalizedUpstreamError) -> PlaylistImagesListToolError:
     """Map a normalized upstream failure to a safe ``playlistImages_list`` error.
 
@@ -1022,6 +1188,32 @@ def _map_playlist_images_update_upstream_error(error: NormalizedUpstreamError) -
     return PlaylistImagesUpdateToolError(str(error), category=category, details=error.details)
 
 
+def _map_playlist_images_delete_upstream_error(error: NormalizedUpstreamError) -> PlaylistImagesDeleteToolError:
+    """Map a normalized upstream failure to a safe ``playlistImages_delete`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe delete tool error with shared category and sanitized details.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "policy_restricted": "authorization_failed",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "not_found": "resource_not_found",
+        "resource_not_found": "resource_not_found",
+        "unavailable": "endpoint_unavailable",
+        "deprecated": "endpoint_unavailable",
+        "transient": "endpoint_unavailable",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return PlaylistImagesDeleteToolError(str(error), category=category, details=error.details)
+
+
 def _playlist_images_list_auth_context(oauth_token: str | None) -> AuthContext:
     """Build the OAuth-required auth context for ``playlistImages_list``.
 
@@ -1070,6 +1262,25 @@ def _playlist_images_update_auth_context(oauth_token: str | None) -> AuthContext
     if not isinstance(oauth_token, str) or not oauth_token.strip():
         raise PlaylistImagesUpdateToolError(
             "playlistImages_update requires OAuth authorization",
+            category="authentication_failed",
+            details={"field": "auth"},
+        )
+    return AuthContext(
+        mode=Layer1AuthMode.OAUTH_REQUIRED,
+        credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+    )
+
+
+def _playlist_images_delete_auth_context(oauth_token: str | None) -> AuthContext:
+    """Build the OAuth-required auth context for ``playlistImages_delete``.
+
+    :param oauth_token: OAuth token used for playlist-image deletion.
+    :return: Layer 1 auth context configured for OAuth-required execution.
+    :raises PlaylistImagesDeleteToolError: If no OAuth token is available.
+    """
+    if not isinstance(oauth_token, str) or not oauth_token.strip():
+        raise PlaylistImagesDeleteToolError(
+            "playlistImages_delete requires OAuth authorization",
             category="authentication_failed",
             details={"field": "auth"},
         )
@@ -1281,6 +1492,73 @@ def build_playlist_images_update_contract() -> YouTubeToolContract:
     )
 
 
+def build_playlist_images_delete_contract() -> YouTubeToolContract:
+    """Build the public contract for ``playlistImages_delete``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "quotaCost",
+            "target",
+            "auth",
+            "deleted",
+            "acknowledged",
+            "statusCode",
+            "sourceOperation",
+        ),
+        preserved_upstream_fields=("sourceOperation",),
+        disallowed_behavior=(
+            "playlist_image_listing",
+            "playlist_image_insertion",
+            "playlist_image_update",
+            "media_upload",
+            "thumbnail_replacement",
+            "playlist_management",
+            "playlist_item_expansion",
+            "analytics",
+            "recommendation",
+            "ranking",
+            "summarization",
+            "enrichment",
+            "cross_endpoint_aggregation",
+        ),
+    )
+    return YouTubeToolContract(
+        tool_name=PLAYLIST_IMAGES_DELETE_TOOL_NAME,
+        upstream_resource="playlistImages",
+        upstream_method="delete",
+        operation_key="playlistImages.delete",
+        description=PLAYLIST_IMAGES_DELETE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=PLAYLIST_IMAGES_DELETE_QUOTA_COST,
+        resource_family="playlist_images",
+        input_contract=PLAYLIST_IMAGES_DELETE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "deletion_acknowledgment",
+            "successStatus": 204,
+            "bodyPolicy": "no_upstream_body",
+            "targetFields": ["id"],
+            "requiredFields": ["id"],
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "invalid_request",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=PLAYLIST_IMAGES_DELETE_USAGE_NOTES,
+        caveats=PLAYLIST_IMAGES_DELETE_CAVEATS,
+    )
+
+
 def _default_playlist_images_list_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default playlist-image calls.
 
@@ -1360,6 +1638,27 @@ def _default_playlist_images_update_executor() -> IntegrationExecutor:
                 "playlistId": snippet.get("playlistId", "PL123"),
                 "type": snippet.get("type", "medium"),
             },
+        }
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _default_playlist_images_delete_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default playlist-image delete calls.
+
+    :return: Integration executor returning representative delete acknowledgment data.
+    """
+
+    def transport(execution):
+        """Return a representative playlist-image delete response.
+
+        :param execution: Request execution context.
+        :return: Fake upstream deletion acknowledgment for local invocation.
+        """
+        return {
+            "playlistImageId": execution.arguments.get("id", "playlist-image-123"),
+            "isDeleted": True,
+            "upstreamBodyState": "empty",
         }
 
     return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
@@ -1491,6 +1790,50 @@ def build_playlist_images_update_handler(
     return handler
 
 
+def build_playlist_images_delete_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``playlistImages_delete``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used to construct safe OAuth auth context.
+    :return: Callable that validates, executes, and maps playlist-image delete requests.
+    """
+    selected_wrapper = wrapper or build_playlist_images_delete_wrapper()
+    selected_executor = executor or _default_playlist_images_delete_executor()
+    auth_context = _playlist_images_delete_auth_context(oauth_token)
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``playlistImages_delete`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 playlist-image delete result.
+        :raises PlaylistImagesDeleteToolError: If validation or execution fails.
+        """
+        normalized = validate_playlist_images_delete_arguments(arguments)
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_playlist_images_delete_upstream_error(exc) from exc
+        except ValueError as exc:
+            raise PlaylistImagesDeleteToolError(
+                str(exc),
+                category="invalid_request",
+                details={"field": "id"},
+            ) from exc
+        return map_playlist_images_delete_result(payload, normalized)
+
+    return handler
+
+
 def build_playlist_images_list_tool_descriptor(
     *,
     wrapper=None,
@@ -1566,8 +1909,40 @@ def build_playlist_images_update_tool_descriptor(
     }
 
 
+def build_playlist_images_delete_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``playlistImages_delete``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_playlist_images_delete_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(PLAYLIST_IMAGES_DELETE_CALLER_EXAMPLES)
+    return {
+        "name": PLAYLIST_IMAGES_DELETE_TOOL_NAME,
+        "description": PLAYLIST_IMAGES_DELETE_DESCRIPTION,
+        "inputSchema": PLAYLIST_IMAGES_DELETE_INPUT_SCHEMA,
+        "handler": build_playlist_images_delete_handler(wrapper=wrapper, executor=executor, oauth_token=oauth_token),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
     "PLAYLIST_IMAGES_ALLOWED_MIME_TYPES",
+    "PLAYLIST_IMAGES_DELETE_CALLER_EXAMPLES",
+    "PLAYLIST_IMAGES_DELETE_CAVEATS",
+    "PLAYLIST_IMAGES_DELETE_DESCRIPTION",
+    "PLAYLIST_IMAGES_DELETE_INPUT_SCHEMA",
+    "PLAYLIST_IMAGES_DELETE_QUOTA_COST",
+    "PLAYLIST_IMAGES_DELETE_TOOL_NAME",
+    "PLAYLIST_IMAGES_DELETE_USAGE_NOTES",
     "PLAYLIST_IMAGES_INSERT_CALLER_EXAMPLES",
     "PLAYLIST_IMAGES_INSERT_CAVEATS",
     "PLAYLIST_IMAGES_INSERT_DESCRIPTION",
@@ -1594,9 +1969,13 @@ __all__ = [
     "PLAYLIST_IMAGES_UPDATE_SUPPORTED_PARTS",
     "PLAYLIST_IMAGES_UPDATE_TOOL_NAME",
     "PLAYLIST_IMAGES_UPDATE_USAGE_NOTES",
+    "PlaylistImagesDeleteToolError",
     "PlaylistImagesInsertToolError",
     "PlaylistImagesListToolError",
     "PlaylistImagesUpdateToolError",
+    "build_playlist_images_delete_contract",
+    "build_playlist_images_delete_handler",
+    "build_playlist_images_delete_tool_descriptor",
     "build_playlist_images_insert_contract",
     "build_playlist_images_insert_handler",
     "build_playlist_images_insert_tool_descriptor",
@@ -1606,9 +1985,11 @@ __all__ = [
     "build_playlist_images_update_contract",
     "build_playlist_images_update_handler",
     "build_playlist_images_update_tool_descriptor",
+    "map_playlist_images_delete_result",
     "map_playlist_images_insert_result",
     "map_playlist_images_list_result",
     "map_playlist_images_update_result",
+    "validate_playlist_images_delete_arguments",
     "validate_playlist_images_insert_arguments",
     "validate_playlist_images_list_arguments",
     "validate_playlist_images_update_arguments",

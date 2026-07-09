@@ -536,6 +536,57 @@ def test_server_list_tools_preserves_playlistImages_update_metadata():
     }
 
 
+def test_default_registry_includes_executable_playlistImages_delete_tool():
+    """Register ``playlistImages_delete`` by default with destructive deletion metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlistImages_delete" in listed
+    metadata = listed["playlistImages_delete"]["metadata"]
+    description = listed["playlistImages_delete"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "playlistImages.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert set(metadata["inputContract"]["properties"]) == {"id"}
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert metadata["responseConvention"]["bodyPolicy"] == "no_upstream_body"
+    assert "destructive" in metadata_text.lower()
+    assert "request body" in metadata_text
+    assert "media" in metadata_text
+    assert {example["name"] for example in metadata["examples"]} >= {
+        "authorized_playlist_image_delete",
+        "missing_id",
+        "quota_or_upstream_delete_failure",
+        "out_of_scope_image_management_request",
+    }
+
+
+def test_server_list_tools_preserves_playlistImages_delete_metadata():
+    """Expose ``playlistImages_delete`` discovery metadata through the public registry tool."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.call_tool("server_list_tools", {})}
+    metadata = listed["playlistImages_delete"]["metadata"]
+
+    assert metadata["upstream"]["operationKey"] == "playlistImages.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert set(metadata["inputContract"]["properties"]) == {"id"}
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert {example["name"] for example in metadata["examples"]} >= {
+        "authorized_playlist_image_delete",
+        "invalid_id",
+        "quota_or_upstream_delete_failure",
+        "out_of_scope_image_management_request",
+    }
+
+
 def test_default_registry_includes_executable_channel_sections_list_tool_with_caveat_metadata():
     """Register ``channelSections_list`` by default with selector and caveat metadata."""
     dispatcher = InMemoryToolDispatcher()
