@@ -60,7 +60,11 @@ def _require_playlist_items_insert_body(arguments: dict[str, object]) -> None:
     if resource_kind not in (None, "", "youtube#video"):
         raise ValueError("body.snippet.resourceId.kind must be youtube#video when provided")
 
-    unsupported_snippet_fields = [field for field in snippet if field not in {"playlistId", "resourceId"}]
+    position = snippet.get("position")
+    if position is not None and (isinstance(position, bool) or not isinstance(position, int) or position < 0):
+        raise ValueError("body.snippet.position must be a non-negative integer when provided")
+
+    unsupported_snippet_fields = [field for field in snippet if field not in {"playlistId", "position", "resourceId"}]
     if unsupported_snippet_fields:
         raise ValueError(f"body.snippet.{unsupported_snippet_fields[0]} is read-only or unsupported")
 

@@ -3062,10 +3062,22 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 {"part": "snippet", "body": {"snippet": {"playlistId": "PL123", "resourceId": {}}}}
             )
 
-    def test_playlist_items_insert_wrapper_rejects_unsupported_optional_fields(self):
+    def test_playlist_items_insert_wrapper_accepts_position_and_rejects_unsupported_optional_fields(self):
         wrapper = build_playlist_items_insert_wrapper()
 
-        with self.assertRaisesRegex(ValueError, "body.snippet.position is read-only or unsupported"):
+        wrapper.metadata.request_shape.validate_arguments(
+            {
+                "part": "snippet",
+                "body": {
+                    "snippet": {
+                        "playlistId": "PL123",
+                        "resourceId": {"videoId": "video-123"},
+                        "position": 0,
+                    }
+                },
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "body.snippet.title is read-only or unsupported"):
             wrapper.metadata.request_shape.validate_arguments(
                 {
                     "part": "snippet",
@@ -3073,7 +3085,7 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                         "snippet": {
                             "playlistId": "PL123",
                             "resourceId": {"videoId": "video-123"},
-                            "position": 0,
+                            "title": "Unsupported",
                         }
                     },
                 }
