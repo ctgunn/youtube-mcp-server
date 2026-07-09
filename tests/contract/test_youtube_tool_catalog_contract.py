@@ -29,6 +29,7 @@ def test_representative_examples_include_required_us1_shapes():
         "membershipsLevels_list",
         "playlistImages_list",
         "playlistImages_insert",
+        "playlistImages_update",
         "videos_getRating",
         "videos_reportAbuse",
         "watermarks_unset",
@@ -778,6 +779,62 @@ def test_representative_playlist_images_insert_descriptor_examples_cover_boundar
         "unsupported_media",
         "access_failure",
         "quota_or_upstream_insert_failure",
+        "out_of_scope_image_management_request",
+    }.issubset(example_names)
+
+
+def test_representative_playlist_images_update_example_aligns_with_concrete_contract():
+    """Keep the representative playlistImages-update example aligned with YT-230."""
+    from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_update_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "playlistImages_update"
+    ]
+    concrete = build_playlist_images_update_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 50
+    assert representative.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert {"part", "body", "media"}.issubset(representative.input_contract["properties"])
+    assert "body.id" in metadata_text
+    assert "body.snippet.playlistId" in metadata_text
+    assert "media" in metadata_text
+
+
+def test_representative_playlist_images_update_descriptor_examples_cover_boundaries():
+    """Expose representative playlistImages-update examples for success and safe failures."""
+    from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_update_tool_descriptor
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "playlistImages_update"
+    ]
+    metadata = representative.to_tool_metadata()
+    descriptor = build_playlist_images_update_tool_descriptor()
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["part", "body", "media"]
+    assert {"part", "body", "media"}.issubset(metadata["inputContract"]["properties"])
+    assert {
+        "authorized_playlist_image_update",
+        "missing_part",
+        "invalid_part",
+        "missing_body",
+        "missing_target_identity",
+        "missing_playlist_context",
+        "missing_media",
+        "unsupported_media",
+        "access_failure",
+        "quota_or_upstream_update_failure",
         "out_of_scope_image_management_request",
     }.issubset(example_names)
 

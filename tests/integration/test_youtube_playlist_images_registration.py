@@ -7,9 +7,11 @@ import pytest
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.playlist_images import (
+    PlaylistImagesUpdateToolError,
     PlaylistImagesListToolError,
     build_playlist_images_insert_tool_descriptor,
     build_playlist_images_list_tool_descriptor,
+    build_playlist_images_update_tool_descriptor,
 )
 
 
@@ -30,6 +32,20 @@ def _register_playlist_images_list(**descriptor_kwargs) -> InMemoryToolDispatche
 def _register_playlist_images_insert(**descriptor_kwargs) -> InMemoryToolDispatcher:
     """Register the concrete playlist-images insert tool in a fresh dispatcher."""
     descriptor = build_playlist_images_insert_tool_descriptor(**descriptor_kwargs)
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
+def _register_playlist_images_update(**descriptor_kwargs) -> InMemoryToolDispatcher:
+    """Register the concrete playlist-images update tool in a fresh dispatcher."""
+    descriptor = build_playlist_images_update_tool_descriptor(**descriptor_kwargs)
     dispatcher = InMemoryToolDispatcher(tools=[])
     dispatcher.register_tool(
         name=descriptor["name"],
@@ -72,6 +88,29 @@ def test_playlist_images_insert_descriptor_registers_as_executable_tool():
     assert result["quotaCost"] == 50
     assert result["requestedParts"] == ["snippet"]
     assert result["bodyContext"] == {"hasSnippet": True, "playlistId": "PL123"}
+    assert result["mediaContext"] == {"mimeType": "image/jpeg", "contentProvided": True}
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["item"]["id"] == "playlist-image-123"
+    assert "fake-image-content" not in str(result)
+
+
+def test_playlist_images_update_descriptor_registers_as_executable_tool():
+    """Register and execute ``playlistImages_update`` for playlist-image replacement."""
+    dispatcher = _register_playlist_images_update()
+
+    result = dispatcher.call_tool(
+        "playlistImages_update",
+        {
+            "part": "id,snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123", "type": "medium"}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+    )
+
+    assert result["endpoint"] == "playlistImages.update"
+    assert result["quotaCost"] == 50
+    assert result["requestedParts"] == ["id", "snippet"]
+    assert result["bodyContext"] == {"id": "playlist-image-123", "hasSnippet": True, "playlistId": "PL123"}
     assert result["mediaContext"] == {"mimeType": "image/jpeg", "contentProvided": True}
     assert result["auth"] == {"mode": "oauth_required"}
     assert result["item"]["id"] == "playlist-image-123"
@@ -137,3 +176,22 @@ def test_playlist_images_list_dispatcher_propagates_safe_access_failures():
 
     assert exc_info.value.category == "authorization_failed"
     assert exc_info.value.details == {"field": "playlistId"}
+
+
+def test_playlist_images_update_dispatcher_propagates_safe_validation_failures():
+    """Propagate safe handler validation failures for incomplete update bodies."""
+    dispatcher = _register_playlist_images_update()
+
+    with pytest.raises(PlaylistImagesUpdateToolError) as exc_info:
+        dispatcher.call_tool(
+            "playlistImages_update",
+            {
+                "part": "snippet",
+                "body": {"id": "playlist-image-123", "snippet": {"type": "medium"}},
+                "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+            },
+        )
+
+    assert exc_info.value.category == "invalid_request"
+    assert "fake-image-content" not in str(exc_info.value.details)
+    assert "stack" not in str(exc_info.value.details).lower()
