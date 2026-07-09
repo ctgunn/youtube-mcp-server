@@ -8,15 +8,21 @@ from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.youtube_common.playlist_images import (
     PLAYLIST_IMAGES_INSERT_INPUT_SCHEMA,
     PLAYLIST_IMAGES_LIST_INPUT_SCHEMA,
+    PLAYLIST_IMAGES_UPDATE_INPUT_SCHEMA,
     PlaylistImagesInsertToolError,
     PlaylistImagesListToolError,
+    PlaylistImagesUpdateToolError,
     build_playlist_images_insert_handler,
     build_playlist_images_insert_tool_descriptor,
     build_playlist_images_list_tool_descriptor,
+    build_playlist_images_update_handler,
+    build_playlist_images_update_tool_descriptor,
     map_playlist_images_insert_result,
     map_playlist_images_list_result,
+    map_playlist_images_update_result,
     validate_playlist_images_insert_arguments,
     validate_playlist_images_list_arguments,
+    validate_playlist_images_update_arguments,
 )
 
 
@@ -36,6 +42,38 @@ class FakePlaylistImagesInsertWrapper:
         self.response = response or {
             "kind": "youtube#playlistImage",
             "etag": "etag-created",
+            "id": "playlist-image-123",
+            "snippet": {"playlistId": "PL123", "type": "medium"},
+        }
+
+    def call(self, executor, *, arguments, auth_context):
+        """Record call arguments and return the configured response.
+
+        :param executor: Executor supplied by the Layer 2 handler.
+        :param arguments: Validated arguments forwarded to Layer 1.
+        :param auth_context: OAuth auth context selected by the handler.
+        :return: Configured upstream-shaped response.
+        """
+        self.calls.append((executor, arguments, auth_context))
+        return self.response
+
+
+class FakePlaylistImagesUpdateWrapper:
+    """Capture wrapper calls for ``playlistImages_update`` tests.
+
+    The fake returns a representative updated playlist-image resource and
+    exposes call arguments for assertions without performing network I/O.
+    """
+
+    def __init__(self, response: dict | None = None):
+        """Initialize the fake wrapper call log and response.
+
+        :param response: Optional upstream-shaped response to return.
+        """
+        self.calls = []
+        self.response = response or {
+            "kind": "youtube#playlistImage",
+            "etag": "etag-updated",
             "id": "playlist-image-123",
             "snippet": {"playlistId": "PL123", "type": "medium"},
         }
@@ -73,6 +111,17 @@ def test_playlist_images_insert_schema_preserves_required_upload_inputs():
     assert PLAYLIST_IMAGES_INSERT_INPUT_SCHEMA["additionalProperties"] is False
 
 
+def test_playlist_images_update_schema_preserves_required_upload_inputs():
+    """Expose required part, target body, and media inputs for playlist-image updates."""
+    properties = PLAYLIST_IMAGES_UPDATE_INPUT_SCHEMA["properties"]
+
+    assert PLAYLIST_IMAGES_UPDATE_INPUT_SCHEMA["required"] == ["part", "body", "media"]
+    assert properties["part"] == {"type": "string", "minLength": 1}
+    assert properties["body"]["required"] == ["id", "snippet"]
+    assert properties["media"]["required"] == ["mimeType", "content"]
+    assert PLAYLIST_IMAGES_UPDATE_INPUT_SCHEMA["additionalProperties"] is False
+
+
 def test_validate_playlist_images_insert_arguments_accepts_upload_request():
     """Accept one supported OAuth-backed playlist-image insertion request."""
     selected = validate_playlist_images_insert_arguments(
@@ -86,6 +135,23 @@ def test_validate_playlist_images_insert_arguments_accepts_upload_request():
     assert selected == {
         "part": "snippet",
         "body": {"snippet": {"playlistId": "PL123", "type": "medium"}},
+        "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+    }
+
+
+def test_validate_playlist_images_update_arguments_accepts_upload_request():
+    """Accept one supported OAuth-backed playlist-image update request."""
+    selected = validate_playlist_images_update_arguments(
+        {
+            "part": "id,snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123", "type": "medium"}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        }
+    )
+
+    assert selected == {
+        "part": "id,snippet",
+        "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123", "type": "medium"}},
         "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
     }
 
@@ -117,6 +183,33 @@ def test_map_playlist_images_insert_result_preserves_resource_and_safe_context()
     assert "fake-image-content" not in str(result)
 
 
+def test_map_playlist_images_update_result_preserves_resource_and_safe_context():
+    """Map an updated playlist-image response into a safe near-raw mutation result."""
+    result = map_playlist_images_update_result(
+        {
+            "kind": "youtube#playlistImage",
+            "etag": "etag-updated",
+            "id": "playlist-image-123",
+            "snippet": {"playlistId": "PL123", "type": "medium"},
+        },
+        {
+            "part": "id,snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123", "type": "medium"}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+    )
+
+    assert result["endpoint"] == "playlistImages.update"
+    assert result["quotaCost"] == 50
+    assert result["requestedParts"] == ["id", "snippet"]
+    assert result["bodyContext"] == {"id": "playlist-image-123", "hasSnippet": True, "playlistId": "PL123"}
+    assert result["mediaContext"] == {"mimeType": "image/jpeg", "contentProvided": True}
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["item"]["id"] == "playlist-image-123"
+    assert result["item"]["etag"] == "etag-updated"
+    assert "fake-image-content" not in str(result)
+
+
 def test_playlist_images_insert_handler_invokes_wrapper_once_for_oauth_request():
     """Execute one valid playlist-image insertion through the descriptor handler."""
     wrapper = FakePlaylistImagesInsertWrapper()
@@ -130,6 +223,25 @@ def test_playlist_images_insert_handler_invokes_wrapper_once_for_oauth_request()
     result = descriptor["handler"](arguments)
 
     assert result["endpoint"] == "playlistImages.insert"
+    assert result["quotaCost"] == 50
+    assert result["item"]["id"] == "playlist-image-123"
+    assert wrapper.calls[0][1] == arguments
+    assert wrapper.calls[0][2].mode.value == "oauth_required"
+
+
+def test_playlist_images_update_handler_invokes_wrapper_once_for_oauth_request():
+    """Execute one valid playlist-image update through the descriptor handler."""
+    wrapper = FakePlaylistImagesUpdateWrapper()
+    descriptor = build_playlist_images_update_tool_descriptor(wrapper=wrapper, executor=object())
+    arguments = {
+        "part": "id,snippet",
+        "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123", "type": "medium"}},
+        "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+    }
+
+    result = descriptor["handler"](arguments)
+
+    assert result["endpoint"] == "playlistImages.update"
     assert result["quotaCost"] == 50
     assert result["item"]["id"] == "playlist-image-123"
     assert wrapper.calls[0][1] == arguments
@@ -286,6 +398,183 @@ def test_playlist_images_insert_handler_maps_upstream_failures_safely(upstream_c
             {
                 "part": "snippet",
                 "body": {"snippet": {"playlistId": "PL123"}},
+                "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+            }
+        )
+
+    assert exc_info.value.category == expected_category
+    assert exc_info.value.details == {"field": "media"}
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {
+            "part": "",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+        {
+            "part": "statistics",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+        {
+            "part": "snippet,snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+        {
+            "part": "snippet",
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+        {
+            "part": "snippet",
+            "body": [],
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+        {
+            "part": "snippet",
+            "body": {},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+        {
+            "part": "snippet",
+            "body": {"snippet": {"playlistId": "PL123"}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+        {
+            "part": "snippet",
+            "body": {"id": "playlist-image-123"},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+        {
+            "part": "snippet",
+            "body": {"id": "playlist-image-123", "snippet": {}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+        {
+            "part": "snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"type": "medium"}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+        {
+            "part": "snippet",
+            "body": {
+                "id": "playlist-image-123",
+                "snippet": {"playlistId": "PL123"},
+                "thumbnailReplacement": True,
+            },
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        },
+        {
+            "part": "snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+        },
+        {
+            "part": "snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+            "media": [],
+        },
+        {
+            "part": "snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+            "media": {"content": "fake-image-content"},
+        },
+        {
+            "part": "snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+            "media": {"mimeType": "image/jpeg"},
+        },
+        {
+            "part": "snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+            "media": {"mimeType": "image/gif", "content": "fake-image-content"},
+        },
+        {
+            "part": "snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+            "media": {
+                "mimeType": "image/jpeg",
+                "content": "fake-image-content",
+                "signedUrl": "https://example.test/private",
+            },
+        },
+        {
+            "part": "snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+            "rankBy": "views",
+        },
+    ],
+)
+def test_validate_playlist_images_update_arguments_rejects_unsupported_requests(arguments):
+    """Reject malformed update inputs, unsupported fields, and unsafe upload shapes."""
+    with pytest.raises(PlaylistImagesUpdateToolError) as exc_info:
+        validate_playlist_images_update_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert "fake-image-content" not in str(exc_info.value.details)
+    assert "signedUrl" not in str(exc_info.value.details)
+    assert "oauth" not in str(exc_info.value.details).lower()
+    assert "stack" not in str(exc_info.value.details).lower()
+
+
+def test_playlist_images_update_handler_requires_oauth_access():
+    """Reject update handler construction when OAuth access is unavailable."""
+    with pytest.raises(PlaylistImagesUpdateToolError) as exc_info:
+        build_playlist_images_update_handler(wrapper=FakePlaylistImagesUpdateWrapper(), executor=object(), oauth_token=None)
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"field": "auth"}
+
+
+@pytest.mark.parametrize(
+    ("upstream_category", "expected_category"),
+    [
+        ("authentication", "authentication_failed"),
+        ("authorization", "authorization_failed"),
+        ("quota", "quota_exhausted"),
+        ("media_eligibility", "invalid_request"),
+        ("not_found", "resource_not_found"),
+        ("transient", "endpoint_unavailable"),
+        ("unexpected", "upstream_failure"),
+    ],
+)
+def test_playlist_images_update_handler_maps_upstream_failures_safely(upstream_category, expected_category):
+    """Map upstream update failures into shared safe categories."""
+    class FailingWrapper:
+        """Raise one normalized upstream failure for update handler coverage."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise a configured upstream failure.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: OAuth auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this fake wrapper.
+            """
+            raise NormalizedUpstreamError(
+                message="playlist image update failed",
+                category=upstream_category,
+                retryable=False,
+                upstream_status=403,
+                details={
+                    "field": "media",
+                    "raw_media": "fake-image-content",
+                    "oauth_token": "secret-token",
+                    "stack": "traceback",
+                },
+            )
+
+    handler = build_playlist_images_update_handler(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(PlaylistImagesUpdateToolError) as exc_info:
+        handler(
+            {
+                "part": "snippet",
+                "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
                 "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
             }
         )

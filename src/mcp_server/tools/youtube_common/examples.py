@@ -33,6 +33,7 @@ from mcp_server.tools.youtube_common.memberships_levels import build_memberships
 from mcp_server.tools.youtube_common.playlist_images import (
     build_playlist_images_insert_contract,
     build_playlist_images_list_contract,
+    build_playlist_images_update_contract,
 )
 
 
@@ -526,6 +527,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_memberships_levels_list_contract(),
     build_playlist_images_list_contract(),
     build_playlist_images_insert_contract(),
+    build_playlist_images_update_contract(),
     build_guide_categories_list_contract(),
     build_i18n_languages_list_contract(),
     build_i18n_regions_list_contract(),

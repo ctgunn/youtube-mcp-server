@@ -34,6 +34,7 @@ from mcp_server.tools.youtube_common import (
     build_memberships_levels_list_tool_descriptor,
     build_playlist_images_insert_tool_descriptor,
     build_playlist_images_list_tool_descriptor,
+    build_playlist_images_update_tool_descriptor,
 )
 
 BASELINE_TOOL_SCHEMAS = {
@@ -230,6 +231,7 @@ class InMemoryToolDispatcher:
             build_memberships_levels_list_tool_descriptor(),
             build_playlist_images_list_tool_descriptor(),
             build_playlist_images_insert_tool_descriptor(),
+            build_playlist_images_update_tool_descriptor(),
             build_guide_categories_list_tool_descriptor(),
             build_i18n_languages_list_tool_descriptor(),
             build_i18n_regions_list_tool_descriptor(),

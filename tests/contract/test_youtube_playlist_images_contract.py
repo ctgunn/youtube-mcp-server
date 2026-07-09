@@ -18,7 +18,14 @@ from mcp_server.tools.youtube_common.playlist_images import (
     PLAYLIST_IMAGES_LIST_DESCRIPTION,
     PLAYLIST_IMAGES_LIST_INPUT_SCHEMA,
     PLAYLIST_IMAGES_LIST_TOOL_NAME,
+    PLAYLIST_IMAGES_UPDATE_CALLER_EXAMPLES,
+    PLAYLIST_IMAGES_UPDATE_CAVEATS,
+    PLAYLIST_IMAGES_UPDATE_DESCRIPTION,
+    PLAYLIST_IMAGES_UPDATE_INPUT_SCHEMA,
+    PLAYLIST_IMAGES_UPDATE_TOOL_NAME,
+    PLAYLIST_IMAGES_UPDATE_USAGE_NOTES,
     PlaylistImagesInsertToolError,
+    PlaylistImagesUpdateToolError,
     build_playlist_images_insert_contract,
     build_playlist_images_insert_handler,
     build_playlist_images_insert_tool_descriptor,
@@ -26,8 +33,12 @@ from mcp_server.tools.youtube_common.playlist_images import (
     build_playlist_images_list_contract,
     build_playlist_images_list_handler,
     build_playlist_images_list_tool_descriptor,
+    build_playlist_images_update_contract,
+    build_playlist_images_update_handler,
+    build_playlist_images_update_tool_descriptor,
     validate_playlist_images_insert_arguments,
     validate_playlist_images_list_arguments,
+    validate_playlist_images_update_arguments,
 )
 
 
@@ -47,6 +58,15 @@ def test_playlist_images_insert_public_symbols_are_exported():
     assert youtube_common.PLAYLIST_IMAGES_INSERT_TOOL_NAME == "playlistImages_insert"
     assert PLAYLIST_IMAGES_INSERT_TOOL_NAME == "playlistImages_insert"
     assert callable(playlist_images.build_playlist_images_insert_tool_descriptor)
+
+
+def test_playlist_images_update_public_symbols_are_exported():
+    """Expose ``playlistImages_update`` symbols from the shared package."""
+    from mcp_server.tools.youtube_common import playlist_images
+
+    assert youtube_common.PLAYLIST_IMAGES_UPDATE_TOOL_NAME == "playlistImages_update"
+    assert PLAYLIST_IMAGES_UPDATE_TOOL_NAME == "playlistImages_update"
+    assert callable(playlist_images.build_playlist_images_update_tool_descriptor)
 
 
 def test_playlist_images_list_schema_preserves_selector_and_paging_inputs():
@@ -78,6 +98,21 @@ def test_playlist_images_insert_schema_preserves_required_upload_inputs():
     assert properties["media"]["required"] == ["mimeType", "content"]
     assert properties["media"]["additionalProperties"] is False
     assert PLAYLIST_IMAGES_INSERT_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_playlist_images_update_schema_preserves_required_upload_inputs():
+    """Expose the upstream-like request fields for ``playlistImages_update``."""
+    properties = PLAYLIST_IMAGES_UPDATE_INPUT_SCHEMA["properties"]
+
+    assert PLAYLIST_IMAGES_UPDATE_INPUT_SCHEMA["required"] == ["part", "body", "media"]
+    assert properties["part"] == {"type": "string", "minLength": 1}
+    assert properties["body"]["type"] == "object"
+    assert properties["body"]["required"] == ["id", "snippet"]
+    assert properties["body"]["additionalProperties"] is False
+    assert properties["media"]["type"] == "object"
+    assert properties["media"]["required"] == ["mimeType", "content"]
+    assert properties["media"]["additionalProperties"] is False
+    assert PLAYLIST_IMAGES_UPDATE_INPUT_SCHEMA["additionalProperties"] is False
 
 
 def test_playlist_images_list_public_contract_identifies_endpoint():
@@ -117,6 +152,24 @@ def test_playlist_images_insert_public_contract_identifies_endpoint():
     assert metadata["responseConvention"]["resourcePath"] == "item"
 
 
+def test_playlist_images_update_public_contract_identifies_endpoint():
+    """Expose endpoint identity, quota, auth, availability, and update response metadata."""
+    contract = build_playlist_images_update_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["name"] == "playlistImages_update"
+    assert metadata["upstream"]["operationKey"] == "playlistImages.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body", "media"]
+    assert {"part", "body", "media"}.issubset(metadata["inputContract"]["properties"])
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert metadata["responseConvention"]["resourcePath"] == "item"
+
+
 def test_playlist_images_list_descriptor_uses_public_contract_shape():
     """Build an executable descriptor aligned with the public contract."""
     descriptor = build_playlist_images_list_tool_descriptor()
@@ -137,6 +190,16 @@ def test_playlist_images_insert_descriptor_uses_public_contract_shape():
     assert descriptor["metadata"]["quotaCost"] == 50
 
 
+def test_playlist_images_update_descriptor_uses_public_contract_shape():
+    """Build an executable update descriptor aligned with the public contract."""
+    descriptor = build_playlist_images_update_tool_descriptor()
+
+    assert descriptor["name"] == "playlistImages_update"
+    assert descriptor["inputSchema"] == PLAYLIST_IMAGES_UPDATE_INPUT_SCHEMA
+    assert descriptor["metadata"]["upstream"]["operationKey"] == "playlistImages.update"
+    assert descriptor["metadata"]["quotaCost"] == 50
+
+
 def test_playlist_images_insert_metadata_documents_upload_access_and_boundaries():
     """Expose quota, OAuth, body, media, examples, mutation, and out-of-scope guidance safely."""
     descriptor = build_playlist_images_insert_tool_descriptor()
@@ -150,6 +213,30 @@ def test_playlist_images_insert_metadata_documents_upload_access_and_boundaries(
     assert "oauth_required" in metadata_text
     assert "body" in metadata_text
     assert "body.snippet" in metadata_text
+    assert "media.mimeType" in metadata_text
+    assert "media.content" in metadata_text
+    assert "raw media content is never echoed" in metadata_text
+    assert "thumbnail replacement" in metadata_text
+    assert "analytics" in metadata_text
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert "raw_media" not in str(metadata)
+    assert "oauthToken" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+
+
+def test_playlist_images_update_metadata_documents_upload_access_and_boundaries():
+    """Expose quota, OAuth, target body, media, examples, mutation, and boundaries safely."""
+    descriptor = build_playlist_images_update_tool_descriptor()
+    metadata = descriptor["metadata"]
+    metadata_text = " ".join([descriptor["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert PLAYLIST_IMAGES_UPDATE_DESCRIPTION == descriptor["description"]
+    assert metadata["usageNotes"] == list(PLAYLIST_IMAGES_UPDATE_USAGE_NOTES)
+    assert metadata["caveats"] == list(PLAYLIST_IMAGES_UPDATE_CAVEATS)
+    assert "Quota cost: 50" in metadata_text
+    assert "oauth_required" in metadata_text
+    assert "body.id" in metadata_text
+    assert "body.snippet.playlistId" in metadata_text
     assert "media.mimeType" in metadata_text
     assert "media.content" in metadata_text
     assert "raw media content is never echoed" in metadata_text
@@ -182,6 +269,31 @@ def test_playlist_images_insert_examples_cover_success_failures_and_boundaries()
     assert example_names == descriptor_example_names
     assert "image/gif" in str(PLAYLIST_IMAGES_INSERT_CALLER_EXAMPLES)
     assert "thumbnailReplacement" in str(PLAYLIST_IMAGES_INSERT_CALLER_EXAMPLES)
+
+
+def test_playlist_images_update_examples_cover_success_failures_and_boundaries():
+    """Expose update examples for success, validation, access, quota, and out-of-scope outcomes."""
+    descriptor = build_playlist_images_update_tool_descriptor()
+    example_names = {example["name"] for example in PLAYLIST_IMAGES_UPDATE_CALLER_EXAMPLES}
+    descriptor_example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert {
+        "authorized_playlist_image_update",
+        "missing_part",
+        "invalid_part",
+        "missing_body",
+        "invalid_body",
+        "missing_target_identity",
+        "missing_playlist_context",
+        "missing_media",
+        "unsupported_media",
+        "access_failure",
+        "quota_or_upstream_update_failure",
+        "out_of_scope_image_management_request",
+    }.issubset(example_names)
+    assert example_names == descriptor_example_names
+    assert "image/gif" in str(PLAYLIST_IMAGES_UPDATE_CALLER_EXAMPLES)
+    assert "thumbnailReplacement" in str(PLAYLIST_IMAGES_UPDATE_CALLER_EXAMPLES)
 
 
 def test_playlist_images_list_contract_documents_successful_result_shape():
@@ -219,6 +331,26 @@ def test_playlist_images_insert_contract_documents_successful_result_shape():
     assert "fake-image-content" not in str(result)
 
 
+def test_playlist_images_update_contract_documents_successful_result_shape():
+    """Document the playlist-image update result shape."""
+    result = build_playlist_images_update_tool_descriptor()["handler"](
+        {
+            "part": "id,snippet",
+            "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123", "type": "medium"}},
+            "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+        }
+    )
+
+    assert result["endpoint"] == "playlistImages.update"
+    assert result["quotaCost"] == 50
+    assert result["requestedParts"] == ["id", "snippet"]
+    assert result["bodyContext"] == {"id": "playlist-image-123", "hasSnippet": True, "playlistId": "PL123"}
+    assert result["mediaContext"] == {"mimeType": "image/jpeg", "contentProvided": True}
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["item"]["id"] == "playlist-image-123"
+    assert "fake-image-content" not in str(result)
+
+
 @pytest.mark.parametrize(
     ("arguments", "message"),
     [
@@ -249,6 +381,90 @@ def test_playlist_images_insert_validation_failures_are_safe(arguments, message)
     """Map invalid insert requests to safe validation errors without raw upload details."""
     with pytest.raises(PlaylistImagesInsertToolError) as exc_info:
         validate_playlist_images_insert_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert message in str(exc_info.value) or message in str(exc_info.value.details)
+    assert "raw" not in str(exc_info.value.details)
+    assert "oauth" not in str(exc_info.value.details).lower()
+    assert "stack" not in str(exc_info.value.details).lower()
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        ({}, "part"),
+        (
+            {
+                "part": "statistics",
+                "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+                "media": {"mimeType": "image/jpeg", "content": "raw"},
+            },
+            "part",
+        ),
+        (
+            {
+                "part": "snippet",
+                "media": {"mimeType": "image/jpeg", "content": "raw"},
+            },
+            "body",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {},
+                "media": {"mimeType": "image/jpeg", "content": "raw"},
+            },
+            "body.id",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "playlist-image-123"},
+                "media": {"mimeType": "image/jpeg", "content": "raw"},
+            },
+            "body.snippet",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "playlist-image-123", "snippet": {"type": "medium"}},
+                "media": {"mimeType": "image/jpeg", "content": "raw"},
+            },
+            "body.snippet.playlistId",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {
+                    "id": "playlist-image-123",
+                    "snippet": {"playlistId": "PL123"},
+                    "thumbnailReplacement": True,
+                },
+                "media": {"mimeType": "image/jpeg", "content": "raw"},
+            },
+            "body.thumbnailReplacement",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+            },
+            "media",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+                "media": {"mimeType": "image/gif", "content": "raw"},
+            },
+            "media.mimeType",
+        ),
+    ],
+)
+def test_playlist_images_update_validation_failures_are_safe(arguments, message):
+    """Map invalid update requests to safe validation errors without raw upload details."""
+    with pytest.raises(PlaylistImagesUpdateToolError) as exc_info:
+        validate_playlist_images_update_arguments(arguments)
 
     assert exc_info.value.category == "invalid_request"
     assert message in str(exc_info.value) or message in str(exc_info.value.details)
@@ -303,6 +519,60 @@ def test_playlist_images_insert_handler_sanitizes_upstream_failures(upstream_cat
             {
                 "part": "snippet",
                 "body": {"snippet": {"playlistId": "PL123"}},
+                "media": {"mimeType": "image/jpeg", "content": "raw"},
+            }
+        )
+
+    assert exc_info.value.category == expected_category
+    assert exc_info.value.details == {"field": "media"}
+
+
+@pytest.mark.parametrize(
+    ("upstream_category", "expected_category"),
+    [
+        ("authentication", "authentication_failed"),
+        ("auth", "authorization_failed"),
+        ("quota", "quota_exhausted"),
+        ("media_eligibility", "invalid_request"),
+        ("not_found", "resource_not_found"),
+        ("unavailable", "endpoint_unavailable"),
+        ("unexpected", "upstream_failure"),
+    ],
+)
+def test_playlist_images_update_handler_sanitizes_upstream_failures(upstream_category, expected_category):
+    """Map normalized update failures to safe categories and sanitized details."""
+    class FailingWrapper:
+        """Raise a normalized upstream error for update handler mapping coverage."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise an upstream failure containing unsafe diagnostic fields.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Arguments forwarded to Layer 1.
+            :param auth_context: OAuth auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this fake wrapper.
+            """
+            raise NormalizedUpstreamError(
+                message="playlist image update failed",
+                category=upstream_category,
+                retryable=False,
+                upstream_status=403,
+                details={
+                    "field": "media",
+                    "oauth_token": "secret",
+                    "raw_media": "binary-content",
+                    "raw_request": {"body": "unsafe"},
+                    "stack": "trace",
+                },
+            )
+
+    handler = build_playlist_images_update_handler(wrapper=FailingWrapper(), executor=object())
+
+    with pytest.raises(PlaylistImagesUpdateToolError) as exc_info:
+        handler(
+            {
+                "part": "snippet",
+                "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
                 "media": {"mimeType": "image/jpeg", "content": "raw"},
             }
         )
