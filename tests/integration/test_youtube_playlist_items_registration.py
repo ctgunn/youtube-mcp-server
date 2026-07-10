@@ -7,9 +7,11 @@ import pytest
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.playlist_items import (
+    PlaylistItemsDeleteToolError,
     PlaylistItemsInsertToolError,
     PlaylistItemsListToolError,
     PlaylistItemsUpdateToolError,
+    build_playlist_items_delete_tool_descriptor,
     build_playlist_items_insert_tool_descriptor,
     build_playlist_items_update_tool_descriptor,
     build_playlist_items_list_tool_descriptor,
@@ -58,6 +60,20 @@ def _register_playlist_items_update(**descriptor_kwargs) -> InMemoryToolDispatch
     return dispatcher
 
 
+def _register_playlist_items_delete(**descriptor_kwargs) -> InMemoryToolDispatcher:
+    """Register the concrete playlist-items delete tool in a fresh dispatcher."""
+    descriptor = build_playlist_items_delete_tool_descriptor(**descriptor_kwargs)
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
 def _insert_arguments(**overrides):
     """Build a representative ``playlistItems_insert`` dispatcher request."""
     arguments = {
@@ -88,6 +104,99 @@ def _update_arguments(**overrides):
     }
     arguments.update(overrides)
     return arguments
+
+
+def _delete_arguments(**overrides):
+    """Build a representative ``playlistItems_delete`` dispatcher request."""
+    arguments = {"id": "playlist-item-123"}
+    arguments.update(overrides)
+    return arguments
+
+
+def test_playlist_items_delete_descriptor_registers_as_executable_tool():
+    """Register and execute ``playlistItems_delete`` for playlist-item deletion."""
+    dispatcher = _register_playlist_items_delete()
+
+    result = dispatcher.call_tool("playlistItems_delete", _delete_arguments())
+
+    assert result == {
+        "endpoint": "playlistItems.delete",
+        "quotaCost": 50,
+        "target": {"id": "playlist-item-123"},
+        "auth": {"mode": "oauth_required"},
+        "deleted": True,
+        "acknowledged": True,
+    }
+
+
+def test_playlist_items_delete_default_registry_exposes_executable_tool():
+    """Expose ``playlistItems_delete`` in the default dispatcher registry."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlistItems_delete" in listed
+    metadata = listed["playlistItems_delete"]["metadata"]
+    assert metadata["upstream"]["operationKey"] == "playlistItems.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+
+    result = dispatcher.call_tool("playlistItems_delete", _delete_arguments())
+    assert result["endpoint"] == "playlistItems.delete"
+    assert result["acknowledged"] is True
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"id": ""},
+        {"id": 123},
+        {"id": "playlist-item-123", "part": "snippet"},
+        {"id": "playlist-item-123", "body": {}},
+        {"id": "playlist-item-123", "playlistId": "PL123"},
+    ],
+)
+def test_playlist_items_delete_descriptor_rejects_invalid_requests(arguments):
+    """Reject malformed delete calls through dispatcher-safe validation."""
+    dispatcher = _register_playlist_items_delete()
+
+    with pytest.raises((PlaylistItemsDeleteToolError, ValueError)):
+        dispatcher.call_tool("playlistItems_delete", arguments)
+
+
+def test_playlist_items_delete_descriptor_rejects_missing_oauth_access():
+    """Surface missing OAuth access as a safe delete authentication failure."""
+    with pytest.raises(PlaylistItemsDeleteToolError) as exc_info:
+        _register_playlist_items_delete(oauth_token=None)
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"field": "auth", "authMode": "oauth_required"}
+
+
+def test_playlist_items_delete_descriptor_maps_safe_upstream_failure():
+    """Surface safe errors from registered ``playlistItems_delete`` calls."""
+
+    class FailingWrapper:
+        """Raise a normalized missing-resource failure during wrapper execution."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise the configured missing-resource failure."""
+            raise NormalizedUpstreamError(
+                "not found",
+                "not_found",
+                False,
+                404,
+                {"oauth_token": "secret", "resource": "playlistItem"},
+            )
+
+    dispatcher = _register_playlist_items_delete(wrapper=FailingWrapper())
+
+    with pytest.raises(PlaylistItemsDeleteToolError) as exc_info:
+        dispatcher.call_tool("playlistItems_delete", _delete_arguments())
+
+    assert exc_info.value.category == "resource_not_found"
+    assert exc_info.value.details == {"resource": "playlistItem"}
 
 
 def test_playlist_items_update_descriptor_registers_as_executable_tool():

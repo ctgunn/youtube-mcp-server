@@ -9,6 +9,7 @@ from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.playlist_items import (
+    build_playlist_items_delete_wrapper,
     build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
     build_playlist_items_update_wrapper,
@@ -29,6 +30,8 @@ PLAYLIST_ITEMS_INSERT_SUPPORTED_PARTS = ("snippet",)
 PLAYLIST_ITEMS_UPDATE_TOOL_NAME = "playlistItems_update"
 PLAYLIST_ITEMS_UPDATE_QUOTA_COST = 50
 PLAYLIST_ITEMS_UPDATE_SUPPORTED_PARTS = ("snippet",)
+PLAYLIST_ITEMS_DELETE_TOOL_NAME = "playlistItems_delete"
+PLAYLIST_ITEMS_DELETE_QUOTA_COST = 50
 
 PLAYLIST_ITEMS_LIST_INPUT_SCHEMA = {
     "type": "object",
@@ -109,6 +112,13 @@ PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA = {
             "additionalProperties": False,
         },
     },
+    "additionalProperties": False,
+}
+
+PLAYLIST_ITEMS_DELETE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["id"],
+    "properties": {"id": {"type": "string", "minLength": 1}},
     "additionalProperties": False,
 }
 
@@ -548,6 +558,91 @@ PLAYLIST_ITEMS_UPDATE_CALLER_EXAMPLES = (
     },
 )
 
+PLAYLIST_ITEMS_DELETE_DESCRIPTION = (
+    "Delete a YouTube playlist item. Endpoint: playlistItems.delete. "
+    "Quota cost: 50. Auth: oauth_required. Requires id and returns a no-body deletion acknowledgment."
+)
+
+PLAYLIST_ITEMS_DELETE_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide only id for the playlist item to delete.",
+    "Quota cost: 50. A successful playlistItems.delete call returns no returned resource body upstream.",
+    "Quota cost: 50. The public result is a safe no-body acknowledgment with target.id, deleted, and acknowledged.",
+    "Quota cost: 50. Use playlistItems_list for playlist item listing before destructive deletion when needed.",
+)
+
+PLAYLIST_ITEMS_DELETE_CAVEATS = (
+    "playlistItems_delete is destructive and deletes one playlist item through playlistItems.delete.",
+    "This tool requires OAuth authorization and does not accept request body, part, playlist metadata, or paging fields.",
+    "Successful upstream deletion has no returned resource body; deleted playlist item resources are not fabricated.",
+    "playlist item listing, insertion, update, playlist search, video enrichment, analytics, ranking, summarization, "
+    "recommendation, automated curation, and cross-endpoint aggregation are out of scope.",
+)
+
+PLAYLIST_ITEMS_DELETE_CALLER_EXAMPLES = (
+    {
+        "name": "oauth_playlist_item_deletion",
+        "description": "Quota cost: 50. Delete one playlist item by id with OAuth authorization.",
+        "arguments": {"id": "playlist-item-123"},
+        "result": {
+            "endpoint": "playlistItems.delete",
+            "quotaCost": 50,
+            "target": {"id": "playlist-item-123"},
+            "deleted": True,
+            "acknowledged": True,
+        },
+        "quotaCost": 50,
+    },
+    {
+        "name": "no_body_deletion_acknowledgment",
+        "description": "Quota cost: 50. Successful destructive deletion returns a no returned resource body acknowledgment.",
+        "arguments": {"id": "playlist-item-123"},
+        "result": {"acknowledged": True, "deleted": True, "target": {"id": "playlist-item-123"}},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_id",
+        "description": "Quota cost: 50. Reject delete requests missing the required id field.",
+        "arguments": {},
+        "error": {"category": "invalid_request", "field": "id"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "invalid_id",
+        "description": "Quota cost: 50. Reject blank or non-string playlist item id values.",
+        "arguments": {"id": ""},
+        "error": {"category": "invalid_request", "field": "id"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "unsupported_input",
+        "description": "Quota cost: 50. Reject part, body, playlist metadata, paging, or selector inputs for deletion.",
+        "arguments": {"id": "playlist-item-123", "part": "snippet"},
+        "error": {"category": "invalid_request", "field": "part"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "authorization_failure",
+        "description": "Quota cost: 50. Map missing or insufficient OAuth access to safe authentication failures.",
+        "arguments": {"id": "playlist-item-123"},
+        "error": {"category": "authentication_failed"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "quota_or_upstream_failure",
+        "description": "Quota cost: 50. Map quota, missing-resource, unavailable, or upstream delete failures safely.",
+        "arguments": {"id": "playlist-item-123"},
+        "error": {"category": "quota_exhausted"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "out_of_scope_playlist_management_request",
+        "description": "Quota cost: 50. Playlist-item listing, playlist management, video enrichment, and ranking are out of scope.",
+        "arguments": {"id": "playlist-item-123", "generatePlaylist": True},
+        "error": {"category": "invalid_request", "field": "generatePlaylist"},
+        "quotaCost": 50,
+    },
+)
+
 
 class PlaylistItemsListToolError(ValueError):
     """Represent a safe caller-facing ``playlistItems_list`` failure.
@@ -617,6 +712,32 @@ class PlaylistItemsUpdateToolError(ValueError):
         details: dict[str, Any] | None = None,
     ) -> None:
         """Initialize a sanitized playlist-items update tool error.
+
+        :param message: Human-readable failure summary.
+        :param category: Stable safe failure category.
+        :param details: Optional diagnostic details to sanitize before exposure.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = sanitize_error_details(details or {})
+
+
+class PlaylistItemsDeleteToolError(ValueError):
+    """Represent a safe caller-facing ``playlistItems_delete`` failure.
+
+    :param message: Human-readable failure summary.
+    :param category: Stable safe failure category.
+    :param details: Optional structured details with secret-bearing keys removed.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str = "invalid_request",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Initialize a sanitized playlist-items delete tool error.
 
         :param message: Human-readable failure summary.
         :param category: Stable safe failure category.
@@ -788,6 +909,36 @@ def _reject_update_unknown_fields(fields: set[str], allowed: set[str], prefix: s
         )
 
 
+def _require_delete_non_empty_string(value: Any, field: str) -> str:
+    """Validate and normalize a required string in a delete request.
+
+    :param value: Candidate string value.
+    :param field: Caller-facing field path.
+    :return: Trimmed non-empty string.
+    :raises PlaylistItemsDeleteToolError: If the value is missing, blank, or not a string.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise PlaylistItemsDeleteToolError(f"playlistItems_delete requires {field}", details={"field": field})
+    return value.strip()
+
+
+def _reject_delete_unknown_fields(fields: set[str], allowed: set[str], prefix: str) -> None:
+    """Reject unsupported fields in a playlist-item delete request object.
+
+    :param fields: Field names supplied by the caller.
+    :param allowed: Field names supported by the public delete contract.
+    :param prefix: Caller-facing field prefix.
+    :raises PlaylistItemsDeleteToolError: If an unsupported field is present.
+    """
+    unsupported = sorted(fields - allowed)
+    if unsupported:
+        field = f"{prefix}.{unsupported[0]}" if prefix else unsupported[0]
+        raise PlaylistItemsDeleteToolError(
+            f"unsupported field for playlistItems_delete: {field}",
+            details={"field": field},
+        )
+
+
 def validate_playlist_items_list_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     """Validate a ``playlistItems_list`` request and return normalized arguments.
 
@@ -932,6 +1083,20 @@ def validate_playlist_items_update_arguments(arguments: dict[str, Any]) -> dict[
     }
 
 
+def validate_playlist_items_delete_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate a ``playlistItems_delete`` request and return normalized arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized caller arguments for execution and result mapping.
+    :raises PlaylistItemsDeleteToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise PlaylistItemsDeleteToolError("playlistItems_delete arguments must be an object")
+
+    _reject_delete_unknown_fields(set(arguments), {"id"}, "")
+    return {"id": _require_delete_non_empty_string(arguments.get("id"), "id")}
+
+
 def map_playlist_items_list_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     """Map an upstream playlist-items payload to the public Layer 2 result.
 
@@ -1071,6 +1236,36 @@ def map_playlist_items_update_result(payload: dict[str, Any], arguments: dict[st
     return result
 
 
+def _playlist_items_delete_target_context(arguments: dict[str, Any]) -> dict[str, str]:
+    """Return safe playlist-item target context for a delete request.
+
+    :param arguments: Validated ``playlistItems_delete`` arguments.
+    :return: Safe target context with the playlist item identifier.
+    """
+    return {"id": arguments["id"]}
+
+
+def map_playlist_items_delete_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream playlist item deletion response to the public result.
+
+    :param payload: Upstream or Layer 1 playlist item delete payload, usually empty.
+    :param arguments: Validated caller arguments used for the request.
+    :return: Lightly reshaped no-body deletion acknowledgment.
+    """
+    normalized = validate_playlist_items_delete_arguments(arguments)
+    result: dict[str, Any] = {
+        "endpoint": "playlistItems.delete",
+        "quotaCost": PLAYLIST_ITEMS_DELETE_QUOTA_COST,
+        "target": _playlist_items_delete_target_context(normalized),
+        "auth": {"mode": "oauth_required"},
+        "deleted": True,
+        "acknowledged": True,
+    }
+    if "operationStatus" in payload:
+        result["operationStatus"] = payload["operationStatus"]
+    return result
+
+
 def _map_playlist_items_list_upstream_error(error: NormalizedUpstreamError) -> PlaylistItemsListToolError:
     """Map a normalized upstream failure to a safe ``playlistItems_list`` error.
 
@@ -1152,6 +1347,32 @@ def _map_playlist_items_update_upstream_error(error: NormalizedUpstreamError) ->
     return PlaylistItemsUpdateToolError(str(error), category=category, details=error.details)
 
 
+def _map_playlist_items_delete_upstream_error(error: NormalizedUpstreamError) -> PlaylistItemsDeleteToolError:
+    """Map a normalized upstream failure to a safe ``playlistItems_delete`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe tool error with shared category and sanitized details.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "policy_restricted": "authorization_failed",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "not_found": "resource_not_found",
+        "resource_not_found": "resource_not_found",
+        "unavailable": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+        "transient": "endpoint_unavailable",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return PlaylistItemsDeleteToolError(str(error), category=category, details=error.details)
+
+
 def _playlist_items_list_access_context(api_key: str | None) -> AuthContext:
     """Build the API-key auth context for ``playlistItems_list``.
 
@@ -1200,6 +1421,25 @@ def _playlist_items_update_auth_context(oauth_token: str | None) -> AuthContext:
     if not isinstance(oauth_token, str) or not oauth_token.strip():
         raise PlaylistItemsUpdateToolError(
             "playlistItems_update requires OAuth authorization",
+            category="authentication_failed",
+            details={"field": "auth", "authMode": "oauth_required"},
+        )
+    return AuthContext(
+        mode=Layer1AuthMode.OAUTH_REQUIRED,
+        credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+    )
+
+
+def _playlist_items_delete_auth_context(oauth_token: str | None) -> AuthContext:
+    """Build the OAuth-required auth context for ``playlistItems_delete``.
+
+    :param oauth_token: OAuth token used for playlist-item deletion.
+    :return: Layer 1 auth context configured for OAuth-required execution.
+    :raises PlaylistItemsDeleteToolError: If no OAuth token is available.
+    """
+    if not isinstance(oauth_token, str) or not oauth_token.strip():
+        raise PlaylistItemsDeleteToolError(
+            "playlistItems_delete requires OAuth authorization",
             category="authentication_failed",
             details={"field": "auth", "authMode": "oauth_required"},
         )
@@ -1423,6 +1663,74 @@ def build_playlist_items_update_contract() -> YouTubeToolContract:
     )
 
 
+def build_playlist_items_delete_contract() -> YouTubeToolContract:
+    """Build the public contract for ``playlistItems_delete``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.LIGHTLY_RESHAPED,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "quotaCost",
+            "target",
+            "auth",
+            "deleted",
+            "acknowledged",
+            "operationStatus",
+        ),
+        preserved_upstream_fields=("operationStatus",),
+        disallowed_behavior=(
+            "playlist_item_listing",
+            "playlist_item_insertion",
+            "playlist_item_update",
+            "playlist_search",
+            "playlist_generation",
+            "video_enrichment",
+            "transcript_retrieval",
+            "analytics",
+            "recommendation",
+            "ranking",
+            "summarization",
+            "automated_curation",
+            "cross_endpoint_aggregation",
+            "resource_fabrication",
+        ),
+    )
+    return YouTubeToolContract(
+        tool_name=PLAYLIST_ITEMS_DELETE_TOOL_NAME,
+        upstream_resource="playlistItems",
+        upstream_method="delete",
+        operation_key="playlistItems.delete",
+        description=PLAYLIST_ITEMS_DELETE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=PLAYLIST_ITEMS_DELETE_QUOTA_COST,
+        resource_family="playlist_items",
+        input_contract=PLAYLIST_ITEMS_DELETE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "mutation_acknowledgment",
+            "successStatus": 204,
+            "bodyPolicy": "no_upstream_body",
+            "targetFields": ["id"],
+            "acknowledgmentFields": ["deleted", "acknowledged"],
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "deprecated_endpoint",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=PLAYLIST_ITEMS_DELETE_USAGE_NOTES,
+        caveats=PLAYLIST_ITEMS_DELETE_CAVEATS,
+    )
+
+
 def _default_playlist_items_list_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default playlist-item calls.
 
@@ -1522,6 +1830,23 @@ def _default_playlist_items_update_executor() -> IntegrationExecutor:
             "contentDetails": {"videoId": resource_id.get("videoId", "video-123")},
             "status": {"privacyStatus": "public"},
         }
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _default_playlist_items_delete_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default playlist item deletes.
+
+    :return: Integration executor returning representative no-body deletion data.
+    """
+
+    def transport(execution):
+        """Return a representative deletion acknowledgment payload.
+
+        :param execution: Request execution context.
+        :return: Fake upstream no-body response for local invocation.
+        """
+        return {}
 
     return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
 
@@ -1658,6 +1983,50 @@ def build_playlist_items_update_handler(
     return handler
 
 
+def build_playlist_items_delete_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``playlistItems_delete``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used to construct safe auth context.
+    :return: Callable that validates, executes, and maps playlist-item delete requests.
+    """
+    selected_wrapper = wrapper or build_playlist_items_delete_wrapper()
+    selected_executor = executor or _default_playlist_items_delete_executor()
+    auth_context = _playlist_items_delete_auth_context(oauth_token)
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``playlistItems_delete`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 playlist-item delete acknowledgment.
+        :raises PlaylistItemsDeleteToolError: If validation or execution fails.
+        """
+        normalized = validate_playlist_items_delete_arguments(arguments)
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_playlist_items_delete_upstream_error(exc) from exc
+        except ValueError as exc:
+            raise PlaylistItemsDeleteToolError(
+                str(exc),
+                category="invalid_request",
+                details={"operation": "playlistItems.delete"},
+            ) from exc
+        return map_playlist_items_delete_result(payload, normalized)
+
+    return handler
+
+
 def build_playlist_items_list_tool_descriptor(
     *,
     wrapper=None,
@@ -1733,7 +2102,39 @@ def build_playlist_items_update_tool_descriptor(
     }
 
 
+def build_playlist_items_delete_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``playlistItems_delete``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_playlist_items_delete_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(PLAYLIST_ITEMS_DELETE_CALLER_EXAMPLES)
+    return {
+        "name": PLAYLIST_ITEMS_DELETE_TOOL_NAME,
+        "description": PLAYLIST_ITEMS_DELETE_DESCRIPTION,
+        "inputSchema": PLAYLIST_ITEMS_DELETE_INPUT_SCHEMA,
+        "handler": build_playlist_items_delete_handler(wrapper=wrapper, executor=executor, oauth_token=oauth_token),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
+    "PLAYLIST_ITEMS_DELETE_CALLER_EXAMPLES",
+    "PLAYLIST_ITEMS_DELETE_CAVEATS",
+    "PLAYLIST_ITEMS_DELETE_DESCRIPTION",
+    "PLAYLIST_ITEMS_DELETE_INPUT_SCHEMA",
+    "PLAYLIST_ITEMS_DELETE_QUOTA_COST",
+    "PLAYLIST_ITEMS_DELETE_TOOL_NAME",
+    "PLAYLIST_ITEMS_DELETE_USAGE_NOTES",
     "PLAYLIST_ITEMS_INSERT_CALLER_EXAMPLES",
     "PLAYLIST_ITEMS_INSERT_CAVEATS",
     "PLAYLIST_ITEMS_INSERT_DESCRIPTION",
@@ -1760,9 +2161,13 @@ __all__ = [
     "PLAYLIST_ITEMS_LIST_SUPPORTED_PARTS",
     "PLAYLIST_ITEMS_LIST_TOOL_NAME",
     "PLAYLIST_ITEMS_LIST_USAGE_NOTES",
+    "PlaylistItemsDeleteToolError",
     "PlaylistItemsInsertToolError",
     "PlaylistItemsListToolError",
     "PlaylistItemsUpdateToolError",
+    "build_playlist_items_delete_contract",
+    "build_playlist_items_delete_handler",
+    "build_playlist_items_delete_tool_descriptor",
     "build_playlist_items_insert_contract",
     "build_playlist_items_insert_handler",
     "build_playlist_items_insert_tool_descriptor",
@@ -1772,9 +2177,11 @@ __all__ = [
     "build_playlist_items_list_contract",
     "build_playlist_items_list_handler",
     "build_playlist_items_list_tool_descriptor",
+    "map_playlist_items_delete_result",
     "map_playlist_items_insert_result",
     "map_playlist_items_update_result",
     "map_playlist_items_list_result",
+    "validate_playlist_items_delete_arguments",
     "validate_playlist_items_insert_arguments",
     "validate_playlist_items_update_arguments",
     "validate_playlist_items_list_arguments",

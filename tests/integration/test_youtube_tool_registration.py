@@ -747,6 +747,29 @@ def test_default_registry_includes_executable_playlist_items_update_tool_with_up
     assert "playlist item listing" in metadata_text
 
 
+def test_default_registry_includes_executable_playlist_items_delete_tool_with_delete_metadata():
+    """Register ``playlistItems_delete`` by default with destructive delete metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlistItems_delete" in listed
+    metadata = listed["playlistItems_delete"]["metadata"]
+    description = listed["playlistItems_delete"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "playlistItems.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert metadata["inputContract"]["properties"] == {"id": {"type": "string", "minLength": 1}}
+    assert metadata["responseConvention"]["resultKind"] == "mutation_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert "OAuth" in metadata_text or "oauth_required" in metadata_text
+    assert "destructive" in metadata_text
+    assert "playlist item listing" in metadata_text or "playlist-item listing" in metadata_text
+
+
 def test_default_registry_includes_executable_channels_update_tool_with_update_metadata():
     """Register ``channels_update`` by default with writable update metadata."""
     dispatcher = InMemoryToolDispatcher()

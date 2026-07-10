@@ -16,6 +16,13 @@ from mcp_server.tools.youtube_common.playlist_items import (
     PLAYLIST_ITEMS_INSERT_SUPPORTED_PARTS,
     PLAYLIST_ITEMS_INSERT_TOOL_NAME,
     PLAYLIST_ITEMS_INSERT_USAGE_NOTES,
+    PLAYLIST_ITEMS_DELETE_CALLER_EXAMPLES,
+    PLAYLIST_ITEMS_DELETE_CAVEATS,
+    PLAYLIST_ITEMS_DELETE_DESCRIPTION,
+    PLAYLIST_ITEMS_DELETE_INPUT_SCHEMA,
+    PLAYLIST_ITEMS_DELETE_QUOTA_COST,
+    PLAYLIST_ITEMS_DELETE_TOOL_NAME,
+    PLAYLIST_ITEMS_DELETE_USAGE_NOTES,
     PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA,
     PLAYLIST_ITEMS_UPDATE_CALLER_EXAMPLES,
     PLAYLIST_ITEMS_UPDATE_CAVEATS,
@@ -32,8 +39,12 @@ from mcp_server.tools.youtube_common.playlist_items import (
     PLAYLIST_ITEMS_LIST_SUPPORTED_PARTS,
     PLAYLIST_ITEMS_LIST_TOOL_NAME,
     PLAYLIST_ITEMS_LIST_USAGE_NOTES,
+    PlaylistItemsDeleteToolError,
     PlaylistItemsInsertToolError,
     PlaylistItemsListToolError,
+    build_playlist_items_delete_contract,
+    build_playlist_items_delete_handler,
+    build_playlist_items_delete_tool_descriptor,
     build_playlist_items_insert_contract,
     build_playlist_items_insert_handler,
     build_playlist_items_insert_tool_descriptor,
@@ -42,6 +53,7 @@ from mcp_server.tools.youtube_common.playlist_items import (
     build_playlist_items_list_contract,
     build_playlist_items_list_handler,
     build_playlist_items_list_tool_descriptor,
+    validate_playlist_items_delete_arguments,
     validate_playlist_items_insert_arguments,
     validate_playlist_items_list_arguments,
 )
@@ -75,6 +87,155 @@ def test_playlist_items_update_public_symbols_are_exported():
     assert PLAYLIST_ITEMS_UPDATE_TOOL_NAME == "playlistItems_update"
     assert PLAYLIST_ITEMS_UPDATE_QUOTA_COST == 50
     assert callable(playlist_items.build_playlist_items_update_tool_descriptor)
+
+
+def test_playlist_items_delete_public_symbols_are_exported():
+    """Expose ``playlistItems_delete`` symbols from the shared package."""
+    from mcp_server.tools.youtube_common import playlist_items
+
+    assert youtube_common.PLAYLIST_ITEMS_DELETE_TOOL_NAME == "playlistItems_delete"
+    assert PLAYLIST_ITEMS_DELETE_TOOL_NAME == "playlistItems_delete"
+    assert PLAYLIST_ITEMS_DELETE_QUOTA_COST == 50
+    assert PLAYLIST_ITEMS_DELETE_INPUT_SCHEMA["required"] == ["id"]
+    assert PlaylistItemsDeleteToolError is playlist_items.PlaylistItemsDeleteToolError
+    assert callable(playlist_items.build_playlist_items_delete_tool_descriptor)
+
+
+def test_playlist_items_delete_schema_requires_only_identifier():
+    """Expose the destructive delete request shape for ``playlistItems_delete``."""
+    assert PLAYLIST_ITEMS_DELETE_INPUT_SCHEMA == {
+        "type": "object",
+        "required": ["id"],
+        "properties": {"id": {"type": "string", "minLength": 1}},
+        "additionalProperties": False,
+    }
+
+
+def test_playlist_items_delete_public_contract_identifies_endpoint():
+    """Expose endpoint identity, quota, OAuth, availability, and delete metadata."""
+    contract = build_playlist_items_delete_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["name"] == "playlistItems_delete"
+    assert metadata["upstream"]["operationKey"] == "playlistItems.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert metadata["inputContract"]["properties"] == {"id": {"type": "string", "minLength": 1}}
+    assert metadata["responseConvention"]["resultKind"] == "mutation_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert metadata["responseBoundary"]["boundaryKind"] == "lightly_reshaped"
+
+
+def test_playlist_items_delete_metadata_describes_quota_oauth_id_and_boundaries():
+    """Keep caller-facing delete metadata complete before invocation."""
+    descriptor = build_playlist_items_delete_tool_descriptor()
+    metadata = descriptor["metadata"]
+    metadata_text = " ".join(
+        [
+            descriptor["description"],
+            *metadata["usageNotes"],
+            *metadata["caveats"],
+            *[example["description"] for example in metadata["examples"]],
+        ]
+    )
+
+    assert descriptor["name"] == "playlistItems_delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text or "oauth_required" in metadata_text
+    assert "id" in metadata_text
+    assert "destructive" in metadata_text
+    assert "no returned resource body" in metadata_text or "no-body" in metadata_text
+    assert "playlist-item listing" in metadata_text or "playlist item listing" in metadata_text
+    assert "video enrichment" in metadata_text
+    assert metadata["examples"] == list(PLAYLIST_ITEMS_DELETE_CALLER_EXAMPLES)
+    assert PLAYLIST_ITEMS_DELETE_DESCRIPTION in descriptor["description"]
+    assert metadata["usageNotes"] == list(PLAYLIST_ITEMS_DELETE_USAGE_NOTES)
+    assert metadata["caveats"] == list(PLAYLIST_ITEMS_DELETE_CAVEATS)
+
+
+def test_playlist_items_delete_examples_cover_safe_failure_boundaries():
+    """Expose delete examples for validation, authorization, quota, and scope failures."""
+    descriptor = build_playlist_items_delete_tool_descriptor()
+    examples = {example["name"]: example for example in descriptor["metadata"]["examples"]}
+
+    assert examples["oauth_playlist_item_deletion"]["result"]["deleted"] is True
+    assert examples["no_body_deletion_acknowledgment"]["result"]["acknowledged"] is True
+    assert examples["missing_id"]["error"]["field"] == "id"
+    assert examples["invalid_id"]["error"]["category"] == "invalid_request"
+    assert examples["unsupported_input"]["error"]["category"] == "invalid_request"
+    assert examples["authorization_failure"]["error"]["category"] == "authentication_failed"
+    assert examples["quota_or_upstream_failure"]["error"]["category"] == "quota_exhausted"
+    assert examples["out_of_scope_playlist_management_request"]["error"]["category"] == "invalid_request"
+
+
+def test_playlist_items_delete_descriptor_returns_safe_acknowledgment_shape():
+    """Keep the successful delete result bounded to acknowledgment fields."""
+    descriptor = build_playlist_items_delete_tool_descriptor()
+    result = descriptor["handler"]({"id": "playlist-item-123"})
+
+    assert result == {
+        "endpoint": "playlistItems.delete",
+        "quotaCost": 50,
+        "target": {"id": "playlist-item-123"},
+        "auth": {"mode": "oauth_required"},
+        "deleted": True,
+        "acknowledged": True,
+    }
+    assert "item" not in result
+    assert "items" not in result
+    assert "snippet" not in result
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({}, "id"),
+        ({"id": ""}, "id"),
+        ({"id": 123}, "id"),
+        ({"id": "playlist-item-123", "part": "snippet"}, "part"),
+        ({"id": "playlist-item-123", "body": {"snippet": {}}}, "body"),
+        ({"id": "playlist-item-123", "playlistId": "PL123"}, "playlistId"),
+        ({"id": "playlist-item-123", "pageToken": "NEXT"}, "pageToken"),
+    ],
+)
+def test_playlist_items_delete_validation_failures_are_safe(arguments, field):
+    """Reject invalid delete requests with non-sensitive field details."""
+    with pytest.raises(PlaylistItemsDeleteToolError) as exc_info:
+        validate_playlist_items_delete_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details == {"field": field}
+
+
+def test_playlist_items_delete_handler_sanitizes_upstream_failure_details():
+    """Keep upstream delete failures safe for contract callers."""
+
+    class FailingWrapper:
+        """Raise a normalized delete quota failure during wrapper execution."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise the configured quota failure with sensitive details present."""
+            raise NormalizedUpstreamError(
+                "quota",
+                "quota",
+                True,
+                429,
+                {"quota": "daily", "oauth_token": "secret", "raw_request": {"id": "playlist-item-123"}},
+            )
+
+    handler = build_playlist_items_delete_handler(wrapper=FailingWrapper())
+
+    with pytest.raises(PlaylistItemsDeleteToolError) as exc_info:
+        handler({"id": "playlist-item-123"})
+
+    assert exc_info.value.category == "quota_exhausted"
+    assert exc_info.value.details == {"quota": "daily"}
 
 
 def test_playlist_items_update_schema_preserves_body_inputs():
