@@ -723,6 +723,30 @@ def test_default_registry_includes_executable_playlist_items_insert_tool_with_in
     assert "playlist item listing" in metadata_text
 
 
+def test_default_registry_includes_executable_playlist_items_update_tool_with_update_metadata():
+    """Register ``playlistItems_update`` by default with update metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlistItems_update" in listed
+    metadata = listed["playlistItems_update"]["metadata"]
+    description = listed["playlistItems_update"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "playlistItems.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert {"part", "body"}.issubset(metadata["inputContract"]["properties"])
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert "OAuth" in metadata_text or "oauth_required" in metadata_text
+    assert "body.id" in metadata_text
+    assert "body.snippet.playlistId" in metadata_text
+    assert "body.snippet.resourceId.videoId" in metadata_text
+    assert "playlist item listing" in metadata_text
+
+
 def test_default_registry_includes_executable_channels_update_tool_with_update_metadata():
     """Register ``channels_update`` by default with writable update metadata."""
     dispatcher = InMemoryToolDispatcher()

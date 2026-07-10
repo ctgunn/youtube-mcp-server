@@ -16,6 +16,14 @@ from mcp_server.tools.youtube_common.playlist_items import (
     PLAYLIST_ITEMS_INSERT_SUPPORTED_PARTS,
     PLAYLIST_ITEMS_INSERT_TOOL_NAME,
     PLAYLIST_ITEMS_INSERT_USAGE_NOTES,
+    PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA,
+    PLAYLIST_ITEMS_UPDATE_CALLER_EXAMPLES,
+    PLAYLIST_ITEMS_UPDATE_CAVEATS,
+    PLAYLIST_ITEMS_UPDATE_DESCRIPTION,
+    PLAYLIST_ITEMS_UPDATE_QUOTA_COST,
+    PLAYLIST_ITEMS_UPDATE_SUPPORTED_PARTS,
+    PLAYLIST_ITEMS_UPDATE_TOOL_NAME,
+    PLAYLIST_ITEMS_UPDATE_USAGE_NOTES,
     PLAYLIST_ITEMS_LIST_CALLER_EXAMPLES,
     PLAYLIST_ITEMS_LIST_CAVEATS,
     PLAYLIST_ITEMS_LIST_DESCRIPTION,
@@ -29,6 +37,8 @@ from mcp_server.tools.youtube_common.playlist_items import (
     build_playlist_items_insert_contract,
     build_playlist_items_insert_handler,
     build_playlist_items_insert_tool_descriptor,
+    build_playlist_items_update_contract,
+    build_playlist_items_update_tool_descriptor,
     build_playlist_items_list_contract,
     build_playlist_items_list_handler,
     build_playlist_items_list_tool_descriptor,
@@ -55,6 +65,101 @@ def test_playlist_items_insert_public_symbols_are_exported():
     assert PLAYLIST_ITEMS_INSERT_TOOL_NAME == "playlistItems_insert"
     assert PLAYLIST_ITEMS_INSERT_QUOTA_COST == 50
     assert callable(playlist_items.build_playlist_items_insert_tool_descriptor)
+
+
+def test_playlist_items_update_public_symbols_are_exported():
+    """Expose ``playlistItems_update`` symbols from the shared package."""
+    from mcp_server.tools.youtube_common import playlist_items
+
+    assert youtube_common.PLAYLIST_ITEMS_UPDATE_TOOL_NAME == "playlistItems_update"
+    assert PLAYLIST_ITEMS_UPDATE_TOOL_NAME == "playlistItems_update"
+    assert PLAYLIST_ITEMS_UPDATE_QUOTA_COST == 50
+    assert callable(playlist_items.build_playlist_items_update_tool_descriptor)
+
+
+def test_playlist_items_update_schema_preserves_body_inputs():
+    """Expose the upstream-like mutation request fields for ``playlistItems_update``."""
+    properties = PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA["properties"]
+    body = properties["body"]
+    snippet = body["properties"]["snippet"]
+    resource_id = snippet["properties"]["resourceId"]
+
+    assert PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA["required"] == ["part", "body"]
+    assert properties["part"] == {"type": "string", "minLength": 1, "enum": list(PLAYLIST_ITEMS_UPDATE_SUPPORTED_PARTS)}
+    assert body["required"] == ["id", "snippet"]
+    assert body["properties"]["id"] == {"type": "string", "minLength": 1}
+    assert snippet["required"] == ["playlistId", "resourceId"]
+    assert snippet["properties"]["playlistId"] == {"type": "string", "minLength": 1}
+    assert "position" not in snippet["properties"]
+    assert resource_id["required"] == ["videoId"]
+    assert resource_id["properties"]["videoId"] == {"type": "string", "minLength": 1}
+    assert resource_id["properties"]["kind"] == {"type": "string", "enum": ["youtube#video"]}
+    assert PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_playlist_items_update_public_contract_identifies_endpoint():
+    """Expose endpoint identity, quota, OAuth, availability, and update metadata."""
+    contract = build_playlist_items_update_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["name"] == "playlistItems_update"
+    assert metadata["upstream"]["operationKey"] == "playlistItems.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert {"part", "body"}.issubset(metadata["inputContract"]["properties"])
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert metadata["responseConvention"]["resourcePath"] == "item"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+
+
+def test_playlist_items_update_metadata_describes_quota_oauth_body_and_boundaries():
+    """Keep caller-facing update metadata complete before invocation."""
+    descriptor = build_playlist_items_update_tool_descriptor()
+    metadata = descriptor["metadata"]
+    metadata_text = " ".join(
+        [
+            descriptor["description"],
+            *metadata["usageNotes"],
+            *metadata["caveats"],
+            *[example["description"] for example in metadata["examples"]],
+        ]
+    )
+
+    assert descriptor["name"] == "playlistItems_update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text or "oauth_required" in metadata_text
+    assert "body.id" in metadata_text
+    assert "body.snippet.playlistId" in metadata_text
+    assert "body.snippet.resourceId.videoId" in metadata_text
+    assert "playlist item listing" in metadata_text
+    assert "video enrichment" in metadata_text
+    assert metadata["examples"] == list(PLAYLIST_ITEMS_UPDATE_CALLER_EXAMPLES)
+    assert PLAYLIST_ITEMS_UPDATE_DESCRIPTION in descriptor["description"]
+    assert metadata["usageNotes"] == list(PLAYLIST_ITEMS_UPDATE_USAGE_NOTES)
+    assert metadata["caveats"] == list(PLAYLIST_ITEMS_UPDATE_CAVEATS)
+
+
+def test_playlist_items_update_examples_cover_safe_failure_boundaries():
+    """Expose update examples for validation, authorization, quota, and scope failures."""
+    descriptor = build_playlist_items_update_tool_descriptor()
+    examples = {example["name"]: example for example in descriptor["metadata"]["examples"]}
+
+    assert examples["missing_part"]["error"]["category"] == "invalid_request"
+    assert examples["invalid_part"]["error"]["category"] == "invalid_request"
+    assert examples["missing_target_identity"]["error"]["field"] == "body.id"
+    assert examples["missing_playlist_id"]["error"]["field"] == "body.snippet.playlistId"
+    assert examples["missing_video_reference"]["error"]["field"] == "body.snippet.resourceId.videoId"
+    assert examples["invalid_body"]["error"]["category"] == "invalid_request"
+    assert examples["unsupported_writable_field"]["error"]["field"] == "body.snippet.position"
+    assert examples["authorization_failure"]["error"]["category"] == "authentication_failed"
+    assert examples["quota_or_upstream_failure"]["error"]["category"] == "quota_exhausted"
+    assert examples["out_of_scope_playlist_management_request"]["error"]["category"] == "invalid_request"
 
 
 def test_playlist_items_insert_schema_preserves_body_inputs():

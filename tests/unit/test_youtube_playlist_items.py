@@ -7,16 +7,22 @@ import pytest
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.youtube_common.playlist_items import (
     PLAYLIST_ITEMS_INSERT_INPUT_SCHEMA,
+    PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA,
     PlaylistItemsInsertToolError,
     PLAYLIST_ITEMS_LIST_INPUT_SCHEMA,
     PlaylistItemsListToolError,
+    PlaylistItemsUpdateToolError,
     build_playlist_items_insert_handler,
     build_playlist_items_insert_tool_descriptor,
+    build_playlist_items_update_handler,
+    build_playlist_items_update_tool_descriptor,
     build_playlist_items_list_handler,
     build_playlist_items_list_tool_descriptor,
     map_playlist_items_insert_result,
+    map_playlist_items_update_result,
     map_playlist_items_list_result,
     validate_playlist_items_insert_arguments,
+    validate_playlist_items_update_arguments,
     validate_playlist_items_list_arguments,
 )
 
@@ -74,6 +80,30 @@ class FakePlaylistItemsInsertWrapper:
         return self.response
 
 
+class FakePlaylistItemsUpdateWrapper:
+    """Capture wrapper calls for ``playlistItems_update`` tests."""
+
+    def __init__(self, response: dict | None = None):
+        """Initialize the fake wrapper call log and response."""
+        self.calls = []
+        self.response = response or {
+            "kind": "youtube#playlistItem",
+            "etag": "etag-playlist-item",
+            "id": "playlist-item-123",
+            "snippet": {
+                "playlistId": "PL123",
+                "resourceId": {"kind": "youtube#video", "videoId": "video-123"},
+                "title": "Representative playlist item",
+            },
+            "contentDetails": {"videoId": "video-123"},
+        }
+
+    def call(self, executor, *, arguments, auth_context):
+        """Record call arguments and return the configured response."""
+        self.calls.append((executor, arguments, auth_context))
+        return self.response
+
+
 def _insert_arguments(**overrides):
     """Build a representative ``playlistItems_insert`` request."""
     arguments = {
@@ -88,6 +118,275 @@ def _insert_arguments(**overrides):
     }
     arguments.update(overrides)
     return arguments
+
+
+def _update_arguments(**overrides):
+    """Build a representative ``playlistItems_update`` request."""
+    arguments = {
+        "part": "snippet",
+        "body": {
+            "id": "playlist-item-123",
+            "snippet": {
+                "playlistId": "PL123",
+                "resourceId": {"kind": "youtube#video", "videoId": "video-123"},
+            },
+        },
+    }
+    arguments.update(overrides)
+    return arguments
+
+
+def test_playlist_items_update_schema_preserves_required_body_inputs():
+    """Expose required part, target identity, and playlist/video update fields."""
+    properties = PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA["properties"]
+    body = properties["body"]
+    snippet = body["properties"]["snippet"]
+    resource_id = snippet["properties"]["resourceId"]
+
+    assert PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA["required"] == ["part", "body"]
+    assert {"part", "body"}.issubset(properties)
+    assert body["required"] == ["id", "snippet"]
+    assert snippet["required"] == ["playlistId", "resourceId"]
+    assert resource_id["required"] == ["videoId"]
+    assert "position" not in snippet["properties"]
+
+
+def test_validate_playlist_items_update_arguments_accepts_supported_request():
+    """Accept and normalize a supported playlist-item update request."""
+    selected = validate_playlist_items_update_arguments(
+        {
+            "part": " snippet ",
+            "body": {
+                "id": " playlist-item-123 ",
+                "snippet": {
+                    "playlistId": " PL123 ",
+                    "resourceId": {"kind": "youtube#video", "videoId": " video-123 "},
+                },
+            },
+        }
+    )
+
+    assert selected == _update_arguments()
+
+
+def test_map_playlist_items_update_result_preserves_resource_and_context():
+    """Map upstream playlist item update into a safe near-raw mutation result."""
+    result = map_playlist_items_update_result(
+        {
+            "kind": "youtube#playlistItem",
+            "etag": "etag-item",
+            "id": "playlist-item-123",
+            "snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}},
+            "contentDetails": {"videoId": "video-123"},
+        },
+        _update_arguments(),
+    )
+
+    assert result["endpoint"] == "playlistItems.update"
+    assert result["quotaCost"] == 50
+    assert result["updated"] is True
+    assert result["requestedParts"] == ["snippet"]
+    assert result["target"] == {"playlistItemId": "playlist-item-123", "playlistId": "PL123", "videoId": "video-123", "resourceKind": "youtube#video"}
+    assert result["update"] == {"playlistId": "PL123", "videoId": "video-123", "resourceKind": "youtube#video"}
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["item"]["id"] == "playlist-item-123"
+    assert result["kind"] == "youtube#playlistItem"
+    assert result["etag"] == "etag-item"
+
+
+def test_playlist_items_update_handler_forwards_oauth_context_to_layer1_wrapper():
+    """Validate, execute, and map one update request through Layer 1."""
+    wrapper = FakePlaylistItemsUpdateWrapper()
+    executor = object()
+    handler = build_playlist_items_update_handler(wrapper=wrapper, executor=executor, oauth_token="local-oauth-token")
+
+    result = handler(_update_arguments())
+
+    assert result["endpoint"] == "playlistItems.update"
+    assert result["item"]["id"] == "playlist-item-123"
+    assert wrapper.calls[0][0] is executor
+    assert wrapper.calls[0][1] == _update_arguments()
+    assert wrapper.calls[0][2].mode.value == "oauth_required"
+    assert wrapper.calls[0][2].credentials.oauth_token == "local-oauth-token"
+    assert "local-oauth-token" not in str(result)
+
+
+def test_playlist_items_update_descriptor_includes_handler_metadata_and_examples():
+    """Expose dispatcher-ready update descriptor metadata and examples."""
+    descriptor = build_playlist_items_update_tool_descriptor(wrapper=FakePlaylistItemsUpdateWrapper())
+
+    assert descriptor["name"] == "playlistItems_update"
+    assert descriptor["inputSchema"] == PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA
+    assert callable(descriptor["handler"])
+    assert descriptor["metadata"]["upstream"]["operationKey"] == "playlistItems.update"
+    assert descriptor["metadata"]["quotaCost"] == 50
+    assert descriptor["metadata"]["authMode"] == "oauth_required"
+    assert descriptor["metadata"]["examples"]
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        (
+            {
+                "body": {
+                    "id": "playlist-item-123",
+                    "snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}},
+                }
+            },
+            "part",
+        ),
+        (
+            {
+                "part": "statistics",
+                "body": {
+                    "id": "playlist-item-123",
+                    "snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}},
+                },
+            },
+            "part",
+        ),
+        ({"part": "snippet"}, "body"),
+        ({"part": "snippet", "body": []}, "body"),
+        (
+            {
+                "part": "snippet",
+                "body": {"snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}}},
+            },
+            "body.id",
+        ),
+        ({"part": "snippet", "body": {"id": "playlist-item-123"}}, "body.snippet"),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "playlist-item-123", "snippet": {"resourceId": {"videoId": "video-123"}}},
+            },
+            "body.snippet.playlistId",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "playlist-item-123", "snippet": {"playlistId": "PL123"}},
+            },
+            "body.snippet.resourceId",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"id": "playlist-item-123", "snippet": {"playlistId": "PL123", "resourceId": {}}},
+            },
+            "body.snippet.resourceId.videoId",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {
+                    "id": "playlist-item-123",
+                    "snippet": {
+                        "playlistId": "PL123",
+                        "resourceId": {"kind": "youtube#playlist", "videoId": "video-123"},
+                    },
+                },
+            },
+            "body.snippet.resourceId.kind",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {
+                    "id": "playlist-item-123",
+                    "snippet": {
+                        "playlistId": "PL123",
+                        "resourceId": {"videoId": "video-123"},
+                        "position": 0,
+                    },
+                },
+            },
+            "body.snippet.position",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {
+                    "id": "playlist-item-123",
+                    "snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}},
+                    "contentDetails": {"videoId": "video-123"},
+                },
+            },
+            "body.contentDetails",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {
+                    "id": "playlist-item-123",
+                    "etag": "read-only",
+                    "snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}},
+                },
+            },
+            "body.etag",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {
+                    "id": "playlist-item-123",
+                    "snippet": {"playlistId": "PL123", "resourceId": {"videoId": "video-123"}},
+                },
+                "rankPlaylist": True,
+            },
+            "rankPlaylist",
+        ),
+    ],
+)
+def test_validate_playlist_items_update_arguments_rejects_invalid_shapes(arguments, field):
+    """Reject unsupported playlist-item update shapes with safe field details."""
+    with pytest.raises(PlaylistItemsUpdateToolError) as exc_info:
+        validate_playlist_items_update_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details.get("field") == field
+
+
+def test_playlist_items_update_tool_error_sanitizes_sensitive_details():
+    """Avoid leaking credentials or raw request details through safe update errors."""
+    error = PlaylistItemsUpdateToolError(
+        "failure",
+        details={
+            "field": "auth",
+            "api_key": "secret",
+            "oauth_token": "secret",
+            "raw_request": {"part": "snippet"},
+            "safe": "visible",
+        },
+    )
+
+    assert error.details == {"field": "auth", "safe": "visible"}
+
+
+def test_playlist_items_update_handler_maps_upstream_errors_to_safe_categories():
+    """Map normalized upstream update failures to shared Layer 2 error categories."""
+
+    class FailingWrapper:
+        """Raise a configured normalized error for update handler mapping tests."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise an authorization-flavored upstream failure."""
+            raise NormalizedUpstreamError(
+                "forbidden",
+                category="forbidden",
+                retryable=False,
+                upstream_status=403,
+                details={"upstreamStatus": 403, "oauth_token": "secret"},
+            )
+
+    handler = build_playlist_items_update_handler(wrapper=FailingWrapper())
+
+    with pytest.raises(PlaylistItemsUpdateToolError) as exc_info:
+        handler(_update_arguments())
+
+    assert exc_info.value.category == "authorization_failed"
+    assert exc_info.value.details == {"upstreamStatus": 403}
 
 
 def test_playlist_items_insert_schema_preserves_required_body_inputs():

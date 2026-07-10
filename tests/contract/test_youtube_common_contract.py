@@ -88,6 +88,29 @@ def test_playlist_items_insert_contract_uses_existing_resource_family():
     assert "playlistItems_list" in metadata_text
 
 
+def test_playlist_items_update_contract_uses_existing_resource_family():
+    """Expose the concrete ``playlistItems_update`` contract in the playlist-items family."""
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_update_contract
+
+    playlist_items = get_resource_family("playlist_items")
+    contract = build_playlist_items_update_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert playlist_items.definition_location.endswith("src/mcp_server/tools/youtube_common/playlist_items.py")
+    assert playlist_items.layer1_dependency == "mcp_server.integrations.resources.playlist_items"
+    assert metadata["name"] == "playlistItems_update"
+    assert metadata["resourceFamily"] == "playlist_items"
+    assert metadata["upstream"]["operationKey"] == "playlistItems.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert "body.id" in metadata_text
+    assert "body.snippet.playlistId" in metadata_text
+    assert "body.snippet.resourceId.videoId" in metadata_text
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

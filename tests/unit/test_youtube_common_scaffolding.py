@@ -319,6 +319,21 @@ def test_playlist_items_insert_scaffolding_exports_concrete_layer2_symbols():
     assert callable(youtube_common.build_playlist_items_insert_tool_descriptor)
 
 
+def test_playlist_items_update_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``playlistItems_update`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import playlist_items
+
+    playlist_items_family = youtube_common.get_resource_family("playlist_items")
+
+    assert playlist_items_family.definition_location.endswith("src/mcp_server/tools/youtube_common/playlist_items.py")
+    assert playlist_items.PLAYLIST_ITEMS_UPDATE_TOOL_NAME == "playlistItems_update"
+    assert youtube_common.PLAYLIST_ITEMS_UPDATE_TOOL_NAME == "playlistItems_update"
+    assert youtube_common.PLAYLIST_ITEMS_UPDATE_QUOTA_COST == 50
+    assert callable(playlist_items.build_playlist_items_update_contract)
+    assert callable(youtube_common.build_playlist_items_update_tool_descriptor)
+
+
 def test_playlist_images_insert_scaffolding_exports_concrete_layer2_symbols():
     """Expose foundational ``playlistImages_insert`` symbols from the shared package."""
     from mcp_server.tools import youtube_common
