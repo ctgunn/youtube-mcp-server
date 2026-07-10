@@ -6,21 +6,28 @@ import pytest
 
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.youtube_common.playlist_items import (
+    PLAYLIST_ITEMS_DELETE_CALLER_EXAMPLES,
+    PLAYLIST_ITEMS_DELETE_INPUT_SCHEMA,
     PLAYLIST_ITEMS_INSERT_INPUT_SCHEMA,
     PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA,
+    PlaylistItemsDeleteToolError,
     PlaylistItemsInsertToolError,
     PLAYLIST_ITEMS_LIST_INPUT_SCHEMA,
     PlaylistItemsListToolError,
     PlaylistItemsUpdateToolError,
+    build_playlist_items_delete_handler,
+    build_playlist_items_delete_tool_descriptor,
     build_playlist_items_insert_handler,
     build_playlist_items_insert_tool_descriptor,
     build_playlist_items_update_handler,
     build_playlist_items_update_tool_descriptor,
     build_playlist_items_list_handler,
     build_playlist_items_list_tool_descriptor,
+    map_playlist_items_delete_result,
     map_playlist_items_insert_result,
     map_playlist_items_update_result,
     map_playlist_items_list_result,
+    validate_playlist_items_delete_arguments,
     validate_playlist_items_insert_arguments,
     validate_playlist_items_update_arguments,
     validate_playlist_items_list_arguments,
@@ -104,6 +111,20 @@ class FakePlaylistItemsUpdateWrapper:
         return self.response
 
 
+class FakePlaylistItemsDeleteWrapper:
+    """Capture wrapper calls for ``playlistItems_delete`` tests."""
+
+    def __init__(self, response: dict | None = None):
+        """Initialize the fake wrapper call log and no-body delete response."""
+        self.calls = []
+        self.response = response or {}
+
+    def call(self, executor, *, arguments, auth_context):
+        """Record call arguments and return the configured response."""
+        self.calls.append((executor, arguments, auth_context))
+        return self.response
+
+
 def _insert_arguments(**overrides):
     """Build a representative ``playlistItems_insert`` request."""
     arguments = {
@@ -132,6 +153,13 @@ def _update_arguments(**overrides):
             },
         },
     }
+    arguments.update(overrides)
+    return arguments
+
+
+def _delete_arguments(**overrides):
+    """Build a representative ``playlistItems_delete`` request."""
+    arguments = {"id": "playlist-item-123"}
     arguments.update(overrides)
     return arguments
 
@@ -387,6 +415,157 @@ def test_playlist_items_update_handler_maps_upstream_errors_to_safe_categories()
 
     assert exc_info.value.category == "authorization_failed"
     assert exc_info.value.details == {"upstreamStatus": 403}
+
+
+def test_playlist_items_delete_schema_requires_identifier_only():
+    """Expose only the playlist item ``id`` for destructive deletion."""
+    assert PLAYLIST_ITEMS_DELETE_INPUT_SCHEMA == {
+        "type": "object",
+        "required": ["id"],
+        "properties": {"id": {"type": "string", "minLength": 1}},
+        "additionalProperties": False,
+    }
+
+
+def test_validate_playlist_items_delete_arguments_accepts_supported_request():
+    """Accept and normalize a supported playlist-item deletion request."""
+    selected = validate_playlist_items_delete_arguments({"id": " playlist-item-123 "})
+
+    assert selected == _delete_arguments()
+
+
+def test_map_playlist_items_delete_result_preserves_acknowledgment_and_context():
+    """Map no-body upstream deletion into a safe acknowledgment result."""
+    result = map_playlist_items_delete_result({}, _delete_arguments())
+
+    assert result == {
+        "endpoint": "playlistItems.delete",
+        "quotaCost": 50,
+        "target": {"id": "playlist-item-123"},
+        "auth": {"mode": "oauth_required"},
+        "deleted": True,
+        "acknowledged": True,
+    }
+
+
+def test_playlist_items_delete_handler_forwards_oauth_context_to_layer1_wrapper():
+    """Validate, execute, and map one delete request through Layer 1."""
+    wrapper = FakePlaylistItemsDeleteWrapper()
+    executor = object()
+    handler = build_playlist_items_delete_handler(wrapper=wrapper, executor=executor, oauth_token="local-oauth-token")
+
+    result = handler(_delete_arguments())
+
+    assert result["endpoint"] == "playlistItems.delete"
+    assert result["target"] == {"id": "playlist-item-123"}
+    assert result["deleted"] is True
+    assert result["acknowledged"] is True
+    assert wrapper.calls[0][0] is executor
+    assert wrapper.calls[0][1] == _delete_arguments()
+    assert wrapper.calls[0][2].mode.value == "oauth_required"
+    assert wrapper.calls[0][2].credentials.oauth_token == "local-oauth-token"
+    assert "local-oauth-token" not in str(result)
+
+
+def test_playlist_items_delete_descriptor_includes_handler_metadata_and_examples():
+    """Expose dispatcher-ready delete descriptor metadata and examples."""
+    descriptor = build_playlist_items_delete_tool_descriptor(wrapper=FakePlaylistItemsDeleteWrapper())
+
+    assert descriptor["name"] == "playlistItems_delete"
+    assert descriptor["inputSchema"] == PLAYLIST_ITEMS_DELETE_INPUT_SCHEMA
+    assert callable(descriptor["handler"])
+    assert descriptor["metadata"]["upstream"]["operationKey"] == "playlistItems.delete"
+    assert descriptor["metadata"]["quotaCost"] == 50
+    assert descriptor["metadata"]["authMode"] == "oauth_required"
+    assert descriptor["metadata"]["examples"] == list(PLAYLIST_ITEMS_DELETE_CALLER_EXAMPLES)
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({}, "id"),
+        ({"id": ""}, "id"),
+        ({"id": "   "}, "id"),
+        ({"id": 123}, "id"),
+        ({"id": "playlist-item-123", "part": "snippet"}, "part"),
+        ({"id": "playlist-item-123", "body": {}}, "body"),
+        ({"id": "playlist-item-123", "playlistId": "PL123"}, "playlistId"),
+        ({"id": "playlist-item-123", "pageToken": "NEXT"}, "pageToken"),
+        ({"id": "playlist-item-123", "maxResults": 5}, "maxResults"),
+    ],
+)
+def test_validate_playlist_items_delete_arguments_rejects_invalid_shapes(arguments, field):
+    """Reject unsupported playlist-item delete shapes with safe field details."""
+    with pytest.raises(PlaylistItemsDeleteToolError) as exc_info:
+        validate_playlist_items_delete_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details.get("field") == field
+
+
+def test_playlist_items_delete_tool_error_sanitizes_sensitive_details():
+    """Avoid leaking credentials or raw request details through safe delete errors."""
+    error = PlaylistItemsDeleteToolError(
+        "failure",
+        details={
+            "field": "auth",
+            "api_key": "secret",
+            "oauth_token": "secret",
+            "raw_request": {"id": "playlist-item-123"},
+            "safe": "visible",
+        },
+    )
+
+    assert error.details == {"field": "auth", "safe": "visible"}
+
+
+@pytest.mark.parametrize(
+    ("error", "category"),
+    [
+        (NormalizedUpstreamError("missing oauth", "authentication", False, 401, {}), "authentication_failed"),
+        (NormalizedUpstreamError("forbidden", "forbidden", False, 403, {}), "authorization_failed"),
+        (NormalizedUpstreamError("not found", "not_found", False, 404, {}), "resource_not_found"),
+        (NormalizedUpstreamError("quota", "quota", True, 429, {}), "quota_exhausted"),
+        (NormalizedUpstreamError("unavailable", "transient", True, 503, {}), "endpoint_unavailable"),
+        (NormalizedUpstreamError("deprecated", "deprecated", False, 410, {}), "deprecated_endpoint"),
+        (NormalizedUpstreamError("invalid", "invalid_request", False, 400, {"reason": "bad"}), "invalid_request"),
+    ],
+)
+def test_playlist_items_delete_handler_maps_safe_upstream_error_categories(error, category):
+    """Convert upstream deletion failures into MCP-safe playlist-item errors."""
+
+    class FailingWrapper:
+        """Raise the provided normalized error during wrapper execution."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise the configured error for category mapping checks."""
+            raise error
+
+    handler = build_playlist_items_delete_handler(wrapper=FailingWrapper())
+
+    with pytest.raises(PlaylistItemsDeleteToolError) as exc_info:
+        handler(_delete_arguments())
+
+    assert exc_info.value.category == category
+
+
+def test_playlist_items_delete_handler_maps_layer1_value_errors():
+    """Convert Layer 1 auth or validation value errors to safe delete errors."""
+
+    class FailingWrapper:
+        """Raise a Layer 1 value error during wrapper execution."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise a value error as a Layer 1 wrapper could."""
+            raise ValueError("playlistItems.delete requires oauth_required auth")
+
+    handler = build_playlist_items_delete_handler(wrapper=FailingWrapper())
+
+    with pytest.raises(PlaylistItemsDeleteToolError) as exc_info:
+        handler(_delete_arguments())
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details == {"operation": "playlistItems.delete"}
 
 
 def test_playlist_items_insert_schema_preserves_required_body_inputs():
