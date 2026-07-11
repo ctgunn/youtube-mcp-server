@@ -134,6 +134,40 @@ def test_playlist_items_delete_contract_uses_existing_resource_family():
     assert "destructive" in metadata_text
 
 
+def test_playlists_family_module_is_importable():
+    """Expose the concrete playlists family module for YT-236."""
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import playlists
+
+    playlists_family = get_resource_family("playlists")
+
+    assert playlists is not None
+    assert playlists_family.definition_location.endswith("src/mcp_server/tools/youtube_common/playlists.py")
+    assert playlists_family.layer1_dependency == "mcp_server.integrations.resources.playlists"
+
+
+def test_playlists_list_contract_uses_existing_resource_family():
+    """Expose the concrete ``playlists_list`` contract in the playlists family."""
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common.playlists import build_playlists_list_contract
+
+    playlists_family = get_resource_family("playlists")
+    contract = build_playlists_list_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert playlists_family.definition_location.endswith("src/mcp_server/tools/youtube_common/playlists.py")
+    assert playlists_family.layer1_dependency == "mcp_server.integrations.resources.playlists"
+    assert metadata["name"] == "playlists_list"
+    assert metadata["resourceFamily"] == "playlists"
+    assert metadata["upstream"]["operationKey"] == "playlists.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert "channelId" in metadata_text
+    assert "mine" in metadata_text
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

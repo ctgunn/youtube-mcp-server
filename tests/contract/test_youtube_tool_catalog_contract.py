@@ -789,6 +789,61 @@ def test_representative_playlist_items_list_descriptor_examples_cover_boundaries
     }.issubset(example_names)
 
 
+def test_representative_playlists_list_example_aligns_with_concrete_contract():
+    """Keep the representative playlists-list example aligned with YT-236."""
+    from mcp_server.tools.youtube_common.playlists import build_playlists_list_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "playlists_list"
+    ]
+    concrete = build_playlists_list_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 1
+    assert representative.auth_mode is AuthMode.MIXED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert {"channelId", "id", "mine", "pageToken", "maxResults"}.issubset(
+        representative.input_contract["properties"]
+    )
+    assert "playlists.list" in metadata_text
+    assert "playlist item traversal" in metadata_text
+
+
+def test_representative_playlists_list_descriptor_examples_cover_boundaries():
+    """Expose representative playlists-list examples for success and safe failures."""
+    from mcp_server.tools.youtube_common.playlists import build_playlists_list_tool_descriptor
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "playlists_list"
+    ]
+    metadata = representative.to_tool_metadata()
+    descriptor = build_playlists_list_tool_descriptor()
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "mixed/conditional"
+    assert {"pageToken", "maxResults"}.issubset(metadata["inputContract"]["properties"])
+    assert {
+        "channel_scoped_playlist_listing",
+        "direct_playlist_lookup",
+        "owner_scoped_playlist_listing",
+        "paged_playlist_listing",
+        "empty_success",
+        "missing_selector",
+        "conflicting_selector",
+        "paging_with_id",
+        "access_failure",
+        "out_of_scope_playlist_management_request",
+    }.issubset(example_names)
+
+
 def test_representative_playlist_items_insert_example_aligns_with_concrete_contract():
     """Keep the representative playlistItems-insert example aligned with YT-233."""
     from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_insert_contract

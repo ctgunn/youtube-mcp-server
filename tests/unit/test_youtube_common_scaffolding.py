@@ -114,6 +114,18 @@ def test_required_youtube_resource_families_have_placement_metadata():
     assert videos.layer1_dependency == "mcp_server.integrations.resources.videos"
 
 
+def test_playlists_resource_family_points_to_concrete_layer2_module():
+    """Expose the concrete playlists family placement for YT-236."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    playlists = get_resource_family("playlists")
+
+    assert playlists.definition_location.endswith("src/mcp_server/tools/youtube_common/playlists.py")
+    assert playlists.handler_location.endswith("src/mcp_server/tools/youtube_common/playlists.py")
+    assert playlists.schema_location.endswith("src/mcp_server/tools/youtube_common/playlists.py")
+    assert playlists.layer1_dependency == "mcp_server.integrations.resources.playlists"
+
+
 def test_activities_resource_family_points_to_concrete_layer2_module():
     """Expose the concrete activities family placement for YT-203."""
     from mcp_server.tools.youtube_common import get_resource_family

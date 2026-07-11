@@ -700,6 +700,30 @@ def test_default_registry_includes_executable_playlist_items_list_tool_with_list
     assert "playlist item mutation" in metadata_text
 
 
+def test_default_registry_includes_executable_playlists_list_tool_with_list_metadata():
+    """Register ``playlists_list`` by default with list metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlists_list" in listed
+    metadata = listed["playlists_list"]["metadata"]
+
+    assert metadata["upstream"]["operationKey"] == "playlists.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert {"channelId", "id", "mine", "pageToken", "maxResults"}.issubset(
+        metadata["inputContract"]["properties"]
+    )
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["selectorFields"] == ["channelId", "id", "mine"]
+
+    result = dispatcher.call_tool("playlists_list", {"part": "snippet", "channelId": "UC123"})
+    assert result["endpoint"] == "playlists.list"
+    assert result["selector"] == {"name": "channelId", "value": "UC123"}
+
+
 def test_default_registry_includes_executable_playlist_items_insert_tool_with_insert_metadata():
     """Register ``playlistItems_insert`` by default with insert metadata."""
     dispatcher = InMemoryToolDispatcher()
