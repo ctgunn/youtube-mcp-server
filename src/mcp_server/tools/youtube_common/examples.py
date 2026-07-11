@@ -42,7 +42,7 @@ from mcp_server.tools.youtube_common.playlist_items import (
     build_playlist_items_list_contract,
     build_playlist_items_update_contract,
 )
-from mcp_server.tools.youtube_common.playlists import build_playlists_list_contract
+from mcp_server.tools.youtube_common.playlists import build_playlists_insert_contract, build_playlists_list_contract
 
 
 def _contract(
@@ -538,6 +538,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_playlist_items_update_contract(),
     build_playlist_items_delete_contract(),
     build_playlists_list_contract(),
+    build_playlists_insert_contract(),
     build_playlist_images_list_contract(),
     build_playlist_images_insert_contract(),
     build_playlist_images_update_contract(),

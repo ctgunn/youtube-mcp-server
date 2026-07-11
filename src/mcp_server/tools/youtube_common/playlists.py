@@ -8,7 +8,7 @@ from mcp_server.integrations.auth import AuthContext, CredentialBundle
 from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
-from mcp_server.integrations.resources.playlists import build_playlists_list_wrapper
+from mcp_server.integrations.resources.playlists import build_playlists_insert_wrapper, build_playlists_list_wrapper
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
@@ -143,6 +143,120 @@ PLAYLISTS_LIST_CALLER_EXAMPLES = (
     },
 )
 
+PLAYLISTS_INSERT_TOOL_NAME = "playlists_insert"
+PLAYLISTS_INSERT_QUOTA_COST = 50
+PLAYLISTS_INSERT_SUPPORTED_PARTS = ("snippet",)
+PLAYLISTS_INSERT_UNSAFE_DETAIL_KEYS = frozenset({"authorization", "authorization_header", "headers"})
+
+PLAYLISTS_INSERT_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["part", "body"],
+    "properties": {
+        "part": {"type": "string", "minLength": 1, "enum": list(PLAYLISTS_INSERT_SUPPORTED_PARTS)},
+        "body": {
+            "type": "object",
+            "required": ["snippet"],
+            "properties": {
+                "snippet": {
+                    "type": "object",
+                    "required": ["title"],
+                    "properties": {"title": {"type": "string", "minLength": 1}},
+                    "additionalProperties": False,
+                }
+            },
+            "additionalProperties": False,
+        },
+    },
+    "additionalProperties": False,
+}
+
+PLAYLISTS_INSERT_DESCRIPTION = (
+    "Create a YouTube playlist. Endpoint: playlists.insert. "
+    "Quota cost: 50. Auth: oauth_required. Requires body.snippet.title."
+)
+
+PLAYLISTS_INSERT_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide part and body.snippet.title.",
+    "Quota cost: 50. Successful calls create user-visible playlists for the authorized account.",
+    "Quota cost: 50. Repeating a creation request can create duplicate playlists; no idempotency is promised.",
+    "Quota cost: 50. Returned playlist fields depend on selected parts and upstream availability.",
+)
+
+PLAYLISTS_INSERT_CAVEATS = (
+    "playlists_insert creates one playlist through playlists.insert and requires OAuth authorization.",
+    "Use playlists_list for playlist retrieval; this tool only performs playlists.insert.",
+    "body.snippet.title is required for supported playlist creation requests.",
+    "Unsupported write fields such as body.snippet.description, body.status, or body.localizations are out of scope.",
+    "Playlist update, deletion, playlist item insertion, playlist image handling, video curation, transcript retrieval, "
+    "analytics, ranking, summarization, recommendation, duplicate-prevention, and cross-endpoint enrichment are out of scope.",
+    "Returned playlist fields depend on selected parts and upstream availability; missing optional fields are not fabricated.",
+)
+
+PLAYLISTS_INSERT_CALLER_EXAMPLES = (
+    {
+        "name": "oauth_playlist_creation",
+        "description": "Quota cost: 50. Create a user-visible playlist with OAuth authorization.",
+        "arguments": {"part": "snippet", "body": {"snippet": {"title": "Research playlist"}}},
+        "result": {"endpoint": "playlists.insert", "quotaCost": 50, "created": True},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_part",
+        "description": "Quota cost: 50. Reject playlist creation requests missing required part selection.",
+        "arguments": {"body": {"snippet": {"title": "Research playlist"}}},
+        "error": {"category": "invalid_request", "field": "part"},
+    },
+    {
+        "name": "invalid_part",
+        "description": "Quota cost: 50. Reject writable parts outside the supported snippet create path.",
+        "arguments": {"part": "status", "body": {"snippet": {"title": "Research playlist"}}},
+        "error": {"category": "invalid_request", "field": "part"},
+    },
+    {
+        "name": "missing_body",
+        "description": "Quota cost: 50. Reject playlist creation requests missing a writable body.",
+        "arguments": {"part": "snippet"},
+        "error": {"category": "invalid_request", "field": "body"},
+    },
+    {
+        "name": "missing_title",
+        "description": "Quota cost: 50. Reject playlist creation requests missing body.snippet.title.",
+        "arguments": {"part": "snippet", "body": {"snippet": {}}},
+        "error": {"category": "invalid_request", "field": "body.snippet.title"},
+    },
+    {
+        "name": "unsupported_write_field",
+        "description": "Quota cost: 50. Reject optional write fields not supported by this slice.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"title": "Research playlist", "description": "Unsupported"}},
+        },
+        "error": {"category": "invalid_request", "field": "body.snippet.description"},
+    },
+    {
+        "name": "access_failure",
+        "description": "Quota cost: 50. Map missing or invalid OAuth access to safe authentication errors.",
+        "arguments": {"part": "snippet", "body": {"snippet": {"title": "Research playlist"}}},
+        "error": {"category": "authentication_failed", "authMode": "oauth_required"},
+    },
+    {
+        "name": "quota_or_upstream_create_failure",
+        "description": "Quota cost: 50. Map quota and upstream create failures to safe categories.",
+        "arguments": {"part": "snippet", "body": {"snippet": {"title": "Research playlist"}}},
+        "error": {"category": "quota_exhausted"},
+    },
+    {
+        "name": "out_of_scope_playlist_management_request",
+        "description": "Quota cost: 50. Playlist item insertion, video curation, analytics, and recommendation are out of scope.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"title": "Research playlist"}},
+            "insertPlaylistItems": True,
+        },
+        "error": {"category": "invalid_request", "field": "insertPlaylistItems"},
+    },
+)
+
 
 class PlaylistsListToolError(ValueError):
     """Represent a safe caller-facing ``playlists_list`` failure.
@@ -170,6 +284,32 @@ class PlaylistsListToolError(ValueError):
         self.details = _sanitize_playlists_error_details(details or {})
 
 
+class PlaylistsInsertToolError(ValueError):
+    """Represent a safe caller-facing ``playlists_insert`` failure.
+
+    :param message: Human-readable failure summary.
+    :param category: Stable safe failure category.
+    :param details: Optional structured details with secret-bearing keys removed.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str = "invalid_request",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Initialize a sanitized playlists insert tool error.
+
+        :param message: Human-readable failure summary.
+        :param category: Stable safe failure category.
+        :param details: Optional diagnostic details to sanitize before exposure.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = _sanitize_playlists_insert_error_details(details or {})
+
+
 def _sanitize_playlists_error_details(details: dict[str, Any]) -> dict[str, Any]:
     """Remove playlist-list credential and header fields from error details.
 
@@ -181,6 +321,20 @@ def _sanitize_playlists_error_details(details: dict[str, Any]) -> dict[str, Any]
         key: value
         for key, value in sanitized.items()
         if key.lower() not in PLAYLISTS_LIST_UNSAFE_DETAIL_KEYS
+    }
+
+
+def _sanitize_playlists_insert_error_details(details: dict[str, Any]) -> dict[str, Any]:
+    """Remove playlist-insert credential and header fields from error details.
+
+    :param details: Candidate diagnostic details.
+    :return: Details safe to expose to MCP callers.
+    """
+    sanitized = sanitize_error_details(details)
+    return {
+        key: value
+        for key, value in sanitized.items()
+        if key.lower() not in PLAYLISTS_INSERT_UNSAFE_DETAIL_KEYS
     }
 
 
@@ -213,6 +367,77 @@ def _validate_playlists_parts(part: Any) -> str:
             details={"field": "part", "allowed": list(PLAYLISTS_LIST_SUPPORTED_PARTS)},
         )
     return ",".join(parts)
+
+
+def _validate_playlists_insert_parts(part: Any) -> str:
+    """Validate and normalize requested playlist insert parts.
+
+    :param part: Candidate part selection value.
+    :return: Normalized comma-delimited part selection.
+    :raises PlaylistsInsertToolError: If part is missing, duplicated, or unsupported.
+    """
+    if not isinstance(part, str) or not part.strip():
+        raise PlaylistsInsertToolError("playlists_insert requires part", details={"field": "part"})
+    parts = _split_parts(part)
+    if (
+        not parts
+        or len(set(parts)) != len(parts)
+        or any(item not in PLAYLISTS_INSERT_SUPPORTED_PARTS for item in parts)
+    ):
+        raise PlaylistsInsertToolError(
+            "playlists_insert part must use supported writable playlist sections",
+            details={"field": "part", "allowed": list(PLAYLISTS_INSERT_SUPPORTED_PARTS)},
+        )
+    return ",".join(parts)
+
+
+def validate_playlists_insert_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate a ``playlists_insert`` request and return normalized arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized caller arguments for execution and result mapping.
+    :raises PlaylistsInsertToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise PlaylistsInsertToolError("playlists_insert arguments must be an object")
+
+    allowed = set(PLAYLISTS_INSERT_INPUT_SCHEMA["properties"])
+    for field in arguments:
+        if field not in allowed:
+            raise PlaylistsInsertToolError(
+                f"unsupported field for playlists_insert: {field}",
+                details={"field": field},
+            )
+
+    part = _validate_playlists_insert_parts(arguments.get("part"))
+    body = arguments.get("body")
+    if not isinstance(body, dict):
+        raise PlaylistsInsertToolError("playlists_insert requires body", details={"field": "body"})
+    unsupported_body = [field for field in body if field != "snippet"]
+    if unsupported_body:
+        raise PlaylistsInsertToolError(
+            f"unsupported body field for playlists_insert: {unsupported_body[0]}",
+            details={"field": f"body.{unsupported_body[0]}"},
+        )
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        raise PlaylistsInsertToolError(
+            "playlists_insert requires body.snippet",
+            details={"field": "body.snippet"},
+        )
+    unsupported_snippet = [field for field in snippet if field != "title"]
+    if unsupported_snippet:
+        raise PlaylistsInsertToolError(
+            f"unsupported snippet field for playlists_insert: {unsupported_snippet[0]}",
+            details={"field": f"body.snippet.{unsupported_snippet[0]}"},
+        )
+    title = snippet.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise PlaylistsInsertToolError(
+            "playlists_insert requires body.snippet.title",
+            details={"field": "body.snippet.title"},
+        )
+    return {"part": part, "body": {"snippet": {"title": title.strip()}}}
 
 
 def _active_selectors(arguments: dict[str, Any]) -> list[tuple[str, Any]]:
@@ -388,6 +613,41 @@ def map_playlists_list_result(
     return result
 
 
+def _playlists_insert_creation_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return safe playlist creation context for an insert request.
+
+    :param arguments: Validated ``playlists_insert`` arguments.
+    :return: Safe creation context with writable fields and title.
+    """
+    return {
+        "writableFields": ["body.snippet.title"],
+        "title": arguments["body"]["snippet"]["title"],
+    }
+
+
+def map_playlists_insert_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream playlist creation payload to the public result.
+
+    :param payload: Upstream or Layer 1 playlists insert payload.
+    :param arguments: Validated caller arguments used for the request.
+    :return: Near-raw created-resource result with safe operation context.
+    """
+    normalized = validate_playlists_insert_arguments(arguments)
+    result: dict[str, Any] = {
+        "endpoint": "playlists.insert",
+        "quotaCost": PLAYLISTS_INSERT_QUOTA_COST,
+        "created": True,
+        "requestedParts": _split_parts(normalized["part"]),
+        "creation": _playlists_insert_creation_context(normalized),
+        "auth": {"mode": "oauth_required"},
+        "playlist": payload,
+    }
+    for field in ("kind", "etag"):
+        if field in payload:
+            result[field] = payload[field]
+    return result
+
+
 def _map_playlists_list_upstream_error(error: NormalizedUpstreamError) -> PlaylistsListToolError:
     """Map a normalized upstream failure to a safe ``playlists_list`` error.
 
@@ -413,6 +673,33 @@ def _map_playlists_list_upstream_error(error: NormalizedUpstreamError) -> Playli
     }
     category = category_map.get(error.category, "upstream_failure")
     return PlaylistsListToolError(str(error), category=category, details=error.details)
+
+
+def _map_playlists_insert_upstream_error(error: NormalizedUpstreamError) -> PlaylistsInsertToolError:
+    """Map a normalized upstream failure to a safe ``playlists_insert`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe tool error with shared category and sanitized details.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "validation": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "forbidden_create",
+        "policy_restricted": "forbidden_create",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "not_found": "resource_not_found",
+        "resource_not_found": "resource_not_found",
+        "unavailable": "endpoint_unavailable",
+        "transient": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return PlaylistsInsertToolError(str(error), category=category, details=error.details)
 
 
 def build_playlists_list_contract() -> YouTubeToolContract:
@@ -490,6 +777,77 @@ def build_playlists_list_contract() -> YouTubeToolContract:
     )
 
 
+def build_playlists_insert_contract() -> YouTubeToolContract:
+    """Build the public contract for ``playlists_insert``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "quotaCost",
+            "created",
+            "requestedParts",
+            "creation",
+            "auth",
+            "playlist",
+            "kind",
+            "etag",
+        ),
+        preserved_upstream_fields=("kind", "etag", "id", "snippet", "status", "localizations"),
+        disallowed_behavior=(
+            "playlist_listing",
+            "playlist_update",
+            "playlist_deletion",
+            "playlist_item_insertion",
+            "playlist_image_handling",
+            "video_curation",
+            "transcript_retrieval",
+            "analytics",
+            "recommendation",
+            "ranking",
+            "summarization",
+            "duplicate_prevention",
+            "cross_endpoint_aggregation",
+        ),
+    )
+    return YouTubeToolContract(
+        tool_name=PLAYLISTS_INSERT_TOOL_NAME,
+        upstream_resource="playlists",
+        upstream_method="insert",
+        operation_key="playlists.insert",
+        description=PLAYLISTS_INSERT_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=PLAYLISTS_INSERT_QUOTA_COST,
+        resource_family="playlists",
+        input_contract=PLAYLISTS_INSERT_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "created_resource",
+            "resourcePath": "playlist",
+            "requestedParts": list(PLAYLISTS_INSERT_SUPPORTED_PARTS),
+            "supportedWritableParts": ["snippet"],
+            "writableFields": ["body.snippet.title"],
+            "duplicateCreatePolicy": "not_idempotent",
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "forbidden_create",
+            "quota_exhausted",
+            "resource_not_found",
+            "deprecated_endpoint",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=PLAYLISTS_INSERT_USAGE_NOTES,
+        caveats=PLAYLISTS_INSERT_CAVEATS,
+    )
+
+
 def _default_playlists_list_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default playlist calls.
 
@@ -518,6 +876,32 @@ def _default_playlists_list_executor() -> IntegrationExecutor:
                 }
             ],
             "pageInfo": {"totalResults": 1, "resultsPerPage": 1},
+        }
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _default_playlists_insert_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default playlist inserts.
+
+    :return: Integration executor returning representative created playlist data.
+    """
+
+    def transport(execution):
+        """Return a representative created playlist response.
+
+        :param execution: Request execution context.
+        :return: Fake upstream created-resource response for local invocation.
+        """
+        snippet = execution.arguments.get("body", {}).get("snippet", {})
+        return {
+            "kind": "youtube#playlist",
+            "etag": "etag-created-playlist",
+            "id": "PL123",
+            "snippet": {
+                "title": snippet.get("title", "Research playlist"),
+                "channelId": "UC123",
+            },
         }
 
     return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
@@ -570,6 +954,59 @@ def build_playlists_list_handler(
     return handler
 
 
+def build_playlists_insert_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``playlists_insert``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used for playlist creation.
+    :return: Callable that validates, executes, and maps playlist insert requests.
+    """
+    selected_wrapper = wrapper or build_playlists_insert_wrapper()
+    selected_executor = executor or _default_playlists_insert_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``playlists_insert`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 playlists insert result.
+        :raises PlaylistsInsertToolError: If validation or execution fails.
+        """
+        normalized = validate_playlists_insert_arguments(arguments)
+        if not isinstance(oauth_token, str) or not oauth_token.strip():
+            raise PlaylistsInsertToolError(
+                "playlists_insert requires eligible OAuth authorization",
+                category="authentication_failed",
+                details={"authMode": "oauth_required"},
+            )
+        auth_context = AuthContext(
+            mode=Layer1AuthMode.OAUTH_REQUIRED,
+            credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+        )
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_playlists_insert_upstream_error(exc) from exc
+        except ValueError as exc:
+            raise PlaylistsInsertToolError(
+                str(exc),
+                category="invalid_request",
+                details={"operation": "playlists.insert"},
+            ) from exc
+        return map_playlists_insert_result(payload, normalized)
+
+    return handler
+
+
 def build_playlists_list_tool_descriptor(
     *,
     wrapper=None,
@@ -602,7 +1039,44 @@ def build_playlists_list_tool_descriptor(
     }
 
 
+def build_playlists_insert_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``playlists_insert``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_playlists_insert_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(PLAYLISTS_INSERT_CALLER_EXAMPLES)
+    return {
+        "name": PLAYLISTS_INSERT_TOOL_NAME,
+        "description": PLAYLISTS_INSERT_DESCRIPTION,
+        "inputSchema": PLAYLISTS_INSERT_INPUT_SCHEMA,
+        "handler": build_playlists_insert_handler(
+            wrapper=wrapper,
+            executor=executor,
+            oauth_token=oauth_token,
+        ),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
+    "PLAYLISTS_INSERT_CALLER_EXAMPLES",
+    "PLAYLISTS_INSERT_CAVEATS",
+    "PLAYLISTS_INSERT_DESCRIPTION",
+    "PLAYLISTS_INSERT_INPUT_SCHEMA",
+    "PLAYLISTS_INSERT_QUOTA_COST",
+    "PLAYLISTS_INSERT_SUPPORTED_PARTS",
+    "PLAYLISTS_INSERT_TOOL_NAME",
+    "PLAYLISTS_INSERT_USAGE_NOTES",
     "PLAYLISTS_LIST_CALLER_EXAMPLES",
     "PLAYLISTS_LIST_CAVEATS",
     "PLAYLISTS_LIST_DESCRIPTION",
@@ -613,10 +1087,16 @@ __all__ = [
     "PLAYLISTS_LIST_SUPPORTED_PARTS",
     "PLAYLISTS_LIST_TOOL_NAME",
     "PLAYLISTS_LIST_USAGE_NOTES",
+    "PlaylistsInsertToolError",
     "PlaylistsListToolError",
+    "build_playlists_insert_contract",
+    "build_playlists_insert_handler",
+    "build_playlists_insert_tool_descriptor",
     "build_playlists_list_contract",
     "build_playlists_list_handler",
     "build_playlists_list_tool_descriptor",
+    "map_playlists_insert_result",
     "map_playlists_list_result",
+    "validate_playlists_insert_arguments",
     "validate_playlists_list_arguments",
 ]

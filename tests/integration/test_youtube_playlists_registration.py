@@ -6,7 +6,12 @@ import pytest
 
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
-from mcp_server.tools.youtube_common.playlists import PlaylistsListToolError, build_playlists_list_tool_descriptor
+from mcp_server.tools.youtube_common.playlists import (
+    PlaylistsInsertToolError,
+    PlaylistsListToolError,
+    build_playlists_insert_tool_descriptor,
+    build_playlists_list_tool_descriptor,
+)
 
 
 def _register_playlists_list(**descriptor_kwargs) -> InMemoryToolDispatcher:
@@ -16,6 +21,24 @@ def _register_playlists_list(**descriptor_kwargs) -> InMemoryToolDispatcher:
     :return: Dispatcher containing only the playlists list tool.
     """
     descriptor = build_playlists_list_tool_descriptor(**descriptor_kwargs)
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
+def _register_playlists_insert(**descriptor_kwargs) -> InMemoryToolDispatcher:
+    """Register the concrete playlists insert tool in a fresh dispatcher.
+
+    :param descriptor_kwargs: Overrides passed to the descriptor builder.
+    :return: Dispatcher containing only the playlists insert tool.
+    """
+    descriptor = build_playlists_insert_tool_descriptor(**descriptor_kwargs)
     dispatcher = InMemoryToolDispatcher(tools=[])
     dispatcher.register_tool(
         name=descriptor["name"],
@@ -121,3 +144,72 @@ def test_playlists_list_dispatcher_preserves_empty_success():
     assert result["endpoint"] == "playlists.list"
     assert result["items"] == []
     assert result["empty"] is True
+
+
+def test_playlists_insert_descriptor_registers_as_executable_tool():
+    """Register and execute ``playlists_insert`` for playlist creation."""
+    dispatcher = _register_playlists_insert()
+
+    result = dispatcher.call_tool(
+        "playlists_insert",
+        {"part": "snippet", "body": {"snippet": {"title": "Research playlist"}}},
+    )
+
+    assert result["endpoint"] == "playlists.insert"
+    assert result["quotaCost"] == 50
+    assert result["created"] is True
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["playlist"]["id"] == "PL123"
+
+
+def test_playlists_insert_dispatcher_rejects_missing_oauth_safely():
+    """Reject playlist creation when OAuth access is unavailable."""
+    dispatcher = _register_playlists_insert(oauth_token=None)
+
+    with pytest.raises(PlaylistsInsertToolError) as exc_info:
+        dispatcher.call_tool(
+            "playlists_insert",
+            {"part": "snippet", "body": {"snippet": {"title": "Research playlist"}}},
+        )
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+
+
+def test_playlists_insert_dispatcher_rejects_invalid_request_safely():
+    """Reject malformed insert requests through the registered dispatcher handler."""
+    dispatcher = _register_playlists_insert()
+
+    with pytest.raises(PlaylistsInsertToolError) as exc_info:
+        dispatcher.call_tool("playlists_insert", {"part": "snippet", "body": {"snippet": {}}})
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details.get("field") == "body.snippet.title"
+
+
+def test_playlists_insert_dispatcher_maps_safe_upstream_failure():
+    """Preserve safe upstream failure categories through insert dispatcher execution."""
+
+    class FailingWrapper:
+        """Raise one normalized quota failure during insert wrapper execution."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise a sanitized quota failure for dispatcher mapping.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Normalized arguments supplied by the handler.
+            :param auth_context: Auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this fake wrapper.
+            """
+            raise NormalizedUpstreamError("quota", "quota", True, 429, {"oauth_token": "secret", "quota": "daily"})
+
+    dispatcher = _register_playlists_insert(wrapper=FailingWrapper())
+
+    with pytest.raises(PlaylistsInsertToolError) as exc_info:
+        dispatcher.call_tool(
+            "playlists_insert",
+            {"part": "snippet", "body": {"snippet": {"title": "Research playlist"}}},
+        )
+
+    assert exc_info.value.category == "quota_exhausted"
+    assert exc_info.value.details == {"quota": "daily"}
