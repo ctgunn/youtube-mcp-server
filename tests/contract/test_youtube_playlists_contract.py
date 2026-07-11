@@ -5,6 +5,14 @@ from __future__ import annotations
 from mcp_server.tools import youtube_common
 from mcp_server.tools.youtube_common import AuthMode, AvailabilityState
 from mcp_server.tools.youtube_common.playlists import (
+    PLAYLISTS_INSERT_CALLER_EXAMPLES,
+    PLAYLISTS_INSERT_CAVEATS,
+    PLAYLISTS_INSERT_DESCRIPTION,
+    PLAYLISTS_INSERT_INPUT_SCHEMA,
+    PLAYLISTS_INSERT_QUOTA_COST,
+    PLAYLISTS_INSERT_SUPPORTED_PARTS,
+    PLAYLISTS_INSERT_TOOL_NAME,
+    PLAYLISTS_INSERT_USAGE_NOTES,
     PLAYLISTS_LIST_CALLER_EXAMPLES,
     PLAYLISTS_LIST_CAVEATS,
     PLAYLISTS_LIST_DESCRIPTION,
@@ -13,6 +21,8 @@ from mcp_server.tools.youtube_common.playlists import (
     PLAYLISTS_LIST_SELECTORS,
     PLAYLISTS_LIST_TOOL_NAME,
     PLAYLISTS_LIST_USAGE_NOTES,
+    build_playlists_insert_contract,
+    build_playlists_insert_tool_descriptor,
     build_playlists_list_contract,
     build_playlists_list_tool_descriptor,
 )
@@ -146,3 +156,96 @@ def test_playlists_list_failure_examples_cover_safe_rejection_surface():
     assert error_examples["access_failure"]["category"] == "authentication_failed"
     assert error_examples["quota_or_upstream_failure"]["category"] == "quota_exhausted"
     assert error_examples["out_of_scope_playlist_management_request"]["field"] == "includePlaylistItems"
+
+
+def test_playlists_insert_public_symbols_are_exported():
+    """Expose ``playlists_insert`` symbols from the shared package."""
+    from mcp_server.tools.youtube_common import playlists
+
+    assert youtube_common.PLAYLISTS_INSERT_TOOL_NAME == "playlists_insert"
+    assert PLAYLISTS_INSERT_TOOL_NAME == "playlists_insert"
+    assert PLAYLISTS_INSERT_QUOTA_COST == 50
+    assert PLAYLISTS_INSERT_SUPPORTED_PARTS == ("snippet",)
+    assert callable(playlists.build_playlists_insert_contract)
+
+
+def test_playlists_insert_schema_preserves_create_body_inputs():
+    """Expose the supported ``playlists_insert`` request shape."""
+    properties = PLAYLISTS_INSERT_INPUT_SCHEMA["properties"]
+    body = properties["body"]
+    snippet = body["properties"]["snippet"]
+
+    assert PLAYLISTS_INSERT_INPUT_SCHEMA["required"] == ["part", "body"]
+    assert properties["part"] == {"type": "string", "minLength": 1, "enum": ["snippet"]}
+    assert body["required"] == ["snippet"]
+    assert snippet["required"] == ["title"]
+    assert snippet["properties"]["title"] == {"type": "string", "minLength": 1}
+    assert snippet["additionalProperties"] is False
+    assert body["additionalProperties"] is False
+    assert PLAYLISTS_INSERT_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_playlists_insert_public_contract_identifies_endpoint_and_result_shape():
+    """Expose endpoint identity, quota, OAuth, and created-resource metadata."""
+    contract = build_playlists_insert_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["name"] == "playlists_insert"
+    assert metadata["upstream"]["operationKey"] == "playlists.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["resourceFamily"] == "playlists"
+    assert metadata["inputContract"] == PLAYLISTS_INSERT_INPUT_SCHEMA
+    assert metadata["responseConvention"]["resultKind"] == "created_resource"
+    assert metadata["responseConvention"]["resourcePath"] == "playlist"
+    assert metadata["responseConvention"]["writableFields"] == ["body.snippet.title"]
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+
+
+def test_playlists_insert_metadata_describes_quota_oauth_body_and_boundaries():
+    """Keep caller-facing playlists insert metadata complete before invocation."""
+    descriptor = build_playlists_insert_tool_descriptor()
+    metadata = descriptor["metadata"]
+    metadata_text = " ".join(
+        [
+            descriptor["description"],
+            *metadata["usageNotes"],
+            *metadata["caveats"],
+            *[example["description"] for example in metadata["examples"]],
+        ]
+    )
+
+    assert descriptor["name"] == "playlists_insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text or "oauth_required" in metadata_text
+    assert "body.snippet.title" in metadata_text
+    assert "user-visible" in metadata_text
+    assert "duplicate" in metadata_text.lower()
+    assert "playlist item insertion" in metadata_text
+    assert "video curation" in metadata_text
+    assert metadata["examples"] == list(PLAYLISTS_INSERT_CALLER_EXAMPLES)
+    assert PLAYLISTS_INSERT_DESCRIPTION in descriptor["description"]
+    assert metadata["usageNotes"] == list(PLAYLISTS_INSERT_USAGE_NOTES)
+    assert metadata["caveats"] == list(PLAYLISTS_INSERT_CAVEATS)
+
+
+def test_playlists_insert_examples_cover_success_and_safe_failure_boundaries():
+    """Expose playlists insert examples for supported calls and safe failures."""
+    descriptor = build_playlists_insert_tool_descriptor()
+    examples = {example["name"]: example for example in descriptor["metadata"]["examples"]}
+
+    assert examples["oauth_playlist_creation"]["quotaCost"] == 50
+    assert examples["oauth_playlist_creation"]["arguments"]["body"]["snippet"]["title"] == "Research playlist"
+    assert examples["missing_part"]["error"]["field"] == "part"
+    assert examples["invalid_part"]["error"]["category"] == "invalid_request"
+    assert examples["missing_body"]["error"]["field"] == "body"
+    assert examples["missing_title"]["error"]["field"] == "body.snippet.title"
+    assert examples["unsupported_write_field"]["error"]["field"] == "body.snippet.description"
+    assert examples["access_failure"]["error"]["category"] == "authentication_failed"
+    assert examples["quota_or_upstream_create_failure"]["error"]["category"] == "quota_exhausted"
+    assert examples["out_of_scope_playlist_management_request"]["error"]["field"] == "insertPlaylistItems"
