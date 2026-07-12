@@ -139,6 +139,19 @@ def test_playlists_insert_uses_existing_playlists_resource_family():
     assert playlists.layer1_dependency == "mcp_server.integrations.resources.playlists"
 
 
+def test_playlists_update_uses_existing_playlists_resource_family():
+    """Keep ``playlists_update`` in the concrete playlists family module."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    playlists = get_resource_family("playlists")
+
+    assert playlists.family_name == "playlists"
+    assert playlists.definition_location.endswith("src/mcp_server/tools/youtube_common/playlists.py")
+    assert playlists.handler_location.endswith("src/mcp_server/tools/youtube_common/playlists.py")
+    assert playlists.schema_location.endswith("src/mcp_server/tools/youtube_common/playlists.py")
+    assert playlists.layer1_dependency == "mcp_server.integrations.resources.playlists"
+
+
 def test_activities_resource_family_points_to_concrete_layer2_module():
     """Expose the concrete activities family placement for YT-203."""
     from mcp_server.tools.youtube_common import get_resource_family

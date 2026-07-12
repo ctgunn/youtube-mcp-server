@@ -754,6 +754,37 @@ def test_default_registry_includes_executable_playlists_insert_tool_with_insert_
     assert result["playlist"]["id"] == "PL123"
 
 
+def test_default_registry_includes_executable_playlists_update_tool_with_update_metadata():
+    """Register ``playlists_update`` by default with update metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlists_update" in listed
+    metadata = listed["playlists_update"]["metadata"]
+    description = listed["playlists_update"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "playlists.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert {"part", "body"}.issubset(metadata["inputContract"]["properties"])
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert "OAuth" in metadata_text or "oauth_required" in metadata_text
+    assert "body.id" in metadata_text
+    assert "body.snippet.title" in metadata_text
+    assert "user-visible" in metadata_text
+
+    result = dispatcher.call_tool(
+        "playlists_update",
+        {"part": "snippet", "body": {"id": "PL123", "snippet": {"title": "Updated research playlist"}}},
+    )
+    assert result["endpoint"] == "playlists.update"
+    assert result["updated"] is True
+    assert result["playlist"]["id"] == "PL123"
+
+
 def test_default_registry_includes_executable_playlist_items_insert_tool_with_insert_metadata():
     """Register ``playlistItems_insert`` by default with insert metadata."""
     dispatcher = InMemoryToolDispatcher()

@@ -13,6 +13,14 @@ from mcp_server.tools.youtube_common.playlists import (
     PLAYLISTS_INSERT_SUPPORTED_PARTS,
     PLAYLISTS_INSERT_TOOL_NAME,
     PLAYLISTS_INSERT_USAGE_NOTES,
+    PLAYLISTS_UPDATE_CALLER_EXAMPLES,
+    PLAYLISTS_UPDATE_CAVEATS,
+    PLAYLISTS_UPDATE_DESCRIPTION,
+    PLAYLISTS_UPDATE_INPUT_SCHEMA,
+    PLAYLISTS_UPDATE_QUOTA_COST,
+    PLAYLISTS_UPDATE_SUPPORTED_PARTS,
+    PLAYLISTS_UPDATE_TOOL_NAME,
+    PLAYLISTS_UPDATE_USAGE_NOTES,
     PLAYLISTS_LIST_CALLER_EXAMPLES,
     PLAYLISTS_LIST_CAVEATS,
     PLAYLISTS_LIST_DESCRIPTION,
@@ -23,6 +31,8 @@ from mcp_server.tools.youtube_common.playlists import (
     PLAYLISTS_LIST_USAGE_NOTES,
     build_playlists_insert_contract,
     build_playlists_insert_tool_descriptor,
+    build_playlists_update_contract,
+    build_playlists_update_tool_descriptor,
     build_playlists_list_contract,
     build_playlists_list_tool_descriptor,
 )
@@ -249,3 +259,130 @@ def test_playlists_insert_examples_cover_success_and_safe_failure_boundaries():
     assert examples["access_failure"]["error"]["category"] == "authentication_failed"
     assert examples["quota_or_upstream_create_failure"]["error"]["category"] == "quota_exhausted"
     assert examples["out_of_scope_playlist_management_request"]["error"]["field"] == "insertPlaylistItems"
+
+
+def test_playlists_update_public_symbols_are_exported():
+    """Expose ``playlists_update`` symbols from the shared package."""
+    from mcp_server.tools.youtube_common import playlists
+
+    assert youtube_common.PLAYLISTS_UPDATE_TOOL_NAME == "playlists_update"
+    assert PLAYLISTS_UPDATE_TOOL_NAME == "playlists_update"
+    assert PLAYLISTS_UPDATE_QUOTA_COST == 50
+    assert PLAYLISTS_UPDATE_SUPPORTED_PARTS == ("snippet",)
+    assert callable(playlists.build_playlists_update_contract)
+
+
+def test_playlists_update_schema_preserves_update_body_inputs():
+    """Expose the supported ``playlists_update`` request shape."""
+    properties = PLAYLISTS_UPDATE_INPUT_SCHEMA["properties"]
+    body = properties["body"]
+    snippet = body["properties"]["snippet"]
+
+    assert PLAYLISTS_UPDATE_INPUT_SCHEMA["required"] == ["part", "body"]
+    assert properties["part"] == {"type": "string", "minLength": 1, "enum": ["snippet"]}
+    assert body["required"] == ["id", "snippet"]
+    assert body["properties"]["id"] == {"type": "string", "minLength": 1}
+    assert snippet["required"] == ["title"]
+    assert snippet["properties"]["title"] == {"type": "string", "minLength": 1}
+    assert snippet["additionalProperties"] is False
+    assert body["additionalProperties"] is False
+    assert PLAYLISTS_UPDATE_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_playlists_update_public_contract_identifies_endpoint_and_result_shape():
+    """Expose endpoint identity, quota, OAuth, and updated-resource metadata."""
+    contract = build_playlists_update_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["name"] == "playlists_update"
+    assert metadata["upstream"]["operationKey"] == "playlists.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["resourceFamily"] == "playlists"
+    assert metadata["inputContract"] == PLAYLISTS_UPDATE_INPUT_SCHEMA
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert metadata["responseConvention"]["resourcePath"] == "playlist"
+    assert metadata["responseConvention"]["targetFields"] == ["body.id"]
+    assert metadata["responseConvention"]["writableFields"] == ["body.snippet.title"]
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+
+
+def test_playlists_update_metadata_describes_quota_oauth_body_and_boundaries():
+    """Keep caller-facing playlists update metadata complete before invocation."""
+    descriptor = build_playlists_update_tool_descriptor()
+    metadata = descriptor["metadata"]
+    metadata_text = " ".join(
+        [
+            descriptor["description"],
+            *metadata["usageNotes"],
+            *metadata["caveats"],
+            *[example["description"] for example in metadata["examples"]],
+        ]
+    )
+
+    assert descriptor["name"] == "playlists_update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text or "oauth_required" in metadata_text
+    assert "body.id" in metadata_text
+    assert "body.snippet.title" in metadata_text
+    assert "user-visible" in metadata_text
+    assert "repeat" in metadata_text.lower()
+    assert "playlist item management" in metadata_text
+    assert "video curation" in metadata_text
+    assert metadata["examples"] == list(PLAYLISTS_UPDATE_CALLER_EXAMPLES)
+    assert PLAYLISTS_UPDATE_DESCRIPTION in descriptor["description"]
+    assert metadata["usageNotes"] == list(PLAYLISTS_UPDATE_USAGE_NOTES)
+    assert metadata["caveats"] == list(PLAYLISTS_UPDATE_CAVEATS)
+
+
+def test_playlists_update_examples_cover_success_and_safe_failure_boundaries():
+    """Expose playlists update examples for supported calls and safe failures."""
+    descriptor = build_playlists_update_tool_descriptor()
+    examples = {example["name"]: example for example in descriptor["metadata"]["examples"]}
+
+    assert examples["oauth_playlist_update"]["quotaCost"] == 50
+    assert examples["oauth_playlist_update"]["arguments"]["body"]["id"] == "PL123"
+    assert examples["oauth_playlist_update"]["arguments"]["body"]["snippet"]["title"] == "Updated research playlist"
+    assert examples["missing_part"]["error"]["field"] == "part"
+    assert examples["invalid_part"]["error"]["category"] == "invalid_request"
+    assert examples["missing_body"]["error"]["field"] == "body"
+    assert examples["missing_target_identity"]["error"]["field"] == "body.id"
+    assert examples["missing_title"]["error"]["field"] == "body.snippet.title"
+    assert examples["unsupported_write_field"]["error"]["field"] == "body.snippet.description"
+    assert examples["access_failure"]["error"]["category"] == "authentication_failed"
+    assert examples["quota_or_upstream_update_failure"]["error"]["category"] == "quota_exhausted"
+    assert examples["repeat_request_caveat"]["result"]["caveats"]["repeatRequest"] == "may_reapply_update"
+    assert examples["out_of_scope_playlist_management_request"]["error"]["field"] == "insertPlaylistItems"
+
+
+def test_playlists_update_failure_examples_cover_safe_rejection_surface():
+    """Expose representative invalid, access, upstream, and out-of-scope failures."""
+    descriptor = build_playlists_update_tool_descriptor()
+    examples = {example["name"]: example for example in descriptor["metadata"]["examples"]}
+    error_examples = {name: example["error"] for name, example in examples.items() if "error" in example}
+
+    assert {
+        "missing_part",
+        "invalid_part",
+        "missing_body",
+        "missing_target_identity",
+        "missing_title",
+        "unsupported_write_field",
+        "access_failure",
+        "quota_or_upstream_update_failure",
+        "out_of_scope_playlist_management_request",
+    }.issubset(error_examples)
+    assert error_examples["missing_part"] == {"category": "invalid_request", "field": "part"}
+    assert error_examples["invalid_part"] == {"category": "invalid_request", "field": "part"}
+    assert error_examples["missing_body"] == {"category": "invalid_request", "field": "body"}
+    assert error_examples["missing_target_identity"] == {"category": "invalid_request", "field": "body.id"}
+    assert error_examples["missing_title"] == {"category": "invalid_request", "field": "body.snippet.title"}
+    assert error_examples["unsupported_write_field"]["field"] == "body.snippet.description"
+    assert error_examples["access_failure"]["category"] == "authentication_failed"
+    assert error_examples["quota_or_upstream_update_failure"]["category"] == "quota_exhausted"
+    assert error_examples["out_of_scope_playlist_management_request"]["field"] == "insertPlaylistItems"
