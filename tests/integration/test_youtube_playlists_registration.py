@@ -7,10 +7,12 @@ import pytest
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.playlists import (
+    PlaylistsDeleteToolError,
     PlaylistsInsertToolError,
     PlaylistsListToolError,
     PlaylistsUpdateToolError,
     build_playlists_insert_tool_descriptor,
+    build_playlists_delete_tool_descriptor,
     build_playlists_update_tool_descriptor,
     build_playlists_list_tool_descriptor,
 )
@@ -59,6 +61,24 @@ def _register_playlists_update(**descriptor_kwargs) -> InMemoryToolDispatcher:
     :return: Dispatcher containing only the playlists update tool.
     """
     descriptor = build_playlists_update_tool_descriptor(**descriptor_kwargs)
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
+def _register_playlists_delete(**descriptor_kwargs) -> InMemoryToolDispatcher:
+    """Register the concrete playlists delete tool in a fresh dispatcher.
+
+    :param descriptor_kwargs: Overrides passed to the descriptor builder.
+    :return: Dispatcher containing only the playlists delete tool.
+    """
+    descriptor = build_playlists_delete_tool_descriptor(**descriptor_kwargs)
     dispatcher = InMemoryToolDispatcher(tools=[])
     dispatcher.register_tool(
         name=descriptor["name"],
@@ -300,6 +320,67 @@ def test_playlists_update_dispatcher_maps_safe_upstream_failure():
             "playlists_update",
             {"part": "snippet", "body": {"id": "PL123", "snippet": {"title": "Updated research playlist"}}},
         )
+
+    assert exc_info.value.category == "quota_exhausted"
+    assert exc_info.value.details == {"quota": "daily"}
+
+
+def test_playlists_delete_descriptor_registers_as_executable_tool():
+    """Register and execute ``playlists_delete`` for playlist deletion."""
+    dispatcher = _register_playlists_delete()
+
+    result = dispatcher.call_tool("playlists_delete", {"id": "PL123"})
+
+    assert result["endpoint"] == "playlists.delete"
+    assert result["quotaCost"] == 50
+    assert result["deleted"] is True
+    assert result["acknowledged"] is True
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["target"] == {"playlistId": "PL123"}
+
+
+def test_playlists_delete_dispatcher_rejects_missing_oauth_safely():
+    """Reject playlist deletion when OAuth access is unavailable."""
+    dispatcher = _register_playlists_delete(oauth_token=None)
+
+    with pytest.raises(PlaylistsDeleteToolError) as exc_info:
+        dispatcher.call_tool("playlists_delete", {"id": "PL123"})
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+
+
+def test_playlists_delete_dispatcher_rejects_invalid_request_safely():
+    """Reject malformed delete requests through the registered dispatcher handler."""
+    dispatcher = _register_playlists_delete()
+
+    with pytest.raises(PlaylistsDeleteToolError) as exc_info:
+        dispatcher.call_tool("playlists_delete", {"id": " "})
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details.get("field") == "id"
+
+
+def test_playlists_delete_dispatcher_maps_safe_upstream_failure():
+    """Preserve safe upstream failure categories through delete dispatcher execution."""
+
+    class FailingWrapper:
+        """Raise one normalized quota failure during delete wrapper execution."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise a sanitized quota failure for dispatcher mapping.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Normalized arguments supplied by the handler.
+            :param auth_context: Auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this fake wrapper.
+            """
+            raise NormalizedUpstreamError("quota", "quota", True, 429, {"oauth_token": "secret", "quota": "daily"})
+
+    dispatcher = _register_playlists_delete(wrapper=FailingWrapper())
+
+    with pytest.raises(PlaylistsDeleteToolError) as exc_info:
+        dispatcher.call_tool("playlists_delete", {"id": "PL123"})
 
     assert exc_info.value.category == "quota_exhausted"
     assert exc_info.value.details == {"quota": "daily"}

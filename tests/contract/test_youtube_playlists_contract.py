@@ -5,6 +5,13 @@ from __future__ import annotations
 from mcp_server.tools import youtube_common
 from mcp_server.tools.youtube_common import AuthMode, AvailabilityState
 from mcp_server.tools.youtube_common.playlists import (
+    PLAYLISTS_DELETE_CALLER_EXAMPLES,
+    PLAYLISTS_DELETE_CAVEATS,
+    PLAYLISTS_DELETE_DESCRIPTION,
+    PLAYLISTS_DELETE_INPUT_SCHEMA,
+    PLAYLISTS_DELETE_QUOTA_COST,
+    PLAYLISTS_DELETE_TOOL_NAME,
+    PLAYLISTS_DELETE_USAGE_NOTES,
     PLAYLISTS_INSERT_CALLER_EXAMPLES,
     PLAYLISTS_INSERT_CAVEATS,
     PLAYLISTS_INSERT_DESCRIPTION,
@@ -31,6 +38,8 @@ from mcp_server.tools.youtube_common.playlists import (
     PLAYLISTS_LIST_USAGE_NOTES,
     build_playlists_insert_contract,
     build_playlists_insert_tool_descriptor,
+    build_playlists_delete_contract,
+    build_playlists_delete_tool_descriptor,
     build_playlists_update_contract,
     build_playlists_update_tool_descriptor,
     build_playlists_list_contract,
@@ -386,3 +395,119 @@ def test_playlists_update_failure_examples_cover_safe_rejection_surface():
     assert error_examples["access_failure"]["category"] == "authentication_failed"
     assert error_examples["quota_or_upstream_update_failure"]["category"] == "quota_exhausted"
     assert error_examples["out_of_scope_playlist_management_request"]["field"] == "insertPlaylistItems"
+
+
+def test_playlists_delete_public_symbols_are_exported():
+    """Expose ``playlists_delete`` symbols from the shared package."""
+    from mcp_server.tools.youtube_common import playlists
+
+    assert youtube_common.PLAYLISTS_DELETE_TOOL_NAME == "playlists_delete"
+    assert PLAYLISTS_DELETE_TOOL_NAME == "playlists_delete"
+    assert PLAYLISTS_DELETE_QUOTA_COST == 50
+    assert callable(playlists.build_playlists_delete_contract)
+
+
+def test_playlists_delete_schema_requires_target_identity_only():
+    """Expose the supported ``playlists_delete`` request shape."""
+    properties = PLAYLISTS_DELETE_INPUT_SCHEMA["properties"]
+
+    assert PLAYLISTS_DELETE_INPUT_SCHEMA["required"] == ["id"]
+    assert properties["id"] == {"type": "string", "minLength": 1}
+    assert PLAYLISTS_DELETE_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_playlists_delete_public_contract_identifies_endpoint_and_result_shape():
+    """Expose endpoint identity, quota, OAuth, and delete acknowledgment metadata."""
+    contract = build_playlists_delete_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["name"] == "playlists_delete"
+    assert metadata["upstream"]["operationKey"] == "playlists.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["resourceFamily"] == "playlists"
+    assert metadata["inputContract"] == PLAYLISTS_DELETE_INPUT_SCHEMA
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["targetFields"] == ["id"]
+    assert metadata["responseConvention"]["noBodySuccess"] is True
+    assert metadata["responseConvention"]["repeatDeletePolicy"] == "missing_resource_possible_after_success"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+
+
+def test_playlists_delete_metadata_describes_quota_oauth_id_and_boundaries():
+    """Keep caller-facing playlists delete metadata complete before invocation."""
+    descriptor = build_playlists_delete_tool_descriptor()
+    metadata = descriptor["metadata"]
+    metadata_text = " ".join(
+        [
+            descriptor["description"],
+            *metadata["usageNotes"],
+            *metadata["caveats"],
+            *[example["description"] for example in metadata["examples"]],
+        ]
+    )
+
+    assert descriptor["name"] == "playlists_delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text or "oauth_required" in metadata_text
+    assert "id" in metadata_text
+    assert "user-visible" in metadata_text
+    assert "acknowledg" in metadata_text.lower()
+    assert "repeat" in metadata_text.lower()
+    assert "playlist item management" in metadata_text
+    assert "video curation" in metadata_text
+    assert metadata["examples"] == list(PLAYLISTS_DELETE_CALLER_EXAMPLES)
+    assert PLAYLISTS_DELETE_DESCRIPTION in descriptor["description"]
+    assert metadata["usageNotes"] == list(PLAYLISTS_DELETE_USAGE_NOTES)
+    assert metadata["caveats"] == list(PLAYLISTS_DELETE_CAVEATS)
+
+
+def test_playlists_delete_examples_cover_success_and_safe_failure_boundaries():
+    """Expose playlists delete examples for supported calls and safe failures."""
+    descriptor = build_playlists_delete_tool_descriptor()
+    examples = {example["name"]: example for example in descriptor["metadata"]["examples"]}
+
+    assert examples["oauth_playlist_deletion"]["quotaCost"] == 50
+    assert examples["oauth_playlist_deletion"]["arguments"]["id"] == "PL123"
+    assert examples["oauth_playlist_deletion"]["result"]["deleted"] is True
+    assert examples["no_body_deletion_acknowledgment"]["result"]["acknowledged"] is True
+    assert examples["missing_target_identity"]["error"]["field"] == "id"
+    assert examples["malformed_target_identity"]["error"]["field"] == "id"
+    assert examples["unsupported_field"]["error"]["field"] == "part"
+    assert examples["access_failure"]["error"]["category"] == "authentication_failed"
+    assert examples["insufficient_authorization"]["error"]["category"] == "authorization_failed"
+    assert examples["missing_resource_or_already_deleted"]["error"]["category"] == "resource_not_found"
+    assert examples["quota_or_upstream_delete_failure"]["error"]["category"] == "quota_exhausted"
+    assert examples["repeat_delete_caveat"]["result"]["caveats"]["repeatDelete"] == "missing_resource_possible_after_success"
+    assert examples["out_of_scope_playlist_management_request"]["error"]["field"] == "restore"
+
+
+def test_playlists_delete_failure_examples_cover_safe_rejection_surface():
+    """Expose representative invalid, access, upstream, and out-of-scope failures."""
+    descriptor = build_playlists_delete_tool_descriptor()
+    examples = {example["name"]: example for example in descriptor["metadata"]["examples"]}
+    error_examples = {name: example["error"] for name, example in examples.items() if "error" in example}
+
+    assert {
+        "missing_target_identity",
+        "malformed_target_identity",
+        "unsupported_field",
+        "access_failure",
+        "insufficient_authorization",
+        "missing_resource_or_already_deleted",
+        "quota_or_upstream_delete_failure",
+        "out_of_scope_playlist_management_request",
+    }.issubset(error_examples)
+    assert error_examples["missing_target_identity"] == {"category": "invalid_request", "field": "id"}
+    assert error_examples["malformed_target_identity"] == {"category": "invalid_request", "field": "id"}
+    assert error_examples["unsupported_field"] == {"category": "invalid_request", "field": "part"}
+    assert error_examples["access_failure"]["category"] == "authentication_failed"
+    assert error_examples["insufficient_authorization"]["category"] == "authorization_failed"
+    assert error_examples["missing_resource_or_already_deleted"]["category"] == "resource_not_found"
+    assert error_examples["quota_or_upstream_delete_failure"]["category"] == "quota_exhausted"
+    assert error_examples["out_of_scope_playlist_management_request"]["field"] == "restore"

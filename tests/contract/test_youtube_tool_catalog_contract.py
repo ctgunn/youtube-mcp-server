@@ -32,6 +32,7 @@ def test_representative_examples_include_required_us1_shapes():
         "playlistImages_update",
         "playlistImages_delete",
         "playlistItems_delete",
+        "playlists_delete",
         "videos_getRating",
         "videos_reportAbuse",
         "watermarks_unset",
@@ -951,6 +952,62 @@ def test_representative_playlists_update_descriptor_examples_cover_boundaries():
         "access_failure",
         "quota_or_upstream_update_failure",
         "repeat_request_caveat",
+        "out_of_scope_playlist_management_request",
+    }.issubset(example_names)
+
+
+def test_representative_playlists_delete_example_aligns_with_concrete_contract():
+    """Keep the representative playlists-delete example aligned with YT-239."""
+    from mcp_server.tools.youtube_common.playlists import build_playlists_delete_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "playlists_delete"
+    ]
+    concrete = build_playlists_delete_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 50
+    assert representative.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert "id" in representative.input_contract["properties"]
+    assert "playlists.delete" in metadata_text
+    assert "destructive" in metadata_text.lower()
+    assert "repeat" in metadata_text.lower()
+
+
+def test_representative_playlists_delete_descriptor_examples_cover_boundaries():
+    """Expose representative playlists-delete examples for success and safe failures."""
+    from mcp_server.tools.youtube_common.playlists import build_playlists_delete_tool_descriptor
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "playlists_delete"
+    ]
+    metadata = representative.to_tool_metadata()
+    descriptor = build_playlists_delete_tool_descriptor()
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "id" in metadata["inputContract"]["properties"]
+    assert {
+        "oauth_playlist_deletion",
+        "no_body_deletion_acknowledgment",
+        "missing_target_identity",
+        "malformed_target_identity",
+        "unsupported_field",
+        "access_failure",
+        "insufficient_authorization",
+        "missing_resource_or_already_deleted",
+        "quota_or_upstream_delete_failure",
+        "repeat_delete_caveat",
         "out_of_scope_playlist_management_request",
     }.issubset(example_names)
 
