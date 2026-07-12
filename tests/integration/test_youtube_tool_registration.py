@@ -785,6 +785,36 @@ def test_default_registry_includes_executable_playlists_update_tool_with_update_
     assert result["playlist"]["id"] == "PL123"
 
 
+def test_default_registry_includes_executable_playlists_delete_tool_with_delete_metadata():
+    """Register ``playlists_delete`` by default with delete metadata."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlists_delete" in listed
+    metadata = listed["playlists_delete"]["metadata"]
+    description = listed["playlists_delete"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "playlists.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "id" in metadata["inputContract"]["properties"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["noBodySuccess"] is True
+    assert "OAuth" in metadata_text or "oauth_required" in metadata_text
+    assert "user-visible" in metadata_text
+    assert "destructive" in metadata_text.lower()
+
+    result = dispatcher.call_tool("playlists_delete", {"id": "PL123"})
+    assert result["endpoint"] == "playlists.delete"
+    assert result["deleted"] is True
+    assert result["acknowledged"] is True
+    assert result["target"] == {"playlistId": "PL123"}
+
+
 def test_default_registry_includes_executable_playlist_items_insert_tool_with_insert_metadata():
     """Register ``playlistItems_insert`` by default with insert metadata."""
     dispatcher = InMemoryToolDispatcher()

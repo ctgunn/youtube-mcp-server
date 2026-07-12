@@ -221,6 +221,35 @@ def test_playlists_update_contract_uses_existing_resource_family():
     assert "body.snippet.title" in metadata_text
 
 
+def test_playlists_delete_contract_uses_existing_resource_family():
+    """Expose the concrete ``playlists_delete`` contract in the playlists family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import playlists
+    from mcp_server.tools.youtube_common.playlists import build_playlists_delete_contract
+
+    playlists_family = get_resource_family("playlists")
+    contract = build_playlists_delete_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert playlists_family.definition_location.endswith("src/mcp_server/tools/youtube_common/playlists.py")
+    assert playlists_family.layer1_dependency == "mcp_server.integrations.resources.playlists"
+    assert playlists.PLAYLISTS_DELETE_TOOL_NAME == "playlists_delete"
+    assert youtube_common.PLAYLISTS_DELETE_TOOL_NAME == "playlists_delete"
+    assert callable(youtube_common.build_playlists_delete_tool_descriptor)
+    assert metadata["name"] == "playlists_delete"
+    assert metadata["resourceFamily"] == "playlists"
+    assert metadata["upstream"]["operationKey"] == "playlists.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["noBodySuccess"] is True
+    assert metadata["responseConvention"]["targetFields"] == ["id"]
+    assert "id" in metadata_text
+    assert "destructive" in metadata_text.lower()
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
