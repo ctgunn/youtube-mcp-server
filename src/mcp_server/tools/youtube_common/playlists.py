@@ -8,7 +8,11 @@ from mcp_server.integrations.auth import AuthContext, CredentialBundle
 from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
-from mcp_server.integrations.resources.playlists import build_playlists_insert_wrapper, build_playlists_list_wrapper
+from mcp_server.integrations.resources.playlists import (
+    build_playlists_insert_wrapper,
+    build_playlists_list_wrapper,
+    build_playlists_update_wrapper,
+)
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
@@ -257,6 +261,141 @@ PLAYLISTS_INSERT_CALLER_EXAMPLES = (
     },
 )
 
+PLAYLISTS_UPDATE_TOOL_NAME = "playlists_update"
+PLAYLISTS_UPDATE_QUOTA_COST = 50
+PLAYLISTS_UPDATE_SUPPORTED_PARTS = ("snippet",)
+PLAYLISTS_UPDATE_UNSAFE_DETAIL_KEYS = frozenset({"authorization", "authorization_header", "headers"})
+
+PLAYLISTS_UPDATE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["part", "body"],
+    "properties": {
+        "part": {"type": "string", "minLength": 1, "enum": list(PLAYLISTS_UPDATE_SUPPORTED_PARTS)},
+        "body": {
+            "type": "object",
+            "required": ["id", "snippet"],
+            "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "snippet": {
+                    "type": "object",
+                    "required": ["title"],
+                    "properties": {"title": {"type": "string", "minLength": 1}},
+                    "additionalProperties": False,
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    "additionalProperties": False,
+}
+
+PLAYLISTS_UPDATE_DESCRIPTION = (
+    "Update a YouTube playlist. Endpoint: playlists.update. "
+    "Quota cost: 50. Auth: oauth_required. Requires body.id and body.snippet.title."
+)
+
+PLAYLISTS_UPDATE_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide part, body.id, and body.snippet.title.",
+    "Quota cost: 50. Successful calls mutate user-visible playlist details for the authorized account.",
+    "Quota cost: 50. Repeating an update after an unclear outcome may reapply the requested playlist state.",
+    "Quota cost: 50. Returned playlist fields depend on selected parts and upstream availability.",
+)
+
+PLAYLISTS_UPDATE_CAVEATS = (
+    "playlists_update updates one playlist through playlists.update and requires OAuth authorization.",
+    "Use playlists_list for playlist retrieval and playlists_insert for playlist creation; this tool only performs playlists.update.",
+    "body.id identifies the existing playlist and body.snippet.title is required for supported update requests.",
+    "Unsupported write fields such as body.snippet.description, body.status, or body.localizations are out of scope.",
+    "Playlist listing, creation, deletion, playlist item management, playlist image handling, video curation, "
+    "transcript retrieval, analytics, ranking, summarization, recommendation, rollback, conflict detection, "
+    "playlist-versioning, and cross-endpoint enrichment are out of scope.",
+    "Returned playlist fields depend on selected parts and upstream availability; missing optional fields are not fabricated.",
+)
+
+PLAYLISTS_UPDATE_CALLER_EXAMPLES = (
+    {
+        "name": "oauth_playlist_update",
+        "description": "Quota cost: 50. Update a user-visible playlist title with OAuth authorization.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"id": "PL123", "snippet": {"title": "Updated research playlist"}},
+        },
+        "result": {"endpoint": "playlists.update", "quotaCost": 50, "updated": True},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_part",
+        "description": "Quota cost: 50. Reject playlist update requests missing required part selection.",
+        "arguments": {"body": {"id": "PL123", "snippet": {"title": "Updated research playlist"}}},
+        "error": {"category": "invalid_request", "field": "part"},
+    },
+    {
+        "name": "invalid_part",
+        "description": "Quota cost: 50. Reject update part values outside the supported snippet path.",
+        "arguments": {"part": "status", "body": {"id": "PL123", "snippet": {"title": "Updated research playlist"}}},
+        "error": {"category": "invalid_request", "field": "part"},
+    },
+    {
+        "name": "missing_body",
+        "description": "Quota cost: 50. Reject playlist update requests missing a writable body.",
+        "arguments": {"part": "snippet"},
+        "error": {"category": "invalid_request", "field": "body"},
+    },
+    {
+        "name": "missing_target_identity",
+        "description": "Quota cost: 50. Reject playlist update requests missing body.id.",
+        "arguments": {"part": "snippet", "body": {"snippet": {"title": "Updated research playlist"}}},
+        "error": {"category": "invalid_request", "field": "body.id"},
+    },
+    {
+        "name": "missing_title",
+        "description": "Quota cost: 50. Reject playlist update requests missing body.snippet.title.",
+        "arguments": {"part": "snippet", "body": {"id": "PL123", "snippet": {}}},
+        "error": {"category": "invalid_request", "field": "body.snippet.title"},
+    },
+    {
+        "name": "unsupported_write_field",
+        "description": "Quota cost: 50. Reject optional write fields not supported by this slice.",
+        "arguments": {
+            "part": "snippet",
+            "body": {
+                "id": "PL123",
+                "snippet": {"title": "Updated research playlist", "description": "Unsupported"},
+            },
+        },
+        "error": {"category": "invalid_request", "field": "body.snippet.description"},
+    },
+    {
+        "name": "access_failure",
+        "description": "Quota cost: 50. Map missing or invalid OAuth access to safe authentication errors.",
+        "arguments": {"part": "snippet", "body": {"id": "PL123", "snippet": {"title": "Updated research playlist"}}},
+        "error": {"category": "authentication_failed", "authMode": "oauth_required"},
+    },
+    {
+        "name": "quota_or_upstream_update_failure",
+        "description": "Quota cost: 50. Map quota, missing-resource, and upstream update failures to safe categories.",
+        "arguments": {"part": "snippet", "body": {"id": "PL123", "snippet": {"title": "Updated research playlist"}}},
+        "error": {"category": "quota_exhausted"},
+    },
+    {
+        "name": "repeat_request_caveat",
+        "description": "Quota cost: 50. Repeating an update after an unclear outcome may reapply the requested state.",
+        "arguments": {"part": "snippet", "body": {"id": "PL123", "snippet": {"title": "Updated research playlist"}}},
+        "result": {"endpoint": "playlists.update", "caveats": {"repeatRequest": "may_reapply_update"}},
+        "quotaCost": 50,
+    },
+    {
+        "name": "out_of_scope_playlist_management_request",
+        "description": "Quota cost: 50. Playlist item management, video curation, analytics, and recommendation are out of scope.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"id": "PL123", "snippet": {"title": "Updated research playlist"}},
+            "insertPlaylistItems": True,
+        },
+        "error": {"category": "invalid_request", "field": "insertPlaylistItems"},
+    },
+)
+
 
 class PlaylistsListToolError(ValueError):
     """Represent a safe caller-facing ``playlists_list`` failure.
@@ -310,6 +449,32 @@ class PlaylistsInsertToolError(ValueError):
         self.details = _sanitize_playlists_insert_error_details(details or {})
 
 
+class PlaylistsUpdateToolError(ValueError):
+    """Represent a safe caller-facing ``playlists_update`` failure.
+
+    :param message: Human-readable failure summary.
+    :param category: Stable safe failure category.
+    :param details: Optional structured details with secret-bearing keys removed.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str = "invalid_request",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Initialize a sanitized playlists update tool error.
+
+        :param message: Human-readable failure summary.
+        :param category: Stable safe failure category.
+        :param details: Optional diagnostic details to sanitize before exposure.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = _sanitize_playlists_update_error_details(details or {})
+
+
 def _sanitize_playlists_error_details(details: dict[str, Any]) -> dict[str, Any]:
     """Remove playlist-list credential and header fields from error details.
 
@@ -335,6 +500,20 @@ def _sanitize_playlists_insert_error_details(details: dict[str, Any]) -> dict[st
         key: value
         for key, value in sanitized.items()
         if key.lower() not in PLAYLISTS_INSERT_UNSAFE_DETAIL_KEYS
+    }
+
+
+def _sanitize_playlists_update_error_details(details: dict[str, Any]) -> dict[str, Any]:
+    """Remove playlist-update credential and header fields from error details.
+
+    :param details: Candidate diagnostic details.
+    :return: Details safe to expose to MCP callers.
+    """
+    sanitized = sanitize_error_details(details)
+    return {
+        key: value
+        for key, value in sanitized.items()
+        if key.lower() not in PLAYLISTS_UPDATE_UNSAFE_DETAIL_KEYS
     }
 
 
@@ -391,6 +570,28 @@ def _validate_playlists_insert_parts(part: Any) -> str:
     return ",".join(parts)
 
 
+def _validate_playlists_update_parts(part: Any) -> str:
+    """Validate and normalize requested playlist update parts.
+
+    :param part: Candidate part selection value.
+    :return: Normalized comma-delimited part selection.
+    :raises PlaylistsUpdateToolError: If part is missing, duplicated, or unsupported.
+    """
+    if not isinstance(part, str) or not part.strip():
+        raise PlaylistsUpdateToolError("playlists_update requires part", details={"field": "part"})
+    parts = _split_parts(part)
+    if (
+        not parts
+        or len(set(parts)) != len(parts)
+        or any(item not in PLAYLISTS_UPDATE_SUPPORTED_PARTS for item in parts)
+    ):
+        raise PlaylistsUpdateToolError(
+            "playlists_update part must use supported writable playlist sections",
+            details={"field": "part", "allowed": list(PLAYLISTS_UPDATE_SUPPORTED_PARTS)},
+        )
+    return ",".join(parts)
+
+
 def validate_playlists_insert_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     """Validate a ``playlists_insert`` request and return normalized arguments.
 
@@ -438,6 +639,58 @@ def validate_playlists_insert_arguments(arguments: dict[str, Any]) -> dict[str, 
             details={"field": "body.snippet.title"},
         )
     return {"part": part, "body": {"snippet": {"title": title.strip()}}}
+
+
+def validate_playlists_update_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate a ``playlists_update`` request and return normalized arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized caller arguments for execution and result mapping.
+    :raises PlaylistsUpdateToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise PlaylistsUpdateToolError("playlists_update arguments must be an object")
+
+    allowed = set(PLAYLISTS_UPDATE_INPUT_SCHEMA["properties"])
+    for field in arguments:
+        if field not in allowed:
+            raise PlaylistsUpdateToolError(
+                f"unsupported field for playlists_update: {field}",
+                details={"field": field},
+            )
+
+    part = _validate_playlists_update_parts(arguments.get("part"))
+    body = arguments.get("body")
+    if not isinstance(body, dict):
+        raise PlaylistsUpdateToolError("playlists_update requires body", details={"field": "body"})
+    unsupported_body = [field for field in body if field not in {"id", "snippet"}]
+    if unsupported_body:
+        raise PlaylistsUpdateToolError(
+            f"unsupported body field for playlists_update: {unsupported_body[0]}",
+            details={"field": f"body.{unsupported_body[0]}"},
+        )
+    playlist_id = body.get("id")
+    if not isinstance(playlist_id, str) or not playlist_id.strip():
+        raise PlaylistsUpdateToolError("playlists_update requires body.id", details={"field": "body.id"})
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        raise PlaylistsUpdateToolError(
+            "playlists_update requires body.snippet",
+            details={"field": "body.snippet"},
+        )
+    unsupported_snippet = [field for field in snippet if field != "title"]
+    if unsupported_snippet:
+        raise PlaylistsUpdateToolError(
+            f"unsupported snippet field for playlists_update: {unsupported_snippet[0]}",
+            details={"field": f"body.snippet.{unsupported_snippet[0]}"},
+        )
+    title = snippet.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise PlaylistsUpdateToolError(
+            "playlists_update requires body.snippet.title",
+            details={"field": "body.snippet.title"},
+        )
+    return {"part": part, "body": {"id": playlist_id.strip(), "snippet": {"title": title.strip()}}}
 
 
 def _active_selectors(arguments: dict[str, Any]) -> list[tuple[str, Any]]:
@@ -625,6 +878,27 @@ def _playlists_insert_creation_context(arguments: dict[str, Any]) -> dict[str, A
     }
 
 
+def _playlists_update_target_context(arguments: dict[str, Any]) -> dict[str, str]:
+    """Return safe playlist target context for an update request.
+
+    :param arguments: Validated ``playlists_update`` arguments.
+    :return: Safe target context with the playlist identifier.
+    """
+    return {"playlistId": arguments["body"]["id"]}
+
+
+def _playlists_update_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return safe playlist update context for an update request.
+
+    :param arguments: Validated ``playlists_update`` arguments.
+    :return: Safe update context with writable fields and title.
+    """
+    return {
+        "writableFields": ["body.snippet.title"],
+        "title": arguments["body"]["snippet"]["title"],
+    }
+
+
 def map_playlists_insert_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     """Map an upstream playlist creation payload to the public result.
 
@@ -639,6 +913,30 @@ def map_playlists_insert_result(payload: dict[str, Any], arguments: dict[str, An
         "created": True,
         "requestedParts": _split_parts(normalized["part"]),
         "creation": _playlists_insert_creation_context(normalized),
+        "auth": {"mode": "oauth_required"},
+        "playlist": payload,
+    }
+    for field in ("kind", "etag"):
+        if field in payload:
+            result[field] = payload[field]
+    return result
+
+
+def map_playlists_update_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream playlist update payload to the public result.
+
+    :param payload: Upstream or Layer 1 playlists update payload.
+    :param arguments: Validated caller arguments used for the request.
+    :return: Near-raw updated-resource result with safe operation context.
+    """
+    normalized = validate_playlists_update_arguments(arguments)
+    result: dict[str, Any] = {
+        "endpoint": "playlists.update",
+        "quotaCost": PLAYLISTS_UPDATE_QUOTA_COST,
+        "updated": True,
+        "requestedParts": _split_parts(normalized["part"]),
+        "target": _playlists_update_target_context(normalized),
+        "update": _playlists_update_context(normalized),
         "auth": {"mode": "oauth_required"},
         "playlist": payload,
     }
@@ -700,6 +998,33 @@ def _map_playlists_insert_upstream_error(error: NormalizedUpstreamError) -> Play
     }
     category = category_map.get(error.category, "upstream_failure")
     return PlaylistsInsertToolError(str(error), category=category, details=error.details)
+
+
+def _map_playlists_update_upstream_error(error: NormalizedUpstreamError) -> PlaylistsUpdateToolError:
+    """Map a normalized upstream failure to a safe ``playlists_update`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe tool error with shared category and sanitized details.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "validation": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "forbidden_update",
+        "policy_restricted": "forbidden_update",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "not_found": "resource_not_found",
+        "resource_not_found": "resource_not_found",
+        "unavailable": "endpoint_unavailable",
+        "transient": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return PlaylistsUpdateToolError(str(error), category=category, details=error.details)
 
 
 def build_playlists_list_contract() -> YouTubeToolContract:
@@ -848,6 +1173,80 @@ def build_playlists_insert_contract() -> YouTubeToolContract:
     )
 
 
+def build_playlists_update_contract() -> YouTubeToolContract:
+    """Build the public contract for ``playlists_update``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "quotaCost",
+            "updated",
+            "requestedParts",
+            "target",
+            "update",
+            "auth",
+            "playlist",
+            "kind",
+            "etag",
+        ),
+        preserved_upstream_fields=("kind", "etag", "id", "snippet", "status", "localizations"),
+        disallowed_behavior=(
+            "playlist_listing",
+            "playlist_creation",
+            "playlist_deletion",
+            "playlist_item_management",
+            "playlist_image_handling",
+            "video_curation",
+            "transcript_retrieval",
+            "analytics",
+            "recommendation",
+            "ranking",
+            "summarization",
+            "rollback",
+            "conflict_detection",
+            "cross_endpoint_aggregation",
+        ),
+    )
+    return YouTubeToolContract(
+        tool_name=PLAYLISTS_UPDATE_TOOL_NAME,
+        upstream_resource="playlists",
+        upstream_method="update",
+        operation_key="playlists.update",
+        description=PLAYLISTS_UPDATE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=PLAYLISTS_UPDATE_QUOTA_COST,
+        resource_family="playlists",
+        input_contract=PLAYLISTS_UPDATE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "updated_resource",
+            "resourcePath": "playlist",
+            "requestedParts": list(PLAYLISTS_UPDATE_SUPPORTED_PARTS),
+            "supportedWritableParts": ["snippet"],
+            "targetFields": ["body.id"],
+            "writableFields": ["body.snippet.title"],
+            "repeatRequestPolicy": "may_reapply_update",
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "forbidden_update",
+            "quota_exhausted",
+            "resource_not_found",
+            "deprecated_endpoint",
+            "endpoint_unavailable",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=PLAYLISTS_UPDATE_USAGE_NOTES,
+        caveats=PLAYLISTS_UPDATE_CAVEATS,
+    )
+
+
 def _default_playlists_list_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default playlist calls.
 
@@ -900,6 +1299,33 @@ def _default_playlists_insert_executor() -> IntegrationExecutor:
             "id": "PL123",
             "snippet": {
                 "title": snippet.get("title", "Research playlist"),
+                "channelId": "UC123",
+            },
+        }
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _default_playlists_update_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default playlist updates.
+
+    :return: Integration executor returning representative updated playlist data.
+    """
+
+    def transport(execution):
+        """Return a representative updated playlist response.
+
+        :param execution: Request execution context.
+        :return: Fake upstream updated-resource response for local invocation.
+        """
+        body = execution.arguments.get("body", {})
+        snippet = body.get("snippet", {})
+        return {
+            "kind": "youtube#playlist",
+            "etag": "etag-updated-playlist",
+            "id": body.get("id", "PL123"),
+            "snippet": {
+                "title": snippet.get("title", "Updated research playlist"),
                 "channelId": "UC123",
             },
         }
@@ -1007,6 +1433,59 @@ def build_playlists_insert_handler(
     return handler
 
 
+def build_playlists_update_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``playlists_update``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used for playlist update.
+    :return: Callable that validates, executes, and maps playlist update requests.
+    """
+    selected_wrapper = wrapper or build_playlists_update_wrapper()
+    selected_executor = executor or _default_playlists_update_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``playlists_update`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 playlists update result.
+        :raises PlaylistsUpdateToolError: If validation or execution fails.
+        """
+        normalized = validate_playlists_update_arguments(arguments)
+        if not isinstance(oauth_token, str) or not oauth_token.strip():
+            raise PlaylistsUpdateToolError(
+                "playlists_update requires eligible OAuth authorization",
+                category="authentication_failed",
+                details={"authMode": "oauth_required"},
+            )
+        auth_context = AuthContext(
+            mode=Layer1AuthMode.OAUTH_REQUIRED,
+            credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+        )
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_playlists_update_upstream_error(exc) from exc
+        except ValueError as exc:
+            raise PlaylistsUpdateToolError(
+                str(exc),
+                category="invalid_request",
+                details={"operation": "playlists.update"},
+            ) from exc
+        return map_playlists_update_result(payload, normalized)
+
+    return handler
+
+
 def build_playlists_list_tool_descriptor(
     *,
     wrapper=None,
@@ -1068,6 +1547,35 @@ def build_playlists_insert_tool_descriptor(
     }
 
 
+def build_playlists_update_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``playlists_update``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_playlists_update_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(PLAYLISTS_UPDATE_CALLER_EXAMPLES)
+    return {
+        "name": PLAYLISTS_UPDATE_TOOL_NAME,
+        "description": PLAYLISTS_UPDATE_DESCRIPTION,
+        "inputSchema": PLAYLISTS_UPDATE_INPUT_SCHEMA,
+        "handler": build_playlists_update_handler(
+            wrapper=wrapper,
+            executor=executor,
+            oauth_token=oauth_token,
+        ),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
     "PLAYLISTS_INSERT_CALLER_EXAMPLES",
     "PLAYLISTS_INSERT_CAVEATS",
@@ -1077,6 +1585,14 @@ __all__ = [
     "PLAYLISTS_INSERT_SUPPORTED_PARTS",
     "PLAYLISTS_INSERT_TOOL_NAME",
     "PLAYLISTS_INSERT_USAGE_NOTES",
+    "PLAYLISTS_UPDATE_CALLER_EXAMPLES",
+    "PLAYLISTS_UPDATE_CAVEATS",
+    "PLAYLISTS_UPDATE_DESCRIPTION",
+    "PLAYLISTS_UPDATE_INPUT_SCHEMA",
+    "PLAYLISTS_UPDATE_QUOTA_COST",
+    "PLAYLISTS_UPDATE_SUPPORTED_PARTS",
+    "PLAYLISTS_UPDATE_TOOL_NAME",
+    "PLAYLISTS_UPDATE_USAGE_NOTES",
     "PLAYLISTS_LIST_CALLER_EXAMPLES",
     "PLAYLISTS_LIST_CAVEATS",
     "PLAYLISTS_LIST_DESCRIPTION",
@@ -1088,15 +1604,21 @@ __all__ = [
     "PLAYLISTS_LIST_TOOL_NAME",
     "PLAYLISTS_LIST_USAGE_NOTES",
     "PlaylistsInsertToolError",
+    "PlaylistsUpdateToolError",
     "PlaylistsListToolError",
     "build_playlists_insert_contract",
     "build_playlists_insert_handler",
     "build_playlists_insert_tool_descriptor",
+    "build_playlists_update_contract",
+    "build_playlists_update_handler",
+    "build_playlists_update_tool_descriptor",
     "build_playlists_list_contract",
     "build_playlists_list_handler",
     "build_playlists_list_tool_descriptor",
     "map_playlists_insert_result",
+    "map_playlists_update_result",
     "map_playlists_list_result",
     "validate_playlists_insert_arguments",
+    "validate_playlists_update_arguments",
     "validate_playlists_list_arguments",
 ]

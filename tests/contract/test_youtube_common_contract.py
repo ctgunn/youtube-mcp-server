@@ -194,6 +194,33 @@ def test_playlists_insert_contract_uses_existing_resource_family():
     assert "body.snippet.title" in metadata_text
 
 
+def test_playlists_update_contract_uses_existing_resource_family():
+    """Expose the concrete ``playlists_update`` contract in the playlists family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import playlists
+    from mcp_server.tools.youtube_common.playlists import build_playlists_update_contract
+
+    playlists_family = get_resource_family("playlists")
+    contract = build_playlists_update_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert playlists_family.definition_location.endswith("src/mcp_server/tools/youtube_common/playlists.py")
+    assert playlists_family.layer1_dependency == "mcp_server.integrations.resources.playlists"
+    assert playlists.PLAYLISTS_UPDATE_TOOL_NAME == "playlists_update"
+    assert youtube_common.PLAYLISTS_UPDATE_TOOL_NAME == "playlists_update"
+    assert callable(youtube_common.build_playlists_update_tool_descriptor)
+    assert metadata["name"] == "playlists_update"
+    assert metadata["resourceFamily"] == "playlists"
+    assert metadata["upstream"]["operationKey"] == "playlists.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert "body.id" in metadata_text
+    assert "body.snippet.title" in metadata_text
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
