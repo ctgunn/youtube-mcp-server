@@ -158,6 +158,47 @@ def test_search_family_module_is_importable():
     assert search_family.layer1_dependency == "mcp_server.integrations.resources.search"
 
 
+def test_subscriptions_family_module_is_importable():
+    """Expose the concrete subscriptions family module for YT-241."""
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import subscriptions
+
+    subscriptions_family = get_resource_family("subscriptions")
+
+    assert subscriptions is not None
+    assert subscriptions_family.definition_location.endswith("src/mcp_server/tools/youtube_common/subscriptions.py")
+    assert subscriptions_family.layer1_dependency == "mcp_server.integrations.resources.subscriptions"
+
+
+def test_subscriptions_list_contract_uses_existing_resource_family():
+    """Expose the concrete ``subscriptions_list`` contract in the subscriptions family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import subscriptions
+    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_list_contract
+
+    subscriptions_family = get_resource_family("subscriptions")
+    contract = build_subscriptions_list_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert subscriptions_family.definition_location.endswith("src/mcp_server/tools/youtube_common/subscriptions.py")
+    assert subscriptions_family.layer1_dependency == "mcp_server.integrations.resources.subscriptions"
+    assert subscriptions.SUBSCRIPTIONS_LIST_TOOL_NAME == "subscriptions_list"
+    assert youtube_common.SUBSCRIPTIONS_LIST_TOOL_NAME == "subscriptions_list"
+    assert callable(youtube_common.build_subscriptions_list_tool_descriptor)
+    assert metadata["name"] == "subscriptions_list"
+    assert metadata["resourceFamily"] == "subscriptions"
+    assert metadata["upstream"]["operationKey"] == "subscriptions.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert "channelId" in metadata_text
+    assert "myRecentSubscribers" in metadata_text
+    assert "OAuth" in metadata_text
+
+
 def test_search_list_contract_uses_existing_resource_family():
     """Expose the concrete ``search_list`` contract in the search family."""
     from mcp_server.tools.youtube_common import get_resource_family
