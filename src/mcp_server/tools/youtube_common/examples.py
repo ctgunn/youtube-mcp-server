@@ -48,6 +48,7 @@ from mcp_server.tools.youtube_common.playlists import (
     build_playlists_list_contract,
     build_playlists_update_contract,
 )
+from mcp_server.tools.youtube_common.search import build_search_list_contract
 
 
 def _contract(
@@ -510,19 +511,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_comment_threads_insert_contract(),
     build_comments_insert_contract(),
     build_comments_update_contract(),
-    _contract(
-        resource="search",
-        method="list",
-        description="Search YouTube resources. Endpoint: search.list. Quota cost: 100. Auth: api_key.",
-        auth_mode=AuthMode.API_KEY,
-        quota_cost=100,
-        resource_family="search",
-        input_contract={"required": ["part"], "properties": {"q": {"type": "string"}}},
-        response_convention={"resultKind": "list", "itemsPath": "items", "pagingFields": ["nextPageToken"]},
-        error_categories=("invalid_request", "quota_exhausted", "upstream_failure"),
-        usage_notes=("Quota cost: 100. Auth: api_key. High quota cost; inspect quota before use.",),
-        caveats=("High quota cost; callers should inspect quota before use.",),
-    ),
+    build_search_list_contract(),
     _contract(
         resource="videos",
         method="reportAbuse",
