@@ -34,6 +34,7 @@ def test_representative_examples_include_required_us1_shapes():
         "playlistItems_delete",
         "playlists_delete",
         "search_list",
+        "subscriptions_list",
         "videos_getRating",
         "videos_reportAbuse",
         "watermarks_unset",
@@ -1228,6 +1229,62 @@ def test_representative_search_list_descriptor_examples_cover_boundaries():
         "missing_query",
         "incompatible_video_filter",
         "restricted_filter_conflict",
+        "access_failure",
+        "quota_or_upstream_failure",
+        "out_of_scope_enrichment_request",
+    }.issubset(example_names)
+
+
+def test_representative_subscriptions_list_example_aligns_with_concrete_contract():
+    """Keep the representative subscriptions-list example aligned with YT-241."""
+    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_list_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "subscriptions_list"
+    ]
+    concrete = build_subscriptions_list_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 1
+    assert representative.auth_mode is AuthMode.MIXED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == "list"
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert "channelId" in metadata_text
+    assert "myRecentSubscribers" in metadata_text
+    assert "mySubscribers" in metadata_text
+    assert "OAuth" in metadata_text
+
+
+def test_representative_subscriptions_list_descriptor_examples_cover_boundaries():
+    """Expose representative subscriptions-list examples for success and safe failures."""
+    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_list_tool_descriptor
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "subscriptions_list"
+    ]
+    metadata = representative.to_tool_metadata()
+    descriptor = build_subscriptions_list_tool_descriptor()
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert {
+        "channel_subscription_listing",
+        "direct_subscription_lookup",
+        "current_user_subscriptions",
+        "recent_subscribers",
+        "subscriber_list",
+        "paginated_subscription_listing",
+        "empty_success",
+        "missing_selector",
+        "conflicting_selector",
         "access_failure",
         "quota_or_upstream_failure",
         "out_of_scope_enrichment_request",

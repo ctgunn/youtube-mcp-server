@@ -125,6 +125,26 @@ def test_default_registry_includes_executable_search_list_tool():
     assert result["auth"] == {"mode": "api_key", "path": "public"}
 
 
+def test_default_registry_includes_executable_subscriptions_list_tool():
+    """Register ``subscriptions_list`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "subscriptions_list" in listed
+    metadata = listed["subscriptions_list"]["metadata"]
+    assert metadata["upstream"]["operationKey"] == "subscriptions.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert metadata["responseConvention"]["resultKind"] == "list"
+
+    result = dispatcher.call_tool("subscriptions_list", {"part": "snippet", "channelId": "UC123"})
+
+    assert result["endpoint"] == "subscriptions.list"
+    assert result["quotaCost"] == 1
+    assert result["auth"] == {"mode": "api_key", "path": "public"}
+
+
 def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
     """Register ``comments_insert`` by default with create metadata."""
     dispatcher = InMemoryToolDispatcher()
