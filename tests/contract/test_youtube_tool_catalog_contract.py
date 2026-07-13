@@ -33,6 +33,7 @@ def test_representative_examples_include_required_us1_shapes():
         "playlistImages_delete",
         "playlistItems_delete",
         "playlists_delete",
+        "search_list",
         "videos_getRating",
         "videos_reportAbuse",
         "watermarks_unset",
@@ -1172,6 +1173,64 @@ def test_representative_playlist_items_delete_descriptor_examples_cover_boundari
         "authorization_failure",
         "quota_or_upstream_failure",
         "out_of_scope_playlist_management_request",
+    }.issubset(example_names)
+
+
+def test_representative_search_list_example_aligns_with_concrete_contract():
+    """Keep the representative search-list example aligned with YT-240."""
+    from mcp_server.tools.youtube_common.search import build_search_list_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "search_list"
+    ]
+    concrete = build_search_list_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 100
+    assert representative.auth_mode is AuthMode.MIXED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == "list"
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert "part" in metadata_text
+    assert "q" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "API-key" in metadata_text
+
+
+def test_representative_search_list_descriptor_examples_cover_boundaries():
+    """Expose representative search-list examples for success and safe failures."""
+    from mcp_server.tools.youtube_common.search import build_search_list_tool_descriptor
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "search_list"
+    ]
+    metadata = representative.to_tool_metadata()
+    descriptor = build_search_list_tool_descriptor()
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert metadata["quotaCost"] == 100
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["inputContract"]["required"] == ["part", "q"]
+    assert {
+        "public_keyword_search",
+        "type_filtered_video_search",
+        "channel_scoped_search",
+        "date_and_locale_refinement",
+        "restricted_oauth_search",
+        "paginated_search",
+        "empty_success",
+        "missing_query",
+        "incompatible_video_filter",
+        "restricted_filter_conflict",
+        "access_failure",
+        "quota_or_upstream_failure",
+        "out_of_scope_enrichment_request",
     }.issubset(example_names)
 
 

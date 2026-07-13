@@ -105,6 +105,26 @@ def test_default_registry_includes_executable_captions_delete_tool():
     assert any("destructive" in caveat.lower() for caveat in metadata["caveats"])
 
 
+def test_default_registry_includes_executable_search_list_tool():
+    """Register ``search_list`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "search_list" in listed
+    metadata = listed["search_list"]["metadata"]
+    assert metadata["upstream"]["operationKey"] == "search.list"
+    assert metadata["quotaCost"] == 100
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["inputContract"]["required"] == ["part", "q"]
+    assert metadata["responseConvention"]["resultKind"] == "list"
+
+    result = dispatcher.call_tool("search_list", {"part": "snippet", "q": "mcp server"})
+
+    assert result["endpoint"] == "search.list"
+    assert result["quotaCost"] == 100
+    assert result["auth"] == {"mode": "api_key", "path": "public"}
+
+
 def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
     """Register ``comments_insert`` by default with create metadata."""
     dispatcher = InMemoryToolDispatcher()

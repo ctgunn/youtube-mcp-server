@@ -165,6 +165,31 @@ def test_playlists_delete_uses_existing_playlists_resource_family():
     assert playlists.layer1_dependency == "mcp_server.integrations.resources.playlists"
 
 
+def test_search_resource_family_points_to_concrete_layer2_module():
+    """Expose the concrete search family placement for YT-240."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    search = get_resource_family("search")
+
+    assert search.family_name == "search"
+    assert search.definition_location.endswith("src/mcp_server/tools/youtube_common/search.py")
+    assert search.handler_location.endswith("src/mcp_server/tools/youtube_common/search.py")
+    assert search.schema_location.endswith("src/mcp_server/tools/youtube_common/search.py")
+    assert search.layer1_dependency == "mcp_server.integrations.resources.search"
+
+
+def test_search_list_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``search_list`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import search
+
+    assert search.SEARCH_LIST_TOOL_NAME == "search_list"
+    assert youtube_common.SEARCH_LIST_TOOL_NAME == "search_list"
+    assert youtube_common.SEARCH_LIST_QUOTA_COST == 100
+    assert callable(search.build_search_list_contract)
+    assert callable(youtube_common.build_search_list_tool_descriptor)
+
+
 def test_activities_resource_family_points_to_concrete_layer2_module():
     """Expose the concrete activities family placement for YT-203."""
     from mcp_server.tools.youtube_common import get_resource_family

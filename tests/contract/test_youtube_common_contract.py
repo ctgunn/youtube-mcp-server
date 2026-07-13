@@ -146,6 +146,41 @@ def test_playlists_family_module_is_importable():
     assert playlists_family.layer1_dependency == "mcp_server.integrations.resources.playlists"
 
 
+def test_search_family_module_is_importable():
+    """Expose the concrete search family module for YT-240."""
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import search
+
+    search_family = get_resource_family("search")
+
+    assert search is not None
+    assert search_family.definition_location.endswith("src/mcp_server/tools/youtube_common/search.py")
+    assert search_family.layer1_dependency == "mcp_server.integrations.resources.search"
+
+
+def test_search_list_contract_uses_existing_resource_family():
+    """Expose the concrete ``search_list`` contract in the search family."""
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common.search import build_search_list_contract
+
+    search_family = get_resource_family("search")
+    contract = build_search_list_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert search_family.definition_location.endswith("src/mcp_server/tools/youtube_common/search.py")
+    assert search_family.layer1_dependency == "mcp_server.integrations.resources.search"
+    assert metadata["name"] == "search_list"
+    assert metadata["resourceFamily"] == "search"
+    assert metadata["upstream"]["operationKey"] == "search.list"
+    assert metadata["quotaCost"] == 100
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["inputContract"]["required"] == ["part", "q"]
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert "OAuth" in metadata_text
+    assert "API-key" in metadata_text
+
+
 def test_playlists_list_contract_uses_existing_resource_family():
     """Expose the concrete ``playlists_list`` contract in the playlists family."""
     from mcp_server.tools.youtube_common import get_resource_family
