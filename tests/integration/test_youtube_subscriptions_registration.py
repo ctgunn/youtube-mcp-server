@@ -7,7 +7,9 @@ import pytest
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.subscriptions import (
+    SubscriptionsInsertToolError,
     SubscriptionsListToolError,
+    build_subscriptions_insert_tool_descriptor,
     build_subscriptions_list_tool_descriptor,
 )
 
@@ -19,6 +21,24 @@ def _register_subscriptions_list(**descriptor_kwargs) -> InMemoryToolDispatcher:
     :return: Dispatcher containing only the subscriptions list tool.
     """
     descriptor = build_subscriptions_list_tool_descriptor(**descriptor_kwargs)
+    dispatcher = InMemoryToolDispatcher(tools=[])
+    dispatcher.register_tool(
+        name=descriptor["name"],
+        description=descriptor["description"],
+        input_schema=descriptor["inputSchema"],
+        handler=descriptor["handler"],
+        metadata=descriptor["metadata"],
+    )
+    return dispatcher
+
+
+def _register_subscriptions_insert(**descriptor_kwargs) -> InMemoryToolDispatcher:
+    """Register the concrete subscriptions insert tool in a fresh dispatcher.
+
+    :param descriptor_kwargs: Overrides passed to the descriptor builder.
+    :return: Dispatcher containing only the subscriptions insert tool.
+    """
+    descriptor = build_subscriptions_insert_tool_descriptor(**descriptor_kwargs)
     dispatcher = InMemoryToolDispatcher(tools=[])
     dispatcher.register_tool(
         name=descriptor["name"],
@@ -124,3 +144,78 @@ def test_subscriptions_list_dispatcher_preserves_empty_success():
     assert result["endpoint"] == "subscriptions.list"
     assert result["items"] == []
     assert result["empty"] is True
+
+
+def test_subscriptions_insert_descriptor_registers_as_executable_public_tool():
+    """Register and execute ``subscriptions_insert`` for OAuth-backed creation."""
+    dispatcher = _register_subscriptions_insert()
+
+    result = dispatcher.call_tool(
+        "subscriptions_insert",
+        {"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}},
+    )
+
+    assert result["endpoint"] == "subscriptions.insert"
+    assert result["quotaCost"] == 50
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["created"] is True
+    assert result["creation"]["targetChannelId"] == "UC123"
+
+
+def test_subscriptions_insert_dispatcher_rejects_missing_oauth_safely():
+    """Reject subscription creation when OAuth access is unavailable."""
+    dispatcher = _register_subscriptions_insert(oauth_token=None)
+
+    with pytest.raises(SubscriptionsInsertToolError) as exc_info:
+        dispatcher.call_tool(
+            "subscriptions_insert",
+            {"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}},
+        )
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+
+
+def test_subscriptions_insert_dispatcher_rejects_invalid_request_safely():
+    """Reject malformed subscription insert requests through the dispatcher."""
+    dispatcher = _register_subscriptions_insert()
+
+    with pytest.raises(SubscriptionsInsertToolError) as exc_info:
+        dispatcher.call_tool("subscriptions_insert", {"part": "snippet", "body": {"snippet": {"resourceId": {}}}})
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == "body.snippet.resourceId.channelId"
+
+
+def test_subscriptions_insert_dispatcher_maps_safe_upstream_failure():
+    """Preserve safe upstream failure categories through insert dispatcher execution."""
+
+    class FailingWrapper:
+        """Raise one normalized duplicate-target failure during wrapper execution."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise a sanitized duplicate-target failure for dispatcher mapping.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Normalized arguments supplied by the handler.
+            :param auth_context: Auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this fake wrapper.
+            """
+            raise NormalizedUpstreamError(
+                "already subscribed",
+                "duplicate_or_ineligible_target",
+                True,
+                409,
+                {"oauth_token": "secret", "target": "UC123"},
+            )
+
+    dispatcher = _register_subscriptions_insert(wrapper=FailingWrapper())
+
+    with pytest.raises(SubscriptionsInsertToolError) as exc_info:
+        dispatcher.call_tool(
+            "subscriptions_insert",
+            {"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}},
+        )
+
+    assert exc_info.value.category == "duplicate_target"
+    assert exc_info.value.details == {"target": "UC123"}

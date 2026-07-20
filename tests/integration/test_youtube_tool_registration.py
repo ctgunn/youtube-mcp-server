@@ -145,6 +145,30 @@ def test_default_registry_includes_executable_subscriptions_list_tool():
     assert result["auth"] == {"mode": "api_key", "path": "public"}
 
 
+def test_default_registry_includes_executable_subscriptions_insert_tool():
+    """Register ``subscriptions_insert`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "subscriptions_insert" in listed
+    metadata = listed["subscriptions_insert"]["metadata"]
+    assert metadata["upstream"]["operationKey"] == "subscriptions.insert"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert metadata["responseConvention"]["resultKind"] == "created_resource"
+
+    result = dispatcher.call_tool(
+        "subscriptions_insert",
+        {"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}},
+    )
+
+    assert result["endpoint"] == "subscriptions.insert"
+    assert result["quotaCost"] == 50
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["creation"]["targetChannelId"] == "UC123"
+
+
 def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
     """Register ``comments_insert`` by default with create metadata."""
     dispatcher = InMemoryToolDispatcher()
