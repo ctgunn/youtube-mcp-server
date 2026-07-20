@@ -37,6 +37,7 @@ def test_representative_examples_include_required_us1_shapes():
         "subscriptions_delete",
         "subscriptions_insert",
         "subscriptions_list",
+        "thumbnails_set",
         "videos_getRating",
         "videos_reportAbuse",
         "watermarks_unset",
@@ -156,6 +157,31 @@ def test_representative_captions_delete_example_aligns_with_concrete_contract():
     assert representative.auth_mode == concrete.auth_mode
     assert representative.input_contract["required"] == concrete.input_contract["required"]
     assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+
+
+def test_representative_thumbnails_set_example_aligns_with_concrete_contract():
+    """Keep the representative thumbnails-set example aligned with YT-244."""
+    from mcp_server.tools.youtube_common.thumbnails import build_thumbnails_set_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "thumbnails_set"
+    ]
+    concrete = build_thumbnails_set_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 50
+    assert representative.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == "upload_result"
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert "videoId" in metadata_text
+    assert "media" in metadata_text
+    assert "thumbnail generation" in metadata_text
 
 
 def test_representative_comments_insert_example_aligns_with_concrete_contract():

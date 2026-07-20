@@ -198,6 +198,41 @@ def test_default_registry_includes_executable_subscriptions_delete_tool():
     assert result["deletion"]["id"] == "subscription-123"
 
 
+def test_default_registry_includes_executable_thumbnails_set_tool():
+    """Register ``thumbnails_set`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "thumbnails_set" in listed
+    metadata = listed["thumbnails_set"]["metadata"]
+    description = listed["thumbnails_set"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "thumbnails.set"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["videoId", "media"]
+    assert metadata["responseConvention"]["resultKind"] == "upload_result"
+    assert metadata["responseConvention"]["mediaResult"] == "safe_media_summary"
+    assert "videoId" in metadata_text
+    assert "media" in metadata_text
+    assert "thumbnail generation" in metadata_text
+
+    result = dispatcher.call_tool(
+        "thumbnails_set",
+        {"videoId": "video-123", "media": {"mimeType": "image/png", "content": "fake-image-content"}},
+    )
+
+    assert result["endpoint"] == "thumbnails.set"
+    assert result["quotaCost"] == 50
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["updated"] is True
+    assert result["target"] == {"videoId": "video-123"}
+    assert result["upload"] == {"mimeType": "image/png", "contentProvided": True}
+    assert "fake-image-content" not in str(result)
+
+
 def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
     """Register ``comments_insert`` by default with create metadata."""
     dispatcher = InMemoryToolDispatcher()
