@@ -6,12 +6,16 @@ import pytest
 
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.youtube_common.subscriptions import (
+    SubscriptionsDeleteToolError,
     SubscriptionsInsertToolError,
     SubscriptionsListToolError,
+    build_subscriptions_delete_handler,
     build_subscriptions_insert_handler,
     build_subscriptions_list_handler,
+    map_subscriptions_delete_result,
     map_subscriptions_insert_result,
     map_subscriptions_list_result,
+    validate_subscriptions_delete_arguments,
     validate_subscriptions_insert_arguments,
     validate_subscriptions_list_arguments,
 )
@@ -403,6 +407,180 @@ def test_subscriptions_insert_handler_maps_safe_upstream_failures(category, expe
 
     with pytest.raises(SubscriptionsInsertToolError) as exc_info:
         handler({"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}})
+
+    assert exc_info.value.category == expected
+    assert exc_info.value.details == {"reason": category}
+
+
+def test_validate_subscriptions_delete_accepts_supported_delete_requests():
+    """Accept supported OAuth-backed subscription deletion request shapes."""
+    normalized = validate_subscriptions_delete_arguments({"id": " subscription-123 "})
+
+    assert normalized == {"id": "subscription-123"}
+
+
+def test_map_subscriptions_delete_result_preserves_safe_context():
+    """Map upstream subscription deletion acknowledgments to public results."""
+    result = map_subscriptions_delete_result(
+        {"operationStatus": "deleted", "etag": "etag-delete"},
+        {"id": "subscription-123"},
+    )
+
+    assert result["endpoint"] == "subscriptions.delete"
+    assert result["quotaCost"] == 50
+    assert result["deleted"] is True
+    assert result["deletion"] == {"id": "subscription-123"}
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["upstream"] == {"operationStatus": "deleted", "etag": "etag-delete"}
+    assert "subscription" not in result
+    assert "analytics" not in result
+
+
+def test_subscriptions_delete_handler_requires_oauth_and_calls_wrapper_once():
+    """Execute subscription deletion with OAuth and one Layer 1 wrapper call."""
+
+    class RecordingWrapper:
+        """Record auth modes used for fake subscription delete calls."""
+
+        def __init__(self):
+            """Initialize the fake wrapper call log."""
+            self.calls = []
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one call and return a representative deletion payload.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Normalized arguments supplied by the handler.
+            :param auth_context: Auth context selected by the handler.
+            :return: Representative deletion acknowledgment payload.
+            """
+            self.calls.append((arguments, auth_context))
+            return {"operationStatus": "deleted"}
+
+    wrapper = RecordingWrapper()
+    handler = build_subscriptions_delete_handler(wrapper=wrapper, oauth_token="oauth-token")
+
+    result = handler({"id": "subscription-123"})
+
+    assert result["endpoint"] == "subscriptions.delete"
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["deleted"] is True
+    assert result["deletion"]["id"] == "subscription-123"
+    assert [call[1].mode.value for call in wrapper.calls] == ["oauth_required"]
+    assert "token" not in str(result).lower()
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({}, "id"),
+        ({"id": ""}, "id"),
+        ({"id": "   "}, "id"),
+        ({"id": 123}, "id"),
+        ({"id": None}, "id"),
+        ({"id": "subscription-123", "channelId": "UC123"}, "channelId"),
+        ({"id": "subscription-123", "body": {}}, "body"),
+        ({"id": "subscription-123", "deleteExistingSubscription": True}, "deleteExistingSubscription"),
+        ({"id": "subscription-123", "includeChannelStatistics": True}, "includeChannelStatistics"),
+        ({"id": "subscription-123", "notificationSettings": {}}, "notificationSettings"),
+        ({"id": "subscription-123", "includeAnalytics": True}, "includeAnalytics"),
+        ({"id": "subscription-123", "rankResults": True}, "rankResults"),
+        ({"id": "subscription-123", "summarize": True}, "summarize"),
+        ({"id": "subscription-123", "enrich": True}, "enrich"),
+    ],
+)
+def test_validate_subscriptions_delete_rejects_invalid_request_shapes(arguments, field):
+    """Reject malformed or out-of-scope subscription deletion inputs."""
+    with pytest.raises(SubscriptionsDeleteToolError) as exc_info:
+        validate_subscriptions_delete_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+
+
+def test_subscriptions_delete_handler_rejects_missing_oauth_safely():
+    """Reject subscription deletion when OAuth access is unavailable."""
+
+    class RecordingWrapper:
+        """Record unexpected calls for missing OAuth validation."""
+
+        def __init__(self):
+            """Initialize the fake wrapper call log."""
+            self.calls = []
+
+        def call(self, executor, *, arguments, auth_context):
+            """Record one unexpected wrapper call.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Normalized arguments supplied by the handler.
+            :param auth_context: Auth context selected by the handler.
+            :return: Representative deletion acknowledgment payload.
+            """
+            self.calls.append((arguments, auth_context))
+            return {"operationStatus": "deleted"}
+
+    wrapper = RecordingWrapper()
+    handler = build_subscriptions_delete_handler(wrapper=wrapper, oauth_token=None)
+
+    with pytest.raises(SubscriptionsDeleteToolError) as exc_info:
+        handler({"id": "subscription-123"})
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+    assert wrapper.calls == []
+
+
+@pytest.mark.parametrize(
+    ("category", "expected"),
+    [
+        ("authentication", "authentication_failed"),
+        ("auth", "authorization_failed"),
+        ("authorization", "authorization_failed"),
+        ("subscriptionForbidden", "authorization_failed"),
+        ("quota", "quota_exhausted"),
+        ("not_found", "not_found"),
+        ("resource_not_found", "not_found"),
+        ("already_removed", "not_found"),
+        ("non_removable_target", "non_removable_target"),
+        ("blocked_target", "non_removable_target"),
+        ("invalid_request", "invalid_request"),
+        ("unavailable", "endpoint_unavailable"),
+        ("deprecated", "deprecated_endpoint"),
+        ("surprising", "upstream_failure"),
+    ],
+)
+def test_subscriptions_delete_handler_maps_safe_upstream_failures(category, expected):
+    """Map upstream delete failures without leaking unsafe diagnostic details."""
+
+    class FailingWrapper:
+        """Raise one normalized failure during subscription delete execution."""
+
+        def call(self, executor, *, arguments, auth_context):
+            """Raise a sanitized upstream failure for handler mapping.
+
+            :param executor: Executor supplied by the handler.
+            :param arguments: Normalized arguments supplied by the handler.
+            :param auth_context: Auth context selected by the handler.
+            :raises NormalizedUpstreamError: Always raised for this fake wrapper.
+            """
+            raise NormalizedUpstreamError(
+                category,
+                category,
+                True,
+                403,
+                {
+                    "oauth_token": "secret",
+                    "authorization": "Bearer secret",
+                    "raw_body": {"unsafe": True},
+                    "stack": "trace",
+                    "reason": category,
+                },
+            )
+
+    handler = build_subscriptions_delete_handler(wrapper=FailingWrapper())
+
+    with pytest.raises(SubscriptionsDeleteToolError) as exc_info:
+        handler({"id": "subscription-123"})
 
     assert exc_info.value.category == expected
     assert exc_info.value.details == {"reason": category}

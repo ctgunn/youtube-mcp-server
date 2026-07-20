@@ -34,6 +34,7 @@ def test_representative_examples_include_required_us1_shapes():
         "playlistItems_delete",
         "playlists_delete",
         "search_list",
+        "subscriptions_delete",
         "subscriptions_insert",
         "subscriptions_list",
         "videos_getRating",
@@ -1342,6 +1343,56 @@ def test_representative_subscriptions_insert_descriptor_examples_cover_boundarie
         "access_failure",
         "duplicate_or_ineligible_target",
         "quota_or_upstream_create_failure",
+        "out_of_scope_subscription_management_request",
+    }.issubset(example_names)
+
+
+def test_representative_subscriptions_delete_example_aligns_with_concrete_contract():
+    """Keep the representative subscriptions-delete example aligned with YT-243."""
+    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_delete_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "subscriptions_delete"
+    ]
+    concrete = build_subscriptions_delete_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 50
+    assert representative.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == "deletion_acknowledgment"
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert "id" in metadata_text
+    assert "OAuth" in metadata_text
+
+
+def test_representative_subscriptions_delete_descriptor_examples_cover_boundaries():
+    """Expose representative subscriptions-delete examples for success and safe failures."""
+    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_delete_tool_descriptor
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "subscriptions_delete"
+    ]
+    metadata = representative.to_tool_metadata()
+    descriptor = build_subscriptions_delete_tool_descriptor()
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert {
+        "oauth_subscription_deletion",
+        "missing_id",
+        "empty_id",
+        "access_failure",
+        "already_removed_or_missing_target",
+        "non_removable_target",
+        "quota_or_upstream_delete_failure",
         "out_of_scope_subscription_management_request",
     }.issubset(example_names)
 

@@ -169,6 +169,35 @@ def test_default_registry_includes_executable_subscriptions_insert_tool():
     assert result["creation"]["targetChannelId"] == "UC123"
 
 
+def test_default_registry_includes_executable_subscriptions_delete_tool():
+    """Register ``subscriptions_delete`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "subscriptions_delete" in listed
+    metadata = listed["subscriptions_delete"]["metadata"]
+    description = listed["subscriptions_delete"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "subscriptions.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert "destructive" in metadata_text.lower()
+
+    result = dispatcher.call_tool("subscriptions_delete", {"id": "subscription-123"})
+
+    assert result["endpoint"] == "subscriptions.delete"
+    assert result["quotaCost"] == 50
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["deleted"] is True
+    assert result["deletion"]["id"] == "subscription-123"
+
+
 def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
     """Register ``comments_insert`` by default with create metadata."""
     dispatcher = InMemoryToolDispatcher()

@@ -5,6 +5,13 @@ from __future__ import annotations
 from mcp_server.tools import youtube_common
 from mcp_server.tools.youtube_common import AuthMode, AvailabilityState
 from mcp_server.tools.youtube_common.subscriptions import (
+    SUBSCRIPTIONS_DELETE_CALLER_EXAMPLES,
+    SUBSCRIPTIONS_DELETE_CAVEATS,
+    SUBSCRIPTIONS_DELETE_DESCRIPTION,
+    SUBSCRIPTIONS_DELETE_INPUT_SCHEMA,
+    SUBSCRIPTIONS_DELETE_QUOTA_COST,
+    SUBSCRIPTIONS_DELETE_TOOL_NAME,
+    SUBSCRIPTIONS_DELETE_USAGE_NOTES,
     SUBSCRIPTIONS_INSERT_CALLER_EXAMPLES,
     SUBSCRIPTIONS_INSERT_CAVEATS,
     SUBSCRIPTIONS_INSERT_DESCRIPTION,
@@ -26,6 +33,8 @@ from mcp_server.tools.youtube_common.subscriptions import (
     SUBSCRIPTIONS_LIST_TOOL_NAME,
     SUBSCRIPTIONS_LIST_USAGE_NOTES,
     SUBSCRIPTIONS_LIST_USER_CONTEXT_SELECTORS,
+    build_subscriptions_delete_contract,
+    build_subscriptions_delete_tool_descriptor,
     build_subscriptions_insert_contract,
     build_subscriptions_insert_tool_descriptor,
     build_subscriptions_list_contract,
@@ -56,6 +65,28 @@ def test_subscriptions_insert_public_symbols_are_exported():
     assert SUBSCRIPTIONS_INSERT_QUOTA_COST == 50
     assert callable(subscriptions.build_subscriptions_insert_contract)
     assert callable(subscriptions.build_subscriptions_insert_tool_descriptor)
+
+
+def test_subscriptions_delete_public_symbols_are_exported():
+    """Expose ``subscriptions_delete`` symbols from the shared package."""
+    from mcp_server.tools.youtube_common import subscriptions
+
+    assert youtube_common.SUBSCRIPTIONS_DELETE_TOOL_NAME == "subscriptions_delete"
+    assert SUBSCRIPTIONS_DELETE_TOOL_NAME == "subscriptions_delete"
+    assert SUBSCRIPTIONS_DELETE_QUOTA_COST == 50
+    assert callable(subscriptions.build_subscriptions_delete_contract)
+    assert callable(subscriptions.build_subscriptions_delete_tool_descriptor)
+
+
+def test_subscriptions_delete_schema_preserves_supported_delete_inputs():
+    """Expose the supported ``subscriptions_delete`` request shape."""
+    properties = SUBSCRIPTIONS_DELETE_INPUT_SCHEMA["properties"]
+
+    assert SUBSCRIPTIONS_DELETE_INPUT_SCHEMA["required"] == ["id"]
+    assert properties["id"] == {"type": "string", "minLength": 1}
+    assert "body" not in properties
+    assert "channelId" not in properties
+    assert SUBSCRIPTIONS_DELETE_INPUT_SCHEMA["additionalProperties"] is False
 
 
 def test_subscriptions_insert_schema_preserves_supported_create_inputs():
@@ -135,6 +166,69 @@ def test_subscriptions_insert_public_contract_identifies_endpoint_and_result_sha
     assert metadata["responseConvention"]["requestedParts"] == ["snippet"]
     assert metadata["responseConvention"]["targetField"] == "body.snippet.resourceId.channelId"
     assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+
+
+def test_subscriptions_delete_public_contract_identifies_endpoint_and_result_shape():
+    """Expose endpoint identity, quota, OAuth, and deletion acknowledgment metadata."""
+    contract = build_subscriptions_delete_contract()
+    metadata = contract.to_tool_metadata()
+
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert metadata["name"] == "subscriptions_delete"
+    assert metadata["upstream"]["operationKey"] == "subscriptions.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["resourceFamily"] == "subscriptions"
+    assert metadata["inputContract"] == SUBSCRIPTIONS_DELETE_INPUT_SCHEMA
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert metadata["responseConvention"]["idField"] == "id"
+    assert metadata["responseConvention"]["bodyPolicy"] == "no_upstream_body"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+
+
+def test_subscriptions_delete_descriptor_is_executable_tool_metadata():
+    """Expose a callable descriptor for ``subscriptions_delete``."""
+    descriptor = build_subscriptions_delete_tool_descriptor()
+
+    assert descriptor["name"] == "subscriptions_delete"
+    assert descriptor["inputSchema"] == SUBSCRIPTIONS_DELETE_INPUT_SCHEMA
+    assert callable(descriptor["handler"])
+    assert descriptor["metadata"]["quotaCost"] == 50
+    assert descriptor["metadata"]["authMode"] == "oauth_required"
+
+
+def test_subscriptions_delete_metadata_describes_delete_semantics_and_boundaries():
+    """Keep caller-facing subscriptions delete metadata complete before invocation."""
+    descriptor = build_subscriptions_delete_tool_descriptor()
+    metadata = descriptor["metadata"]
+    metadata_text = " ".join(
+        [
+            descriptor["description"],
+            *metadata["usageNotes"],
+            *metadata["caveats"],
+            *[example["description"] for example in metadata["examples"]],
+        ]
+    )
+
+    assert descriptor["name"] == "subscriptions_delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "id" in metadata_text
+    assert "delete" in metadata_text.lower()
+    assert "subscription relationship" in metadata_text
+    assert "already-removed" in metadata_text or "already removed" in metadata_text
+    assert "non-removable" in metadata_text
+    assert "notification" in metadata_text
+    assert "analytics" in metadata_text
+    assert "enrichment" in metadata_text
+    assert metadata["examples"] == list(SUBSCRIPTIONS_DELETE_CALLER_EXAMPLES)
+    assert SUBSCRIPTIONS_DELETE_DESCRIPTION in descriptor["description"]
+    assert metadata["usageNotes"] == list(SUBSCRIPTIONS_DELETE_USAGE_NOTES)
+    assert metadata["caveats"] == list(SUBSCRIPTIONS_DELETE_CAVEATS)
 
 
 def test_subscriptions_insert_descriptor_is_executable_tool_metadata():
@@ -268,6 +362,23 @@ def test_subscriptions_insert_examples_cover_success_and_safe_failure_boundaries
     assert examples["out_of_scope_subscription_management_request"]["error"]["field"] == "deleteExistingSubscription"
 
 
+def test_subscriptions_delete_examples_cover_success_and_safe_failure_boundaries():
+    """Expose subscription delete examples for supported calls and safe failures."""
+    descriptor = build_subscriptions_delete_tool_descriptor()
+    examples = {example["name"]: example for example in descriptor["metadata"]["examples"]}
+
+    assert examples["oauth_subscription_deletion"]["quotaCost"] == 50
+    assert examples["oauth_subscription_deletion"]["arguments"]["id"] == "subscription-123"
+    assert examples["oauth_subscription_deletion"]["result"]["deleted"] is True
+    assert examples["missing_id"]["error"]["field"] == "id"
+    assert examples["empty_id"]["error"]["field"] == "id"
+    assert examples["access_failure"]["error"]["authMode"] == "oauth_required"
+    assert examples["already_removed_or_missing_target"]["error"]["category"] == "not_found"
+    assert examples["non_removable_target"]["error"]["category"] == "non_removable_target"
+    assert examples["quota_or_upstream_delete_failure"]["error"]["category"] == "quota_exhausted"
+    assert examples["out_of_scope_subscription_management_request"]["error"]["field"] == "includeChannelStatistics"
+
+
 def test_subscriptions_list_failure_examples_cover_safe_rejection_surface():
     """Expose representative invalid, access, upstream, and out-of-scope failures."""
     descriptor = build_subscriptions_list_tool_descriptor()
@@ -319,3 +430,26 @@ def test_subscriptions_insert_failure_examples_cover_safe_rejection_surface():
     assert error_examples["access_failure"]["category"] == "authentication_failed"
     assert error_examples["duplicate_or_ineligible_target"]["category"] == "duplicate_target"
     assert error_examples["quota_or_upstream_create_failure"]["category"] == "quota_exhausted"
+
+
+def test_subscriptions_delete_failure_examples_cover_safe_rejection_surface():
+    """Expose representative invalid, access, target-state, upstream, and out-of-scope delete failures."""
+    descriptor = build_subscriptions_delete_tool_descriptor()
+    examples = {example["name"]: example for example in descriptor["metadata"]["examples"]}
+    error_examples = {name: example["error"] for name, example in examples.items() if "error" in example}
+
+    assert {
+        "missing_id",
+        "empty_id",
+        "access_failure",
+        "already_removed_or_missing_target",
+        "non_removable_target",
+        "quota_or_upstream_delete_failure",
+        "out_of_scope_subscription_management_request",
+    }.issubset(error_examples)
+    assert error_examples["missing_id"] == {"category": "invalid_request", "field": "id"}
+    assert error_examples["empty_id"] == {"category": "invalid_request", "field": "id"}
+    assert error_examples["access_failure"]["category"] == "authentication_failed"
+    assert error_examples["already_removed_or_missing_target"]["category"] == "not_found"
+    assert error_examples["non_removable_target"]["category"] == "non_removable_target"
+    assert error_examples["quota_or_upstream_delete_failure"]["category"] == "quota_exhausted"

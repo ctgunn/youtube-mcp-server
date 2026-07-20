@@ -45,6 +45,7 @@ from mcp_server.tools.youtube_common import (
     build_playlists_list_tool_descriptor,
     build_playlists_update_tool_descriptor,
     build_search_list_tool_descriptor,
+    build_subscriptions_delete_tool_descriptor,
     build_subscriptions_insert_tool_descriptor,
     build_subscriptions_list_tool_descriptor,
 )
@@ -248,6 +249,7 @@ class InMemoryToolDispatcher:
             build_playlists_update_tool_descriptor(),
             build_playlists_delete_tool_descriptor(),
             build_search_list_tool_descriptor(),
+            build_subscriptions_delete_tool_descriptor(),
             build_subscriptions_insert_tool_descriptor(),
             build_subscriptions_list_tool_descriptor(),
             build_playlist_items_insert_tool_descriptor(),
