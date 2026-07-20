@@ -260,6 +260,38 @@ def test_subscriptions_delete_contract_uses_existing_resource_family():
     assert "OAuth" in metadata_text
 
 
+def test_thumbnails_set_contract_uses_existing_resource_family():
+    """Expose the concrete ``thumbnails_set`` contract in the thumbnails family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import thumbnails
+    from mcp_server.tools.youtube_common.thumbnails import build_thumbnails_set_contract
+
+    thumbnails_family = get_resource_family("thumbnails")
+    contract = build_thumbnails_set_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert thumbnails_family.definition_location.endswith("src/mcp_server/tools/youtube_common/thumbnails.py")
+    assert thumbnails_family.layer1_dependency == "mcp_server.integrations.resources.thumbnails"
+    assert thumbnails.THUMBNAILS_SET_TOOL_NAME == "thumbnails_set"
+    assert thumbnails.THUMBNAILS_SET_QUOTA_COST == 50
+    assert youtube_common.THUMBNAILS_SET_TOOL_NAME == "thumbnails_set"
+    assert youtube_common.THUMBNAILS_SET_QUOTA_COST == 50
+    assert callable(youtube_common.build_thumbnails_set_tool_descriptor)
+    assert metadata["name"] == "thumbnails_set"
+    assert metadata["resourceFamily"] == "thumbnails"
+    assert metadata["upstream"]["operationKey"] == "thumbnails.set"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["videoId", "media"]
+    assert metadata["responseConvention"]["resultKind"] == "upload_result"
+    assert metadata["responseConvention"]["mediaResult"] == "safe_media_summary"
+    assert "videoId" in metadata_text
+    assert "media" in metadata_text
+    assert "OAuth" in metadata_text
+
+
 def test_search_list_contract_uses_existing_resource_family():
     """Expose the concrete ``search_list`` contract in the search family."""
     from mcp_server.tools.youtube_common import get_resource_family

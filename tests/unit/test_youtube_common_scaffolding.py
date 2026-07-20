@@ -653,3 +653,29 @@ def test_representative_captions_download_metadata_exposes_permission_and_conver
     assert any("tfmt" in note for note in metadata["usageNotes"])
     assert any("tlang" in note for note in metadata["usageNotes"])
     assert any("binary" in caveat.lower() for caveat in metadata["caveats"])
+
+
+def test_thumbnails_resource_family_points_to_concrete_layer2_module():
+    """Expose the concrete thumbnails family placement for YT-244."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    thumbnails = get_resource_family("thumbnails")
+
+    assert thumbnails.family_name == "thumbnails"
+    assert thumbnails.definition_location.endswith("src/mcp_server/tools/youtube_common/thumbnails.py")
+    assert thumbnails.handler_location.endswith("src/mcp_server/tools/youtube_common/thumbnails.py")
+    assert thumbnails.schema_location.endswith("src/mcp_server/tools/youtube_common/thumbnails.py")
+    assert thumbnails.layer1_dependency == "mcp_server.integrations.resources.thumbnails"
+
+
+def test_thumbnails_set_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``thumbnails_set`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import thumbnails
+
+    assert thumbnails.THUMBNAILS_SET_TOOL_NAME == "thumbnails_set"
+    assert thumbnails.THUMBNAILS_SET_QUOTA_COST == 50
+    assert youtube_common.THUMBNAILS_SET_TOOL_NAME == "thumbnails_set"
+    assert youtube_common.THUMBNAILS_SET_QUOTA_COST == 50
+    assert callable(thumbnails.build_thumbnails_set_contract)
+    assert callable(youtube_common.build_thumbnails_set_tool_descriptor)
