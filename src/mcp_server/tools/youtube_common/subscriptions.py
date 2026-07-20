@@ -8,7 +8,10 @@ from mcp_server.integrations.auth import AuthContext, CredentialBundle
 from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
-from mcp_server.integrations.resources.subscriptions import build_subscriptions_list_wrapper
+from mcp_server.integrations.resources.subscriptions import (
+    build_subscriptions_insert_wrapper,
+    build_subscriptions_list_wrapper,
+)
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
@@ -183,6 +186,158 @@ SUBSCRIPTIONS_LIST_CALLER_EXAMPLES = (
     },
 )
 
+SUBSCRIPTIONS_INSERT_TOOL_NAME = "subscriptions_insert"
+SUBSCRIPTIONS_INSERT_QUOTA_COST = 50
+SUBSCRIPTIONS_INSERT_SUPPORTED_PARTS = ("snippet",)
+SUBSCRIPTIONS_INSERT_UNSAFE_DETAIL_KEYS = frozenset({"authorization", "authorization_header", "headers"})
+
+SUBSCRIPTIONS_INSERT_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["part", "body"],
+    "properties": {
+        "part": {"type": "string", "minLength": 1, "enum": list(SUBSCRIPTIONS_INSERT_SUPPORTED_PARTS)},
+        "body": {
+            "type": "object",
+            "required": ["snippet"],
+            "properties": {
+                "snippet": {
+                    "type": "object",
+                    "required": ["resourceId"],
+                    "properties": {
+                        "resourceId": {
+                            "type": "object",
+                            "required": ["channelId"],
+                            "properties": {
+                                "kind": {"type": "string", "enum": ["youtube#channel"]},
+                                "channelId": {"type": "string", "minLength": 1},
+                            },
+                            "additionalProperties": False,
+                        }
+                    },
+                    "additionalProperties": False,
+                }
+            },
+            "additionalProperties": False,
+        },
+    },
+    "additionalProperties": False,
+}
+
+SUBSCRIPTIONS_INSERT_DESCRIPTION = (
+    "Create a YouTube subscription. Endpoint: subscriptions.insert. "
+    "Quota cost: 50. Auth: oauth_required. Requires body.snippet.resourceId.channelId."
+)
+
+SUBSCRIPTIONS_INSERT_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide part=snippet and body.snippet.resourceId.channelId.",
+    "Quota cost: 50. Successful calls create subscription relationships for the authorized account.",
+    "Quota cost: 50. body.snippet.resourceId.kind may be omitted or set to youtube#channel.",
+    "Quota cost: 50. Duplicate or ineligible targets can be rejected by the upstream service.",
+)
+
+SUBSCRIPTIONS_INSERT_CAVEATS = (
+    "subscriptions_insert creates one subscription relationship through subscriptions.insert and requires OAuth authorization.",
+    "Use subscriptions_list for retrieval and subscriptions_delete for deletion; this tool only performs subscriptions.insert.",
+    "body.snippet.resourceId.channelId is required for supported subscription creation requests.",
+    "Unsupported write fields such as body.title, body.status, extra body.snippet mappings, or extra resourceId fields are out of scope.",
+    "Channel search, recommendation, notification management, subscriber analytics, ranking, summarization, enrichment, idempotency, "
+    "duplicate prevention, and cross-endpoint behavior are out of scope.",
+    "Returned subscription fields depend on selected parts and upstream availability; missing optional fields are not fabricated.",
+)
+
+SUBSCRIPTIONS_INSERT_CALLER_EXAMPLES = (
+    {
+        "name": "oauth_subscription_creation",
+        "description": "Quota cost: 50. Create a subscription relationship with OAuth authorization.",
+        "arguments": {"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}},
+        "result": {"endpoint": "subscriptions.insert", "quotaCost": 50, "created": True},
+        "quotaCost": 50,
+    },
+    {
+        "name": "oauth_subscription_creation_with_kind",
+        "description": "Quota cost: 50. Create a subscription with explicit youtube#channel resource kind.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"resourceId": {"kind": "youtube#channel", "channelId": "UC123"}}},
+        },
+        "result": {"endpoint": "subscriptions.insert", "targetResourceKind": "youtube#channel"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_part",
+        "description": "Quota cost: 50. Reject subscription creation requests missing required part selection.",
+        "arguments": {"body": {"snippet": {"resourceId": {"channelId": "UC123"}}}},
+        "error": {"category": "invalid_request", "field": "part"},
+    },
+    {
+        "name": "invalid_part",
+        "description": "Quota cost: 50. Reject writable parts outside the supported snippet create path.",
+        "arguments": {"part": "contentDetails", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}},
+        "error": {"category": "invalid_request", "field": "part"},
+    },
+    {
+        "name": "missing_body",
+        "description": "Quota cost: 50. Reject subscription creation requests missing a writable body.",
+        "arguments": {"part": "snippet"},
+        "error": {"category": "invalid_request", "field": "body"},
+    },
+    {
+        "name": "missing_target_channel",
+        "description": "Quota cost: 50. Reject creation requests missing body.snippet.resourceId.channelId.",
+        "arguments": {"part": "snippet", "body": {"snippet": {"resourceId": {}}}},
+        "error": {"category": "invalid_request", "field": "body.snippet.resourceId.channelId"},
+    },
+    {
+        "name": "invalid_resource_kind",
+        "description": "Quota cost: 50. Reject target resources that are not youtube#channel.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"resourceId": {"kind": "youtube#playlist", "channelId": "UC123"}}},
+        },
+        "error": {"category": "invalid_request", "field": "body.snippet.resourceId.kind"},
+    },
+    {
+        "name": "unsupported_write_field",
+        "description": "Quota cost: 50. Reject optional write fields not supported by this slice.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"resourceId": {"channelId": "UC123"}, "title": "Unsupported"}},
+        },
+        "error": {"category": "invalid_request", "field": "body.snippet.title"},
+    },
+    {
+        "name": "access_failure",
+        "description": "Quota cost: 50. Map missing or invalid OAuth access to safe authentication errors.",
+        "arguments": {"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}},
+        "error": {"category": "authentication_failed", "authMode": "oauth_required"},
+    },
+    {
+        "name": "duplicate_or_ineligible_target",
+        "description": "Quota cost: 50. Map duplicate, self-subscription, blocked, or ineligible targets safely.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"resourceId": {"channelId": "UC_ALREADY_SUBSCRIBED"}}},
+        },
+        "error": {"category": "duplicate_target"},
+    },
+    {
+        "name": "quota_or_upstream_create_failure",
+        "description": "Quota cost: 50. Map quota and upstream create failures to safe categories.",
+        "arguments": {"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}},
+        "error": {"category": "quota_exhausted"},
+    },
+    {
+        "name": "out_of_scope_subscription_management_request",
+        "description": "Quota cost: 50. Listing, deletion, notification management, analytics, and enrichment are out of scope.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"resourceId": {"channelId": "UC123"}}},
+            "deleteExistingSubscription": True,
+        },
+        "error": {"category": "invalid_request", "field": "deleteExistingSubscription"},
+    },
+)
+
 
 class SubscriptionsListToolError(ValueError):
     """Represent a safe caller-facing ``subscriptions_list`` failure.
@@ -200,6 +355,32 @@ class SubscriptionsListToolError(ValueError):
         details: dict[str, Any] | None = None,
     ) -> None:
         """Initialize a sanitized subscriptions list tool error.
+
+        :param message: Human-readable failure summary.
+        :param category: Stable safe failure category.
+        :param details: Optional diagnostic details to sanitize before exposure.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = _sanitize_subscriptions_error_details(details or {})
+
+
+class SubscriptionsInsertToolError(ValueError):
+    """Represent a safe caller-facing ``subscriptions_insert`` failure.
+
+    :param message: Human-readable failure summary.
+    :param category: Stable safe failure category.
+    :param details: Optional structured details with secret-bearing keys removed.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str = "invalid_request",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Initialize a sanitized subscriptions insert tool error.
 
         :param message: Human-readable failure summary.
         :param category: Stable safe failure category.
@@ -255,6 +436,103 @@ def _split_parts(part: str) -> list[str]:
             details={"field": "part", "unsupported": unsupported},
         )
     return parts
+
+
+def _validate_subscriptions_insert_part(part: Any) -> str:
+    """Validate the writable part selection for subscription creation.
+
+    :param part: Candidate part selection value.
+    :return: Normalized part selection.
+    :raises SubscriptionsInsertToolError: If the part is missing or unsupported.
+    """
+    if not isinstance(part, str) or not part.strip():
+        raise SubscriptionsInsertToolError("subscriptions_insert requires part", details={"field": "part"})
+    parts = [item.strip() for item in part.strip().split(",") if item.strip()]
+    if (
+        not parts
+        or len(parts) != 1
+        or len(set(parts)) != len(parts)
+        or any(item not in SUBSCRIPTIONS_INSERT_SUPPORTED_PARTS for item in parts)
+    ):
+        raise SubscriptionsInsertToolError(
+            "subscriptions_insert part must use the supported snippet create path",
+            details={"field": "part", "allowed": list(SUBSCRIPTIONS_INSERT_SUPPORTED_PARTS)},
+        )
+    return parts[0]
+
+
+def validate_subscriptions_insert_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate a ``subscriptions_insert`` request and return normalized arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized caller arguments for execution and result mapping.
+    :raises SubscriptionsInsertToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise SubscriptionsInsertToolError("subscriptions_insert arguments must be an object")
+
+    allowed = set(SUBSCRIPTIONS_INSERT_INPUT_SCHEMA["properties"])
+    for field in arguments:
+        if field not in allowed:
+            raise SubscriptionsInsertToolError(
+                f"unsupported field for subscriptions_insert: {field}",
+                details={"field": field},
+            )
+
+    part = _validate_subscriptions_insert_part(arguments.get("part"))
+    body = arguments.get("body")
+    if not isinstance(body, dict):
+        raise SubscriptionsInsertToolError("subscriptions_insert requires body", details={"field": "body"})
+    unsupported_body = [field for field in body if field != "snippet"]
+    if unsupported_body:
+        raise SubscriptionsInsertToolError(
+            f"unsupported body field for subscriptions_insert: {unsupported_body[0]}",
+            details={"field": f"body.{unsupported_body[0]}"},
+        )
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        raise SubscriptionsInsertToolError(
+            "subscriptions_insert requires body.snippet",
+            details={"field": "body.snippet"},
+        )
+    unsupported_snippet = [field for field in snippet if field != "resourceId"]
+    if unsupported_snippet:
+        raise SubscriptionsInsertToolError(
+            f"unsupported snippet field for subscriptions_insert: {unsupported_snippet[0]}",
+            details={"field": f"body.snippet.{unsupported_snippet[0]}"},
+        )
+    resource_id = snippet.get("resourceId")
+    if not isinstance(resource_id, dict):
+        raise SubscriptionsInsertToolError(
+            "subscriptions_insert requires body.snippet.resourceId",
+            details={"field": "body.snippet.resourceId"},
+        )
+    unsupported_resource_id = [field for field in resource_id if field not in {"kind", "channelId"}]
+    if unsupported_resource_id:
+        raise SubscriptionsInsertToolError(
+            f"unsupported resourceId field for subscriptions_insert: {unsupported_resource_id[0]}",
+            details={"field": f"body.snippet.resourceId.{unsupported_resource_id[0]}"},
+        )
+    kind = resource_id.get("kind")
+    if kind not in (None, "", "youtube#channel"):
+        raise SubscriptionsInsertToolError(
+            "body.snippet.resourceId.kind must be youtube#channel when provided",
+            details={"field": "body.snippet.resourceId.kind"},
+        )
+    channel_id = resource_id.get("channelId")
+    if not isinstance(channel_id, str) or not channel_id.strip():
+        raise SubscriptionsInsertToolError(
+            "subscriptions_insert requires body.snippet.resourceId.channelId",
+            details={"field": "body.snippet.resourceId.channelId"},
+        )
+
+    normalized_resource_id: dict[str, str] = {"channelId": channel_id.strip()}
+    if isinstance(kind, str) and kind.strip():
+        normalized_resource_id["kind"] = kind.strip()
+    return {
+        "part": part,
+        "body": {"snippet": {"resourceId": normalized_resource_id}},
+    }
 
 
 def _active_selectors(arguments: dict[str, Any]) -> list[str]:
@@ -470,6 +748,46 @@ def map_subscriptions_list_result(
     return result
 
 
+def _subscriptions_insert_creation_context(arguments: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    """Return safe subscription creation context for an insert request.
+
+    :param arguments: Validated ``subscriptions_insert`` arguments.
+    :param payload: Upstream or Layer 1 subscription insert payload.
+    :return: Safe creation context with target channel and writable fields.
+    """
+    request_resource_id = arguments["body"]["snippet"]["resourceId"]
+    target_channel_id = payload.get("targetChannelId") or request_resource_id["channelId"]
+    target_resource_kind = payload.get("targetResourceKind") or request_resource_id.get("kind") or "youtube#channel"
+    return {
+        "writableFields": ["body.snippet.resourceId.channelId"],
+        "targetChannelId": target_channel_id,
+        "targetResourceKind": target_resource_kind,
+    }
+
+
+def map_subscriptions_insert_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream subscription creation payload to the public result.
+
+    :param payload: Upstream or Layer 1 subscriptions insert payload.
+    :param arguments: Validated caller arguments used for the request.
+    :return: Near-raw created-resource result with safe operation context.
+    """
+    normalized = validate_subscriptions_insert_arguments(arguments)
+    result: dict[str, Any] = {
+        "endpoint": "subscriptions.insert",
+        "quotaCost": SUBSCRIPTIONS_INSERT_QUOTA_COST,
+        "created": True,
+        "requestedParts": _split_parts(normalized["part"]),
+        "creation": _subscriptions_insert_creation_context(normalized, payload),
+        "auth": {"mode": "oauth_required"},
+        "subscription": payload,
+    }
+    for field in ("kind", "etag", "subscriptionId", "targetChannelId", "targetResourceKind"):
+        if field in payload:
+            result[field] = payload[field]
+    return result
+
+
 def _map_subscriptions_list_upstream_error(error: NormalizedUpstreamError) -> SubscriptionsListToolError:
     """Map a normalized upstream failure to a safe ``subscriptions_list`` error.
 
@@ -498,6 +816,37 @@ def _map_subscriptions_list_upstream_error(error: NormalizedUpstreamError) -> Su
     }
     category = category_map.get(error.category, "upstream_failure")
     return SubscriptionsListToolError(str(error), category=category, details=error.details or {})
+
+
+def _map_subscriptions_insert_upstream_error(error: NormalizedUpstreamError) -> SubscriptionsInsertToolError:
+    """Map a normalized upstream failure to a safe ``subscriptions_insert`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe tool error with shared category and sanitized details.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "validation": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "subscriptionForbidden": "authorization_failed",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "duplicate": "duplicate_target",
+        "conflict": "duplicate_target",
+        "duplicate_or_ineligible_target": "duplicate_target",
+        "ineligible_target": "ineligible_target",
+        "not_found": "not_found",
+        "resource_not_found": "not_found",
+        "unavailable": "endpoint_unavailable",
+        "transient": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return SubscriptionsInsertToolError(str(error), category=category, details=error.details or {})
 
 
 def build_subscriptions_list_contract() -> YouTubeToolContract:
@@ -573,6 +922,90 @@ def build_subscriptions_list_contract() -> YouTubeToolContract:
     )
 
 
+def build_subscriptions_insert_contract() -> YouTubeToolContract:
+    """Build the public contract for ``subscriptions_insert``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "quotaCost",
+            "created",
+            "requestedParts",
+            "creation",
+            "auth",
+            "subscription",
+            "kind",
+            "etag",
+            "subscriptionId",
+            "targetChannelId",
+            "targetResourceKind",
+        ),
+        preserved_upstream_fields=(
+            "kind",
+            "etag",
+            "id",
+            "snippet",
+            "subscriptionId",
+            "targetChannelId",
+            "targetResourceKind",
+        ),
+        disallowed_behavior=(
+            "subscription_listing",
+            "subscription_deletion",
+            "channel_search",
+            "recommendation",
+            "notification_management",
+            "subscriber_analytics",
+            "ranking",
+            "summarization",
+            "enrichment",
+            "idempotency",
+            "duplicate_prevention",
+            "cross_endpoint_aggregation",
+        ),
+    )
+    return YouTubeToolContract(
+        tool_name=SUBSCRIPTIONS_INSERT_TOOL_NAME,
+        upstream_resource="subscriptions",
+        upstream_method="insert",
+        operation_key="subscriptions.insert",
+        description=SUBSCRIPTIONS_INSERT_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=SUBSCRIPTIONS_INSERT_QUOTA_COST,
+        resource_family="subscriptions",
+        input_contract=SUBSCRIPTIONS_INSERT_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "created_resource",
+            "resourcePath": "subscription",
+            "requestedParts": list(SUBSCRIPTIONS_INSERT_SUPPORTED_PARTS),
+            "supportedWritableParts": ["snippet"],
+            "writableFields": ["body.snippet.resourceId.channelId"],
+            "targetField": "body.snippet.resourceId.channelId",
+            "targetResourceKind": "youtube#channel",
+            "duplicateCreatePolicy": "not_idempotent",
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "duplicate_target",
+            "ineligible_target",
+            "not_found",
+            "endpoint_unavailable",
+            "deprecated_endpoint",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=SUBSCRIPTIONS_INSERT_USAGE_NOTES,
+        caveats=SUBSCRIPTIONS_INSERT_CAVEATS,
+    )
+
+
 def _default_subscriptions_list_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default subscription calls.
 
@@ -611,6 +1044,39 @@ def _default_subscriptions_list_executor() -> IntegrationExecutor:
             ],
             "pageInfo": {"totalResults": 1, "resultsPerPage": 1},
             "selectorContext": {"selector": selector, "part": execution.arguments.get("part", "snippet")},
+        }
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _default_subscriptions_insert_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default subscription inserts.
+
+    :return: Integration executor returning representative created subscription data.
+    """
+
+    def transport(execution):
+        """Return a representative created subscription response.
+
+        :param execution: Request execution context.
+        :return: Fake upstream created-resource response for local invocation.
+        """
+        resource_id = execution.arguments.get("body", {}).get("snippet", {}).get("resourceId", {})
+        channel_id = resource_id.get("channelId", "UC123")
+        kind = resource_id.get("kind", "youtube#channel")
+        return {
+            "kind": "youtube#subscription",
+            "etag": "etag-created-subscription",
+            "id": "subscription-123",
+            "snippet": {
+                "resourceId": {
+                    "kind": kind,
+                    "channelId": channel_id,
+                }
+            },
+            "subscriptionId": "subscription-123",
+            "targetChannelId": channel_id,
+            "targetResourceKind": kind,
         }
 
     return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
@@ -662,6 +1128,59 @@ def build_subscriptions_list_handler(
     return handler
 
 
+def build_subscriptions_insert_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``subscriptions_insert``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used for subscription creation.
+    :return: Callable that validates, executes, and maps subscription insert requests.
+    """
+    selected_wrapper = wrapper or build_subscriptions_insert_wrapper()
+    selected_executor = executor or _default_subscriptions_insert_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``subscriptions_insert`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 subscriptions insert result.
+        :raises SubscriptionsInsertToolError: If validation or execution fails.
+        """
+        normalized = validate_subscriptions_insert_arguments(arguments)
+        if not isinstance(oauth_token, str) or not oauth_token.strip():
+            raise SubscriptionsInsertToolError(
+                "subscriptions_insert requires eligible OAuth authorization",
+                category="authentication_failed",
+                details={"authMode": "oauth_required"},
+            )
+        auth_context = AuthContext(
+            mode=Layer1AuthMode.OAUTH_REQUIRED,
+            credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+        )
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_subscriptions_insert_upstream_error(exc) from exc
+        except ValueError as exc:
+            raise SubscriptionsInsertToolError(
+                str(exc),
+                category="invalid_request",
+                details={"operation": "subscriptions.insert"},
+            ) from exc
+        return map_subscriptions_insert_result(payload, normalized)
+
+    return handler
+
+
 def build_subscriptions_list_tool_descriptor(
     *,
     wrapper=None,
@@ -694,7 +1213,44 @@ def build_subscriptions_list_tool_descriptor(
     }
 
 
+def build_subscriptions_insert_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``subscriptions_insert``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_subscriptions_insert_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(SUBSCRIPTIONS_INSERT_CALLER_EXAMPLES)
+    return {
+        "name": SUBSCRIPTIONS_INSERT_TOOL_NAME,
+        "description": SUBSCRIPTIONS_INSERT_DESCRIPTION,
+        "inputSchema": SUBSCRIPTIONS_INSERT_INPUT_SCHEMA,
+        "handler": build_subscriptions_insert_handler(
+            wrapper=wrapper,
+            executor=executor,
+            oauth_token=oauth_token,
+        ),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
+    "SUBSCRIPTIONS_INSERT_CALLER_EXAMPLES",
+    "SUBSCRIPTIONS_INSERT_CAVEATS",
+    "SUBSCRIPTIONS_INSERT_DESCRIPTION",
+    "SUBSCRIPTIONS_INSERT_INPUT_SCHEMA",
+    "SUBSCRIPTIONS_INSERT_QUOTA_COST",
+    "SUBSCRIPTIONS_INSERT_SUPPORTED_PARTS",
+    "SUBSCRIPTIONS_INSERT_TOOL_NAME",
+    "SUBSCRIPTIONS_INSERT_USAGE_NOTES",
     "SUBSCRIPTIONS_LIST_CALLER_EXAMPLES",
     "SUBSCRIPTIONS_LIST_CAVEATS",
     "SUBSCRIPTIONS_LIST_COLLECTION_SELECTORS",
@@ -709,10 +1265,16 @@ __all__ = [
     "SUBSCRIPTIONS_LIST_TOOL_NAME",
     "SUBSCRIPTIONS_LIST_USAGE_NOTES",
     "SUBSCRIPTIONS_LIST_USER_CONTEXT_SELECTORS",
+    "SubscriptionsInsertToolError",
     "SubscriptionsListToolError",
+    "build_subscriptions_insert_contract",
+    "build_subscriptions_insert_handler",
+    "build_subscriptions_insert_tool_descriptor",
     "build_subscriptions_list_contract",
     "build_subscriptions_list_handler",
     "build_subscriptions_list_tool_descriptor",
+    "map_subscriptions_insert_result",
     "map_subscriptions_list_result",
+    "validate_subscriptions_insert_arguments",
     "validate_subscriptions_list_arguments",
 ]
