@@ -229,6 +229,37 @@ def test_subscriptions_insert_contract_uses_existing_resource_family():
     assert "OAuth" in metadata_text
 
 
+def test_subscriptions_delete_contract_uses_existing_resource_family():
+    """Expose the concrete ``subscriptions_delete`` contract in the subscriptions family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import subscriptions
+    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_delete_contract
+
+    subscriptions_family = get_resource_family("subscriptions")
+    contract = build_subscriptions_delete_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert subscriptions_family.definition_location.endswith("src/mcp_server/tools/youtube_common/subscriptions.py")
+    assert subscriptions_family.layer1_dependency == "mcp_server.integrations.resources.subscriptions"
+    assert subscriptions.SUBSCRIPTIONS_DELETE_TOOL_NAME == "subscriptions_delete"
+    assert subscriptions.SUBSCRIPTIONS_DELETE_QUOTA_COST == 50
+    assert youtube_common.SUBSCRIPTIONS_DELETE_TOOL_NAME == "subscriptions_delete"
+    assert youtube_common.SUBSCRIPTIONS_DELETE_QUOTA_COST == 50
+    assert callable(youtube_common.build_subscriptions_delete_tool_descriptor)
+    assert metadata["name"] == "subscriptions_delete"
+    assert metadata["resourceFamily"] == "subscriptions"
+    assert metadata["upstream"]["operationKey"] == "subscriptions.delete"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert metadata["responseConvention"]["resultKind"] == "deletion_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert "id" in metadata_text
+    assert "OAuth" in metadata_text
+
+
 def test_search_list_contract_uses_existing_resource_family():
     """Expose the concrete ``search_list`` contract in the search family."""
     from mcp_server.tools.youtube_common import get_resource_family

@@ -50,6 +50,7 @@ from mcp_server.tools.youtube_common.playlists import (
 )
 from mcp_server.tools.youtube_common.search import build_search_list_contract
 from mcp_server.tools.youtube_common.subscriptions import (
+    build_subscriptions_delete_contract,
     build_subscriptions_insert_contract,
     build_subscriptions_list_contract,
 )
@@ -516,6 +517,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_comments_insert_contract(),
     build_comments_update_contract(),
     build_search_list_contract(),
+    build_subscriptions_delete_contract(),
     build_subscriptions_insert_contract(),
     build_subscriptions_list_contract(),
     _contract(

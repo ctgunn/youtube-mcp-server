@@ -9,6 +9,7 @@ from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.subscriptions import (
+    build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
 )
@@ -191,6 +192,10 @@ SUBSCRIPTIONS_INSERT_QUOTA_COST = 50
 SUBSCRIPTIONS_INSERT_SUPPORTED_PARTS = ("snippet",)
 SUBSCRIPTIONS_INSERT_UNSAFE_DETAIL_KEYS = frozenset({"authorization", "authorization_header", "headers"})
 
+SUBSCRIPTIONS_DELETE_TOOL_NAME = "subscriptions_delete"
+SUBSCRIPTIONS_DELETE_QUOTA_COST = 50
+SUBSCRIPTIONS_DELETE_UNSAFE_DETAIL_KEYS = frozenset({"authorization", "authorization_header", "headers"})
+
 SUBSCRIPTIONS_INSERT_INPUT_SCHEMA = {
     "type": "object",
     "required": ["part", "body"],
@@ -219,6 +224,15 @@ SUBSCRIPTIONS_INSERT_INPUT_SCHEMA = {
             },
             "additionalProperties": False,
         },
+    },
+    "additionalProperties": False,
+}
+
+SUBSCRIPTIONS_DELETE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["id"],
+    "properties": {
+        "id": {"type": "string", "minLength": 1},
     },
     "additionalProperties": False,
 }
@@ -338,6 +352,94 @@ SUBSCRIPTIONS_INSERT_CALLER_EXAMPLES = (
     },
 )
 
+SUBSCRIPTIONS_DELETE_DESCRIPTION = (
+    "Delete a YouTube subscription. Endpoint: subscriptions.delete. "
+    "Quota cost: 50. Auth: oauth_required. Requires one subscription relationship id and returns a deletion "
+    "acknowledgment."
+)
+
+SUBSCRIPTIONS_DELETE_USAGE_NOTES = (
+    "Quota cost: 50. Auth: oauth_required. Provide one id for the subscription relationship being deleted.",
+    "Quota cost: 50. subscriptions.delete accepts query-only inputs and no request body.",
+    "Quota cost: 50. Successful deletion returns an acknowledgment without a deleted subscription resource.",
+    "Quota cost: 50. Already-removed, missing, or non-removable targets can be rejected by the upstream service.",
+)
+
+SUBSCRIPTIONS_DELETE_CAVEATS = (
+    "subscriptions_delete is a destructive operation and requires eligible OAuth authorization.",
+    "The request accepts exactly one target subscription relationship id; listing, lookup, bulk deletion, and discovery "
+    "belong outside this tool boundary.",
+    "Missing, already-removed, inaccessible, not-owned, blocked, or otherwise non-removable subscription relationships "
+    "are surfaced as safe validation, authorization, missing-target, or non-removable-target failures.",
+    "The tool does not perform subscription listing, creation, channel search, notification management, subscriber "
+    "analytics, ranking, summarization, enrichment, preflight lookup, idempotency, bulk deletion, or cross-endpoint "
+    "aggregation.",
+)
+
+SUBSCRIPTIONS_DELETE_CALLER_EXAMPLES = (
+    {
+        "name": "oauth_subscription_deletion",
+        "description": "Quota cost: 50. Delete one subscription relationship with OAuth authorization.",
+        "arguments": {"id": "subscription-123"},
+        "result": {
+            "endpoint": "subscriptions.delete",
+            "quotaCost": 50,
+            "deleted": True,
+            "deletion": {"id": "subscription-123"},
+        },
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_id",
+        "description": "Quota cost: 50. Reject deletion requests missing the required subscription id.",
+        "arguments": {},
+        "error": {"category": "invalid_request", "field": "id"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "empty_id",
+        "description": "Quota cost: 50. Reject deletion requests with an empty subscription id.",
+        "arguments": {"id": ""},
+        "error": {"category": "invalid_request", "field": "id"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "access_failure",
+        "description": "Quota cost: 50. Map missing or invalid OAuth access to safe authentication errors.",
+        "arguments": {"id": "subscription-123"},
+        "error": {"category": "authentication_failed", "authMode": "oauth_required"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "already_removed_or_missing_target",
+        "description": "Quota cost: 50. Map missing or already-removed subscriptions to safe target-state errors.",
+        "arguments": {"id": "subscription-missing"},
+        "error": {"category": "not_found"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "non_removable_target",
+        "description": "Quota cost: 50. Map ownership, policy, blocked, or account-state deletion failures safely.",
+        "arguments": {"id": "subscription-blocked"},
+        "error": {"category": "non_removable_target"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "quota_or_upstream_delete_failure",
+        "description": "Quota cost: 50. Map quota and upstream delete failures to safe categories.",
+        "arguments": {"id": "subscription-123"},
+        "error": {"category": "quota_exhausted"},
+        "quotaCost": 50,
+    },
+    {
+        "name": "out_of_scope_subscription_management_request",
+        "description": "Quota cost: 50. Listing, creation, notification management, analytics, and enrichment are out of scope.",
+        "arguments": {"id": "subscription-123", "includeChannelStatistics": True},
+        "error": {"category": "invalid_request", "field": "includeChannelStatistics"},
+        "quotaCost": 50,
+    },
+)
+
 
 class SubscriptionsListToolError(ValueError):
     """Represent a safe caller-facing ``subscriptions_list`` failure.
@@ -391,6 +493,32 @@ class SubscriptionsInsertToolError(ValueError):
         self.details = _sanitize_subscriptions_error_details(details or {})
 
 
+class SubscriptionsDeleteToolError(ValueError):
+    """Represent a safe caller-facing ``subscriptions_delete`` failure.
+
+    :param message: Human-readable failure summary.
+    :param category: Stable safe failure category.
+    :param details: Optional structured details with secret-bearing keys removed.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str = "invalid_request",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Initialize a sanitized subscriptions delete tool error.
+
+        :param message: Human-readable failure summary.
+        :param category: Stable safe failure category.
+        :param details: Optional diagnostic details to sanitize before exposure.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = _sanitize_subscriptions_error_details(details or {})
+
+
 def _sanitize_subscriptions_error_details(details: dict[str, Any]) -> dict[str, Any]:
     """Remove subscription credential and header fields from error details.
 
@@ -401,7 +529,12 @@ def _sanitize_subscriptions_error_details(details: dict[str, Any]) -> dict[str, 
     return {
         key: value
         for key, value in sanitized.items()
-        if key.lower() not in SUBSCRIPTIONS_LIST_UNSAFE_DETAIL_KEYS
+        if key.lower()
+        not in (
+            SUBSCRIPTIONS_LIST_UNSAFE_DETAIL_KEYS
+            | SUBSCRIPTIONS_INSERT_UNSAFE_DETAIL_KEYS
+            | SUBSCRIPTIONS_DELETE_UNSAFE_DETAIL_KEYS
+        )
     }
 
 
@@ -533,6 +666,30 @@ def validate_subscriptions_insert_arguments(arguments: dict[str, Any]) -> dict[s
         "part": part,
         "body": {"snippet": {"resourceId": normalized_resource_id}},
     }
+
+
+def validate_subscriptions_delete_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate a ``subscriptions_delete`` request and return normalized arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized caller arguments for execution and result mapping.
+    :raises SubscriptionsDeleteToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise SubscriptionsDeleteToolError("subscriptions_delete arguments must be an object")
+
+    allowed = set(SUBSCRIPTIONS_DELETE_INPUT_SCHEMA["properties"])
+    for field in arguments:
+        if field not in allowed:
+            raise SubscriptionsDeleteToolError(
+                f"unsupported field for subscriptions_delete: {field}",
+                details={"field": field},
+            )
+
+    subscription_id = arguments.get("id")
+    if not isinstance(subscription_id, str) or not subscription_id.strip():
+        raise SubscriptionsDeleteToolError("subscriptions_delete requires id", details={"field": "id"})
+    return {"id": subscription_id.strip()}
 
 
 def _active_selectors(arguments: dict[str, Any]) -> list[str]:
@@ -788,6 +945,25 @@ def map_subscriptions_insert_result(payload: dict[str, Any], arguments: dict[str
     return result
 
 
+def map_subscriptions_delete_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream subscription deletion payload to the public result.
+
+    :param payload: Upstream or Layer 1 subscriptions delete acknowledgment payload.
+    :param arguments: Validated caller arguments used for the request.
+    :return: Near-raw deletion acknowledgment with safe operation context.
+    """
+    normalized = validate_subscriptions_delete_arguments(arguments)
+    safe_upstream = _sanitize_subscriptions_error_details(dict(payload or {}))
+    return {
+        "endpoint": "subscriptions.delete",
+        "quotaCost": SUBSCRIPTIONS_DELETE_QUOTA_COST,
+        "deleted": True,
+        "deletion": {"id": normalized["id"]},
+        "auth": {"mode": "oauth_required"},
+        "upstream": safe_upstream,
+    }
+
+
 def _map_subscriptions_list_upstream_error(error: NormalizedUpstreamError) -> SubscriptionsListToolError:
     """Map a normalized upstream failure to a safe ``subscriptions_list`` error.
 
@@ -847,6 +1023,39 @@ def _map_subscriptions_insert_upstream_error(error: NormalizedUpstreamError) -> 
     }
     category = category_map.get(error.category, "upstream_failure")
     return SubscriptionsInsertToolError(str(error), category=category, details=error.details or {})
+
+
+def _map_subscriptions_delete_upstream_error(error: NormalizedUpstreamError) -> SubscriptionsDeleteToolError:
+    """Map a normalized upstream failure to a safe ``subscriptions_delete`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe tool error with shared category and sanitized details.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "validation": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "subscriptionForbidden": "authorization_failed",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "not_found": "not_found",
+        "resource_not_found": "not_found",
+        "already_removed": "not_found",
+        "already_deleted": "not_found",
+        "missing_target": "not_found",
+        "non_removable_target": "non_removable_target",
+        "blocked_target": "non_removable_target",
+        "not_owned": "non_removable_target",
+        "unavailable": "endpoint_unavailable",
+        "transient": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return SubscriptionsDeleteToolError(str(error), category=category, details=error.details or {})
 
 
 def build_subscriptions_list_contract() -> YouTubeToolContract:
@@ -1006,6 +1215,76 @@ def build_subscriptions_insert_contract() -> YouTubeToolContract:
     )
 
 
+def build_subscriptions_delete_contract() -> YouTubeToolContract:
+    """Build the public contract for ``subscriptions_delete``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "quotaCost",
+            "deleted",
+            "deletion",
+            "auth",
+            "upstream",
+        ),
+        preserved_upstream_fields=("operationStatus", "etag"),
+        disallowed_behavior=(
+            "subscription_listing",
+            "subscription_creation",
+            "subscription_lookup",
+            "channel_search",
+            "recommendation",
+            "notification_management",
+            "subscriber_analytics",
+            "ranking",
+            "summarization",
+            "enrichment",
+            "idempotency",
+            "preflight_lookup",
+            "bulk_deletion",
+            "cross_endpoint_aggregation",
+            "resource_fabrication",
+        ),
+    )
+    return YouTubeToolContract(
+        tool_name=SUBSCRIPTIONS_DELETE_TOOL_NAME,
+        upstream_resource="subscriptions",
+        upstream_method="delete",
+        operation_key="subscriptions.delete",
+        description=SUBSCRIPTIONS_DELETE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=SUBSCRIPTIONS_DELETE_QUOTA_COST,
+        resource_family="subscriptions",
+        input_contract=SUBSCRIPTIONS_DELETE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "deletion_acknowledgment",
+            "successStatus": 204,
+            "bodyPolicy": "no_upstream_body",
+            "idField": "id",
+            "targetFields": ["id"],
+            "acknowledgmentFields": ["deleted"],
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "not_found",
+            "non_removable_target",
+            "endpoint_unavailable",
+            "deprecated_endpoint",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=SUBSCRIPTIONS_DELETE_USAGE_NOTES,
+        caveats=SUBSCRIPTIONS_DELETE_CAVEATS,
+    )
+
+
 def _default_subscriptions_list_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default subscription calls.
 
@@ -1078,6 +1357,23 @@ def _default_subscriptions_insert_executor() -> IntegrationExecutor:
             "targetChannelId": channel_id,
             "targetResourceKind": kind,
         }
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _default_subscriptions_delete_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default subscription deletes.
+
+    :return: Integration executor returning representative deletion acknowledgment data.
+    """
+
+    def transport(execution):
+        """Return a representative subscription deletion acknowledgment.
+
+        :param execution: Request execution context.
+        :return: Fake upstream deletion acknowledgment for local invocation.
+        """
+        return {"operationStatus": "deleted", "id": execution.arguments.get("id")}
 
     return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
 
@@ -1181,6 +1477,59 @@ def build_subscriptions_insert_handler(
     return handler
 
 
+def build_subscriptions_delete_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``subscriptions_delete``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used for subscription deletion.
+    :return: Callable that validates, executes, and maps subscription delete requests.
+    """
+    selected_wrapper = wrapper or build_subscriptions_delete_wrapper()
+    selected_executor = executor or _default_subscriptions_delete_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``subscriptions_delete`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 subscriptions delete result.
+        :raises SubscriptionsDeleteToolError: If validation or execution fails.
+        """
+        normalized = validate_subscriptions_delete_arguments(arguments)
+        if not isinstance(oauth_token, str) or not oauth_token.strip():
+            raise SubscriptionsDeleteToolError(
+                "subscriptions_delete requires eligible OAuth authorization",
+                category="authentication_failed",
+                details={"authMode": "oauth_required"},
+            )
+        auth_context = AuthContext(
+            mode=Layer1AuthMode.OAUTH_REQUIRED,
+            credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+        )
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_subscriptions_delete_upstream_error(exc) from exc
+        except ValueError as exc:
+            raise SubscriptionsDeleteToolError(
+                str(exc),
+                category="invalid_request",
+                details={"operation": "subscriptions.delete"},
+            ) from exc
+        return map_subscriptions_delete_result(payload, normalized)
+
+    return handler
+
+
 def build_subscriptions_list_tool_descriptor(
     *,
     wrapper=None,
@@ -1242,7 +1591,43 @@ def build_subscriptions_insert_tool_descriptor(
     }
 
 
+def build_subscriptions_delete_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``subscriptions_delete``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_subscriptions_delete_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(SUBSCRIPTIONS_DELETE_CALLER_EXAMPLES)
+    return {
+        "name": SUBSCRIPTIONS_DELETE_TOOL_NAME,
+        "description": SUBSCRIPTIONS_DELETE_DESCRIPTION,
+        "inputSchema": SUBSCRIPTIONS_DELETE_INPUT_SCHEMA,
+        "handler": build_subscriptions_delete_handler(
+            wrapper=wrapper,
+            executor=executor,
+            oauth_token=oauth_token,
+        ),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
+    "SUBSCRIPTIONS_DELETE_CALLER_EXAMPLES",
+    "SUBSCRIPTIONS_DELETE_CAVEATS",
+    "SUBSCRIPTIONS_DELETE_DESCRIPTION",
+    "SUBSCRIPTIONS_DELETE_INPUT_SCHEMA",
+    "SUBSCRIPTIONS_DELETE_QUOTA_COST",
+    "SUBSCRIPTIONS_DELETE_TOOL_NAME",
+    "SUBSCRIPTIONS_DELETE_USAGE_NOTES",
     "SUBSCRIPTIONS_INSERT_CALLER_EXAMPLES",
     "SUBSCRIPTIONS_INSERT_CAVEATS",
     "SUBSCRIPTIONS_INSERT_DESCRIPTION",
@@ -1265,16 +1650,22 @@ __all__ = [
     "SUBSCRIPTIONS_LIST_TOOL_NAME",
     "SUBSCRIPTIONS_LIST_USAGE_NOTES",
     "SUBSCRIPTIONS_LIST_USER_CONTEXT_SELECTORS",
+    "SubscriptionsDeleteToolError",
     "SubscriptionsInsertToolError",
     "SubscriptionsListToolError",
+    "build_subscriptions_delete_contract",
+    "build_subscriptions_delete_handler",
+    "build_subscriptions_delete_tool_descriptor",
     "build_subscriptions_insert_contract",
     "build_subscriptions_insert_handler",
     "build_subscriptions_insert_tool_descriptor",
     "build_subscriptions_list_contract",
     "build_subscriptions_list_handler",
     "build_subscriptions_list_tool_descriptor",
+    "map_subscriptions_delete_result",
     "map_subscriptions_insert_result",
     "map_subscriptions_list_result",
+    "validate_subscriptions_delete_arguments",
     "validate_subscriptions_insert_arguments",
     "validate_subscriptions_list_arguments",
 ]
