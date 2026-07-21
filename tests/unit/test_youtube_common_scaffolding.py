@@ -705,3 +705,29 @@ def test_video_abuse_report_reasons_list_scaffolding_exports_concrete_layer2_sym
     assert youtube_common.VIDEO_ABUSE_REPORT_REASONS_LIST_QUOTA_COST == 1
     assert callable(video_abuse_report_reasons.build_video_abuse_report_reasons_list_contract)
     assert callable(youtube_common.build_video_abuse_report_reasons_list_tool_descriptor)
+
+
+def test_video_categories_resource_family_points_to_concrete_layer2_module():
+    """Expose the concrete video-categories family placement for YT-246."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    family = get_resource_family("video_categories")
+
+    assert family.family_name == "video_categories"
+    assert family.definition_location.endswith("src/mcp_server/tools/youtube_common/video_categories.py")
+    assert family.handler_location.endswith("src/mcp_server/tools/youtube_common/video_categories.py")
+    assert family.schema_location.endswith("src/mcp_server/tools/youtube_common/video_categories.py")
+    assert family.layer1_dependency == "mcp_server.integrations.resources.video_categories"
+
+
+def test_video_categories_list_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``videoCategories_list`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import video_categories
+
+    assert video_categories.VIDEO_CATEGORIES_LIST_TOOL_NAME == "videoCategories_list"
+    assert video_categories.VIDEO_CATEGORIES_LIST_QUOTA_COST == 1
+    assert youtube_common.VIDEO_CATEGORIES_LIST_TOOL_NAME == "videoCategories_list"
+    assert youtube_common.VIDEO_CATEGORIES_LIST_QUOTA_COST == 1
+    assert callable(video_categories.build_video_categories_list_contract)
+    assert callable(youtube_common.build_video_categories_list_tool_descriptor)

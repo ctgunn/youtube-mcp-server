@@ -315,6 +315,38 @@ def test_search_list_contract_uses_existing_resource_family():
     assert "API-key" in metadata_text
 
 
+def test_video_categories_list_contract_uses_existing_resource_family():
+    """Expose the concrete ``videoCategories_list`` contract in the video-categories family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import video_categories
+    from mcp_server.tools.youtube_common.video_categories import build_video_categories_list_contract
+
+    family = get_resource_family("video_categories")
+    contract = build_video_categories_list_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert family.definition_location.endswith("src/mcp_server/tools/youtube_common/video_categories.py")
+    assert family.layer1_dependency == "mcp_server.integrations.resources.video_categories"
+    assert video_categories.VIDEO_CATEGORIES_LIST_TOOL_NAME == "videoCategories_list"
+    assert video_categories.VIDEO_CATEGORIES_LIST_QUOTA_COST == 1
+    assert youtube_common.VIDEO_CATEGORIES_LIST_TOOL_NAME == "videoCategories_list"
+    assert youtube_common.VIDEO_CATEGORIES_LIST_QUOTA_COST == 1
+    assert callable(youtube_common.build_video_categories_list_tool_descriptor)
+    assert metadata["name"] == "videoCategories_list"
+    assert metadata["resourceFamily"] == "video_categories"
+    assert metadata["upstream"]["operationKey"] == "videoCategories.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["selectorFields"] == ["regionCode", "id"]
+    assert "regionCode" in metadata_text
+    assert "id" in metadata_text
+    assert "API-key" in metadata_text
+
+
 def test_playlists_list_contract_uses_existing_resource_family():
     """Expose the concrete ``playlists_list`` contract in the playlists family."""
     from mcp_server.tools.youtube_common import get_resource_family

@@ -247,6 +247,36 @@ def test_default_registry_includes_executable_video_abuse_report_reasons_list_to
     assert result["localization"] == {"hl": "en"}
     assert result["auth"] == {"mode": "api_key"}
 
+
+def test_default_registry_includes_executable_videoCategories_list_tool():
+    """Register ``videoCategories_list`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "videoCategories_list" in listed
+    metadata = listed["videoCategories_list"]["metadata"]
+    description = listed["videoCategories_list"]["description"]
+    example_names = {example["name"] for example in metadata["examples"]}
+
+    assert metadata["upstream"]["operationKey"] == "videoCategories.list"
+    assert metadata["resourceFamily"] == "video_categories"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert metadata["responseConvention"]["selectorFields"] == ["regionCode", "id"]
+    assert "Quota cost: 1" in description
+    assert "video categories" in description
+    assert {"region_category_lookup", "category_id_lookup", "empty_success"}.issubset(example_names)
+
+    result = dispatcher.call_tool("videoCategories_list", {"part": "snippet", "regionCode": "US"})
+
+    assert result["endpoint"] == "videoCategories.list"
+    assert result["quotaCost"] == 1
+    assert result["selector"] == {"mode": "regionCode", "regionCode": "US"}
+    assert result["auth"] == {"mode": "api_key"}
+    assert result["items"]
+
     result = dispatcher.call_tool(
         "thumbnails_set",
         {"videoId": "video-123", "media": {"mimeType": "image/png", "content": "fake-image-content"}},
