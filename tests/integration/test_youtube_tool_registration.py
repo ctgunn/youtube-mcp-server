@@ -219,6 +219,34 @@ def test_default_registry_includes_executable_thumbnails_set_tool():
     assert "media" in metadata_text
     assert "thumbnail generation" in metadata_text
 
+
+def test_default_registry_includes_executable_video_abuse_report_reasons_list_tool():
+    """Register ``videoAbuseReportReasons_list`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "videoAbuseReportReasons_list" in listed
+    metadata = listed["videoAbuseReportReasons_list"]["metadata"]
+    description = listed["videoAbuseReportReasons_list"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "videoAbuseReportReasons.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "hl"]
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["localizationFields"] == ["hl"]
+    assert "report submission" in metadata_text
+    assert "moderation" in metadata_text
+
+    result = dispatcher.call_tool("videoAbuseReportReasons_list", {"part": "snippet", "hl": "en"})
+
+    assert result["endpoint"] == "videoAbuseReportReasons.list"
+    assert result["quotaCost"] == 1
+    assert result["localization"] == {"hl": "en"}
+    assert result["auth"] == {"mode": "api_key"}
+
     result = dispatcher.call_tool(
         "thumbnails_set",
         {"videoId": "video-123", "media": {"mimeType": "image/png", "content": "fake-image-content"}},

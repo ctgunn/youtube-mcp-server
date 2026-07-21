@@ -55,6 +55,9 @@ from mcp_server.tools.youtube_common.subscriptions import (
     build_subscriptions_list_contract,
 )
 from mcp_server.tools.youtube_common.thumbnails import build_thumbnails_set_contract
+from mcp_server.tools.youtube_common.video_abuse_report_reasons import (
+    build_video_abuse_report_reasons_list_contract,
+)
 
 
 def _contract(
@@ -522,6 +525,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_subscriptions_insert_contract(),
     build_subscriptions_list_contract(),
     build_thumbnails_set_contract(),
+    build_video_abuse_report_reasons_list_contract(),
     _contract(
         resource="videos",
         method="reportAbuse",
