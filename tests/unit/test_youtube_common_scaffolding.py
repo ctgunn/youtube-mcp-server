@@ -731,3 +731,29 @@ def test_video_categories_list_scaffolding_exports_concrete_layer2_symbols():
     assert youtube_common.VIDEO_CATEGORIES_LIST_QUOTA_COST == 1
     assert callable(video_categories.build_video_categories_list_contract)
     assert callable(youtube_common.build_video_categories_list_tool_descriptor)
+
+
+def test_videos_resource_family_points_to_concrete_layer2_module():
+    """Expose the concrete videos family placement for YT-247."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    family = get_resource_family("videos")
+
+    assert family.family_name == "videos"
+    assert family.definition_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert family.handler_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert family.schema_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert family.layer1_dependency == "mcp_server.integrations.resources.videos"
+
+
+def test_videos_list_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``videos_list`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import videos
+
+    assert videos.VIDEOS_LIST_TOOL_NAME == "videos_list"
+    assert videos.VIDEOS_LIST_QUOTA_COST == 1
+    assert youtube_common.VIDEOS_LIST_TOOL_NAME == "videos_list"
+    assert youtube_common.VIDEOS_LIST_QUOTA_COST == 1
+    assert callable(videos.build_videos_list_contract)
+    assert callable(youtube_common.build_videos_list_tool_descriptor)

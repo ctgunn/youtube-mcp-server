@@ -347,6 +347,40 @@ def test_video_categories_list_contract_uses_existing_resource_family():
     assert "API-key" in metadata_text
 
 
+def test_videos_list_contract_uses_existing_resource_family():
+    """Expose the concrete ``videos_list`` contract in the videos family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import videos
+    from mcp_server.tools.youtube_common.videos import build_videos_list_contract
+
+    family = get_resource_family("videos")
+    contract = build_videos_list_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert family.definition_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert family.layer1_dependency == "mcp_server.integrations.resources.videos"
+    assert videos.VIDEOS_LIST_TOOL_NAME == "videos_list"
+    assert videos.VIDEOS_LIST_QUOTA_COST == 1
+    assert youtube_common.VIDEOS_LIST_TOOL_NAME == "videos_list"
+    assert youtube_common.VIDEOS_LIST_QUOTA_COST == 1
+    assert callable(youtube_common.build_videos_list_tool_descriptor)
+    assert metadata["name"] == "videos_list"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["upstream"]["operationKey"] == "videos.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["selectorFields"] == ["id", "chart", "myRating"]
+    assert "id" in metadata_text
+    assert "chart" in metadata_text
+    assert "myRating" in metadata_text
+    assert "API-key" in metadata_text
+    assert "OAuth" in metadata_text
+
+
 def test_playlists_list_contract_uses_existing_resource_family():
     """Expose the concrete ``playlists_list`` contract in the playlists family."""
     from mcp_server.tools.youtube_common import get_resource_family
