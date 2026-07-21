@@ -41,6 +41,7 @@ def test_representative_examples_include_required_us1_shapes():
         "videoAbuseReportReasons_list",
         "videoCategories_list",
         "videos_getRating",
+        "videos_list",
         "videos_reportAbuse",
         "watermarks_unset",
     }.issubset(names)
@@ -259,6 +260,47 @@ def test_representative_video_categories_example_aligns_with_concrete_contract()
         "conflicting_selectors",
         "access_failure",
         "quota_or_upstream_failure",
+    }.issubset(example_names)
+
+
+def test_representative_videos_list_example_aligns_with_concrete_contract():
+    """Keep the representative videos-list example aligned with YT-247."""
+    from mcp_server.tools.youtube_common.videos import build_videos_list_contract, build_videos_list_tool_descriptor
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "videos_list"
+    ]
+    concrete = build_videos_list_contract()
+    descriptor = build_videos_list_tool_descriptor()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 1
+    assert representative.auth_mode is AuthMode.MIXED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.input_contract["required"] == ["part"]
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == "list"
+    assert representative.response_convention["selectorFields"] == ["id", "chart", "myRating"]
+    assert representative.response_convention["paginationFields"] == ["pageToken", "maxResults"]
+    assert representative.response_convention["chartRefinementFields"] == ["regionCode", "videoCategoryId"]
+    assert "API-key" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "pageToken" in metadata_text
+    assert "regionCode" in metadata_text
+    assert {
+        "direct_video_lookup",
+        "chart_lookup",
+        "rating_lookup",
+        "paginated_chart_lookup",
+        "empty_success",
+        "invalid_pagination",
+        "oauth_access_failure",
+        "out_of_scope_video_workflow",
     }.issubset(example_names)
 
 

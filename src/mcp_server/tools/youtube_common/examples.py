@@ -59,6 +59,7 @@ from mcp_server.tools.youtube_common.video_abuse_report_reasons import (
     build_video_abuse_report_reasons_list_contract,
 )
 from mcp_server.tools.youtube_common.video_categories import build_video_categories_list_contract
+from mcp_server.tools.youtube_common.videos import build_videos_list_contract
 
 
 def _contract(
@@ -300,6 +301,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     ),
     build_comments_set_moderation_status_contract(),
     build_comments_delete_contract(),
+    build_videos_list_contract(),
     _contract(
         resource="videos",
         method="getRating",

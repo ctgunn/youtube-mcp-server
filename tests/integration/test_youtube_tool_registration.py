@@ -291,6 +291,40 @@ def test_default_registry_includes_executable_videoCategories_list_tool():
     assert "fake-image-content" not in str(result)
 
 
+def test_default_registry_includes_executable_videos_list_tool():
+    """Register ``videos_list`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "videos_list" in listed
+    metadata = listed["videos_list"]["metadata"]
+    description = listed["videos_list"]["description"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "videos.list"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "mixed/conditional"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part"]
+    assert metadata["responseConvention"]["selectorFields"] == ["id", "chart", "myRating"]
+    assert metadata["responseConvention"]["paginationFields"] == ["pageToken", "maxResults"]
+    assert metadata["responseConvention"]["chartRefinementFields"] == ["regionCode", "videoCategoryId"]
+    assert "Quota cost: 1" in description
+    assert "API-key" in metadata_text
+    assert "OAuth" in metadata_text
+    assert {"direct_video_lookup", "chart_lookup", "rating_lookup", "empty_success"}.issubset(example_names)
+
+    result = dispatcher.call_tool("videos_list", {"part": "snippet", "id": "abc123"})
+
+    assert result["endpoint"] == "videos.list"
+    assert result["quotaCost"] == 1
+    assert result["selector"] == {"mode": "id", "id": ["abc123"]}
+    assert result["auth"] == {"mode": "api_key", "path": "public"}
+    assert result["items"]
+
+
 def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
     """Register ``comments_insert`` by default with create metadata."""
     dispatcher = InMemoryToolDispatcher()
