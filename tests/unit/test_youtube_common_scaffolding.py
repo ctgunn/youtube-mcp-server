@@ -679,3 +679,29 @@ def test_thumbnails_set_scaffolding_exports_concrete_layer2_symbols():
     assert youtube_common.THUMBNAILS_SET_QUOTA_COST == 50
     assert callable(thumbnails.build_thumbnails_set_contract)
     assert callable(youtube_common.build_thumbnails_set_tool_descriptor)
+
+
+def test_video_abuse_report_reasons_resource_family_points_to_concrete_layer2_module():
+    """Expose the concrete video-abuse-report-reasons placement for YT-245."""
+    from mcp_server.tools.youtube_common import get_resource_family
+
+    family = get_resource_family("video_abuse_report_reasons")
+
+    assert family.family_name == "video_abuse_report_reasons"
+    assert family.definition_location.endswith("src/mcp_server/tools/youtube_common/video_abuse_report_reasons.py")
+    assert family.handler_location.endswith("src/mcp_server/tools/youtube_common/video_abuse_report_reasons.py")
+    assert family.schema_location.endswith("src/mcp_server/tools/youtube_common/video_abuse_report_reasons.py")
+    assert family.layer1_dependency == "mcp_server.integrations.resources.video_abuse_report_reasons"
+
+
+def test_video_abuse_report_reasons_list_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``videoAbuseReportReasons_list`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import video_abuse_report_reasons
+
+    assert video_abuse_report_reasons.VIDEO_ABUSE_REPORT_REASONS_LIST_TOOL_NAME == "videoAbuseReportReasons_list"
+    assert video_abuse_report_reasons.VIDEO_ABUSE_REPORT_REASONS_LIST_QUOTA_COST == 1
+    assert youtube_common.VIDEO_ABUSE_REPORT_REASONS_LIST_TOOL_NAME == "videoAbuseReportReasons_list"
+    assert youtube_common.VIDEO_ABUSE_REPORT_REASONS_LIST_QUOTA_COST == 1
+    assert callable(video_abuse_report_reasons.build_video_abuse_report_reasons_list_contract)
+    assert callable(youtube_common.build_video_abuse_report_reasons_list_tool_descriptor)

@@ -1100,6 +1100,37 @@ def test_channel_banners_insert_public_metadata_is_safe_and_complete():
     assert "content" not in str(metadata["responseBoundary"]).lower()
 
 
+def test_video_abuse_report_reasons_list_contract_uses_existing_resource_family():
+    """Expose the concrete ``videoAbuseReportReasons_list`` contract in its resource family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import video_abuse_report_reasons
+    from mcp_server.tools.youtube_common.video_abuse_report_reasons import (
+        build_video_abuse_report_reasons_list_contract,
+    )
+
+    family = get_resource_family("video_abuse_report_reasons")
+    contract = build_video_abuse_report_reasons_list_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert family.definition_location.endswith("src/mcp_server/tools/youtube_common/video_abuse_report_reasons.py")
+    assert family.layer1_dependency == "mcp_server.integrations.resources.video_abuse_report_reasons"
+    assert video_abuse_report_reasons.VIDEO_ABUSE_REPORT_REASONS_LIST_TOOL_NAME == "videoAbuseReportReasons_list"
+    assert youtube_common.VIDEO_ABUSE_REPORT_REASONS_LIST_TOOL_NAME == "videoAbuseReportReasons_list"
+    assert metadata["name"] == "videoAbuseReportReasons_list"
+    assert metadata["resourceFamily"] == "video_abuse_report_reasons"
+    assert metadata["upstream"]["operationKey"] == "videoAbuseReportReasons.list"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "api_key"
+    assert metadata["inputContract"]["required"] == ["part", "hl"]
+    assert metadata["responseConvention"]["resultKind"] == "list"
+    assert metadata["responseConvention"]["localizationFields"] == ["hl"]
+    assert "report submission" in metadata_text
+    assert "moderation" in metadata_text
+    assert "apiKey" not in str(metadata)
+
+
 def test_shared_helper_boundary_keeps_endpoint_facts_in_resource_families():
     """Document which concerns are shared and which stay endpoint-specific."""
     assert "naming" in SHARED_YOUTUBE_HELPER_BOUNDARY["shared"]
