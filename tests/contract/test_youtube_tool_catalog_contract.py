@@ -39,6 +39,7 @@ def test_representative_examples_include_required_us1_shapes():
         "subscriptions_list",
         "thumbnails_set",
         "videoAbuseReportReasons_list",
+        "videoCategories_list",
         "videos_getRating",
         "videos_reportAbuse",
         "watermarks_unset",
@@ -217,6 +218,45 @@ def test_representative_video_abuse_report_reasons_example_aligns_with_concrete_
         "localized_reason_lookup",
         "empty_success",
         "missing_hl",
+        "access_failure",
+        "quota_or_upstream_failure",
+    }.issubset(example_names)
+
+
+def test_representative_video_categories_example_aligns_with_concrete_contract():
+    """Keep the representative video-categories example aligned with YT-246."""
+    from mcp_server.tools.youtube_common.video_categories import (
+        build_video_categories_list_contract,
+        build_video_categories_list_tool_descriptor,
+    )
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "videoCategories_list"
+    ]
+    concrete = build_video_categories_list_contract()
+    descriptor = build_video_categories_list_tool_descriptor()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 1
+    assert representative.auth_mode is AuthMode.API_KEY
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.input_contract["required"] == ["part"]
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == "list"
+    assert representative.response_convention["selectorFields"] == ["regionCode", "id"]
+    assert "regionCode" in metadata_text
+    assert "category recommendation" in metadata_text
+    assert {
+        "region_category_lookup",
+        "category_id_lookup",
+        "empty_success",
+        "missing_selector",
+        "conflicting_selectors",
         "access_failure",
         "quota_or_upstream_failure",
     }.issubset(example_names)
