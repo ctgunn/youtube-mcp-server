@@ -8,7 +8,11 @@ from mcp_server.integrations.auth import AuthContext, CredentialBundle
 from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
-from mcp_server.integrations.resources.videos import build_videos_insert_wrapper, build_videos_list_wrapper
+from mcp_server.integrations.resources.videos import (
+    build_videos_insert_wrapper,
+    build_videos_list_wrapper,
+    build_videos_update_wrapper,
+)
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
@@ -339,6 +343,137 @@ VIDEOS_INSERT_CALLER_EXAMPLES = (
     },
 )
 
+VIDEOS_UPDATE_TOOL_NAME = "videos_update"
+VIDEOS_UPDATE_QUOTA_COST = 50
+VIDEOS_UPDATE_WRITABLE_PARTS = ("snippet",)
+VIDEOS_UPDATE_ALLOWED_FIELDS = frozenset({"part", "body", "onBehalfOfContentOwner"})
+VIDEOS_UPDATE_ALLOWED_BODY_FIELDS = frozenset({"id", "kind", "snippet"})
+VIDEOS_UPDATE_ALLOWED_SNIPPET_FIELDS = frozenset({"title"})
+VIDEOS_UPDATE_UNSAFE_DETAIL_KEYS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "authorization",
+        "authorization_header",
+        "headers",
+        "oauth_token",
+        "request_context",
+        "request_headers",
+        "response_body",
+        "stack",
+        "stack_trace",
+        "traceback",
+        "upstream_body",
+    }
+)
+
+VIDEOS_UPDATE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["part", "body"],
+    "properties": {
+        "part": {"type": "string", "enum": list(VIDEOS_UPDATE_WRITABLE_PARTS)},
+        "body": {
+            "type": "object",
+            "required": ["id", "snippet"],
+            "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "kind": {"type": "string", "minLength": 1},
+                "snippet": {
+                    "type": "object",
+                    "required": ["title"],
+                    "properties": {"title": {"type": "string", "minLength": 1}},
+                    "additionalProperties": False,
+                },
+            },
+            "additionalProperties": False,
+        },
+        "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+VIDEOS_UPDATE_DESCRIPTION = (
+    "Update YouTube video metadata through videos.update. Quota cost: 50. Auth: OAuth required. "
+    "Supports replacement-oriented metadata updates for part=snippet with body.id and body.snippet.title."
+)
+
+VIDEOS_UPDATE_USAGE_NOTES = (
+    "Quota cost: 50. OAuth authorization is required for every videos.update request.",
+    "Quota cost: 50. Provide part=snippet, body.id, and body.snippet.title for the supported metadata update path.",
+    "Quota cost: 50. videos.update uses replacement semantics for included writable parts; include every supported field that should remain on the updated snippet.",
+    "Quota cost: 50. onBehalfOfContentOwner is accepted only for eligible OAuth delegation contexts.",
+    "Quota cost: 50. The result is a near-raw updated video resource and never includes credentials, raw upstream diagnostics, or secret-bearing request context.",
+)
+
+VIDEOS_UPDATE_CAVEATS = (
+    "This tool is a low-level videos.update wrapper for metadata update only.",
+    "Only the snippet writable part is supported in this slice, and the update body is limited to body.id and body.snippet.title.",
+    "media upload, media replacement, transcoding, automatic publishing, create, delete, rating, thumbnail, caption, playlist, comment, transcript, analytics, recommendation, ranking, summarization, enrichment, and cross-endpoint workflows are out of scope.",
+    "Credentials, authorization headers, raw upstream diagnostics, raw request context, and secret-bearing fields are never returned to callers.",
+)
+
+VIDEOS_UPDATE_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_metadata_update",
+        "description": "Quota cost: 50. Update a video title with OAuth using videos.update, part=snippet, body.id, and body.snippet.title.",
+        "arguments": {"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated title"}}},
+        "result": {
+            "endpoint": "videos.update",
+            "quotaCost": 50,
+            "mutation": {"type": "updated"},
+            "resourcePath": "item",
+        },
+        "quotaCost": 50,
+    },
+    {
+        "name": "delegated_content_owner_update",
+        "description": "Quota cost: 50. Provide onBehalfOfContentOwner only with eligible OAuth delegation access.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"id": "abc123", "snippet": {"title": "Partner updated title"}},
+            "onBehalfOfContentOwner": "CONTENT_OWNER_ID",
+        },
+        "result": {"endpoint": "videos.update", "delegation": {"onBehalfOfContentOwner": "CONTENT_OWNER_ID"}},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_identity_failure",
+        "description": "Quota cost: 50. Missing body.id is rejected before upstream execution.",
+        "arguments": {"part": "snippet", "body": {"snippet": {"title": "Updated title"}}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "missing_part_failure",
+        "description": "Quota cost: 50. Missing or empty part is rejected before upstream execution.",
+        "arguments": {"body": {"id": "abc123", "snippet": {"title": "Updated title"}}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "unsupported_field_failure",
+        "description": "Quota cost: 50. Unsupported read-only, status, media upload, or workflow fields are rejected before endpoint execution.",
+        "arguments": {"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated title", "description": "Unsupported"}}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "missing_oauth",
+        "description": "Quota cost: 50. Missing OAuth is reported as authentication_failed before update execution.",
+        "arguments": {"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated title"}}},
+        "errorCategory": "authentication_failed",
+    },
+    {
+        "name": "quota_or_upstream_update_failure",
+        "description": "Quota cost: 50. Quota, policy, availability, and upstream failures map to safe public categories without raw upstream diagnostics.",
+        "arguments": {"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated title"}}},
+        "errorCategory": "quota_exhausted",
+    },
+    {
+        "name": "out_of_scope_video_workflow",
+        "description": "Quota cost: 50. media upload, create, delete, rating, thumbnail, caption, playlist, comment, transcript, analytics, recommendation, ranking, summarization, and enrichment fields are rejected.",
+        "arguments": {"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated title"}}, "analytics": True},
+        "errorCategory": "invalid_request",
+    },
+)
+
 
 class VideosListToolError(ValueError):
     """Represent a safe caller-facing ``videos_list`` failure.
@@ -380,6 +515,26 @@ class VideosInsertToolError(ValueError):
         self.details = _sanitize_videos_insert_error_details(details or {})
 
 
+class VideosUpdateToolError(ValueError):
+    """Represent a safe caller-facing ``videos_update`` failure.
+
+    :param message: Caller-facing error message.
+    :param category: Stable Layer 2 error category.
+    :param details: Safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str = "invalid_request", details: dict[str, Any] | None = None):
+        """Initialize the safe update tool error.
+
+        :param message: Caller-facing error message.
+        :param category: Stable Layer 2 error category.
+        :param details: Safe diagnostic details.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = _sanitize_videos_update_error_details(details or {})
+
+
 def _sanitize_videos_list_error_details(details: dict[str, Any]) -> dict[str, Any]:
     """Remove endpoint-specific unsafe diagnostic fields.
 
@@ -405,6 +560,20 @@ def _sanitize_videos_insert_error_details(details: dict[str, Any]) -> dict[str, 
         key: value
         for key, value in sanitized.items()
         if key.lower().replace("-", "_") not in VIDEOS_INSERT_UNSAFE_DETAIL_KEYS
+    }
+
+
+def _sanitize_videos_update_error_details(details: dict[str, Any]) -> dict[str, Any]:
+    """Remove update-specific unsafe diagnostic fields.
+
+    :param details: Candidate diagnostic details.
+    :return: Safe details suitable for caller-facing update errors.
+    """
+    sanitized = sanitize_error_details(details)
+    return {
+        key: value
+        for key, value in sanitized.items()
+        if key.lower().replace("-", "_") not in VIDEOS_UPDATE_UNSAFE_DETAIL_KEYS
     }
 
 
@@ -710,6 +879,121 @@ def validate_videos_insert_arguments(arguments: dict[str, Any]) -> dict[str, Any
     return normalized
 
 
+def _require_videos_update_text_field(arguments: dict[str, Any], field: str) -> str:
+    """Require one non-empty ``videos_update`` text input field.
+
+    :param arguments: Caller-provided arguments.
+    :param field: Field name to validate.
+    :return: Stripped field value.
+    :raises VideosUpdateToolError: If the field is missing or invalid.
+    """
+    value = arguments.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise VideosUpdateToolError(f"videos_update requires non-empty {field}", details={"field": field})
+    return value.strip()
+
+
+def _validate_videos_update_part(arguments: dict[str, Any]) -> str:
+    """Validate the supported writable update part.
+
+    :param arguments: Caller-provided arguments.
+    :return: Normalized ``part`` selection.
+    :raises VideosUpdateToolError: If the part is missing or unsupported.
+    """
+    part = _require_videos_update_text_field(arguments, "part")
+    if _split_parts(part) != list(VIDEOS_UPDATE_WRITABLE_PARTS):
+        raise VideosUpdateToolError(
+            "videos_update supports only part=snippet in this slice",
+            details={"field": "part", "allowed": list(VIDEOS_UPDATE_WRITABLE_PARTS)},
+        )
+    return part
+
+
+def _validate_videos_update_body(body: Any) -> dict[str, Any]:
+    """Validate and normalize the supported video update body.
+
+    :param body: Candidate update body.
+    :return: Body accepted by the Layer 1 update wrapper.
+    :raises VideosUpdateToolError: If the body is missing, malformed, or out of scope.
+    """
+    if not isinstance(body, dict):
+        raise VideosUpdateToolError("videos_update requires body metadata", details={"field": "body"})
+    for field in body:
+        if field not in VIDEOS_UPDATE_ALLOWED_BODY_FIELDS:
+            raise VideosUpdateToolError(
+                f"unsupported body field for videos_update: {field}",
+                details={"field": f"body.{field}"},
+            )
+
+    video_id = body.get("id")
+    if not isinstance(video_id, str) or not video_id.strip():
+        raise VideosUpdateToolError("videos_update requires body.id", details={"field": "body.id"})
+
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        raise VideosUpdateToolError("videos_update requires body.snippet metadata", details={"field": "body.snippet"})
+    for field in snippet:
+        if field not in VIDEOS_UPDATE_ALLOWED_SNIPPET_FIELDS:
+            raise VideosUpdateToolError(
+                f"unsupported body.snippet field for videos_update: {field}",
+                details={"field": f"body.snippet.{field}"},
+            )
+
+    title = snippet.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise VideosUpdateToolError(
+            "videos_update requires body.snippet.title",
+            details={"field": "body.snippet.title"},
+        )
+
+    normalized: dict[str, Any] = {"id": video_id.strip(), "snippet": {"title": title.strip()}}
+    if "kind" in body:
+        kind = body["kind"]
+        if not isinstance(kind, str) or not kind.strip():
+            raise VideosUpdateToolError("body.kind must be a non-empty string", details={"field": "body.kind"})
+        normalized["kind"] = kind.strip()
+    return normalized
+
+
+def _validate_videos_update_delegation(value: Any) -> str:
+    """Validate optional content-owner delegation context.
+
+    :param value: Candidate content-owner identifier.
+    :return: Stripped content-owner identifier.
+    :raises VideosUpdateToolError: If the delegation value is malformed.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise VideosUpdateToolError(
+            "onBehalfOfContentOwner must be a non-empty string",
+            details={"field": "onBehalfOfContentOwner"},
+        )
+    return value.strip()
+
+
+def validate_videos_update_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate ``videos_update`` metadata-update arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized part, body, and optional delegation values.
+    :raises VideosUpdateToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise VideosUpdateToolError("videos_update arguments must be an object")
+    for field in arguments:
+        if field not in VIDEOS_UPDATE_ALLOWED_FIELDS:
+            raise VideosUpdateToolError(f"unsupported field for videos_update: {field}", details={"field": field})
+
+    normalized: dict[str, Any] = {
+        "part": _validate_videos_update_part(arguments),
+        "body": _validate_videos_update_body(arguments.get("body")),
+    }
+    if "onBehalfOfContentOwner" in arguments:
+        normalized["onBehalfOfContentOwner"] = _validate_videos_update_delegation(
+            arguments["onBehalfOfContentOwner"]
+        )
+    return normalized
+
+
 def _videos_insert_upload_context(arguments: dict[str, Any]) -> dict[str, Any]:
     """Build safe upload context without raw media content.
 
@@ -748,6 +1032,32 @@ def _videos_insert_delegation_context(arguments: dict[str, Any]) -> dict[str, st
     return {"onBehalfOfContentOwner": arguments["onBehalfOfContentOwner"]}
 
 
+def _videos_update_body_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Build safe update-body context for public results.
+
+    :param arguments: Normalized update arguments.
+    :return: Safe target and writable-field context.
+    """
+    body = arguments["body"]
+    snippet = body["snippet"]
+    return {
+        "videoId": body["id"],
+        "bodyFields": [field for field in body if field != "kind"],
+        "snippetFields": list(snippet.keys()),
+    }
+
+
+def _videos_update_delegation_context(arguments: dict[str, Any]) -> dict[str, str]:
+    """Build safe delegation context when a content-owner identifier is supplied.
+
+    :param arguments: Normalized update arguments.
+    :return: Delegation context or an empty mapping.
+    """
+    if "onBehalfOfContentOwner" not in arguments:
+        return {}
+    return {"onBehalfOfContentOwner": arguments["onBehalfOfContentOwner"]}
+
+
 def map_videos_insert_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     """Map an upstream video-create payload to the public Layer 2 result.
 
@@ -769,6 +1079,45 @@ def map_videos_insert_result(payload: dict[str, Any], arguments: dict[str, Any])
         "mutation": {"type": "created"},
     }
     delegation = _videos_insert_delegation_context(normalized)
+    if delegation:
+        result["delegation"] = delegation
+    for field in (
+        "kind",
+        "etag",
+        "id",
+        "snippet",
+        "status",
+        "contentDetails",
+        "processingDetails",
+        "fileDetails",
+        "suggestions",
+        "localizations",
+    ):
+        if field in item:
+            result[field] = item[field]
+    return result
+
+
+def map_videos_update_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream video-update payload to the public Layer 2 result.
+
+    :param payload: Upstream or Layer 1 video-update payload.
+    :param arguments: Caller arguments used for the request.
+    :return: Near-raw updated video result with safe operation context.
+    """
+    normalized = validate_videos_update_arguments(arguments)
+    safe_payload = sanitize_error_details(payload if isinstance(payload, dict) else {})
+    item = safe_payload.get("item") if isinstance(safe_payload.get("item"), dict) else safe_payload
+    result = {
+        "endpoint": "videos.update",
+        "quotaCost": VIDEOS_UPDATE_QUOTA_COST,
+        "requestedParts": _split_parts(normalized["part"]),
+        "update": _videos_update_body_context(normalized),
+        "auth": {"mode": "oauth_required", "path": "restricted"},
+        "item": item,
+        "mutation": {"type": "updated"},
+    }
+    delegation = _videos_update_delegation_context(normalized)
     if delegation:
         result["delegation"] = delegation
     for field in (
@@ -1179,6 +1528,114 @@ def build_videos_insert_contract() -> YouTubeToolContract:
     )
 
 
+def _videos_update_disallowed_behavior() -> tuple[str, ...]:
+    """Return behaviors outside the low-level ``videos_update`` endpoint boundary.
+
+    :return: Stable disallowed-behavior identifiers for metadata.
+    """
+    return (
+        "media_upload",
+        "media_replacement",
+        "transcoding",
+        "automatic_publishing",
+        "video_creation",
+        "video_delete",
+        "rating_mutation",
+        "thumbnail_management",
+        "caption_management",
+        "playlist_management",
+        "comment_management",
+        "transcript_retrieval",
+        "analytics",
+        "recommendation",
+        "ranking",
+        "summarization",
+        "enrichment",
+        "cross_endpoint_aggregation",
+    )
+
+
+def build_videos_update_contract() -> YouTubeToolContract:
+    """Build the public contract for ``videos_update``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "quotaCost",
+            "requestedParts",
+            "update",
+            "auth",
+            "delegation",
+            "item",
+            "mutation",
+            "kind",
+            "etag",
+            "id",
+            "snippet",
+            "status",
+            "contentDetails",
+            "processingDetails",
+            "fileDetails",
+            "suggestions",
+            "localizations",
+        ),
+        preserved_upstream_fields=(
+            "kind",
+            "etag",
+            "id",
+            "snippet",
+            "status",
+            "contentDetails",
+            "processingDetails",
+            "fileDetails",
+            "suggestions",
+            "localizations",
+        ),
+        disallowed_behavior=_videos_update_disallowed_behavior(),
+    )
+    return YouTubeToolContract(
+        tool_name=VIDEOS_UPDATE_TOOL_NAME,
+        upstream_resource="videos",
+        upstream_method="update",
+        operation_key="videos.update",
+        description=VIDEOS_UPDATE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=VIDEOS_UPDATE_QUOTA_COST,
+        resource_family="videos",
+        input_contract=VIDEOS_UPDATE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "updated_resource",
+            "resourcePath": "item",
+            "authMode": "oauth_required",
+            "requiredFields": ["part", "body"],
+            "optionalFields": ["onBehalfOfContentOwner"],
+            "writableParts": list(VIDEOS_UPDATE_WRITABLE_PARTS),
+            "bodyFields": ["id", "snippet"],
+            "snippetFields": ["title"],
+            "delegationFields": ["onBehalfOfContentOwner"],
+            "replacementSemantics": True,
+            "mutation": "updated",
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "deprecated_endpoint",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=VIDEOS_UPDATE_USAGE_NOTES,
+        caveats=VIDEOS_UPDATE_CAVEATS,
+    )
+
+
 def _default_videos_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default video-list calls.
 
@@ -1236,6 +1693,31 @@ def _default_videos_insert_executor() -> IntegrationExecutor:
     return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
 
 
+def _default_videos_update_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default video-update calls.
+
+    :return: Integration executor returning representative updated-video data.
+    """
+
+    def transport(execution):
+        """Return a representative video-update response.
+
+        :param execution: Request execution context.
+        :return: Fake upstream updated-video response for local invocation.
+        """
+        body = execution.arguments.get("body")
+        body = body if isinstance(body, dict) else {}
+        snippet = body.get("snippet") if isinstance(body.get("snippet"), dict) else {}
+        return {
+            "kind": "youtube#video",
+            "etag": "etag-video-update",
+            "id": body.get("id") or "local-video-update",
+            "snippet": {"title": snippet.get("title") or "Updated title"},
+        }
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
 def _videos_insert_auth_context(oauth_token: str | None) -> AuthContext:
     """Build the Layer 1 OAuth auth context for ``videos_insert``.
 
@@ -1257,6 +1739,32 @@ def _videos_insert_auth_context(oauth_token: str | None) -> AuthContext:
     except ValueError as exc:
         raise VideosInsertToolError(
             "videos_insert requires OAuth authorization",
+            category="authentication_failed",
+            details={"authMode": "oauth_required"},
+        ) from exc
+
+
+def _videos_update_auth_context(oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 OAuth auth context for ``videos_update``.
+
+    :param oauth_token: OAuth token credential value.
+    :return: Layer 1 auth context for OAuth-required update execution.
+    :raises VideosUpdateToolError: If OAuth access is missing.
+    """
+    if not isinstance(oauth_token, str) or not oauth_token.strip():
+        raise VideosUpdateToolError(
+            "videos_update requires OAuth authorization",
+            category="authentication_failed",
+            details={"authMode": "oauth_required"},
+        )
+    try:
+        return AuthContext(
+            mode=Layer1AuthMode.OAUTH_REQUIRED,
+            credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+        )
+    except ValueError as exc:
+        raise VideosUpdateToolError(
+            "videos_update requires OAuth authorization",
             category="authentication_failed",
             details={"authMode": "oauth_required"},
         ) from exc
@@ -1289,6 +1797,34 @@ def _map_videos_insert_upstream_error(error: NormalizedUpstreamError) -> VideosI
     }
     category = category_map.get(error.category, "upstream_failure")
     return VideosInsertToolError(str(error), category=category, details=error.details or {})
+
+
+def _map_videos_update_upstream_error(error: NormalizedUpstreamError) -> VideosUpdateToolError:
+    """Map a normalized upstream failure to a safe ``videos_update`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe caller-facing tool error.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "policy": "authorization_failed",
+        "policy_restricted": "authorization_failed",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "not_found": "resource_not_found",
+        "resource_not_found": "resource_not_found",
+        "removed": "resource_not_found",
+        "unavailable": "endpoint_unavailable",
+        "availability": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return VideosUpdateToolError(str(error), category=category, details=error.details or {})
 
 
 def build_videos_insert_handler(
@@ -1333,6 +1869,52 @@ def build_videos_insert_handler(
                 details={"authMode": "oauth_required"} if category == "authentication_failed" else {"field": "request"},
             ) from exc
         return map_videos_insert_result(payload, normalized)
+
+    return handler
+
+
+def build_videos_update_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``videos_update``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used for video metadata updates.
+    :return: Callable that validates, executes, and maps video-update requests.
+    """
+    selected_wrapper = wrapper or build_videos_update_wrapper()
+    selected_executor = executor or _default_videos_update_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``videos_update`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 video-update result.
+        :raises VideosUpdateToolError: If validation, access, or execution fails.
+        """
+        normalized = validate_videos_update_arguments(arguments)
+        auth_context = _videos_update_auth_context(oauth_token)
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_videos_update_upstream_error(exc) from exc
+        except ValueError as exc:
+            message = str(exc)
+            category = "authentication_failed" if "oauth" in message.lower() else "invalid_request"
+            raise VideosUpdateToolError(
+                message,
+                category=category,
+                details={"authMode": "oauth_required"} if category == "authentication_failed" else {"field": "request"},
+            ) from exc
+        return map_videos_update_result(payload, normalized)
 
     return handler
 
@@ -1444,6 +2026,31 @@ def build_videos_insert_tool_descriptor(
     }
 
 
+def build_videos_update_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``videos_update``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_videos_update_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(VIDEOS_UPDATE_CALLER_EXAMPLES)
+    return {
+        "name": VIDEOS_UPDATE_TOOL_NAME,
+        "description": VIDEOS_UPDATE_DESCRIPTION,
+        "inputSchema": VIDEOS_UPDATE_INPUT_SCHEMA,
+        "handler": build_videos_update_handler(wrapper=wrapper, executor=executor, oauth_token=oauth_token),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
     "VIDEOS_INSERT_ALLOWED_FIELDS",
     "VIDEOS_INSERT_CALLER_EXAMPLES",
@@ -1467,16 +2074,34 @@ __all__ = [
     "VIDEOS_LIST_TOOL_NAME",
     "VIDEOS_LIST_UNSAFE_DETAIL_KEYS",
     "VIDEOS_LIST_USAGE_NOTES",
+    "VIDEOS_UPDATE_ALLOWED_BODY_FIELDS",
+    "VIDEOS_UPDATE_ALLOWED_FIELDS",
+    "VIDEOS_UPDATE_ALLOWED_SNIPPET_FIELDS",
+    "VIDEOS_UPDATE_CALLER_EXAMPLES",
+    "VIDEOS_UPDATE_CAVEATS",
+    "VIDEOS_UPDATE_DESCRIPTION",
+    "VIDEOS_UPDATE_INPUT_SCHEMA",
+    "VIDEOS_UPDATE_QUOTA_COST",
+    "VIDEOS_UPDATE_TOOL_NAME",
+    "VIDEOS_UPDATE_UNSAFE_DETAIL_KEYS",
+    "VIDEOS_UPDATE_USAGE_NOTES",
+    "VIDEOS_UPDATE_WRITABLE_PARTS",
     "VideosInsertToolError",
     "VideosListToolError",
+    "VideosUpdateToolError",
     "build_videos_insert_contract",
     "build_videos_insert_handler",
     "build_videos_insert_tool_descriptor",
     "build_videos_list_contract",
     "build_videos_list_handler",
     "build_videos_list_tool_descriptor",
+    "build_videos_update_contract",
+    "build_videos_update_handler",
+    "build_videos_update_tool_descriptor",
     "map_videos_insert_result",
     "map_videos_list_result",
+    "map_videos_update_result",
     "validate_videos_insert_arguments",
     "validate_videos_list_arguments",
+    "validate_videos_update_arguments",
 ]

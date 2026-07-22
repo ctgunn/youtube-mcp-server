@@ -260,6 +260,38 @@ def test_subscriptions_delete_contract_uses_existing_resource_family():
     assert "OAuth" in metadata_text
 
 
+def test_videos_update_contract_uses_existing_resource_family():
+    """Expose the concrete ``videos_update`` contract in the videos family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import videos
+    from mcp_server.tools.youtube_common.videos import build_videos_update_contract
+
+    videos_family = get_resource_family("videos")
+    contract = build_videos_update_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert videos_family.definition_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert videos_family.layer1_dependency == "mcp_server.integrations.resources.videos"
+    assert videos.VIDEOS_UPDATE_TOOL_NAME == "videos_update"
+    assert videos.VIDEOS_UPDATE_QUOTA_COST == 50
+    assert youtube_common.VIDEOS_UPDATE_TOOL_NAME == "videos_update"
+    assert youtube_common.VIDEOS_UPDATE_QUOTA_COST == 50
+    assert callable(youtube_common.build_videos_update_tool_descriptor)
+    assert metadata["name"] == "videos_update"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["upstream"]["operationKey"] == "videos.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert metadata["responseConvention"]["resourcePath"] == "item"
+    assert "body.id" in metadata_text
+    assert "body.snippet.title" in metadata_text
+    assert "OAuth" in metadata_text
+
+
 def test_thumbnails_set_contract_uses_existing_resource_family():
     """Expose the concrete ``thumbnails_set`` contract in the thumbnails family."""
     from mcp_server.tools import youtube_common

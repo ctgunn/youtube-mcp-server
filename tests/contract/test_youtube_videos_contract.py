@@ -8,6 +8,18 @@ from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools import youtube_common
 from mcp_server.tools.youtube_common import AuthMode, AvailabilityState
 from mcp_server.tools.youtube_common.videos import (
+    VIDEOS_UPDATE_CALLER_EXAMPLES,
+    VIDEOS_UPDATE_CAVEATS,
+    VIDEOS_UPDATE_DESCRIPTION,
+    VIDEOS_UPDATE_INPUT_SCHEMA,
+    VIDEOS_UPDATE_QUOTA_COST,
+    VIDEOS_UPDATE_TOOL_NAME,
+    VIDEOS_UPDATE_USAGE_NOTES,
+    VideosUpdateToolError,
+    build_videos_update_contract,
+    build_videos_update_handler,
+    build_videos_update_tool_descriptor,
+    validate_videos_update_arguments,
     VIDEOS_LIST_CALLER_EXAMPLES,
     VIDEOS_LIST_CAVEATS,
     VIDEOS_LIST_DESCRIPTION,
@@ -387,3 +399,154 @@ def test_videos_insert_maps_quota_failures_without_secret_or_media_details():
     assert exc_info.value.details == {"field": "quota"}
     assert "secret" not in str(exc_info.value)
     assert "video-bytes" not in str(exc_info.value.details)
+
+
+def test_videos_update_input_contract_and_descriptor_shape():
+    """Publish the executable ``videos_update`` mutation contract."""
+    schema = VIDEOS_UPDATE_INPUT_SCHEMA
+    contract = build_videos_update_contract()
+    descriptor = build_videos_update_tool_descriptor()
+    metadata = contract.to_tool_metadata()
+
+    assert VIDEOS_UPDATE_TOOL_NAME == "videos_update"
+    assert VIDEOS_UPDATE_QUOTA_COST == 50
+    assert schema["required"] == ["part", "body"]
+    assert schema["properties"]["part"] == {"type": "string", "enum": ["snippet"]}
+    assert schema["properties"]["body"]["required"] == ["id", "snippet"]
+    assert schema["properties"]["body"]["properties"]["id"] == {"type": "string", "minLength": 1}
+    assert schema["properties"]["body"]["properties"]["snippet"]["required"] == ["title"]
+    assert schema["properties"]["body"]["properties"]["snippet"]["properties"]["title"] == {
+        "type": "string",
+        "minLength": 1,
+    }
+    assert schema["properties"]["onBehalfOfContentOwner"] == {"type": "string", "minLength": 1}
+    assert schema["additionalProperties"] is False
+    assert metadata["upstream"]["operationKey"] == "videos.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert metadata["responseConvention"]["resourcePath"] == "item"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert descriptor["name"] == "videos_update"
+    assert descriptor["inputSchema"] == VIDEOS_UPDATE_INPUT_SCHEMA
+    assert callable(descriptor["handler"])
+
+
+def test_videos_update_metadata_text_constants_are_public_safe_and_complete():
+    """Expose quota, OAuth, writable-part, update, and scope guidance."""
+    contract = build_videos_update_contract()
+    metadata = contract.to_tool_metadata()
+    combined = " ".join(
+        [
+            VIDEOS_UPDATE_DESCRIPTION,
+            *VIDEOS_UPDATE_USAGE_NOTES,
+            *VIDEOS_UPDATE_CAVEATS,
+            *(example["description"] for example in VIDEOS_UPDATE_CALLER_EXAMPLES),
+        ]
+    )
+    example_names = {example["name"] for example in VIDEOS_UPDATE_CALLER_EXAMPLES}
+
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert "Quota cost: 50" in combined
+    assert "videos.update" in combined
+    assert "OAuth" in combined
+    assert "body.id" in combined
+    assert "body.snippet.title" in combined
+    assert "replacement" in combined
+    assert "media upload" in combined
+    assert "analytics" in combined
+    assert "apiKey" not in combined
+    assert "raw upstream" in combined
+    assert "oauth_token" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+    assert {
+        "authorized_metadata_update",
+        "delegated_content_owner_update",
+        "missing_identity_failure",
+        "unsupported_field_failure",
+        "missing_oauth",
+        "out_of_scope_video_workflow",
+    }.issubset(example_names)
+
+
+def test_videos_update_declares_expected_failure_categories():
+    """Keep caller-visible ``videos_update`` failure categories stable."""
+    contract = build_videos_update_contract()
+
+    assert set(contract.error_categories) == {
+        "invalid_request",
+        "authentication_failed",
+        "authorization_failed",
+        "quota_exhausted",
+        "resource_not_found",
+        "endpoint_unavailable",
+        "deprecated_endpoint",
+        "upstream_failure",
+    }
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({}, "part"),
+        ({"part": "", "body": {"id": "abc123", "snippet": {"title": "Updated"}}}, "part"),
+        ({"part": "status", "body": {"id": "abc123", "snippet": {"title": "Updated"}}}, "part"),
+        ({"part": "snippet"}, "body"),
+        ({"part": "snippet", "body": {"snippet": {"title": "Updated"}}}, "body.id"),
+        ({"part": "snippet", "body": {"id": " ", "snippet": {"title": "Updated"}}}, "body.id"),
+        ({"part": "snippet", "body": {"id": "abc123"}}, "body.snippet"),
+        ({"part": "snippet", "body": {"id": "abc123", "snippet": {}}}, "body.snippet.title"),
+        (
+            {"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated", "description": "x"}}},
+            "body.snippet.description",
+        ),
+        ({"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated"}}, "media": {}}, "media"),
+    ],
+)
+def test_videos_update_validation_failures_are_safe(arguments, field):
+    """Reject malformed update requests with safe field details."""
+    with pytest.raises(VideosUpdateToolError) as exc_info:
+        validate_videos_update_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+    assert "secret" not in str(exc_info.value.details)
+
+
+def test_videos_update_maps_quota_failures_without_secret_details():
+    """Map update quota failures without leaking credentials or raw upstream details."""
+    class UpdateQuotaFailingWrapper:
+        """Layer 1 wrapper double that raises a quota failure."""
+
+        def call(self, _executor, *, arguments, auth_context):
+            """Raise a quota failure with unsafe diagnostic details.
+
+            :param _executor: Ignored fake executor.
+            :param arguments: Normalized arguments supplied by the handler.
+            :param auth_context: Auth context supplied by the handler.
+            :raises NormalizedUpstreamError: Always raised for quota mapping.
+            """
+            raise NormalizedUpstreamError(
+                message="quota exceeded",
+                category="rate_limit",
+                retryable=False,
+                upstream_status=403,
+                details={
+                    "oauth_token": "secret",
+                    "authorization": "Bearer secret",
+                    "upstream_body": {"secret": "hidden"},
+                    "field": "quota",
+                },
+            )
+
+    handler = build_videos_update_handler(wrapper=UpdateQuotaFailingWrapper(), oauth_token="visible-oauth")
+
+    with pytest.raises(VideosUpdateToolError) as exc_info:
+        handler({"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated"}}})
+
+    assert exc_info.value.category == "quota_exhausted"
+    assert exc_info.value.details == {"field": "quota"}
+    assert "secret" not in str(exc_info.value)
+    assert "Bearer" not in str(exc_info.value.details)

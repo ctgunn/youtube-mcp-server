@@ -59,7 +59,11 @@ from mcp_server.tools.youtube_common.video_abuse_report_reasons import (
     build_video_abuse_report_reasons_list_contract,
 )
 from mcp_server.tools.youtube_common.video_categories import build_video_categories_list_contract
-from mcp_server.tools.youtube_common.videos import build_videos_insert_contract, build_videos_list_contract
+from mcp_server.tools.youtube_common.videos import (
+    build_videos_insert_contract,
+    build_videos_list_contract,
+    build_videos_update_contract,
+)
 
 
 def _contract(
@@ -303,6 +307,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_comments_delete_contract(),
     build_videos_list_contract(),
     build_videos_insert_contract(),
+    build_videos_update_contract(),
     _contract(
         resource="videos",
         method="getRating",
@@ -354,17 +359,6 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         },
         response_convention={"resultKind": "list", "itemsPath": "items", "pagingFields": ["nextPageToken"]},
         error_categories=("invalid_request", "quota_exhausted", "resource_not_found"),
-    ),
-    _contract(
-        resource="videos",
-        method="update",
-        description="Update video metadata. Endpoint: videos.update. Quota cost: 50. Auth: oauth_required.",
-        auth_mode=AuthMode.OAUTH_REQUIRED,
-        quota_cost=50,
-        resource_family="videos",
-        input_contract={"required": ["part", "body"], "properties": {"part": {"type": "string"}}},
-        response_convention={"resultKind": "mutation_acknowledgment"},
-        error_categories=("invalid_request", "authorization_failed", "resource_not_found"),
     ),
     _contract(
         resource="playlists",
