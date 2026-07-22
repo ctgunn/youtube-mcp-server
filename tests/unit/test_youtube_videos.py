@@ -355,6 +355,17 @@ def _valid_videos_update_arguments(**overrides):
     return arguments
 
 
+def _valid_videos_rate_arguments(**overrides):
+    """Build a valid ``videos_rate`` request for unit tests.
+
+    :param overrides: Field overrides for the default request.
+    :return: A valid rating request with any overrides applied.
+    """
+    arguments = {"id": " abc123 ", "rating": "like"}
+    arguments.update(overrides)
+    return arguments
+
+
 def test_validate_videos_insert_accepts_authorized_metadata_media_and_options():
     """Normalize valid video creation metadata, media, upload, and delegation fields."""
     from mcp_server.tools.youtube_common.videos import validate_videos_insert_arguments
@@ -548,6 +559,194 @@ def test_videos_insert_handler_maps_and_sanitizes_upstream_failures(upstream_cat
     assert exc_info.value.category == expected_category
     assert exc_info.value.details == {"reason": "safe"}
     assert "Bearer" not in str(exc_info.value.details)
+
+
+def test_validate_videos_rate_accepts_supported_rating_actions():
+    """Normalize valid video rating requests without changing rating semantics."""
+    from mcp_server.tools.youtube_common.videos import validate_videos_rate_arguments
+
+    assert validate_videos_rate_arguments(_valid_videos_rate_arguments(rating="like")) == {
+        "id": "abc123",
+        "rating": "like",
+    }
+    assert validate_videos_rate_arguments(_valid_videos_rate_arguments(rating="dislike")) == {
+        "id": "abc123",
+        "rating": "dislike",
+    }
+    assert validate_videos_rate_arguments(_valid_videos_rate_arguments(rating="none")) == {
+        "id": "abc123",
+        "rating": "none",
+    }
+
+
+def test_map_videos_rate_result_returns_no_content_acknowledgment():
+    """Map successful no-content rate responses without fabricating video details."""
+    from mcp_server.tools.youtube_common.videos import map_videos_rate_result
+
+    result = map_videos_rate_result({}, _valid_videos_rate_arguments(rating="none"))
+
+    assert result == {
+        "endpoint": "videos.rate",
+        "quotaCost": 50,
+        "rating": {"videoId": "abc123", "requestedRating": "none", "clearsRating": True},
+        "auth": {"mode": "oauth_required", "path": "restricted"},
+        "availability": {"state": "active"},
+        "mutation": {"type": "rated", "acknowledged": True},
+        "status": {"code": 204, "body": "none"},
+    }
+
+
+@pytest.mark.parametrize("rating", ["like", "dislike", "none"])
+def test_videos_rate_handler_calls_layer1_once_with_oauth(rating):
+    """Execute the Layer 1 rate wrapper once with OAuth-required credentials."""
+    from mcp_server.tools.youtube_common.videos import build_videos_rate_handler
+
+    wrapper = RecordingWrapper(payload={})
+    handler = build_videos_rate_handler(wrapper=wrapper, oauth_token="local-oauth")
+
+    result = handler(_valid_videos_rate_arguments(rating=rating))
+
+    assert result["endpoint"] == "videos.rate"
+    assert result["rating"]["videoId"] == "abc123"
+    assert result["rating"]["requestedRating"] == rating
+    assert result["rating"].get("clearsRating", False) is (rating == "none")
+    assert result["status"] == {"code": 204, "body": "none"}
+    assert len(wrapper.calls) == 1
+    assert wrapper.calls[0]["arguments"] == {"id": "abc123", "rating": rating}
+    assert wrapper.calls[0]["auth_context"].mode is Layer1AuthMode.OAUTH_REQUIRED
+    assert wrapper.calls[0]["auth_context"].credentials.oauth_token == "local-oauth"
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({}, "id"),
+        ({"id": "", "rating": "like"}, "id"),
+        ({"id": "   ", "rating": "like"}, "id"),
+        ({"id": 123, "rating": "like"}, "id"),
+        ({"id": "abc123"}, "rating"),
+        ({"id": "abc123", "rating": ""}, "rating"),
+        ({"id": "abc123", "rating": 123}, "rating"),
+        ({"id": "abc123", "rating": "LIKE"}, "rating"),
+        ({"id": "abc123", "rating": "favorite"}, "rating"),
+        ({"id": "abc123", "rating": "like", "body": {}}, "body"),
+        ({"id": "abc123", "rating": "like", "videoId": "abc123"}, "videoId"),
+        ({"id": "abc123", "rating": "like", "onBehalfOfContentOwner": "owner"}, "onBehalfOfContentOwner"),
+    ],
+)
+def test_videos_rate_validation_rejects_missing_invalid_and_unsupported_inputs(arguments, field):
+    """Reject malformed rating requests and unsupported aliases or modifiers."""
+    from mcp_server.tools.youtube_common.videos import VideosRateToolError, validate_videos_rate_arguments
+
+    with pytest.raises(VideosRateToolError) as exc_info:
+        validate_videos_rate_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "part",
+        "myRating",
+        "ratingHistory",
+        "ratingCount",
+        "currentRating",
+        "media",
+        "uploadMode",
+        "update",
+        "delete",
+        "reportAbuse",
+        "thumbnail",
+        "caption",
+        "playlist",
+        "comment",
+        "includeTranscript",
+        "analytics",
+        "recommend",
+        "rankResults",
+        "summarize",
+        "enrich",
+    ],
+)
+def test_videos_rate_validation_rejects_out_of_scope_workflow_fields(field):
+    """Reject lookup, upload, update, analytics, ranking, and enrichment fields."""
+    from mcp_server.tools.youtube_common.videos import VideosRateToolError, validate_videos_rate_arguments
+
+    with pytest.raises(VideosRateToolError) as exc_info:
+        validate_videos_rate_arguments({"id": "abc123", "rating": "like", field: "value"})
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+
+
+def test_videos_rate_handler_rejects_missing_oauth_before_layer1_execution():
+    """Surface missing OAuth without invoking the Layer 1 rate wrapper."""
+    from mcp_server.tools.youtube_common.videos import VideosRateToolError, build_videos_rate_handler
+
+    wrapper = RecordingWrapper()
+    handler = build_videos_rate_handler(wrapper=wrapper, oauth_token=None)
+
+    with pytest.raises(VideosRateToolError) as exc_info:
+        handler(_valid_videos_rate_arguments())
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+    assert wrapper.calls == []
+
+
+@pytest.mark.parametrize(
+    ("upstream_category", "expected_category"),
+    [
+        ("invalid_request", "invalid_request"),
+        ("invalid_rating", "invalid_request"),
+        ("authentication", "authentication_failed"),
+        ("auth", "authorization_failed"),
+        ("permission", "authorization_failed"),
+        ("forbidden", "authorization_failed"),
+        ("policy_restricted", "authorization_failed"),
+        ("disabled_rating", "authorization_failed"),
+        ("purchase_required", "authorization_failed"),
+        ("unverified_email", "authorization_failed"),
+        ("non_ratable", "authorization_failed"),
+        ("rate_limit", "quota_exhausted"),
+        ("quota", "quota_exhausted"),
+        ("not_found", "resource_not_found"),
+        ("unavailable", "endpoint_unavailable"),
+        ("availability", "endpoint_unavailable"),
+        ("deprecated", "deprecated_endpoint"),
+        ("transient", "upstream_failure"),
+    ],
+)
+def test_videos_rate_handler_maps_and_sanitizes_upstream_failures(upstream_category, expected_category):
+    """Convert Layer 1 rating failures into safe caller-facing categories."""
+    from mcp_server.tools.youtube_common.videos import VideosRateToolError, build_videos_rate_handler
+
+    wrapper = FailingWrapper(
+        NormalizedUpstreamError(
+            message="upstream failed",
+            category=upstream_category,
+            retryable=False,
+            upstream_status=503,
+            details={
+                "authorization": "Bearer secret",
+                "oauth_token": "hidden",
+                "upstream_body": {"secret": "hidden"},
+                "stacktrace": "hidden",
+                "reason": "safe",
+            },
+        )
+    )
+    handler = build_videos_rate_handler(wrapper=wrapper, oauth_token="local-oauth")
+
+    with pytest.raises(VideosRateToolError) as exc_info:
+        handler(_valid_videos_rate_arguments())
+
+    assert exc_info.value.category == expected_category
+    assert exc_info.value.details == {"reason": "safe"}
+    assert "Bearer" not in str(exc_info.value.details)
+    assert "hidden" not in str(exc_info.value.details)
     assert "raw-video-bytes" not in str(exc_info.value.details)
 
 
