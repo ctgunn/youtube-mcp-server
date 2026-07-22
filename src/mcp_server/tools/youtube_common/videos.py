@@ -11,6 +11,7 @@ from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.videos import (
     build_videos_insert_wrapper,
     build_videos_list_wrapper,
+    build_videos_rate_wrapper,
     build_videos_update_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
@@ -474,6 +475,154 @@ VIDEOS_UPDATE_CALLER_EXAMPLES = (
     },
 )
 
+VIDEOS_RATE_TOOL_NAME = "videos_rate"
+VIDEOS_RATE_QUOTA_COST = 50
+VIDEOS_RATE_VALUES = ("like", "dislike", "none")
+VIDEOS_RATE_ALLOWED_FIELDS = frozenset({"id", "rating"})
+VIDEOS_RATE_UNSAFE_DETAIL_KEYS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "authorization",
+        "authorization_header",
+        "headers",
+        "oauth_token",
+        "request_context",
+        "request_headers",
+        "response_body",
+        "stack",
+        "stack_trace",
+        "stacktrace",
+        "traceback",
+        "upstream_body",
+    }
+)
+
+VIDEOS_RATE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["id", "rating"],
+    "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "rating": {"type": "string", "enum": list(VIDEOS_RATE_VALUES)},
+    },
+    "additionalProperties": False,
+}
+
+VIDEOS_RATE_DESCRIPTION = (
+    "Rate a YouTube video through videos.rate. Quota cost: 50. Auth: OAuth required. "
+    "Requires id and rating, supports like, dislike, or none, and sends no request body."
+)
+
+VIDEOS_RATE_USAGE_NOTES = (
+    "Quota cost: 50. OAuth authorization is required for every videos.rate request.",
+    "Quota cost: 50. Provide one non-empty id and one rating value: like, dislike, or none.",
+    "Quota cost: 50. rating=none is an explicit clear-rating action and is distinct from omitting rating.",
+    "Quota cost: 50. The upstream operation sends no request body; body, videoId aliases, and delegation modifiers are rejected.",
+    "Quota cost: 50. Success is a mutation acknowledgment for the requested rating action, not a refreshed video resource.",
+)
+
+VIDEOS_RATE_CAVEATS = (
+    "This tool is a low-level videos.rate wrapper for applying, changing, or clearing the authorized caller's rating only.",
+    "current-rating lookup, rating history, aggregate rating counts, upload, update, delete, abuse report, thumbnail, caption, playlist, comment, transcript, analytics, recommendation, ranking, summarization, enrichment, and cross-endpoint workflows are out of scope.",
+    "Some videos may be unavailable, removed, purchase-restricted, policy-restricted, or otherwise non-ratable for the authorized caller.",
+    "Credentials, authorization headers, raw upstream diagnostics, raw request context, and secret-bearing fields are never returned to callers.",
+)
+
+VIDEOS_RATE_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_like_rating",
+        "description": "Quota cost: 50. Apply a like rating with OAuth using videos.rate and no request body.",
+        "arguments": {"id": "abc123", "rating": "like"},
+        "result": {
+            "endpoint": "videos.rate",
+            "quotaCost": 50,
+            "mutation": {"type": "rated", "acknowledged": True},
+            "status": {"code": 204, "body": "none"},
+        },
+        "quotaCost": 50,
+    },
+    {
+        "name": "authorized_dislike_rating",
+        "description": "Quota cost: 50. Apply a dislike rating with OAuth using videos.rate and no request body.",
+        "arguments": {"id": "abc123", "rating": "dislike"},
+        "result": {"endpoint": "videos.rate", "rating": {"requestedRating": "dislike"}},
+        "quotaCost": 50,
+    },
+    {
+        "name": "authorized_clear_rating",
+        "description": "Quota cost: 50. Use rating=none to clear the caller's prior rating with OAuth and no request body.",
+        "arguments": {"id": "abc123", "rating": "none"},
+        "result": {"endpoint": "videos.rate", "rating": {"requestedRating": "none", "clearsRating": True}},
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_identity_failure",
+        "description": "Quota cost: 50. Missing id is rejected before videos.rate execution.",
+        "arguments": {"rating": "like"},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "missing_rating_failure",
+        "description": "Quota cost: 50. Missing rating is rejected before videos.rate execution.",
+        "arguments": {"id": "abc123"},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "unsupported_rating_failure",
+        "description": "Quota cost: 50. Unsupported or differently cased rating values are rejected.",
+        "arguments": {"id": "abc123", "rating": "LIKE"},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "request_body_failure",
+        "description": "Quota cost: 50. Request body input is rejected because videos.rate sends no request body.",
+        "arguments": {"id": "abc123", "rating": "like", "body": {}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "missing_oauth",
+        "description": "Quota cost: 50. Missing OAuth is reported as authentication_failed before rating execution.",
+        "arguments": {"id": "abc123", "rating": "like"},
+        "errorCategory": "authentication_failed",
+    },
+    {
+        "name": "quota_or_upstream_rate_failure",
+        "description": "Quota cost: 50. Quota, availability, disabled rating, policy, and upstream failures map to safe public categories.",
+        "arguments": {"id": "abc123", "rating": "like"},
+        "errorCategory": "quota_exhausted",
+    },
+    {
+        "name": "not_found_failure",
+        "description": "Quota cost: 50. Removed or missing target videos are reported as resource_not_found.",
+        "arguments": {"id": "missing-video", "rating": "like"},
+        "errorCategory": "resource_not_found",
+    },
+    {
+        "name": "non_ratable_target_failure",
+        "description": "Quota cost: 50. Non-ratable, disabled rating, purchase-required, or policy-restricted targets are reported safely.",
+        "arguments": {"id": "restricted-video", "rating": "like"},
+        "errorCategory": "authorization_failed",
+    },
+    {
+        "name": "deprecated_endpoint",
+        "description": "Quota cost: 50. Deprecated endpoint failures are surfaced distinctly if upstream reports them.",
+        "arguments": {"id": "abc123", "rating": "like"},
+        "errorCategory": "deprecated_endpoint",
+    },
+    {
+        "name": "endpoint_unavailable",
+        "description": "Quota cost: 50. Endpoint availability failures are surfaced without unsafe upstream details.",
+        "arguments": {"id": "abc123", "rating": "like"},
+        "errorCategory": "endpoint_unavailable",
+    },
+    {
+        "name": "out_of_scope_video_workflow",
+        "description": "Quota cost: 50. Rating lookup, history, counts, upload, update, delete, abuse, thumbnail, caption, playlist, comment, transcript, analytics, recommendation, ranking, summarization, and enrichment fields are rejected.",
+        "arguments": {"id": "abc123", "rating": "like", "analytics": True},
+        "errorCategory": "invalid_request",
+    },
+)
+
 
 class VideosListToolError(ValueError):
     """Represent a safe caller-facing ``videos_list`` failure.
@@ -535,6 +684,26 @@ class VideosUpdateToolError(ValueError):
         self.details = _sanitize_videos_update_error_details(details or {})
 
 
+class VideosRateToolError(ValueError):
+    """Represent a safe caller-facing ``videos_rate`` failure.
+
+    :param message: Caller-facing error message.
+    :param category: Stable Layer 2 error category.
+    :param details: Safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str = "invalid_request", details: dict[str, Any] | None = None):
+        """Initialize the safe rating tool error.
+
+        :param message: Caller-facing error message.
+        :param category: Stable Layer 2 error category.
+        :param details: Safe diagnostic details.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = _sanitize_videos_rate_error_details(details or {})
+
+
 def _sanitize_videos_list_error_details(details: dict[str, Any]) -> dict[str, Any]:
     """Remove endpoint-specific unsafe diagnostic fields.
 
@@ -574,6 +743,20 @@ def _sanitize_videos_update_error_details(details: dict[str, Any]) -> dict[str, 
         key: value
         for key, value in sanitized.items()
         if key.lower().replace("-", "_") not in VIDEOS_UPDATE_UNSAFE_DETAIL_KEYS
+    }
+
+
+def _sanitize_videos_rate_error_details(details: dict[str, Any]) -> dict[str, Any]:
+    """Remove rating-specific unsafe diagnostic fields.
+
+    :param details: Candidate diagnostic details.
+    :return: Safe details suitable for caller-facing rating errors.
+    """
+    sanitized = sanitize_error_details(details)
+    return {
+        key: value
+        for key, value in sanitized.items()
+        if key.lower().replace("-", "_") not in VIDEOS_RATE_UNSAFE_DETAIL_KEYS
     }
 
 
@@ -994,6 +1177,64 @@ def validate_videos_update_arguments(arguments: dict[str, Any]) -> dict[str, Any
     return normalized
 
 
+def _require_videos_rate_text_field(arguments: dict[str, Any], field: str) -> str:
+    """Require one non-empty ``videos_rate`` text input field.
+
+    :param arguments: Caller-provided arguments.
+    :param field: Field name to validate.
+    :return: Stripped field value.
+    :raises VideosRateToolError: If the field is missing or invalid.
+    """
+    value = arguments.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise VideosRateToolError(f"videos_rate requires non-empty {field}", details={"field": field})
+    return value.strip()
+
+
+def _validate_videos_rate_id(arguments: dict[str, Any]) -> str:
+    """Validate the target video identity for a rating mutation.
+
+    :param arguments: Caller-provided arguments.
+    :return: Normalized video identifier.
+    :raises VideosRateToolError: If the identity is missing, ambiguous, or malformed.
+    """
+    video_id = _require_videos_rate_text_field(arguments, "id")
+    if "," in video_id or len(_split_ids(video_id)) != 1:
+        raise VideosRateToolError("videos_rate requires exactly one id", details={"field": "id"})
+    return video_id
+
+
+def _validate_videos_rate_value(arguments: dict[str, Any]) -> str:
+    """Validate the requested rating action.
+
+    :param arguments: Caller-provided arguments.
+    :return: Supported rating value.
+    :raises VideosRateToolError: If the rating value is missing or unsupported.
+    """
+    rating = _require_videos_rate_text_field(arguments, "rating")
+    if rating not in VIDEOS_RATE_VALUES:
+        raise VideosRateToolError(
+            "rating must be like, dislike, or none",
+            details={"field": "rating", "allowed": list(VIDEOS_RATE_VALUES)},
+        )
+    return rating
+
+
+def validate_videos_rate_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate ``videos_rate`` rating arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized video id and requested rating value.
+    :raises VideosRateToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise VideosRateToolError("videos_rate arguments must be an object")
+    for field in arguments:
+        if field not in VIDEOS_RATE_ALLOWED_FIELDS:
+            raise VideosRateToolError(f"unsupported field for videos_rate: {field}", details={"field": field})
+    return {"id": _validate_videos_rate_id(arguments), "rating": _validate_videos_rate_value(arguments)}
+
+
 def _videos_insert_upload_context(arguments: dict[str, Any]) -> dict[str, Any]:
     """Build safe upload context without raw media content.
 
@@ -1058,6 +1299,18 @@ def _videos_update_delegation_context(arguments: dict[str, Any]) -> dict[str, st
     return {"onBehalfOfContentOwner": arguments["onBehalfOfContentOwner"]}
 
 
+def _videos_rate_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Build safe target and requested-rating context.
+
+    :param arguments: Normalized rating arguments.
+    :return: Public rating context for result payloads.
+    """
+    context: dict[str, Any] = {"videoId": arguments["id"], "requestedRating": arguments["rating"]}
+    if arguments["rating"] == "none":
+        context["clearsRating"] = True
+    return context
+
+
 def map_videos_insert_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     """Map an upstream video-create payload to the public Layer 2 result.
 
@@ -1096,6 +1349,26 @@ def map_videos_insert_result(payload: dict[str, Any], arguments: dict[str, Any])
         if field in item:
             result[field] = item[field]
     return result
+
+
+def map_videos_rate_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream video-rate no-content response to the public Layer 2 result.
+
+    :param payload: Upstream or Layer 1 video-rate payload, if any.
+    :param arguments: Caller arguments used for the request.
+    :return: Structured mutation acknowledgment with safe operation context.
+    """
+    normalized = validate_videos_rate_arguments(arguments)
+    _safe_payload = sanitize_error_details(payload if isinstance(payload, dict) else {})
+    return {
+        "endpoint": "videos.rate",
+        "quotaCost": VIDEOS_RATE_QUOTA_COST,
+        "rating": _videos_rate_context(normalized),
+        "auth": {"mode": "oauth_required", "path": "restricted"},
+        "availability": {"state": "active"},
+        "mutation": {"type": "rated", "acknowledged": True},
+        "status": {"code": 204, "body": "none"},
+    }
 
 
 def map_videos_update_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
@@ -1636,6 +1909,92 @@ def build_videos_update_contract() -> YouTubeToolContract:
     )
 
 
+def _videos_rate_disallowed_behavior() -> tuple[str, ...]:
+    """Return behaviors outside the low-level ``videos_rate`` endpoint boundary.
+
+    :return: Stable disallowed-behavior identifiers for metadata.
+    """
+    return (
+        "current_rating_lookup",
+        "rating_history",
+        "rating_counts",
+        "video_lookup",
+        "media_upload",
+        "video_update",
+        "metadata_update",
+        "video_delete",
+        "abuse_reporting",
+        "thumbnail_management",
+        "caption_management",
+        "playlist_management",
+        "comment_management",
+        "transcript_retrieval",
+        "analytics",
+        "recommendation",
+        "ranking",
+        "summarization",
+        "enrichment",
+        "cross_endpoint_aggregation",
+    )
+
+
+def build_videos_rate_contract() -> YouTubeToolContract:
+    """Build the public contract for ``videos_rate``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "quotaCost",
+            "rating",
+            "auth",
+            "availability",
+            "mutation",
+            "status",
+        ),
+        preserved_upstream_fields=(),
+        disallowed_behavior=_videos_rate_disallowed_behavior(),
+    )
+    return YouTubeToolContract(
+        tool_name=VIDEOS_RATE_TOOL_NAME,
+        upstream_resource="videos",
+        upstream_method="rate",
+        operation_key="videos.rate",
+        description=VIDEOS_RATE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=VIDEOS_RATE_QUOTA_COST,
+        resource_family="videos",
+        input_contract=VIDEOS_RATE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "mutation_acknowledgment",
+            "mutation": "rated",
+            "authMode": "oauth_required",
+            "requiredFields": ["id", "rating"],
+            "ratingValues": list(VIDEOS_RATE_VALUES),
+            "clearRatingValue": "none",
+            "requestBody": "none",
+            "successStatus": 204,
+            "statusBody": "none",
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "deprecated_endpoint",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=VIDEOS_RATE_USAGE_NOTES,
+        caveats=VIDEOS_RATE_CAVEATS,
+    )
+
+
 def _default_videos_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default video-list calls.
 
@@ -1718,6 +2077,23 @@ def _default_videos_update_executor() -> IntegrationExecutor:
     return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
 
 
+def _default_videos_rate_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default video-rate calls.
+
+    :return: Integration executor returning a representative no-content acknowledgment payload.
+    """
+
+    def transport(_execution):
+        """Return a representative empty video-rate response.
+
+        :param _execution: Request execution context.
+        :return: Empty fake upstream rating response for local invocation.
+        """
+        return {}
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
 def _videos_insert_auth_context(oauth_token: str | None) -> AuthContext:
     """Build the Layer 1 OAuth auth context for ``videos_insert``.
 
@@ -1765,6 +2141,32 @@ def _videos_update_auth_context(oauth_token: str | None) -> AuthContext:
     except ValueError as exc:
         raise VideosUpdateToolError(
             "videos_update requires OAuth authorization",
+            category="authentication_failed",
+            details={"authMode": "oauth_required"},
+        ) from exc
+
+
+def _videos_rate_auth_context(oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 OAuth auth context for ``videos_rate``.
+
+    :param oauth_token: OAuth token credential value.
+    :return: Layer 1 auth context for OAuth-required rating execution.
+    :raises VideosRateToolError: If OAuth access is missing.
+    """
+    if not isinstance(oauth_token, str) or not oauth_token.strip():
+        raise VideosRateToolError(
+            "videos_rate requires OAuth authorization",
+            category="authentication_failed",
+            details={"authMode": "oauth_required"},
+        )
+    try:
+        return AuthContext(
+            mode=Layer1AuthMode.OAUTH_REQUIRED,
+            credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+        )
+    except ValueError as exc:
+        raise VideosRateToolError(
+            "videos_rate requires OAuth authorization",
             category="authentication_failed",
             details={"authMode": "oauth_required"},
         ) from exc
@@ -1827,6 +2229,39 @@ def _map_videos_update_upstream_error(error: NormalizedUpstreamError) -> VideosU
     return VideosUpdateToolError(str(error), category=category, details=error.details or {})
 
 
+def _map_videos_rate_upstream_error(error: NormalizedUpstreamError) -> VideosRateToolError:
+    """Map a normalized upstream failure to a safe ``videos_rate`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe caller-facing tool error.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "invalid_rating": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "policy": "authorization_failed",
+        "policy_restricted": "authorization_failed",
+        "disabled_rating": "authorization_failed",
+        "purchase_required": "authorization_failed",
+        "unverified_email": "authorization_failed",
+        "non_ratable": "authorization_failed",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "not_found": "resource_not_found",
+        "resource_not_found": "resource_not_found",
+        "removed": "resource_not_found",
+        "unavailable": "endpoint_unavailable",
+        "availability": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return VideosRateToolError(str(error), category=category, details=error.details or {})
+
+
 def build_videos_insert_handler(
     *,
     wrapper=None,
@@ -1869,6 +2304,52 @@ def build_videos_insert_handler(
                 details={"authMode": "oauth_required"} if category == "authentication_failed" else {"field": "request"},
             ) from exc
         return map_videos_insert_result(payload, normalized)
+
+    return handler
+
+
+def build_videos_rate_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``videos_rate``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used for video rating mutations.
+    :return: Callable that validates, executes, and maps video-rating requests.
+    """
+    selected_wrapper = wrapper or build_videos_rate_wrapper()
+    selected_executor = executor or _default_videos_rate_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``videos_rate`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 video-rate acknowledgment result.
+        :raises VideosRateToolError: If validation, access, or execution fails.
+        """
+        normalized = validate_videos_rate_arguments(arguments)
+        auth_context = _videos_rate_auth_context(oauth_token)
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_videos_rate_upstream_error(exc) from exc
+        except ValueError as exc:
+            message = str(exc)
+            category = "authentication_failed" if "oauth" in message.lower() else "invalid_request"
+            raise VideosRateToolError(
+                message,
+                category=category,
+                details={"authMode": "oauth_required"} if category == "authentication_failed" else {"field": "request"},
+            ) from exc
+        return map_videos_rate_result(payload, normalized)
 
     return handler
 
@@ -2051,6 +2532,31 @@ def build_videos_update_tool_descriptor(
     }
 
 
+def build_videos_rate_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``videos_rate``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_videos_rate_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(VIDEOS_RATE_CALLER_EXAMPLES)
+    return {
+        "name": VIDEOS_RATE_TOOL_NAME,
+        "description": VIDEOS_RATE_DESCRIPTION,
+        "inputSchema": VIDEOS_RATE_INPUT_SCHEMA,
+        "handler": build_videos_rate_handler(wrapper=wrapper, executor=executor, oauth_token=oauth_token),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
     "VIDEOS_INSERT_ALLOWED_FIELDS",
     "VIDEOS_INSERT_CALLER_EXAMPLES",
@@ -2074,6 +2580,16 @@ __all__ = [
     "VIDEOS_LIST_TOOL_NAME",
     "VIDEOS_LIST_UNSAFE_DETAIL_KEYS",
     "VIDEOS_LIST_USAGE_NOTES",
+    "VIDEOS_RATE_ALLOWED_FIELDS",
+    "VIDEOS_RATE_CALLER_EXAMPLES",
+    "VIDEOS_RATE_CAVEATS",
+    "VIDEOS_RATE_DESCRIPTION",
+    "VIDEOS_RATE_INPUT_SCHEMA",
+    "VIDEOS_RATE_QUOTA_COST",
+    "VIDEOS_RATE_TOOL_NAME",
+    "VIDEOS_RATE_UNSAFE_DETAIL_KEYS",
+    "VIDEOS_RATE_USAGE_NOTES",
+    "VIDEOS_RATE_VALUES",
     "VIDEOS_UPDATE_ALLOWED_BODY_FIELDS",
     "VIDEOS_UPDATE_ALLOWED_FIELDS",
     "VIDEOS_UPDATE_ALLOWED_SNIPPET_FIELDS",
@@ -2088,6 +2604,7 @@ __all__ = [
     "VIDEOS_UPDATE_WRITABLE_PARTS",
     "VideosInsertToolError",
     "VideosListToolError",
+    "VideosRateToolError",
     "VideosUpdateToolError",
     "build_videos_insert_contract",
     "build_videos_insert_handler",
@@ -2095,13 +2612,18 @@ __all__ = [
     "build_videos_list_contract",
     "build_videos_list_handler",
     "build_videos_list_tool_descriptor",
+    "build_videos_rate_contract",
+    "build_videos_rate_handler",
+    "build_videos_rate_tool_descriptor",
     "build_videos_update_contract",
     "build_videos_update_handler",
     "build_videos_update_tool_descriptor",
     "map_videos_insert_result",
     "map_videos_list_result",
+    "map_videos_rate_result",
     "map_videos_update_result",
     "validate_videos_insert_arguments",
     "validate_videos_list_arguments",
+    "validate_videos_rate_arguments",
     "validate_videos_update_arguments",
 ]

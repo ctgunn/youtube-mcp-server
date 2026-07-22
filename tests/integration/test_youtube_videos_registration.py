@@ -389,3 +389,112 @@ def test_videos_update_descriptor_rejects_out_of_scope_upload_field():
             "videos_update",
             {"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated"}}, "media": {}},
         )
+
+
+@pytest.mark.parametrize("rating", ["like", "dislike", "none"])
+def test_videos_rate_descriptor_registers_as_executable_mutation_tool(rating):
+    """Register and execute the ``videos_rate`` descriptor through the dispatcher."""
+    from mcp_server.tools.youtube_common.videos import build_videos_rate_tool_descriptor
+
+    wrapper = RecordingWrapper(payload={})
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_rate_tool_descriptor(wrapper=wrapper)])
+
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+    result = dispatcher.call_tool("videos_rate", {"id": "abc123", "rating": rating})
+
+    assert listed["videos_rate"]["metadata"]["upstream"]["operationKey"] == "videos.rate"
+    assert listed["videos_rate"]["metadata"]["quotaCost"] == 50
+    assert listed["videos_rate"]["metadata"]["authMode"] == "oauth_required"
+    assert listed["videos_rate"]["metadata"]["availabilityState"] == "active"
+    assert result["endpoint"] == "videos.rate"
+    assert result["quotaCost"] == 50
+    assert result["rating"]["videoId"] == "abc123"
+    assert result["rating"]["requestedRating"] == rating
+    assert result["rating"].get("clearsRating", False) is (rating == "none")
+    assert result["auth"] == {"mode": "oauth_required", "path": "restricted"}
+    assert result["mutation"] == {"type": "rated", "acknowledged": True}
+    assert result["status"] == {"code": 204, "body": "none"}
+    assert wrapper.calls[0]["arguments"] == {"id": "abc123", "rating": rating}
+
+
+def test_videos_rate_descriptor_exposes_caller_metadata_and_examples():
+    """Expose usage notes and examples needed before video rating calls."""
+    from mcp_server.tools.youtube_common.videos import build_videos_rate_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_rate_tool_descriptor()])
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+    metadata = listed["videos_rate"]["metadata"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([listed["videos_rate"]["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "id" in metadata_text
+    assert "rating" in metadata_text
+    assert "none" in metadata_text
+    assert "no request body" in metadata_text
+    assert {"authorized_like_rating", "authorized_clear_rating", "missing_oauth"}.issubset(example_names)
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        ({"rating": "like"}, "arguments missing required field: id"),
+        ({"id": "abc123"}, "arguments missing required field: rating"),
+    ],
+)
+def test_videos_rate_descriptor_schema_rejects_missing_required_inputs(arguments, message):
+    """Reject missing required rating fields before handler execution."""
+    from mcp_server.tools.youtube_common.videos import build_videos_rate_tool_descriptor
+
+    wrapper = RecordingWrapper()
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_rate_tool_descriptor(wrapper=wrapper)])
+
+    with pytest.raises(ValueError, match=message):
+        dispatcher.call_tool("videos_rate", arguments)
+
+    assert wrapper.calls == []
+
+
+def test_videos_rate_descriptor_rejects_missing_oauth_safely():
+    """Reject valid rating requests with missing OAuth before Layer 1 execution."""
+    from mcp_server.tools.youtube_common.videos import VideosRateToolError, build_videos_rate_tool_descriptor
+
+    wrapper = RecordingWrapper()
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_rate_tool_descriptor(wrapper=wrapper, oauth_token=None)])
+
+    with pytest.raises(VideosRateToolError) as exc_info:
+        dispatcher.call_tool("videos_rate", {"id": "abc123", "rating": "like"})
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+    assert wrapper.calls == []
+
+
+def test_videos_rate_descriptor_rejects_unsupported_rating_and_body():
+    """Reject unsupported rating and request body fields through the descriptor."""
+    from mcp_server.tools.youtube_common.videos import VideosRateToolError, build_videos_rate_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_rate_tool_descriptor()])
+
+    with pytest.raises(VideosRateToolError) as rating_exc:
+        dispatcher.call_tool("videos_rate", {"id": "abc123", "rating": "LIKE"})
+    with pytest.raises(ValueError, match="arguments contain unsupported field: body"):
+        dispatcher.call_tool("videos_rate", {"id": "abc123", "rating": "like", "body": {}})
+
+    assert rating_exc.value.category == "invalid_request"
+    assert rating_exc.value.details["field"] == "rating"
+
+
+def test_videos_rate_descriptor_propagates_sanitized_access_failures():
+    """Expose sanitized rating access failures from the registered handler."""
+    from mcp_server.tools.youtube_common.videos import VideosRateToolError, build_videos_rate_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_rate_tool_descriptor(wrapper=AccessFailingWrapper())])
+
+    with pytest.raises(VideosRateToolError) as exc_info:
+        dispatcher.call_tool("videos_rate", {"id": "abc123", "rating": "like"})
+
+    assert exc_info.value.category == "authorization_failed"
+    assert exc_info.value.details == {"reason": "forbidden"}
+    assert "secret" not in str(exc_info.value.details)

@@ -1830,6 +1830,11 @@ def test_representative_examples_cover_required_us2_shapes():
     assert by_name["videos_update"].quota_cost == 50
     assert by_name["videos_update"].response_convention["resultKind"] == "updated_resource"
     assert by_name["videos_update"].response_boundary["boundaryKind"] == "near_raw"
+    assert by_name["videos_rate"].quota_cost == 50
+    assert by_name["videos_rate"].auth_mode.value == "oauth_required"
+    assert by_name["videos_rate"].resource_family == "videos"
+    assert by_name["videos_rate"].response_convention["resultKind"] == "mutation_acknowledgment"
+    assert by_name["videos_rate"].response_boundary["boundaryKind"] == "near_raw"
 
 
 def test_representative_videos_update_descriptor_examples_cover_boundaries():
@@ -1861,5 +1866,43 @@ def test_representative_videos_update_descriptor_examples_cover_boundaries():
         "missing_identity_failure",
         "unsupported_field_failure",
         "missing_oauth",
+        "out_of_scope_video_workflow",
+    }.issubset(example_names)
+
+
+def test_representative_videos_rate_descriptor_examples_cover_boundaries():
+    """Expose concrete videos rate examples and safe metadata in the catalog."""
+    from mcp_server.tools.youtube_common.videos import build_videos_rate_tool_descriptor
+
+    descriptor = build_videos_rate_tool_descriptor()
+    metadata = descriptor["metadata"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([descriptor["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert descriptor["name"] == "videos_rate"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["upstream"]["operationKey"] == "videos.rate"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["id", "rating"]
+    assert metadata["responseConvention"]["resultKind"] == "mutation_acknowledgment"
+    assert metadata["responseConvention"]["ratingValues"] == ["like", "dislike", "none"]
+    assert metadata["responseConvention"]["requestBody"] == "none"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "id" in metadata_text
+    assert "rating" in metadata_text
+    assert "none" in metadata_text
+    assert "no request body" in metadata_text
+    assert "history" in metadata_text
+    assert "analytics" in metadata_text
+    assert {
+        "authorized_like_rating",
+        "authorized_dislike_rating",
+        "authorized_clear_rating",
+        "missing_oauth",
+        "quota_or_upstream_rate_failure",
         "out_of_scope_video_workflow",
     }.issubset(example_names)

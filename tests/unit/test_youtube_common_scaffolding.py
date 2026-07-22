@@ -155,6 +155,27 @@ def test_videos_update_scaffolding_exports_concrete_layer2_symbols():
     assert youtube_common.VideosUpdateToolError is videos.VideosUpdateToolError
 
 
+def test_videos_rate_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``videos_rate`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import videos
+
+    videos_family = youtube_common.get_resource_family("videos")
+
+    assert videos_family.definition_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert videos.VIDEOS_RATE_TOOL_NAME == "videos_rate"
+    assert videos.VIDEOS_RATE_QUOTA_COST == 50
+    assert youtube_common.VIDEOS_RATE_TOOL_NAME == "videos_rate"
+    assert youtube_common.VIDEOS_RATE_QUOTA_COST == 50
+    assert youtube_common.VIDEOS_RATE_INPUT_SCHEMA["properties"]["rating"]["enum"] == ["like", "dislike", "none"]
+    assert callable(videos.build_videos_rate_contract)
+    assert callable(videos.build_videos_rate_handler)
+    assert callable(videos.build_videos_rate_tool_descriptor)
+    assert callable(videos.map_videos_rate_result)
+    assert callable(videos.validate_videos_rate_arguments)
+    assert youtube_common.VideosRateToolError is videos.VideosRateToolError
+
+
 def test_playlists_resource_family_points_to_concrete_layer2_module():
     """Expose the concrete playlists family placement for YT-236."""
     from mcp_server.tools.youtube_common import get_resource_family
