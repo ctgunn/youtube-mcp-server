@@ -270,4 +270,122 @@ def test_videos_insert_descriptor_propagates_sanitized_access_failures():
     assert exc_info.value.category == "authorization_failed"
     assert exc_info.value.details == {"reason": "forbidden"}
     assert "secret" not in str(exc_info.value.details)
-    assert "raw-video" not in str(exc_info.value.details)
+
+
+def test_videos_update_descriptor_registers_as_executable_mutation_tool():
+    """Register and execute the ``videos_update`` descriptor through the dispatcher."""
+    from mcp_server.tools.youtube_common.videos import build_videos_update_tool_descriptor
+
+    wrapper = RecordingWrapper(payload={"id": "abc123", "snippet": {"title": "Updated title"}})
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor(wrapper=wrapper)])
+
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+    result = dispatcher.call_tool(
+        "videos_update",
+        {"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated title"}}},
+    )
+
+    assert listed["videos_update"]["metadata"]["upstream"]["operationKey"] == "videos.update"
+    assert listed["videos_update"]["metadata"]["quotaCost"] == 50
+    assert listed["videos_update"]["metadata"]["authMode"] == "oauth_required"
+    assert listed["videos_update"]["metadata"]["availabilityState"] == "active"
+    assert result["endpoint"] == "videos.update"
+    assert result["quotaCost"] == 50
+    assert result["requestedParts"] == ["snippet"]
+    assert result["update"] == {
+        "videoId": "abc123",
+        "bodyFields": ["id", "snippet"],
+        "snippetFields": ["title"],
+    }
+    assert result["auth"] == {"mode": "oauth_required", "path": "restricted"}
+    assert result["mutation"] == {"type": "updated"}
+    assert result["item"]["id"] == "abc123"
+
+
+def test_videos_update_descriptor_exposes_caller_metadata_and_examples():
+    """Expose usage notes and examples needed before video update calls."""
+    from mcp_server.tools.youtube_common.videos import build_videos_update_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor()])
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+    metadata = listed["videos_update"]["metadata"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([listed["videos_update"]["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "body.id" in metadata_text
+    assert "body.snippet.title" in metadata_text
+    assert "replacement" in metadata_text
+    assert "media upload" in metadata_text
+    assert {"authorized_metadata_update", "missing_oauth", "out_of_scope_video_workflow"}.issubset(example_names)
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        ({"body": {"id": "abc123", "snippet": {"title": "Updated"}}}, "arguments missing required field: part"),
+        ({"part": "snippet"}, "arguments missing required field: body"),
+    ],
+)
+def test_videos_update_descriptor_schema_rejects_missing_required_inputs(arguments, message):
+    """Reject missing required update fields before handler execution."""
+    from mcp_server.tools.youtube_common.videos import build_videos_update_tool_descriptor
+
+    wrapper = RecordingWrapper()
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor(wrapper=wrapper)])
+
+    with pytest.raises(ValueError, match=message):
+        dispatcher.call_tool("videos_update", arguments)
+
+    assert wrapper.calls == []
+
+
+def test_videos_update_descriptor_rejects_missing_oauth_safely():
+    """Reject valid update requests with missing OAuth before Layer 1 execution."""
+    from mcp_server.tools.youtube_common.videos import VideosUpdateToolError, build_videos_update_tool_descriptor
+
+    wrapper = RecordingWrapper()
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor(wrapper=wrapper, oauth_token=None)])
+
+    with pytest.raises(VideosUpdateToolError) as exc_info:
+        dispatcher.call_tool(
+            "videos_update",
+            {"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated"}}},
+        )
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+    assert wrapper.calls == []
+
+
+def test_videos_update_descriptor_rejects_unsupported_body_field():
+    """Reject unsupported update body fields through the executable descriptor."""
+    from mcp_server.tools.youtube_common.videos import VideosUpdateToolError, build_videos_update_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor()])
+
+    with pytest.raises(VideosUpdateToolError) as exc_info:
+        dispatcher.call_tool(
+            "videos_update",
+            {
+                "part": "snippet",
+                "body": {"id": "abc123", "snippet": {"title": "Updated", "description": "Unsupported"}},
+            },
+        )
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == "body.snippet.description"
+
+
+def test_videos_update_descriptor_rejects_out_of_scope_upload_field():
+    """Reject upload workflow fields through the executable update descriptor."""
+    from mcp_server.tools.youtube_common.videos import build_videos_update_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor()])
+
+    with pytest.raises(ValueError, match="arguments contain unsupported field: media"):
+        dispatcher.call_tool(
+            "videos_update",
+            {"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated"}}, "media": {}},
+        )

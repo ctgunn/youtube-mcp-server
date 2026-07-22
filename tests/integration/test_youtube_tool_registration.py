@@ -368,6 +368,45 @@ def test_default_registry_includes_executable_videos_insert_tool():
     assert "fake-video-content" not in str(result)
 
 
+def test_default_registry_includes_executable_videos_update_tool():
+    """Register ``videos_update`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "videos_update" in listed
+    metadata = listed["videos_update"]["metadata"]
+    description = listed["videos_update"]["description"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "videos.update"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["part", "body"]
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert metadata["responseConvention"]["resourcePath"] == "item"
+    assert "Quota cost: 50" in description
+    assert "OAuth" in metadata_text
+    assert "body.id" in metadata_text
+    assert "body.snippet.title" in metadata_text
+    assert "replacement" in metadata_text
+    assert {"authorized_metadata_update", "missing_identity_failure", "missing_oauth"}.issubset(example_names)
+
+    result = dispatcher.call_tool(
+        "videos_update",
+        {"part": "snippet", "body": {"id": "abc123", "snippet": {"title": "Updated title"}}},
+    )
+
+    assert result["endpoint"] == "videos.update"
+    assert result["quotaCost"] == 50
+    assert result["auth"] == {"mode": "oauth_required", "path": "restricted"}
+    assert result["mutation"] == {"type": "updated"}
+    assert result["update"]["videoId"] == "abc123"
+    assert result["item"]["id"]
+
+
 def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
     """Register ``comments_insert`` by default with create metadata."""
     dispatcher = InMemoryToolDispatcher()

@@ -1818,7 +1818,7 @@ def test_representative_examples_cover_required_us2_shapes():
     by_name = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}
 
     assert by_name["playlistItems_list"].response_convention["resultKind"] == "list"
-    assert by_name["videos_update"].response_convention["resultKind"] == "mutation_acknowledgment"
+    assert by_name["videos_update"].response_convention["resultKind"] == "updated_resource"
     assert by_name["videos_insert"].response_convention["resultKind"] == "upload_result"
     assert by_name["captions_download"].response_convention["resultKind"] == "download_wrapper"
     assert by_name["search_list"].quota_cost == 100
@@ -1827,3 +1827,39 @@ def test_representative_examples_cover_required_us2_shapes():
     assert by_name["channels_update"].response_convention["resultKind"] == "updated_resource"
     assert by_name["channelSections_update"].quota_cost == 50
     assert by_name["channelSections_update"].response_convention["resultKind"] == "updated_resource"
+    assert by_name["videos_update"].quota_cost == 50
+    assert by_name["videos_update"].response_convention["resultKind"] == "updated_resource"
+    assert by_name["videos_update"].response_boundary["boundaryKind"] == "near_raw"
+
+
+def test_representative_videos_update_descriptor_examples_cover_boundaries():
+    """Expose concrete videos update examples and safe metadata in the catalog."""
+    from mcp_server.tools.youtube_common.videos import build_videos_update_tool_descriptor
+
+    descriptor = build_videos_update_tool_descriptor()
+    metadata = descriptor["metadata"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([descriptor["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert descriptor["name"] == "videos_update"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["upstream"]["operationKey"] == "videos.update"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["responseConvention"]["resultKind"] == "updated_resource"
+    assert metadata["responseConvention"]["resourcePath"] == "item"
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "body.id" in metadata_text
+    assert "body.snippet.title" in metadata_text
+    assert "replacement" in metadata_text
+    assert "media upload" in metadata_text
+    assert {
+        "authorized_metadata_update",
+        "delegated_content_owner_update",
+        "missing_identity_failure",
+        "unsupported_field_failure",
+        "missing_oauth",
+        "out_of_scope_video_workflow",
+    }.issubset(example_names)
