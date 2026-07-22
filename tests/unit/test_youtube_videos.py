@@ -324,3 +324,214 @@ def test_handler_maps_and_sanitizes_upstream_failures(upstream_category, expecte
     assert exc_info.value.category == expected_category
     assert exc_info.value.details == {"reason": "safe"}
     assert "Bearer" not in str(exc_info.value.details)
+
+
+def _valid_videos_insert_arguments(**overrides):
+    """Build a valid ``videos_insert`` request for unit tests.
+
+    :param overrides: Field overrides for the default request.
+    :return: A valid upload request with any overrides applied.
+    """
+    arguments = {
+        "part": " snippet,status ",
+        "body": {"snippet": {"title": "Example upload"}, "status": {"privacyStatus": "private"}},
+        "media": {"mimeType": " video/mp4 ", "content": "fake-video-content"},
+    }
+    arguments.update(overrides)
+    return arguments
+
+
+def test_validate_videos_insert_accepts_authorized_metadata_media_and_options():
+    """Normalize valid video creation metadata, media, upload, and delegation fields."""
+    from mcp_server.tools.youtube_common.videos import validate_videos_insert_arguments
+
+    normalized = validate_videos_insert_arguments(
+        _valid_videos_insert_arguments(
+            uploadMode=" resumable ",
+            notifySubscribers=False,
+            onBehalfOfContentOwner=" owner-123 ",
+        )
+    )
+
+    assert normalized == {
+        "part": "snippet,status",
+        "body": {"snippet": {"title": "Example upload"}, "status": {"privacyStatus": "private"}},
+        "media": {"mimeType": "video/mp4", "content": "fake-video-content"},
+        "uploadMode": "resumable",
+        "notifySubscribers": False,
+        "onBehalfOfContentOwner": "owner-123",
+    }
+
+
+def test_map_videos_insert_result_preserves_context_without_raw_media():
+    """Map a created video result with upload, auth, delegation, and returned fields."""
+    from mcp_server.tools.youtube_common.videos import map_videos_insert_result
+
+    payload = {
+        "kind": "youtube#video",
+        "etag": "etag-video",
+        "id": "video-123",
+        "snippet": {"title": "Example upload"},
+        "status": {"privacyStatus": "private"},
+    }
+    result = map_videos_insert_result(
+        payload,
+        _valid_videos_insert_arguments(uploadMode="resumable", onBehalfOfContentOwner="owner-123"),
+    )
+
+    assert result["endpoint"] == "videos.insert"
+    assert result["quotaCost"] == 1600
+    assert result["requestedParts"] == ["snippet", "status"]
+    assert result["upload"] == {"mode": "resumable", "mimeType": "video/mp4", "contentProvided": True}
+    assert result["auth"] == {"mode": "oauth_required", "path": "restricted"}
+    assert result["availability"]["state"] == "media_constrained"
+    assert result["delegation"] == {"onBehalfOfContentOwner": "owner-123"}
+    assert result["mutation"] == {"type": "created"}
+    assert result["item"] == payload
+    assert result["kind"] == "youtube#video"
+    assert result["id"] == "video-123"
+    assert "fake-video-content" not in str(result)
+
+
+def test_videos_insert_handler_calls_layer1_once_with_oauth():
+    """Execute the Layer 1 insert wrapper once with OAuth-required credentials."""
+    from mcp_server.tools.youtube_common.videos import build_videos_insert_handler
+
+    wrapper = RecordingWrapper(payload={"id": "video-123", "snippet": {"title": "Example upload"}})
+    handler = build_videos_insert_handler(wrapper=wrapper, oauth_token="local-oauth")
+
+    result = handler(_valid_videos_insert_arguments())
+
+    assert result["endpoint"] == "videos.insert"
+    assert result["item"]["id"] == "video-123"
+    assert len(wrapper.calls) == 1
+    assert wrapper.calls[0]["arguments"]["part"] == "snippet,status"
+    assert wrapper.calls[0]["arguments"]["media"] == {"mimeType": "video/mp4", "content": "fake-video-content"}
+    assert wrapper.calls[0]["auth_context"].mode is Layer1AuthMode.OAUTH_REQUIRED
+    assert wrapper.calls[0]["auth_context"].credentials.oauth_token == "local-oauth"
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({}, "part"),
+        ({"part": "", "body": {"snippet": {}}, "media": {"mimeType": "video/mp4", "content": "data"}}, "part"),
+        ({"part": 123, "body": {"snippet": {}}, "media": {"mimeType": "video/mp4", "content": "data"}}, "part"),
+        ({"part": " , ", "body": {"snippet": {}}, "media": {"mimeType": "video/mp4", "content": "data"}}, "part"),
+        ({"part": "snippet", "media": {"mimeType": "video/mp4", "content": "data"}}, "body"),
+        ({"part": "snippet", "body": {}}, "body.snippet"),
+        ({"part": "snippet", "body": {"snippet": "title"}, "media": {"mimeType": "video/mp4", "content": "data"}}, "body.snippet"),
+        ({"part": "snippet", "body": {"snippet": {}}}, "media"),
+        ({"part": "snippet", "body": {"snippet": {}}, "media": {}}, "media.mimeType"),
+        ({"part": "snippet", "body": {"snippet": {}}, "media": {"mimeType": "video/mp4"}}, "media.content"),
+        (
+            {
+                "part": "snippet",
+                "body": {"snippet": {}},
+                "media": {"mimeType": "video/mp4", "content": "data"},
+                "uploadMode": "direct",
+            },
+            "uploadMode",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"snippet": {}},
+                "media": {"mimeType": "video/mp4", "content": "data"},
+                "notifySubscribers": "false",
+            },
+            "notifySubscribers",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"snippet": {}},
+                "media": {"mimeType": "video/mp4", "content": "data"},
+                "onBehalfOfContentOwner": "",
+            },
+            "onBehalfOfContentOwner",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"snippet": {}},
+                "media": {"mimeType": "video/mp4", "content": "data"},
+                "publishAt": "now",
+            },
+            "publishAt",
+        ),
+    ],
+)
+def test_videos_insert_validation_rejects_missing_invalid_and_unsupported_inputs(arguments, field):
+    """Reject malformed creation, metadata-only, media-only, option, and scope requests."""
+    from mcp_server.tools.youtube_common.videos import VideosInsertToolError, validate_videos_insert_arguments
+
+    with pytest.raises(VideosInsertToolError) as exc_info:
+        validate_videos_insert_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+
+
+def test_videos_insert_handler_rejects_missing_oauth_before_layer1_execution():
+    """Surface missing OAuth without invoking the Layer 1 upload wrapper."""
+    from mcp_server.tools.youtube_common.videos import VideosInsertToolError, build_videos_insert_handler
+
+    wrapper = RecordingWrapper()
+    handler = build_videos_insert_handler(wrapper=wrapper, oauth_token=None)
+
+    with pytest.raises(VideosInsertToolError) as exc_info:
+        handler(_valid_videos_insert_arguments())
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+    assert wrapper.calls == []
+
+
+@pytest.mark.parametrize(
+    ("upstream_category", "expected_category"),
+    [
+        ("invalid_request", "invalid_request"),
+        ("authentication", "authentication_failed"),
+        ("auth", "authorization_failed"),
+        ("permission", "authorization_failed"),
+        ("policy_restricted", "authorization_failed"),
+        ("upload_rejected", "invalid_request"),
+        ("rate_limit", "quota_exhausted"),
+        ("quota", "quota_exhausted"),
+        ("not_found", "resource_not_found"),
+        ("unavailable", "endpoint_unavailable"),
+        ("availability", "endpoint_unavailable"),
+        ("deprecated", "deprecated_endpoint"),
+        ("transient", "upstream_failure"),
+    ],
+)
+def test_videos_insert_handler_maps_and_sanitizes_upstream_failures(upstream_category, expected_category):
+    """Convert Layer 1 upload failures into safe caller-facing categories."""
+    from mcp_server.tools.youtube_common.videos import VideosInsertToolError, build_videos_insert_handler
+
+    wrapper = FailingWrapper(
+        NormalizedUpstreamError(
+            message="upstream failed",
+            category=upstream_category,
+            retryable=False,
+            upstream_status=503,
+            details={
+                "authorization": "Bearer secret",
+                "oauth_token": "hidden",
+                "raw_media": "raw-video-bytes",
+                "signed_url": "https://example.invalid/upload?token=secret",
+                "reason": "safe",
+                "upstream_body": {"secret": "hidden"},
+            },
+        )
+    )
+    handler = build_videos_insert_handler(wrapper=wrapper, oauth_token="local-oauth")
+
+    with pytest.raises(VideosInsertToolError) as exc_info:
+        handler(_valid_videos_insert_arguments())
+
+    assert exc_info.value.category == expected_category
+    assert exc_info.value.details == {"reason": "safe"}
+    assert "Bearer" not in str(exc_info.value.details)
+    assert "raw-video-bytes" not in str(exc_info.value.details)

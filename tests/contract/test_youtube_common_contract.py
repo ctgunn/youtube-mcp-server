@@ -381,6 +381,46 @@ def test_videos_list_contract_uses_existing_resource_family():
     assert "OAuth" in metadata_text
 
 
+def test_videos_insert_contract_uses_existing_resource_family():
+    """Expose the concrete ``videos_insert`` contract in the videos family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import videos
+    from mcp_server.tools.youtube_common.videos import build_videos_insert_contract
+
+    family = get_resource_family("videos")
+    contract = build_videos_insert_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert family.definition_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert family.layer1_dependency == "mcp_server.integrations.resources.videos"
+    assert videos.VIDEOS_INSERT_TOOL_NAME == "videos_insert"
+    assert videos.VIDEOS_INSERT_QUOTA_COST == 1600
+    assert youtube_common.VIDEOS_INSERT_TOOL_NAME == "videos_insert"
+    assert youtube_common.VIDEOS_INSERT_QUOTA_COST == 1600
+    assert callable(youtube_common.build_videos_insert_tool_descriptor)
+    assert metadata["name"] == "videos_insert"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["upstream"]["operationKey"] == "videos.insert"
+    assert metadata["quotaCost"] == 1600
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "media_constrained"
+    assert metadata["inputContract"]["required"] == ["part", "body", "media"]
+    assert metadata["responseConvention"]["resultKind"] == "upload_result"
+    assert metadata["responseConvention"]["resourcePath"] == "item"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert "Quota cost: 1600" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "media" in metadata_text
+    assert "uploadMode" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "automatic publishing" in metadata_text
+    assert "analytics" in metadata_text
+    assert "apiKey" not in str(metadata)
+    assert "raw media" not in str(metadata).lower()
+
+
 def test_playlists_list_contract_uses_existing_resource_family():
     """Expose the concrete ``playlists_list`` contract in the playlists family."""
     from mcp_server.tools.youtube_common import get_resource_family

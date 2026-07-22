@@ -59,7 +59,7 @@ from mcp_server.tools.youtube_common.video_abuse_report_reasons import (
     build_video_abuse_report_reasons_list_contract,
 )
 from mcp_server.tools.youtube_common.video_categories import build_video_categories_list_contract
-from mcp_server.tools.youtube_common.videos import build_videos_list_contract
+from mcp_server.tools.youtube_common.videos import build_videos_insert_contract, build_videos_list_contract
 
 
 def _contract(
@@ -302,6 +302,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_comments_set_moderation_status_contract(),
     build_comments_delete_contract(),
     build_videos_list_contract(),
+    build_videos_insert_contract(),
     _contract(
         resource="videos",
         method="getRating",
@@ -325,6 +326,20 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         error_categories=("invalid_request", "authorization_failed", "endpoint_unavailable"),
         availability_state=AvailabilityState.OWNER_ONLY,
         caveats=("Availability may depend on channel ownership and current upstream support.",),
+    ),
+    _contract(
+        resource="watermarks",
+        method="set",
+        description="Set a channel watermark. Endpoint: watermarks.set. Quota cost: 50. Auth: oauth_required.",
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=50,
+        resource_family="watermarks",
+        input_contract={"required": ["media"], "properties": {"media": {"type": "object"}}},
+        response_convention={"resultKind": "upload_result", "mediaResult": True},
+        error_categories=("invalid_request", "authorization_failed", "quota_exhausted"),
+        availability_state=AvailabilityState.OWNER_ONLY,
+        usage_notes=("Quota cost: 50. Auth: oauth_required. Representative upload-boundary example only.",),
+        caveats=("Representative catalog example only; endpoint-specific executable behavior is out of scope here.",),
     ),
     _contract(
         resource="playlistItems",
@@ -361,20 +376,6 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
         input_contract={"required": ["part", "body"], "properties": {"part": {"type": "string"}}},
         response_convention={"resultKind": "mutation_acknowledgment"},
         error_categories=("invalid_request", "authorization_failed", "quota_exhausted"),
-    ),
-    _contract(
-        resource="videos",
-        method="insert",
-        description="Upload a video. Endpoint: videos.insert. Quota cost: 1600. Auth: oauth_required.",
-        auth_mode=AuthMode.OAUTH_REQUIRED,
-        quota_cost=1600,
-        resource_family="videos",
-        input_contract={"required": ["part", "media"], "properties": {"media": {"type": "string"}}},
-        response_convention={"resultKind": "upload_result", "mediaResult": True},
-        error_categories=("invalid_request", "authorization_failed", "quota_exhausted"),
-        availability_state=AvailabilityState.MEDIA_CONSTRAINED,
-        usage_notes=("Quota cost: 1600. Auth: oauth_required. High quota cost; confirm intent before use.",),
-        caveats=("High quota cost; endpoint-specific slices must warn before use.",),
     ),
     _contract(
         resource="captions",

@@ -40,6 +40,7 @@ def test_representative_examples_include_required_us1_shapes():
         "thumbnails_set",
         "videoAbuseReportReasons_list",
         "videoCategories_list",
+        "videos_insert",
         "videos_getRating",
         "videos_list",
         "videos_reportAbuse",
@@ -302,6 +303,97 @@ def test_representative_videos_list_example_aligns_with_concrete_contract():
         "oauth_access_failure",
         "out_of_scope_video_workflow",
     }.issubset(example_names)
+
+
+def test_representative_videos_insert_example_aligns_with_concrete_contract():
+    """Keep the representative videos-insert example aligned with YT-248."""
+    from mcp_server.tools.youtube_common.videos import build_videos_insert_contract, build_videos_insert_tool_descriptor
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "videos_insert"
+    ]
+    concrete = build_videos_insert_contract()
+    descriptor = build_videos_insert_tool_descriptor()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 1600
+    assert representative.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == ["part", "body", "media"]
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == "upload_result"
+    assert representative.response_convention["resourcePath"] == "item"
+    assert "Quota cost: 1600" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "media" in metadata_text
+    assert "uploadMode" in metadata_text
+    assert "automatic publishing" in metadata_text
+    assert "analytics" in metadata_text
+    assert {
+        "authorized_video_creation",
+        "resumable_upload",
+        "delegated_content_owner",
+        "metadata_only_failure",
+        "media_only_failure",
+        "missing_oauth",
+        "unsupported_upload_mode",
+        "quota_or_upstream_failure",
+        "availability_constrained",
+        "out_of_scope_video_workflow",
+    }.issubset(example_names)
+
+
+def test_representative_videos_insert_out_of_scope_boundaries_are_explicit():
+    """Keep video creation separate from publishing, editing, analysis, and enrichment workflows."""
+    from mcp_server.tools.youtube_common.videos import build_videos_insert_contract
+
+    contract = build_videos_insert_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join(
+        [metadata["description"], *metadata["usageNotes"], *metadata["caveats"]]
+    ).lower()
+    disallowed = set(metadata["responseBoundary"]["disallowedBehavior"])
+
+    assert {
+        "automatic_publishing",
+        "metadata_update",
+        "video_delete",
+        "rating_mutation",
+        "thumbnail_management",
+        "caption_management",
+        "playlist_management",
+        "comment_management",
+        "transcript_retrieval",
+        "analytics",
+        "recommendation",
+        "ranking",
+        "summarization",
+        "enrichment",
+        "cross_endpoint_aggregation",
+    }.issubset(disallowed)
+    for term in (
+        "automatic publishing",
+        "update",
+        "delete",
+        "rating",
+        "thumbnail",
+        "caption",
+        "playlist",
+        "comment",
+        "transcript",
+        "analytics",
+        "recommendation",
+        "ranking",
+        "summarization",
+        "enrichment",
+    ):
+        assert term in metadata_text
 
 
 def test_representative_comments_insert_example_aligns_with_concrete_contract():

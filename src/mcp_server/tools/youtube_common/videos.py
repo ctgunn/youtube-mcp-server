@@ -8,7 +8,7 @@ from mcp_server.integrations.auth import AuthContext, CredentialBundle
 from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
-from mcp_server.integrations.resources.videos import build_videos_list_wrapper
+from mcp_server.integrations.resources.videos import build_videos_insert_wrapper, build_videos_list_wrapper
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
@@ -175,6 +175,170 @@ VIDEOS_LIST_CALLER_EXAMPLES = (
     },
 )
 
+VIDEOS_INSERT_TOOL_NAME = "videos_insert"
+VIDEOS_INSERT_QUOTA_COST = 1600
+VIDEOS_INSERT_UPLOAD_MODES = ("multipart", "resumable")
+VIDEOS_INSERT_ALLOWED_FIELDS = frozenset(
+    {"part", "body", "media", "uploadMode", "notifySubscribers", "onBehalfOfContentOwner"}
+)
+VIDEOS_INSERT_UNSAFE_DETAIL_KEYS = frozenset(
+    {
+        "authorization",
+        "authorization_header",
+        "headers",
+        "request_headers",
+        "request_context",
+        "response_body",
+        "upstream_body",
+        "media",
+        "raw_media",
+        "content",
+        "signed_url",
+    }
+)
+
+VIDEOS_INSERT_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["part", "body", "media"],
+    "properties": {
+        "part": {"type": "string", "minLength": 1},
+        "body": {"type": "object"},
+        "media": {"type": "object"},
+        "uploadMode": {"type": "string", "enum": list(VIDEOS_INSERT_UPLOAD_MODES)},
+        "notifySubscribers": {"type": "boolean"},
+        "onBehalfOfContentOwner": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
+
+VIDEOS_INSERT_DESCRIPTION = (
+    "Create a YouTube video through videos.insert. Quota cost: 1600. Auth: OAuth required. "
+    "Requires part, metadata body, and media upload input; upload availability is media constrained."
+)
+
+VIDEOS_INSERT_USAGE_NOTES = (
+    "Quota cost: 1600. OAuth authorization is required for every videos.insert upload request.",
+    "Quota cost: 1600. Provide non-empty part, body.snippet metadata, and media.mimeType plus media.content.",
+    "Quota cost: 1600. uploadMode may be multipart or resumable; resumable is useful for larger upload flows.",
+    "Quota cost: 1600. onBehalfOfContentOwner is accepted only for eligible OAuth delegation contexts.",
+    "Quota cost: 1600. The result preserves the created video resource without automatic publishing, editing, analytics, ranking, recommendation, summarization, or enrichment.",
+)
+
+VIDEOS_INSERT_CAVEATS = (
+    "This tool is a low-level videos.insert wrapper for video creation only.",
+    "New uploads may remain private by default or be audit, release, policy, owner, or channel constrained.",
+    "Metadata-only, media-only, automatic publishing, update, delete, rating, thumbnail, caption, playlist, comment, transcript, analytics, recommendation, ranking, summarization, enrichment, and cross-endpoint workflows are out of scope.",
+    "Credentials, authorization headers, signed upload links, media payload content, and unsafe upstream diagnostics are never returned to callers.",
+)
+
+VIDEOS_INSERT_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_video_creation",
+        "description": "Quota cost: 1600. Create one video with OAuth, metadata body, and safe media upload content.",
+        "arguments": {
+            "part": "snippet,status",
+            "body": {"snippet": {"title": "Example upload"}, "status": {"privacyStatus": "private"}},
+            "media": {"mimeType": "video/mp4", "content": "<video content omitted>"},
+        },
+        "result": {
+            "endpoint": "videos.insert",
+            "quotaCost": 1600,
+            "mutation": {"type": "created"},
+            "resourcePath": "item",
+        },
+        "quotaCost": 1600,
+    },
+    {
+        "name": "resumable_upload",
+        "description": "Quota cost: 1600. Use uploadMode=resumable for a supported resumable videos.insert upload.",
+        "arguments": {
+            "part": "snippet,status",
+            "body": {"snippet": {"title": "Example upload"}},
+            "media": {"mimeType": "video/mp4", "content": "<video content omitted>"},
+            "uploadMode": "resumable",
+        },
+        "result": {"endpoint": "videos.insert", "upload": {"mode": "resumable", "contentProvided": True}},
+        "quotaCost": 1600,
+    },
+    {
+        "name": "delegated_content_owner",
+        "description": "Quota cost: 1600. Provide onBehalfOfContentOwner only with eligible OAuth delegation access.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"title": "Partner upload"}},
+            "media": {"mimeType": "video/mp4", "content": "<video content omitted>"},
+            "onBehalfOfContentOwner": "CONTENT_OWNER_ID",
+        },
+        "result": {"endpoint": "videos.insert", "delegation": {"onBehalfOfContentOwner": "CONTENT_OWNER_ID"}},
+        "quotaCost": 1600,
+    },
+    {
+        "name": "metadata_only_failure",
+        "description": "Quota cost: 1600. Metadata-only creation is rejected because media input is required.",
+        "arguments": {"part": "snippet", "body": {"snippet": {"title": "Example upload"}}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "media_only_failure",
+        "description": "Quota cost: 1600. Media-only creation is rejected because part and metadata body are required.",
+        "arguments": {"media": {"mimeType": "video/mp4", "content": "<video content omitted>"}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "missing_oauth",
+        "description": "Quota cost: 1600. Missing OAuth is reported as authentication_failed before upload execution.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"title": "Example upload"}},
+            "media": {"mimeType": "video/mp4", "content": "<video content omitted>"},
+        },
+        "errorCategory": "authentication_failed",
+    },
+    {
+        "name": "unsupported_upload_mode",
+        "description": "Quota cost: 1600. Unsupported uploadMode values are rejected before endpoint execution.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"title": "Example upload"}},
+            "media": {"mimeType": "video/mp4", "content": "<video content omitted>"},
+            "uploadMode": "direct",
+        },
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "quota_or_upstream_failure",
+        "description": "Quota cost: 1600. Quota, policy, availability, raw media, upload, and upstream failures map to safe public categories.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"title": "Example upload"}},
+            "media": {"mimeType": "video/mp4", "content": "<video content omitted>"},
+        },
+        "errorCategory": "quota_exhausted",
+    },
+    {
+        "name": "availability_constrained",
+        "description": "Quota cost: 1600. Upload availability may be audit, release, policy, owner, or private-default constrained.",
+        "arguments": {
+            "part": "snippet,status",
+            "body": {"snippet": {"title": "Example upload"}, "status": {"privacyStatus": "private"}},
+            "media": {"mimeType": "video/mp4", "content": "<video content omitted>"},
+        },
+        "result": {"availability": {"state": "media_constrained"}},
+        "quotaCost": 1600,
+    },
+    {
+        "name": "out_of_scope_video_workflow",
+        "description": "Quota cost: 1600. Automatic publishing, update, delete, rating, thumbnail, caption, playlist, comment, transcript, analytics, recommendation, ranking, summarization, enrichment, and cross-endpoint fields are rejected.",
+        "arguments": {
+            "part": "snippet",
+            "body": {"snippet": {"title": "Example upload"}},
+            "media": {"mimeType": "video/mp4", "content": "<video content omitted>"},
+            "analytics": True,
+        },
+        "errorCategory": "invalid_request",
+    },
+)
+
 
 class VideosListToolError(ValueError):
     """Represent a safe caller-facing ``videos_list`` failure.
@@ -196,6 +360,26 @@ class VideosListToolError(ValueError):
         self.details = _sanitize_videos_list_error_details(details or {})
 
 
+class VideosInsertToolError(ValueError):
+    """Represent a safe caller-facing ``videos_insert`` failure.
+
+    :param message: Caller-facing error message.
+    :param category: Stable Layer 2 error category.
+    :param details: Safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str = "invalid_request", details: dict[str, Any] | None = None):
+        """Initialize the safe insert tool error.
+
+        :param message: Caller-facing error message.
+        :param category: Stable Layer 2 error category.
+        :param details: Safe diagnostic details.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = _sanitize_videos_insert_error_details(details or {})
+
+
 def _sanitize_videos_list_error_details(details: dict[str, Any]) -> dict[str, Any]:
     """Remove endpoint-specific unsafe diagnostic fields.
 
@@ -207,6 +391,20 @@ def _sanitize_videos_list_error_details(details: dict[str, Any]) -> dict[str, An
         key: value
         for key, value in sanitized.items()
         if key.lower().replace("-", "_") not in VIDEOS_LIST_UNSAFE_DETAIL_KEYS
+    }
+
+
+def _sanitize_videos_insert_error_details(details: dict[str, Any]) -> dict[str, Any]:
+    """Remove upload-specific unsafe diagnostic fields.
+
+    :param details: Candidate diagnostic details.
+    :return: Safe details suitable for caller-facing insert errors.
+    """
+    sanitized = sanitize_error_details(details)
+    return {
+        key: value
+        for key, value in sanitized.items()
+        if key.lower().replace("-", "_") not in VIDEOS_INSERT_UNSAFE_DETAIL_KEYS
     }
 
 
@@ -380,6 +578,214 @@ def validate_videos_list_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     if "videoCategoryId" in arguments:
         normalized["videoCategoryId"] = _validate_video_category_id(arguments["videoCategoryId"])
     return normalized
+
+
+def _require_videos_insert_text_field(arguments: dict[str, Any], field: str) -> str:
+    """Require one non-empty ``videos_insert`` text input field.
+
+    :param arguments: Caller-provided arguments.
+    :param field: Field name to validate.
+    :return: Stripped field value.
+    :raises VideosInsertToolError: If the field is missing or invalid.
+    """
+    value = arguments.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise VideosInsertToolError(f"videos_insert requires non-empty {field}", details={"field": field})
+    return value.strip()
+
+
+def _validate_videos_insert_body(body: Any) -> dict[str, Any]:
+    """Validate the required video metadata body.
+
+    :param body: Candidate metadata body.
+    :return: Metadata body accepted by the Layer 1 wrapper.
+    :raises VideosInsertToolError: If the body is missing or malformed.
+    """
+    if not isinstance(body, dict):
+        raise VideosInsertToolError("videos_insert requires body metadata", details={"field": "body"})
+    snippet = body.get("snippet")
+    if not isinstance(snippet, dict):
+        raise VideosInsertToolError("videos_insert requires body.snippet metadata", details={"field": "body.snippet"})
+    return dict(body)
+
+
+def _validate_videos_insert_media(media: Any) -> dict[str, Any]:
+    """Validate the required video upload media descriptor.
+
+    :param media: Candidate media upload descriptor.
+    :return: Media descriptor accepted by the Layer 1 wrapper.
+    :raises VideosInsertToolError: If the media descriptor is missing or malformed.
+    """
+    if not isinstance(media, dict):
+        raise VideosInsertToolError("videos_insert requires media upload input", details={"field": "media"})
+    mime_type = media.get("mimeType")
+    if not isinstance(mime_type, str) or not mime_type.strip():
+        raise VideosInsertToolError("videos_insert requires media.mimeType", details={"field": "media.mimeType"})
+    content = media.get("content")
+    if not isinstance(content, str) or not content:
+        raise VideosInsertToolError("videos_insert requires media.content", details={"field": "media.content"})
+    normalized = dict(media)
+    normalized["mimeType"] = mime_type.strip()
+    return normalized
+
+
+def _validate_videos_insert_upload_mode(value: Any) -> str:
+    """Validate the optional upload mode.
+
+    :param value: Candidate upload-mode value.
+    :return: Normalized upload mode.
+    :raises VideosInsertToolError: If the upload mode is unsupported.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise VideosInsertToolError("uploadMode must be multipart or resumable", details={"field": "uploadMode"})
+    mode = value.strip()
+    if mode not in VIDEOS_INSERT_UPLOAD_MODES:
+        raise VideosInsertToolError(
+            "uploadMode must be multipart or resumable",
+            details={"field": "uploadMode", "allowed": list(VIDEOS_INSERT_UPLOAD_MODES)},
+        )
+    return mode
+
+
+def _validate_videos_insert_notify_subscribers(value: Any) -> bool:
+    """Validate the optional subscriber-notification flag.
+
+    :param value: Candidate notification flag.
+    :return: Boolean notification flag.
+    :raises VideosInsertToolError: If the value is not boolean.
+    """
+    if not isinstance(value, bool):
+        raise VideosInsertToolError(
+            "notifySubscribers must be boolean",
+            details={"field": "notifySubscribers"},
+        )
+    return value
+
+
+def _validate_videos_insert_delegation(value: Any) -> str:
+    """Validate optional content-owner delegation context.
+
+    :param value: Candidate content-owner identifier.
+    :return: Stripped content-owner identifier.
+    :raises VideosInsertToolError: If the delegation value is malformed.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise VideosInsertToolError(
+            "onBehalfOfContentOwner must be a non-empty string",
+            details={"field": "onBehalfOfContentOwner"},
+        )
+    return value.strip()
+
+
+def validate_videos_insert_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate ``videos_insert`` creation arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized part, body, media, upload mode, notification, and delegation values.
+    :raises VideosInsertToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise VideosInsertToolError("videos_insert arguments must be an object")
+    for field in arguments:
+        if field not in VIDEOS_INSERT_ALLOWED_FIELDS:
+            raise VideosInsertToolError(f"unsupported field for videos_insert: {field}", details={"field": field})
+
+    part = _require_videos_insert_text_field(arguments, "part")
+    if not _split_parts(part):
+        raise VideosInsertToolError("part must include at least one requested resource part", details={"field": "part"})
+
+    normalized: dict[str, Any] = {
+        "part": part,
+        "body": _validate_videos_insert_body(arguments.get("body")),
+        "media": _validate_videos_insert_media(arguments.get("media")),
+    }
+    if "uploadMode" in arguments:
+        normalized["uploadMode"] = _validate_videos_insert_upload_mode(arguments["uploadMode"])
+    if "notifySubscribers" in arguments:
+        normalized["notifySubscribers"] = _validate_videos_insert_notify_subscribers(arguments["notifySubscribers"])
+    if "onBehalfOfContentOwner" in arguments:
+        normalized["onBehalfOfContentOwner"] = _validate_videos_insert_delegation(
+            arguments["onBehalfOfContentOwner"]
+        )
+    return normalized
+
+
+def _videos_insert_upload_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Build safe upload context without raw media content.
+
+    :param arguments: Normalized insert arguments.
+    :return: Safe media upload context for result payloads.
+    """
+    media = arguments["media"]
+    return {
+        "mode": arguments.get("uploadMode") or "multipart",
+        "mimeType": media["mimeType"],
+        "contentProvided": bool(media.get("content")),
+    }
+
+
+def _videos_insert_availability_context() -> dict[str, Any]:
+    """Build public availability context for upload-constrained video creation.
+
+    :return: Safe availability state and caveats for callers.
+    """
+    return {
+        "state": "media_constrained",
+        "caveats": [
+            "New uploads may be audit-constrained or private by default depending on account and release state."
+        ],
+    }
+
+
+def _videos_insert_delegation_context(arguments: dict[str, Any]) -> dict[str, str]:
+    """Build safe delegation context when a content-owner identifier is supplied.
+
+    :param arguments: Normalized insert arguments.
+    :return: Delegation context or an empty mapping.
+    """
+    if "onBehalfOfContentOwner" not in arguments:
+        return {}
+    return {"onBehalfOfContentOwner": arguments["onBehalfOfContentOwner"]}
+
+
+def map_videos_insert_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream video-create payload to the public Layer 2 result.
+
+    :param payload: Upstream or Layer 1 video-create payload.
+    :param arguments: Caller arguments used for the request.
+    :return: Near-raw created video result with safe operation context.
+    """
+    normalized = validate_videos_insert_arguments(arguments)
+    safe_payload = sanitize_error_details(payload if isinstance(payload, dict) else {})
+    item = safe_payload.get("item") if isinstance(safe_payload.get("item"), dict) else safe_payload
+    result = {
+        "endpoint": "videos.insert",
+        "quotaCost": VIDEOS_INSERT_QUOTA_COST,
+        "requestedParts": _split_parts(normalized["part"]),
+        "upload": _videos_insert_upload_context(normalized),
+        "auth": {"mode": "oauth_required", "path": "restricted"},
+        "availability": _videos_insert_availability_context(),
+        "item": item,
+        "mutation": {"type": "created"},
+    }
+    delegation = _videos_insert_delegation_context(normalized)
+    if delegation:
+        result["delegation"] = delegation
+    for field in (
+        "kind",
+        "etag",
+        "id",
+        "snippet",
+        "status",
+        "contentDetails",
+        "processingDetails",
+        "fileDetails",
+        "suggestions",
+        "localizations",
+    ):
+        if field in item:
+            result[field] = item[field]
+    return result
 
 
 def _selector_context(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -669,6 +1075,110 @@ def build_videos_list_contract() -> YouTubeToolContract:
     )
 
 
+def _videos_insert_disallowed_behavior() -> tuple[str, ...]:
+    """Return behaviors outside the low-level ``videos_insert`` endpoint boundary.
+
+    :return: Stable disallowed-behavior identifiers for metadata.
+    """
+    return (
+        "automatic_publishing",
+        "metadata_update",
+        "video_delete",
+        "rating_mutation",
+        "thumbnail_management",
+        "caption_management",
+        "playlist_management",
+        "comment_management",
+        "transcript_retrieval",
+        "analytics",
+        "recommendation",
+        "ranking",
+        "summarization",
+        "enrichment",
+        "cross_endpoint_aggregation",
+    )
+
+
+def build_videos_insert_contract() -> YouTubeToolContract:
+    """Build the public contract for ``videos_insert``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "quotaCost",
+            "requestedParts",
+            "upload",
+            "auth",
+            "availability",
+            "delegation",
+            "item",
+            "mutation",
+            "kind",
+            "etag",
+            "id",
+            "snippet",
+            "status",
+            "contentDetails",
+            "processingDetails",
+            "fileDetails",
+            "suggestions",
+            "localizations",
+        ),
+        preserved_upstream_fields=(
+            "kind",
+            "etag",
+            "id",
+            "snippet",
+            "status",
+            "contentDetails",
+            "processingDetails",
+            "fileDetails",
+            "suggestions",
+            "localizations",
+        ),
+        disallowed_behavior=_videos_insert_disallowed_behavior(),
+    )
+    return YouTubeToolContract(
+        tool_name=VIDEOS_INSERT_TOOL_NAME,
+        upstream_resource="videos",
+        upstream_method="insert",
+        operation_key="videos.insert",
+        description=VIDEOS_INSERT_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=VIDEOS_INSERT_QUOTA_COST,
+        resource_family="videos",
+        input_contract=VIDEOS_INSERT_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "upload_result",
+            "resourcePath": "item",
+            "authMode": "oauth_required",
+            "requiredFields": ["part", "body", "media"],
+            "optionalFields": ["uploadMode", "notifySubscribers", "onBehalfOfContentOwner"],
+            "mediaFields": ["media"],
+            "delegationFields": ["onBehalfOfContentOwner"],
+            "availabilityState": "media_constrained",
+            "mutation": "created",
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "deprecated_endpoint",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.MEDIA_CONSTRAINED,
+        usage_notes=VIDEOS_INSERT_USAGE_NOTES,
+        caveats=VIDEOS_INSERT_CAVEATS,
+    )
+
+
 def _default_videos_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default video-list calls.
 
@@ -693,6 +1203,138 @@ def _default_videos_executor() -> IntegrationExecutor:
         }
 
     return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _default_videos_insert_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default video-insert calls.
+
+    :return: Integration executor returning representative created-video data.
+    """
+
+    def transport(execution):
+        """Return a representative video-create response.
+
+        :param execution: Request execution context.
+        :return: Fake upstream created-video response for local invocation.
+        """
+        body = execution.arguments.get("body")
+        body = body if isinstance(body, dict) else {}
+        snippet = body.get("snippet") if isinstance(body.get("snippet"), dict) else {}
+        status = body.get("status") if isinstance(body.get("status"), dict) else {}
+        return {
+            "kind": "youtube#video",
+            "etag": "etag-video-insert",
+            "id": "local-video-upload",
+            "snippet": {
+                "title": snippet.get("title") or "Example upload",
+            },
+            "status": {
+                "privacyStatus": status.get("privacyStatus") or "private",
+            },
+        }
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _videos_insert_auth_context(oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 OAuth auth context for ``videos_insert``.
+
+    :param oauth_token: OAuth token credential value.
+    :return: Layer 1 auth context for OAuth-required upload execution.
+    :raises VideosInsertToolError: If OAuth access is missing.
+    """
+    if not isinstance(oauth_token, str) or not oauth_token.strip():
+        raise VideosInsertToolError(
+            "videos_insert requires OAuth authorization",
+            category="authentication_failed",
+            details={"authMode": "oauth_required"},
+        )
+    try:
+        return AuthContext(
+            mode=Layer1AuthMode.OAUTH_REQUIRED,
+            credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+        )
+    except ValueError as exc:
+        raise VideosInsertToolError(
+            "videos_insert requires OAuth authorization",
+            category="authentication_failed",
+            details={"authMode": "oauth_required"},
+        ) from exc
+
+
+def _map_videos_insert_upstream_error(error: NormalizedUpstreamError) -> VideosInsertToolError:
+    """Map a normalized upstream failure to a safe ``videos_insert`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe caller-facing tool error.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "upload_rejected": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "policy": "authorization_failed",
+        "policy_restricted": "authorization_failed",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "not_found": "resource_not_found",
+        "resource_not_found": "resource_not_found",
+        "removed": "resource_not_found",
+        "unavailable": "endpoint_unavailable",
+        "availability": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return VideosInsertToolError(str(error), category=category, details=error.details or {})
+
+
+def build_videos_insert_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``videos_insert``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used for video creation.
+    :return: Callable that validates, executes, and maps video-create requests.
+    """
+    selected_wrapper = wrapper or build_videos_insert_wrapper()
+    selected_executor = executor or _default_videos_insert_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``videos_insert`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 video-create result.
+        :raises VideosInsertToolError: If validation, access, or execution fails.
+        """
+        normalized = validate_videos_insert_arguments(arguments)
+        auth_context = _videos_insert_auth_context(oauth_token)
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_videos_insert_upstream_error(exc) from exc
+        except ValueError as exc:
+            message = str(exc)
+            category = "authentication_failed" if "oauth" in message.lower() else "invalid_request"
+            raise VideosInsertToolError(
+                message,
+                category=category,
+                details={"authMode": "oauth_required"} if category == "authentication_failed" else {"field": "request"},
+            ) from exc
+        return map_videos_insert_result(payload, normalized)
+
+    return handler
 
 
 def build_videos_list_handler(
@@ -777,7 +1419,42 @@ def build_videos_list_tool_descriptor(
     }
 
 
+def build_videos_insert_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``videos_insert``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_videos_insert_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(VIDEOS_INSERT_CALLER_EXAMPLES)
+    return {
+        "name": VIDEOS_INSERT_TOOL_NAME,
+        "description": VIDEOS_INSERT_DESCRIPTION,
+        "inputSchema": VIDEOS_INSERT_INPUT_SCHEMA,
+        "handler": build_videos_insert_handler(wrapper=wrapper, executor=executor, oauth_token=oauth_token),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
+    "VIDEOS_INSERT_ALLOWED_FIELDS",
+    "VIDEOS_INSERT_CALLER_EXAMPLES",
+    "VIDEOS_INSERT_CAVEATS",
+    "VIDEOS_INSERT_DESCRIPTION",
+    "VIDEOS_INSERT_INPUT_SCHEMA",
+    "VIDEOS_INSERT_QUOTA_COST",
+    "VIDEOS_INSERT_TOOL_NAME",
+    "VIDEOS_INSERT_UNSAFE_DETAIL_KEYS",
+    "VIDEOS_INSERT_UPLOAD_MODES",
+    "VIDEOS_INSERT_USAGE_NOTES",
     "VIDEOS_LIST_ALLOWED_FIELDS",
     "VIDEOS_LIST_CALLER_EXAMPLES",
     "VIDEOS_LIST_CAVEATS",
@@ -790,10 +1467,16 @@ __all__ = [
     "VIDEOS_LIST_TOOL_NAME",
     "VIDEOS_LIST_UNSAFE_DETAIL_KEYS",
     "VIDEOS_LIST_USAGE_NOTES",
+    "VideosInsertToolError",
     "VideosListToolError",
+    "build_videos_insert_contract",
+    "build_videos_insert_handler",
+    "build_videos_insert_tool_descriptor",
     "build_videos_list_contract",
     "build_videos_list_handler",
     "build_videos_list_tool_descriptor",
+    "map_videos_insert_result",
     "map_videos_list_result",
+    "validate_videos_insert_arguments",
     "validate_videos_list_arguments",
 ]
