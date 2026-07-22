@@ -1,4 +1,4 @@
-"""Contract tests for the Layer 2 ``videos_list`` tool."""
+"""Contract tests for Layer 2 ``videos`` tools."""
 
 from __future__ import annotations
 
@@ -213,3 +213,177 @@ def test_videos_list_metadata_text_constants_are_public_safe():
     assert "upload" in combined
     assert "analytics" in combined
     assert "apiKey" not in combined
+
+
+def test_videos_insert_input_contract_and_descriptor_shape():
+    """Publish the executable ``videos_insert`` creation contract."""
+    from mcp_server.tools.youtube_common.videos import (
+        VIDEOS_INSERT_CALLER_EXAMPLES,
+        VIDEOS_INSERT_INPUT_SCHEMA,
+        VIDEOS_INSERT_QUOTA_COST,
+        VIDEOS_INSERT_TOOL_NAME,
+        build_videos_insert_contract,
+        build_videos_insert_tool_descriptor,
+    )
+
+    schema = VIDEOS_INSERT_INPUT_SCHEMA
+    contract = build_videos_insert_contract()
+    descriptor = build_videos_insert_tool_descriptor()
+    metadata = contract.to_tool_metadata()
+    example_names = {example["name"] for example in VIDEOS_INSERT_CALLER_EXAMPLES}
+
+    assert VIDEOS_INSERT_TOOL_NAME == "videos_insert"
+    assert VIDEOS_INSERT_QUOTA_COST == 1600
+    assert schema["required"] == ["part", "body", "media"]
+    assert schema["properties"]["part"] == {"type": "string", "minLength": 1}
+    assert schema["properties"]["body"]["type"] == "object"
+    assert schema["properties"]["media"]["type"] == "object"
+    assert schema["properties"]["uploadMode"] == {"type": "string", "enum": ["multipart", "resumable"]}
+    assert schema["properties"]["notifySubscribers"] == {"type": "boolean"}
+    assert schema["properties"]["onBehalfOfContentOwner"] == {"type": "string", "minLength": 1}
+    assert schema["additionalProperties"] is False
+    assert metadata["upstream"]["operationKey"] == "videos.insert"
+    assert metadata["quotaCost"] == 1600
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "media_constrained"
+    assert metadata["responseConvention"]["resultKind"] == "upload_result"
+    assert metadata["responseConvention"]["resourcePath"] == "item"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert descriptor["name"] == "videos_insert"
+    assert descriptor["inputSchema"] == VIDEOS_INSERT_INPUT_SCHEMA
+    assert callable(descriptor["handler"])
+    assert {"authorized_video_creation", "resumable_upload", "delegated_content_owner"}.issubset(example_names)
+
+
+def test_videos_insert_metadata_text_constants_are_public_safe_and_complete():
+    """Expose quota, OAuth, upload, caveat, and scope guidance for callers."""
+    from mcp_server.tools.youtube_common.videos import (
+        VIDEOS_INSERT_CALLER_EXAMPLES,
+        VIDEOS_INSERT_CAVEATS,
+        VIDEOS_INSERT_DESCRIPTION,
+        VIDEOS_INSERT_USAGE_NOTES,
+        build_videos_insert_contract,
+    )
+
+    contract = build_videos_insert_contract()
+    metadata = contract.to_tool_metadata()
+    combined = " ".join(
+        [
+            VIDEOS_INSERT_DESCRIPTION,
+            *VIDEOS_INSERT_USAGE_NOTES,
+            *VIDEOS_INSERT_CAVEATS,
+            *(example["description"] for example in VIDEOS_INSERT_CALLER_EXAMPLES),
+        ]
+    )
+
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.MEDIA_CONSTRAINED
+    assert "Quota cost: 1600" in combined
+    assert "videos.insert" in combined
+    assert "OAuth" in combined
+    assert "media" in combined
+    assert "uploadMode" in combined
+    assert "onBehalfOfContentOwner" in combined
+    assert "automatic publishing" in combined
+    assert "analytics" in combined
+    assert "apiKey" not in combined
+    assert "raw media" in combined
+    assert "raw_media" not in str(metadata)
+    assert "signed_url" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+
+
+def test_videos_insert_declares_expected_failure_categories():
+    """Keep caller-visible ``videos_insert`` failure categories stable."""
+    from mcp_server.tools.youtube_common.videos import build_videos_insert_contract
+
+    contract = build_videos_insert_contract()
+
+    assert set(contract.error_categories) == {
+        "invalid_request",
+        "authentication_failed",
+        "authorization_failed",
+        "quota_exhausted",
+        "resource_not_found",
+        "endpoint_unavailable",
+        "deprecated_endpoint",
+        "upstream_failure",
+    }
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({"body": {"snippet": {}}, "media": {"mimeType": "video/mp4", "content": "data"}}, "part"),
+        ({"part": "snippet", "media": {"mimeType": "video/mp4", "content": "data"}}, "body"),
+        ({"part": "snippet", "body": {"snippet": {}}}, "media"),
+        (
+            {"part": "snippet", "body": {"snippet": {}}, "media": {"mimeType": "video/mp4", "content": "data"}, "q": "x"},
+            "q",
+        ),
+        (
+            {
+                "part": "snippet",
+                "body": {"snippet": {}},
+                "media": {"mimeType": "video/mp4", "content": "data"},
+                "uploadMode": "direct",
+            },
+            "uploadMode",
+        ),
+    ],
+)
+def test_videos_insert_validation_failures_are_safe(arguments, field):
+    """Reject malformed creation requests with safe field details."""
+    from mcp_server.tools.youtube_common.videos import VideosInsertToolError, validate_videos_insert_arguments
+
+    with pytest.raises(VideosInsertToolError) as exc_info:
+        validate_videos_insert_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+    assert "secret" not in str(exc_info.value.details)
+
+
+def test_videos_insert_maps_quota_failures_without_secret_or_media_details():
+    """Map upload quota failures without leaking credentials or raw media."""
+    from mcp_server.tools.youtube_common.videos import VideosInsertToolError, build_videos_insert_handler
+
+    class InsertQuotaFailingWrapper:
+        """Layer 1 wrapper double that raises a quota failure."""
+
+        def call(self, _executor, *, arguments, auth_context):
+            """Raise a quota failure with unsafe diagnostic details.
+
+            :param _executor: Ignored fake executor.
+            :param arguments: Normalized arguments supplied by the handler.
+            :param auth_context: Auth context supplied by the handler.
+            :raises NormalizedUpstreamError: Always raised for quota mapping.
+            """
+            raise NormalizedUpstreamError(
+                message="quota exceeded",
+                category="rate_limit",
+                retryable=False,
+                upstream_status=403,
+                details={
+                    "oauth_token": "secret",
+                    "raw_media": "video-bytes",
+                    "signed_url": "https://example.invalid/upload?token=secret",
+                    "field": "quota",
+                },
+            )
+
+    handler = build_videos_insert_handler(wrapper=InsertQuotaFailingWrapper(), oauth_token="visible-oauth")
+
+    with pytest.raises(VideosInsertToolError) as exc_info:
+        handler(
+            {
+                "part": "snippet",
+                "body": {"snippet": {"title": "Example"}},
+                "media": {"mimeType": "video/mp4", "content": "raw-video-content"},
+            }
+        )
+
+    assert exc_info.value.category == "quota_exhausted"
+    assert exc_info.value.details == {"field": "quota"}
+    assert "secret" not in str(exc_info.value)
+    assert "video-bytes" not in str(exc_info.value.details)

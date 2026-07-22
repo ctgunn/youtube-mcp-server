@@ -114,6 +114,27 @@ def test_required_youtube_resource_families_have_placement_metadata():
     assert videos.layer1_dependency == "mcp_server.integrations.resources.videos"
 
 
+def test_videos_insert_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``videos_insert`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import videos
+
+    videos_family = youtube_common.get_resource_family("videos")
+
+    assert videos_family.definition_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert videos.VIDEOS_INSERT_TOOL_NAME == "videos_insert"
+    assert videos.VIDEOS_INSERT_QUOTA_COST == 1600
+    assert youtube_common.VIDEOS_INSERT_TOOL_NAME == "videos_insert"
+    assert youtube_common.VIDEOS_INSERT_QUOTA_COST == 1600
+    assert youtube_common.VIDEOS_INSERT_UPLOAD_MODES == ("multipart", "resumable")
+    assert callable(videos.build_videos_insert_contract)
+    assert callable(videos.build_videos_insert_handler)
+    assert callable(videos.build_videos_insert_tool_descriptor)
+    assert callable(videos.map_videos_insert_result)
+    assert callable(videos.validate_videos_insert_arguments)
+    assert youtube_common.VideosInsertToolError is videos.VideosInsertToolError
+
+
 def test_playlists_resource_family_points_to_concrete_layer2_module():
     """Expose the concrete playlists family placement for YT-236."""
     from mcp_server.tools.youtube_common import get_resource_family

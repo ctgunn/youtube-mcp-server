@@ -325,6 +325,49 @@ def test_default_registry_includes_executable_videos_list_tool():
     assert result["items"]
 
 
+def test_default_registry_includes_executable_videos_insert_tool():
+    """Register ``videos_insert`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "videos_insert" in listed
+    metadata = listed["videos_insert"]["metadata"]
+    description = listed["videos_insert"]["description"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "videos.insert"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["quotaCost"] == 1600
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "media_constrained"
+    assert metadata["inputContract"]["required"] == ["part", "body", "media"]
+    assert metadata["responseConvention"]["resultKind"] == "upload_result"
+    assert metadata["responseConvention"]["resourcePath"] == "item"
+    assert "Quota cost: 1600" in description
+    assert "OAuth" in metadata_text
+    assert "media" in metadata_text
+    assert "uploadMode" in metadata_text
+    assert {"authorized_video_creation", "resumable_upload", "metadata_only_failure"}.issubset(example_names)
+
+    result = dispatcher.call_tool(
+        "videos_insert",
+        {
+            "part": "snippet,status",
+            "body": {"snippet": {"title": "Example upload"}},
+            "media": {"mimeType": "video/mp4", "content": "fake-video-content"},
+        },
+    )
+
+    assert result["endpoint"] == "videos.insert"
+    assert result["quotaCost"] == 1600
+    assert result["auth"] == {"mode": "oauth_required", "path": "restricted"}
+    assert result["upload"] == {"mode": "multipart", "mimeType": "video/mp4", "contentProvided": True}
+    assert result["mutation"] == {"type": "created"}
+    assert result["item"]["id"]
+    assert "fake-video-content" not in str(result)
+
+
 def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
     """Register ``comments_insert`` by default with create metadata."""
     dispatcher = InMemoryToolDispatcher()
