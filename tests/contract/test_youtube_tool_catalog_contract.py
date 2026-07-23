@@ -1806,7 +1806,7 @@ def test_representative_examples_include_response_boundary_metadata():
     }
 
     assert by_kind["list"] in {"near_raw", "lightly_reshaped"}
-    assert by_kind["lookup"] in {"near_raw", "lightly_reshaped"}
+    assert by_kind["rating_lookup"] in {"near_raw", "lightly_reshaped"}
     assert by_kind["mutation_acknowledgment"] == "lightly_reshaped"
     assert "lightly_reshaped" in upload_boundaries
     assert "near_raw" in upload_boundaries
@@ -1835,6 +1835,11 @@ def test_representative_examples_cover_required_us2_shapes():
     assert by_name["videos_rate"].resource_family == "videos"
     assert by_name["videos_rate"].response_convention["resultKind"] == "mutation_acknowledgment"
     assert by_name["videos_rate"].response_boundary["boundaryKind"] == "near_raw"
+    assert by_name["videos_getRating"].quota_cost == 1
+    assert by_name["videos_getRating"].auth_mode.value == "oauth_required"
+    assert by_name["videos_getRating"].resource_family == "videos"
+    assert by_name["videos_getRating"].response_convention["resultKind"] == "rating_lookup"
+    assert by_name["videos_getRating"].response_boundary["boundaryKind"] == "near_raw"
 
 
 def test_representative_videos_update_descriptor_examples_cover_boundaries():
@@ -1906,3 +1911,31 @@ def test_representative_videos_rate_descriptor_examples_cover_boundaries():
         "quota_or_upstream_rate_failure",
         "out_of_scope_video_workflow",
     }.issubset(example_names)
+
+
+def test_representative_videos_get_rating_descriptor_examples_cover_boundaries():
+    """Expose concrete videos getRating examples and safe metadata in the catalog."""
+    from mcp_server.tools.youtube_common.videos import build_videos_get_rating_tool_descriptor
+
+    descriptor = build_videos_get_rating_tool_descriptor()
+    metadata = descriptor["metadata"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([descriptor["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert descriptor["name"] == "videos_getRating"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["upstream"]["operationKey"] == "videos.getRating"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert metadata["responseConvention"]["resultKind"] == "rating_lookup"
+    assert metadata["responseConvention"]["ratingValues"] == ["like", "dislike", "none", "unspecified"]
+    assert metadata["responseConvention"]["requestBody"] == "none"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert "Quota cost: 1" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "id" in metadata_text
+    assert "one to fifty" in metadata_text
+    assert "no request body" in metadata_text
+    assert {"authorized_single_video_lookup", "authorized_multi_video_lookup", "missing_oauth"}.issubset(example_names)

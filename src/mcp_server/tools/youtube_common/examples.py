@@ -60,6 +60,7 @@ from mcp_server.tools.youtube_common.video_abuse_report_reasons import (
 )
 from mcp_server.tools.youtube_common.video_categories import build_video_categories_list_contract
 from mcp_server.tools.youtube_common.videos import (
+    build_videos_get_rating_contract,
     build_videos_insert_contract,
     build_videos_list_contract,
     build_videos_rate_contract,
@@ -310,17 +311,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_videos_insert_contract(),
     build_videos_update_contract(),
     build_videos_rate_contract(),
-    _contract(
-        resource="videos",
-        method="getRating",
-        description="Get video rating. Endpoint: videos.getRating. Quota cost: 1. Auth: oauth_required.",
-        auth_mode=AuthMode.OAUTH_REQUIRED,
-        quota_cost=1,
-        resource_family="videos",
-        input_contract={"required": ["id"], "properties": {"id": {"type": "string"}}},
-        response_convention={"resultKind": "lookup", "itemsPath": "items"},
-        error_categories=("invalid_request", "authorization_failed", "resource_not_found"),
-    ),
+    build_videos_get_rating_contract(),
     _contract(
         resource="watermarks",
         method="unset",

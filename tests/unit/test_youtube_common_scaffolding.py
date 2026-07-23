@@ -176,6 +176,27 @@ def test_videos_rate_scaffolding_exports_concrete_layer2_symbols():
     assert youtube_common.VideosRateToolError is videos.VideosRateToolError
 
 
+def test_videos_get_rating_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``videos_getRating`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import videos
+
+    videos_family = youtube_common.get_resource_family("videos")
+
+    assert videos_family.definition_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert videos.VIDEOS_GET_RATING_TOOL_NAME == "videos_getRating"
+    assert videos.VIDEOS_GET_RATING_QUOTA_COST == 1
+    assert youtube_common.VIDEOS_GET_RATING_TOOL_NAME == "videos_getRating"
+    assert youtube_common.VIDEOS_GET_RATING_QUOTA_COST == 1
+    assert youtube_common.VIDEOS_GET_RATING_INPUT_SCHEMA["properties"]["id"]["type"] == "string"
+    assert callable(videos.build_videos_get_rating_contract)
+    assert callable(videos.build_videos_get_rating_handler)
+    assert callable(videos.build_videos_get_rating_tool_descriptor)
+    assert callable(videos.map_videos_get_rating_result)
+    assert callable(videos.validate_videos_get_rating_arguments)
+    assert youtube_common.VideosGetRatingToolError is videos.VideosGetRatingToolError
+
+
 def test_playlists_resource_family_points_to_concrete_layer2_module():
     """Expose the concrete playlists family placement for YT-236."""
     from mcp_server.tools.youtube_common import get_resource_family

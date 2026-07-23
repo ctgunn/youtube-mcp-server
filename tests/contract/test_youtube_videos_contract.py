@@ -8,6 +8,13 @@ from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools import youtube_common
 from mcp_server.tools.youtube_common import AuthMode, AvailabilityState
 from mcp_server.tools.youtube_common.videos import (
+    VIDEOS_GET_RATING_CALLER_EXAMPLES,
+    VIDEOS_GET_RATING_CAVEATS,
+    VIDEOS_GET_RATING_DESCRIPTION,
+    VIDEOS_GET_RATING_INPUT_SCHEMA,
+    VIDEOS_GET_RATING_QUOTA_COST,
+    VIDEOS_GET_RATING_TOOL_NAME,
+    VIDEOS_GET_RATING_USAGE_NOTES,
     VIDEOS_RATE_CALLER_EXAMPLES,
     VIDEOS_RATE_CAVEATS,
     VIDEOS_RATE_DESCRIPTION,
@@ -15,10 +22,15 @@ from mcp_server.tools.youtube_common.videos import (
     VIDEOS_RATE_QUOTA_COST,
     VIDEOS_RATE_TOOL_NAME,
     VIDEOS_RATE_USAGE_NOTES,
+    VideosGetRatingToolError,
     VideosRateToolError,
+    build_videos_get_rating_contract,
+    build_videos_get_rating_handler,
+    build_videos_get_rating_tool_descriptor,
     build_videos_rate_contract,
     build_videos_rate_handler,
     build_videos_rate_tool_descriptor,
+    validate_videos_get_rating_arguments,
     validate_videos_rate_arguments,
     VIDEOS_UPDATE_CALLER_EXAMPLES,
     VIDEOS_UPDATE_CAVEATS,
@@ -709,6 +721,160 @@ def test_videos_rate_maps_quota_failures_without_secret_details():
 
     with pytest.raises(VideosRateToolError) as exc_info:
         handler({"id": "abc123", "rating": "like"})
+
+    assert exc_info.value.category == "quota_exhausted"
+    assert exc_info.value.details == {"field": "quota"}
+    assert "secret" not in str(exc_info.value)
+    assert "Bearer" not in str(exc_info.value.details)
+
+
+def test_videos_get_rating_input_contract_and_descriptor_shape():
+    """Publish the executable ``videos_getRating`` rating lookup contract."""
+    schema = VIDEOS_GET_RATING_INPUT_SCHEMA
+    contract = build_videos_get_rating_contract()
+    descriptor = build_videos_get_rating_tool_descriptor()
+    metadata = contract.to_tool_metadata()
+
+    assert VIDEOS_GET_RATING_TOOL_NAME == "videos_getRating"
+    assert VIDEOS_GET_RATING_QUOTA_COST == 1
+    assert schema["required"] == ["id"]
+    assert schema["properties"]["id"]["type"] == "string"
+    assert schema["properties"]["id"]["minLength"] == 1
+    assert schema["properties"]["onBehalfOfContentOwner"] == {"type": "string", "minLength": 1}
+    assert schema["additionalProperties"] is False
+    assert metadata["upstream"]["operationKey"] == "videos.getRating"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["responseConvention"]["resultKind"] == "rating_lookup"
+    assert metadata["responseConvention"]["requiredFields"] == ["id"]
+    assert metadata["responseConvention"]["optionalFields"] == ["onBehalfOfContentOwner"]
+    assert metadata["responseConvention"]["ratingValues"] == ["like", "dislike", "none", "unspecified"]
+    assert metadata["responseConvention"]["requestBody"] == "none"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert descriptor["name"] == "videos_getRating"
+    assert descriptor["inputSchema"] == VIDEOS_GET_RATING_INPUT_SCHEMA
+    assert callable(descriptor["handler"])
+
+
+def test_videos_get_rating_metadata_text_constants_are_public_safe_and_complete():
+    """Expose quota, OAuth, identifier, returned-state, no-body, and scope guidance."""
+    contract = build_videos_get_rating_contract()
+    metadata = contract.to_tool_metadata()
+    combined = " ".join(
+        [
+            VIDEOS_GET_RATING_DESCRIPTION,
+            *VIDEOS_GET_RATING_USAGE_NOTES,
+            *VIDEOS_GET_RATING_CAVEATS,
+            *(example["description"] for example in VIDEOS_GET_RATING_CALLER_EXAMPLES),
+        ]
+    )
+    example_names = {example["name"] for example in VIDEOS_GET_RATING_CALLER_EXAMPLES}
+
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert "Quota cost: 1" in combined
+    assert "videos.getRating" in combined
+    assert "OAuth" in combined
+    assert "id" in combined
+    assert "one to fifty" in combined
+    assert "onBehalfOfContentOwner" in combined
+    assert "like" in combined
+    assert "dislike" in combined
+    assert "none" in combined
+    assert "unspecified" in combined
+    assert "no request body" in combined
+    assert "rating mutation" in combined
+    assert "analytics" in combined
+    assert "apiKey" not in combined
+    assert "oauth_token" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+    assert {
+        "authorized_single_video_lookup",
+        "authorized_multi_video_lookup",
+        "delegated_partner_lookup",
+        "unrated_none_lookup",
+        "unspecified_lookup",
+        "missing_identity_failure",
+        "duplicate_identifier_failure",
+        "over_limit_identifier_failure",
+        "missing_oauth",
+        "quota_or_upstream_lookup_failure",
+        "unavailable_target_failure",
+        "out_of_scope_video_workflow",
+    }.issubset(example_names)
+
+
+def test_videos_get_rating_declares_expected_failure_categories():
+    """Keep caller-visible ``videos_getRating`` failure categories stable."""
+    contract = build_videos_get_rating_contract()
+
+    assert set(contract.error_categories) == {
+        "invalid_request",
+        "authentication_failed",
+        "authorization_failed",
+        "quota_exhausted",
+        "resource_not_found",
+        "endpoint_unavailable",
+        "deprecated_endpoint",
+        "upstream_failure",
+    }
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({}, "id"),
+        ({"id": ""}, "id"),
+        ({"id": "abc123,,def456"}, "id"),
+        ({"id": "abc123,abc123"}, "id"),
+        ({"id": ",".join(f"video-{index}" for index in range(51))}, "id"),
+        ({"id": "abc123", "body": {}}, "body"),
+        ({"id": "abc123", "videoId": "abc123"}, "videoId"),
+        ({"id": "abc123", "onBehalfOfContentOwner": ""}, "onBehalfOfContentOwner"),
+    ],
+)
+def test_videos_get_rating_validation_failures_are_safe(arguments, field):
+    """Reject malformed rating lookup requests with safe field details."""
+    with pytest.raises(VideosGetRatingToolError) as exc_info:
+        validate_videos_get_rating_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+    assert "secret" not in str(exc_info.value.details)
+
+
+def test_videos_get_rating_maps_quota_failures_without_secret_details():
+    """Map rating lookup quota failures without leaking credentials or raw upstream details."""
+
+    class GetRatingQuotaFailingWrapper:
+        """Layer 1 wrapper double that raises a quota failure."""
+
+        def call(self, _executor, *, arguments, auth_context):
+            """Raise a quota failure with unsafe diagnostic details.
+
+            :param _executor: Ignored fake executor.
+            :param arguments: Normalized arguments supplied by the handler.
+            :param auth_context: Auth context supplied by the handler.
+            :raises NormalizedUpstreamError: Always raised for quota mapping.
+            """
+            raise NormalizedUpstreamError(
+                message="quota exceeded",
+                category="rate_limit",
+                retryable=False,
+                upstream_status=403,
+                details={
+                    "oauth_token": "secret",
+                    "authorization": "Bearer secret",
+                    "upstream_body": {"secret": "hidden"},
+                    "field": "quota",
+                },
+            )
+
+    handler = build_videos_get_rating_handler(wrapper=GetRatingQuotaFailingWrapper(), oauth_token="visible-oauth")
+
+    with pytest.raises(VideosGetRatingToolError) as exc_info:
+        handler({"id": "abc123"})
 
     assert exc_info.value.category == "quota_exhausted"
     assert exc_info.value.details == {"field": "quota"}

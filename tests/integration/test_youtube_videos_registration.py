@@ -498,3 +498,110 @@ def test_videos_rate_descriptor_propagates_sanitized_access_failures():
     assert exc_info.value.category == "authorization_failed"
     assert exc_info.value.details == {"reason": "forbidden"}
     assert "secret" not in str(exc_info.value.details)
+
+
+def test_videos_get_rating_descriptor_registers_as_executable_lookup_tool():
+    """Register and execute the ``videos_getRating`` descriptor through the dispatcher."""
+    from mcp_server.tools.youtube_common.videos import build_videos_get_rating_tool_descriptor
+
+    wrapper = RecordingWrapper(
+        payload={"items": [{"videoId": "abc123", "rating": "like"}, {"videoId": "def456", "rating": "none"}]}
+    )
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_rating_tool_descriptor(wrapper=wrapper)])
+
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+    result = dispatcher.call_tool("videos_getRating", {"id": "abc123,def456"})
+
+    assert listed["videos_getRating"]["metadata"]["upstream"]["operationKey"] == "videos.getRating"
+    assert listed["videos_getRating"]["metadata"]["quotaCost"] == 1
+    assert listed["videos_getRating"]["metadata"]["authMode"] == "oauth_required"
+    assert listed["videos_getRating"]["metadata"]["availabilityState"] == "active"
+    assert result["endpoint"] == "videos.getRating"
+    assert result["quotaCost"] == 1
+    assert result["lookup"]["requestedIds"] == ["abc123", "def456"]
+    assert result["items"][0]["rating"] == "like"
+    assert result["items"][1]["isUnrated"] is True
+    assert result["auth"] == {"mode": "oauth_required", "path": "restricted"}
+    assert wrapper.calls[0]["arguments"] == {"id": "abc123,def456"}
+
+
+def test_videos_get_rating_descriptor_exposes_caller_metadata_and_examples():
+    """Expose usage notes and examples needed before video rating lookup calls."""
+    from mcp_server.tools.youtube_common.videos import build_videos_get_rating_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_rating_tool_descriptor()])
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+    metadata = listed["videos_getRating"]["metadata"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([listed["videos_getRating"]["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert "Quota cost: 1" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "one to fifty" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "none" in metadata_text
+    assert "unspecified" in metadata_text
+    assert "no request body" in metadata_text
+    assert {"authorized_single_video_lookup", "authorized_multi_video_lookup", "missing_oauth"}.issubset(example_names)
+
+
+def test_videos_get_rating_descriptor_schema_rejects_missing_required_inputs():
+    """Reject missing required rating lookup fields before handler execution."""
+    from mcp_server.tools.youtube_common.videos import build_videos_get_rating_tool_descriptor
+
+    wrapper = RecordingWrapper()
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_rating_tool_descriptor(wrapper=wrapper)])
+
+    with pytest.raises(ValueError, match="arguments missing required field: id"):
+        dispatcher.call_tool("videos_getRating", {})
+
+    assert wrapper.calls == []
+
+
+def test_videos_get_rating_descriptor_rejects_missing_oauth_safely():
+    """Reject valid lookup requests with missing OAuth before Layer 1 execution."""
+    from mcp_server.tools.youtube_common.videos import VideosGetRatingToolError, build_videos_get_rating_tool_descriptor
+
+    wrapper = RecordingWrapper()
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_rating_tool_descriptor(wrapper=wrapper, oauth_token=None)])
+
+    with pytest.raises(VideosGetRatingToolError) as exc_info:
+        dispatcher.call_tool("videos_getRating", {"id": "abc123"})
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+    assert wrapper.calls == []
+
+
+def test_videos_get_rating_descriptor_rejects_duplicate_over_limit_body_and_delegation():
+    """Reject malformed identifier, body, and delegation fields through the descriptor."""
+    from mcp_server.tools.youtube_common.videos import VideosGetRatingToolError, build_videos_get_rating_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_rating_tool_descriptor()])
+
+    with pytest.raises(VideosGetRatingToolError) as duplicate_exc:
+        dispatcher.call_tool("videos_getRating", {"id": "abc123,abc123"})
+    with pytest.raises(VideosGetRatingToolError) as limit_exc:
+        dispatcher.call_tool("videos_getRating", {"id": ",".join(f"video-{index}" for index in range(51))})
+    with pytest.raises(ValueError, match="arguments contain unsupported field: body"):
+        dispatcher.call_tool("videos_getRating", {"id": "abc123", "body": {}})
+    with pytest.raises(ValueError, match="onBehalfOfContentOwner must be at least 1 characters"):
+        dispatcher.call_tool("videos_getRating", {"id": "abc123", "onBehalfOfContentOwner": ""})
+
+    assert duplicate_exc.value.category == "invalid_request"
+    assert duplicate_exc.value.details["field"] == "id"
+    assert limit_exc.value.details["field"] == "id"
+
+
+def test_videos_get_rating_descriptor_propagates_sanitized_access_failures():
+    """Expose sanitized rating lookup access failures from the registered handler."""
+    from mcp_server.tools.youtube_common.videos import VideosGetRatingToolError, build_videos_get_rating_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_rating_tool_descriptor(wrapper=AccessFailingWrapper())])
+
+    with pytest.raises(VideosGetRatingToolError) as exc_info:
+        dispatcher.call_tool("videos_getRating", {"id": "abc123"})
+
+    assert exc_info.value.category == "authorization_failed"
+    assert exc_info.value.details == {"reason": "forbidden"}
+    assert "secret" not in str(exc_info.value.details)
