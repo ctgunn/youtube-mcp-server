@@ -443,6 +443,40 @@ def test_default_registry_includes_executable_videos_rate_tool():
     assert result["status"] == {"code": 204, "body": "none"}
 
 
+def test_default_registry_includes_executable_videos_get_rating_tool():
+    """Register ``videos_getRating`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "videos_getRating" in listed
+    metadata = listed["videos_getRating"]["metadata"]
+    description = listed["videos_getRating"]["description"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "videos.getRating"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert metadata["responseConvention"]["resultKind"] == "rating_lookup"
+    assert metadata["responseConvention"]["requestBody"] == "none"
+    assert "Quota cost: 1" in description
+    assert "OAuth" in metadata_text
+    assert "one to fifty" in metadata_text
+    assert "no request body" in metadata_text
+    assert {"authorized_single_video_lookup", "authorized_multi_video_lookup", "missing_oauth"}.issubset(example_names)
+
+    result = dispatcher.call_tool("videos_getRating", {"id": "abc123,def456"})
+
+    assert result["endpoint"] == "videos.getRating"
+    assert result["quotaCost"] == 1
+    assert result["auth"] == {"mode": "oauth_required", "path": "restricted"}
+    assert result["lookup"]["requestedIds"] == ["abc123", "def456"]
+    assert result["items"]
+
+
 def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
     """Register ``comments_insert`` by default with create metadata."""
     dispatcher = InMemoryToolDispatcher()

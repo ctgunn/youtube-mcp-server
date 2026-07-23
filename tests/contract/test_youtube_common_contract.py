@@ -331,6 +331,45 @@ def test_videos_rate_contract_uses_existing_resource_family():
     assert "OAuth" in metadata_text
 
 
+def test_videos_get_rating_contract_uses_existing_resource_family():
+    """Expose the concrete ``videos_getRating`` contract in the videos family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import videos
+    from mcp_server.tools.youtube_common.videos import build_videos_get_rating_contract
+
+    videos_family = get_resource_family("videos")
+    contract = build_videos_get_rating_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert videos_family.definition_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert videos_family.layer1_dependency == "mcp_server.integrations.resources.videos"
+    assert videos.VIDEOS_GET_RATING_TOOL_NAME == "videos_getRating"
+    assert videos.VIDEOS_GET_RATING_QUOTA_COST == 1
+    assert youtube_common.VIDEOS_GET_RATING_TOOL_NAME == "videos_getRating"
+    assert youtube_common.VIDEOS_GET_RATING_QUOTA_COST == 1
+    assert youtube_common.VIDEOS_GET_RATING_INPUT_SCHEMA["required"] == ["id"]
+    assert youtube_common.VideosGetRatingToolError is videos.VideosGetRatingToolError
+    assert callable(youtube_common.build_videos_get_rating_contract)
+    assert callable(youtube_common.build_videos_get_rating_handler)
+    assert callable(youtube_common.build_videos_get_rating_tool_descriptor)
+    assert callable(youtube_common.map_videos_get_rating_result)
+    assert callable(youtube_common.validate_videos_get_rating_arguments)
+    assert metadata["name"] == "videos_getRating"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["upstream"]["operationKey"] == "videos.getRating"
+    assert metadata["quotaCost"] == 1
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert metadata["responseConvention"]["resultKind"] == "rating_lookup"
+    assert metadata["responseConvention"]["ratingValues"] == ["like", "dislike", "none", "unspecified"]
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert "id" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "none" in metadata_text
+
+
 def test_thumbnails_set_contract_uses_existing_resource_family():
     """Expose the concrete ``thumbnails_set`` contract in the thumbnails family."""
     from mcp_server.tools import youtube_common
