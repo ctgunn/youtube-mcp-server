@@ -34,6 +34,7 @@ def test_derive_tool_name_covers_representative_youtube_inventory_names():
         ("guideCategories", "list"): "guideCategories_list",
         ("i18nLanguages", "list"): "i18nLanguages_list",
         ("watermarks", "unset"): "watermarks_unset",
+        ("watermarks", "set"): "watermarks_set",
     }
 
     assert {pair: derive_tool_name(*pair) for pair in examples} == examples
@@ -240,6 +241,27 @@ def test_videos_delete_scaffolding_exports_concrete_layer2_symbols():
     assert callable(videos.map_videos_delete_result)
     assert callable(videos.validate_videos_delete_arguments)
     assert youtube_common.VideosDeleteToolError is videos.VideosDeleteToolError
+
+
+def test_watermarks_set_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``watermarks_set`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import watermarks
+
+    watermarks_family = youtube_common.get_resource_family("watermarks")
+
+    assert watermarks_family.definition_location.endswith("src/mcp_server/tools/youtube_common/watermarks.py")
+    assert watermarks.WATERMARKS_SET_TOOL_NAME == "watermarks_set"
+    assert watermarks.WATERMARKS_SET_QUOTA_COST == 50
+    assert youtube_common.WATERMARKS_SET_TOOL_NAME == "watermarks_set"
+    assert youtube_common.WATERMARKS_SET_QUOTA_COST == 50
+    assert youtube_common.WATERMARKS_SET_INPUT_SCHEMA["required"] == ["channelId", "body", "media"]
+    assert callable(watermarks.build_watermarks_set_contract)
+    assert callable(watermarks.build_watermarks_set_handler)
+    assert callable(watermarks.build_watermarks_set_tool_descriptor)
+    assert callable(watermarks.map_watermarks_set_result)
+    assert callable(watermarks.validate_watermarks_set_arguments)
+    assert youtube_common.WatermarksSetToolError is watermarks.WatermarksSetToolError
 
 
 def test_playlists_resource_family_points_to_concrete_layer2_module():
