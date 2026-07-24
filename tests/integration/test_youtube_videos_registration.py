@@ -605,3 +605,128 @@ def test_videos_get_rating_descriptor_propagates_sanitized_access_failures():
     assert exc_info.value.category == "authorization_failed"
     assert exc_info.value.details == {"reason": "forbidden"}
     assert "secret" not in str(exc_info.value.details)
+
+
+def test_videos_report_abuse_descriptor_registers_as_executable_mutation_tool():
+    """Register and execute the ``videos_reportAbuse`` descriptor through the dispatcher."""
+    from mcp_server.tools.youtube_common.videos import build_videos_report_abuse_tool_descriptor
+
+    wrapper = RecordingWrapper(payload={})
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_report_abuse_tool_descriptor(wrapper=wrapper)])
+
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+    result = dispatcher.call_tool("videos_reportAbuse", {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}})
+
+    assert listed["videos_reportAbuse"]["metadata"]["upstream"]["operationKey"] == "videos.reportAbuse"
+    assert listed["videos_reportAbuse"]["metadata"]["quotaCost"] == 50
+    assert listed["videos_reportAbuse"]["metadata"]["authMode"] == "oauth_required"
+    assert listed["videos_reportAbuse"]["metadata"]["availabilityState"] == "active"
+    assert result["endpoint"] == "videos.reportAbuse"
+    assert result["quotaCost"] == 50
+    assert result["report"]["videoId"] == "abc123"
+    assert result["report"]["reasonId"] == "VIOLENCE"
+    assert result["auth"] == {"mode": "oauth_required", "path": "restricted"}
+    assert result["acknowledgment"] == {"accepted": True, "status": "submitted"}
+    assert result["status"] == {"code": 204, "body": "none"}
+    assert wrapper.calls[0]["arguments"] == {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}}
+
+
+def test_videos_report_abuse_descriptor_exposes_caller_metadata_and_examples():
+    """Expose usage notes and examples needed before video abuse-report calls."""
+    from mcp_server.tools.youtube_common.videos import build_videos_report_abuse_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_report_abuse_tool_descriptor()])
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+    metadata = listed["videos_reportAbuse"]["metadata"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([listed["videos_reportAbuse"]["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "body.videoId" in metadata_text
+    assert "body.reasonId" in metadata_text
+    assert "secondaryReasonId" in metadata_text
+    assert "comments" in metadata_text
+    assert "language" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert {"authorized_abuse_report", "authorized_abuse_report_with_optional_details", "missing_oauth"}.issubset(
+        example_names
+    )
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        ({}, "arguments missing required field: body"),
+        ({"body": {"videoId": "abc123"}}, "body missing required field: reasonId"),
+        ({"body": {"reasonId": "VIOLENCE"}}, "body missing required field: videoId"),
+    ],
+)
+def test_videos_report_abuse_descriptor_schema_rejects_missing_required_inputs(arguments, message):
+    """Reject missing required abuse-report fields before handler execution."""
+    from mcp_server.tools.youtube_common.videos import build_videos_report_abuse_tool_descriptor
+
+    wrapper = RecordingWrapper()
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_report_abuse_tool_descriptor(wrapper=wrapper)])
+
+    with pytest.raises(ValueError, match=message):
+        dispatcher.call_tool("videos_reportAbuse", arguments)
+
+    assert wrapper.calls == []
+
+
+def test_videos_report_abuse_descriptor_rejects_missing_oauth_safely():
+    """Reject valid report requests with missing OAuth before Layer 1 execution."""
+    from mcp_server.tools.youtube_common.videos import VideosReportAbuseToolError, build_videos_report_abuse_tool_descriptor
+
+    wrapper = RecordingWrapper()
+    dispatcher = InMemoryToolDispatcher(
+        tools=[build_videos_report_abuse_tool_descriptor(wrapper=wrapper, oauth_token=None)]
+    )
+
+    with pytest.raises(VideosReportAbuseToolError) as exc_info:
+        dispatcher.call_tool("videos_reportAbuse", {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}})
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+    assert wrapper.calls == []
+
+
+def test_videos_report_abuse_descriptor_rejects_unsupported_body_delegation_and_scope_fields():
+    """Reject unsupported report body, delegation, and workflow fields through the descriptor."""
+    from mcp_server.tools.youtube_common.videos import VideosReportAbuseToolError, build_videos_report_abuse_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_report_abuse_tool_descriptor()])
+
+    with pytest.raises(VideosReportAbuseToolError) as body_exc:
+        dispatcher.call_tool(
+            "videos_reportAbuse",
+            {"body": {"videoId": "abc123", "reasonId": "VIOLENCE", "unexpected": "value"}},
+        )
+    with pytest.raises(ValueError, match="arguments contain unsupported field: onBehalfOfContentOwner"):
+        dispatcher.call_tool(
+            "videos_reportAbuse",
+            {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}, "onBehalfOfContentOwner": "owner"},
+        )
+    with pytest.raises(ValueError, match="arguments contain unsupported field: analytics"):
+        dispatcher.call_tool(
+            "videos_reportAbuse",
+            {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}, "analytics": True},
+        )
+
+    assert body_exc.value.category == "invalid_request"
+    assert body_exc.value.details["field"] == "body.unexpected"
+
+
+def test_videos_report_abuse_descriptor_propagates_sanitized_access_failures():
+    """Expose sanitized report-abuse access failures from the registered handler."""
+    from mcp_server.tools.youtube_common.videos import VideosReportAbuseToolError, build_videos_report_abuse_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_report_abuse_tool_descriptor(wrapper=AccessFailingWrapper())])
+
+    with pytest.raises(VideosReportAbuseToolError) as exc_info:
+        dispatcher.call_tool("videos_reportAbuse", {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}})
+
+    assert exc_info.value.category == "authorization_failed"
+    assert exc_info.value.details == {"reason": "forbidden"}
+    assert "secret" not in str(exc_info.value.details)

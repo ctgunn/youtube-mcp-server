@@ -477,6 +477,45 @@ def test_default_registry_includes_executable_videos_get_rating_tool():
     assert result["items"]
 
 
+def test_default_registry_includes_executable_videos_report_abuse_tool():
+    """Register ``videos_reportAbuse`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "videos_reportAbuse" in listed
+    metadata = listed["videos_reportAbuse"]["metadata"]
+    description = listed["videos_reportAbuse"]["description"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "videos.reportAbuse"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["body"]
+    assert metadata["responseConvention"]["resultKind"] == "mutation_acknowledgment"
+    assert metadata["responseConvention"]["requestBody"] == "required"
+    assert "Quota cost: 50" in description
+    assert "OAuth" in metadata_text
+    assert "body.videoId" in metadata_text
+    assert "body.reasonId" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert {"authorized_abuse_report", "authorized_abuse_report_with_optional_details", "missing_oauth"}.issubset(
+        example_names
+    )
+
+    result = dispatcher.call_tool("videos_reportAbuse", {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}})
+
+    assert result["endpoint"] == "videos.reportAbuse"
+    assert result["quotaCost"] == 50
+    assert result["auth"] == {"mode": "oauth_required", "path": "restricted"}
+    assert result["report"]["videoId"] == "abc123"
+    assert result["report"]["reasonId"] == "VIOLENCE"
+    assert result["acknowledgment"] == {"accepted": True, "status": "submitted"}
+    assert result["status"] == {"code": 204, "body": "none"}
+
+
 def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
     """Register ``comments_insert`` by default with create metadata."""
     dispatcher = InMemoryToolDispatcher()

@@ -64,6 +64,7 @@ from mcp_server.tools.youtube_common.videos import (
     build_videos_insert_contract,
     build_videos_list_contract,
     build_videos_rate_contract,
+    build_videos_report_abuse_contract,
     build_videos_update_contract,
 )
 
@@ -312,6 +313,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_videos_update_contract(),
     build_videos_rate_contract(),
     build_videos_get_rating_contract(),
+    build_videos_report_abuse_contract(),
     _contract(
         resource="watermarks",
         method="unset",
@@ -518,19 +520,6 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_thumbnails_set_contract(),
     build_video_abuse_report_reasons_list_contract(),
     build_video_categories_list_contract(),
-    _contract(
-        resource="videos",
-        method="reportAbuse",
-        description="Report video abuse. Endpoint: videos.reportAbuse. Quota cost: 50. Auth: oauth_required.",
-        auth_mode=AuthMode.OAUTH_REQUIRED,
-        quota_cost=50,
-        resource_family="videos",
-        input_contract={"required": ["videoId", "reasonId"], "properties": {"videoId": {"type": "string"}}},
-        response_convention={"resultKind": "mutation_acknowledgment"},
-        error_categories=("invalid_request", "authorization_failed", "resource_not_found"),
-        availability_state=AvailabilityState.OWNER_ONLY,
-        caveats=("Abuse reporting requires authorized caller context and endpoint-specific validation.",),
-    ),
     build_members_list_contract(),
     build_memberships_levels_list_contract(),
     build_playlist_items_list_contract(),

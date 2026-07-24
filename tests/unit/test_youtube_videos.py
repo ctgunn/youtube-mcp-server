@@ -377,6 +377,17 @@ def _valid_videos_get_rating_arguments(**overrides):
     return arguments
 
 
+def _valid_videos_report_abuse_arguments(**overrides):
+    """Build a valid ``videos_reportAbuse`` request for unit tests.
+
+    :param overrides: Field overrides for the default request.
+    :return: A valid abuse-report request with any overrides applied.
+    """
+    arguments = {"body": {"videoId": " abc123 ", "reasonId": " VIOLENCE "}}
+    arguments.update(overrides)
+    return arguments
+
+
 def test_validate_videos_insert_accepts_authorized_metadata_media_and_options():
     """Normalize valid video creation metadata, media, upload, and delegation fields."""
     from mcp_server.tools.youtube_common.videos import validate_videos_insert_arguments
@@ -949,6 +960,241 @@ def test_videos_get_rating_handler_maps_and_sanitizes_upstream_failures(upstream
     assert exc_info.value.details == {"reason": "safe"}
     assert "Bearer" not in str(exc_info.value.details)
     assert "hidden" not in str(exc_info.value.details)
+
+
+def test_validate_videos_report_abuse_accepts_required_and_optional_body():
+    """Normalize valid video abuse-report requests without changing report semantics."""
+    from mcp_server.tools.youtube_common.videos import validate_videos_report_abuse_arguments
+
+    assert validate_videos_report_abuse_arguments(_valid_videos_report_abuse_arguments()) == {
+        "body": {"videoId": "abc123", "reasonId": "VIOLENCE"},
+    }
+    assert validate_videos_report_abuse_arguments(
+        _valid_videos_report_abuse_arguments(
+            body={
+                "videoId": " abc123 ",
+                "reasonId": " VIOLENCE ",
+                "secondaryReasonId": " graphic ",
+                "comments": " test-safe details ",
+                "language": " en ",
+            }
+        )
+    ) == {
+        "body": {
+            "videoId": "abc123",
+            "reasonId": "VIOLENCE",
+            "secondaryReasonId": "graphic",
+            "comments": "test-safe details",
+            "language": "en",
+        }
+    }
+
+
+def test_map_videos_report_abuse_result_returns_no_content_acknowledgment():
+    """Map successful no-content report responses without fabricating policy outcomes."""
+    from mcp_server.tools.youtube_common.videos import map_videos_report_abuse_result
+
+    result = map_videos_report_abuse_result(
+        {},
+        _valid_videos_report_abuse_arguments(
+            body={
+                "videoId": "abc123",
+                "reasonId": "VIOLENCE",
+                "secondaryReasonId": "graphic",
+                "comments": "test-safe details",
+                "language": "en",
+            }
+        ),
+    )
+
+    assert result == {
+        "endpoint": "videos.reportAbuse",
+        "quotaCost": 50,
+        "report": {
+            "videoId": "abc123",
+            "reasonId": "VIOLENCE",
+            "hasSecondaryReason": True,
+            "hasComments": True,
+            "language": "en",
+        },
+        "auth": {"mode": "oauth_required", "path": "restricted"},
+        "availability": {"state": "active"},
+        "acknowledgment": {"accepted": True, "status": "submitted"},
+        "status": {"code": 204, "body": "none"},
+    }
+    assert "classification" not in result
+    assert "moderation" not in result
+    assert "test-safe details" not in str(result)
+
+
+def test_videos_report_abuse_handler_calls_layer1_once_with_oauth():
+    """Execute the Layer 1 report-abuse wrapper once with OAuth-required credentials."""
+    from mcp_server.tools.youtube_common.videos import build_videos_report_abuse_handler
+
+    wrapper = RecordingWrapper(payload={})
+    handler = build_videos_report_abuse_handler(wrapper=wrapper, oauth_token="local-oauth")
+
+    result = handler(_valid_videos_report_abuse_arguments())
+
+    assert result["endpoint"] == "videos.reportAbuse"
+    assert result["quotaCost"] == 50
+    assert result["report"]["videoId"] == "abc123"
+    assert result["report"]["reasonId"] == "VIOLENCE"
+    assert result["acknowledgment"] == {"accepted": True, "status": "submitted"}
+    assert len(wrapper.calls) == 1
+    assert wrapper.calls[0]["arguments"] == {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}}
+    assert wrapper.calls[0]["auth_context"].mode is Layer1AuthMode.OAUTH_REQUIRED
+    assert wrapper.calls[0]["auth_context"].credentials.oauth_token == "local-oauth"
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({}, "body"),
+        ({"body": ""}, "body"),
+        ({"body": []}, "body"),
+        ({"body": {}}, "body.videoId"),
+        ({"body": {"videoId": "", "reasonId": "VIOLENCE"}}, "body.videoId"),
+        ({"body": {"videoId": "   ", "reasonId": "VIOLENCE"}}, "body.videoId"),
+        ({"body": {"videoId": 123, "reasonId": "VIOLENCE"}}, "body.videoId"),
+        ({"body": {"videoId": "abc123"}}, "body.reasonId"),
+        ({"body": {"videoId": "abc123", "reasonId": ""}}, "body.reasonId"),
+        ({"body": {"videoId": "abc123", "reasonId": 123}}, "body.reasonId"),
+        ({"body": {"videoId": "abc123", "reasonId": "VIOLENCE", "secondaryReasonId": ""}}, "body.secondaryReasonId"),
+        ({"body": {"videoId": "abc123", "reasonId": "VIOLENCE", "comments": 123}}, "body.comments"),
+        ({"body": {"videoId": "abc123", "reasonId": "VIOLENCE", "language": ""}}, "body.language"),
+        ({"body": {"videoId": "abc123", "reasonId": "VIOLENCE", "unexpected": "value"}}, "body.unexpected"),
+        ({"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}, "onBehalfOfContentOwner": "owner"}, "onBehalfOfContentOwner"),
+        ({"videoId": "abc123", "reasonId": "VIOLENCE"}, "videoId"),
+    ],
+)
+def test_videos_report_abuse_validation_rejects_missing_invalid_and_unsupported_inputs(arguments, field):
+    """Reject malformed report requests and unsupported aliases or modifiers."""
+    from mcp_server.tools.youtube_common.videos import (
+        VideosReportAbuseToolError,
+        validate_videos_report_abuse_arguments,
+    )
+
+    with pytest.raises(VideosReportAbuseToolError) as exc_info:
+        validate_videos_report_abuse_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "part",
+        "id",
+        "rating",
+        "getRating",
+        "delete",
+        "reasonLookup",
+        "classify",
+        "evidence",
+        "moderation",
+        "metadata",
+        "thumbnail",
+        "caption",
+        "comment",
+        "includeTranscript",
+        "analytics",
+        "recommend",
+        "rankResults",
+        "summarize",
+        "enrich",
+    ],
+)
+def test_videos_report_abuse_validation_rejects_out_of_scope_workflow_fields(field):
+    """Reject lookup, classification, moderation, analytics, ranking, and enrichment fields."""
+    from mcp_server.tools.youtube_common.videos import (
+        VideosReportAbuseToolError,
+        validate_videos_report_abuse_arguments,
+    )
+
+    with pytest.raises(VideosReportAbuseToolError) as exc_info:
+        validate_videos_report_abuse_arguments(
+            {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}, field: "value"}
+        )
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+
+
+def test_videos_report_abuse_handler_rejects_missing_oauth_before_layer1_execution():
+    """Surface missing OAuth without invoking the Layer 1 report-abuse wrapper."""
+    from mcp_server.tools.youtube_common.videos import VideosReportAbuseToolError, build_videos_report_abuse_handler
+
+    wrapper = RecordingWrapper()
+    handler = build_videos_report_abuse_handler(wrapper=wrapper, oauth_token=None)
+
+    with pytest.raises(VideosReportAbuseToolError) as exc_info:
+        handler(_valid_videos_report_abuse_arguments())
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+    assert wrapper.calls == []
+
+
+@pytest.mark.parametrize(
+    ("upstream_category", "expected_category"),
+    [
+        ("invalid_request", "invalid_request"),
+        ("invalid_reason", "invalid_request"),
+        ("authentication", "authentication_failed"),
+        ("auth", "authorization_failed"),
+        ("authorization", "authorization_failed"),
+        ("permission", "authorization_failed"),
+        ("forbidden", "authorization_failed"),
+        ("policy", "authorization_failed"),
+        ("policy_restricted", "authorization_failed"),
+        ("refused", "authorization_failed"),
+        ("duplicate_report", "authorization_failed"),
+        ("rate_limit", "quota_exhausted"),
+        ("quota", "quota_exhausted"),
+        ("not_found", "resource_not_found"),
+        ("resource_not_found", "resource_not_found"),
+        ("removed", "resource_not_found"),
+        ("unavailable", "endpoint_unavailable"),
+        ("availability", "endpoint_unavailable"),
+        ("deprecated", "deprecated_endpoint"),
+        ("transient", "upstream_failure"),
+    ],
+)
+def test_videos_report_abuse_handler_maps_and_sanitizes_upstream_failures(
+    upstream_category,
+    expected_category,
+):
+    """Convert Layer 1 report failures into safe caller-facing categories."""
+    from mcp_server.tools.youtube_common.videos import VideosReportAbuseToolError, build_videos_report_abuse_handler
+
+    wrapper = FailingWrapper(
+        NormalizedUpstreamError(
+            message="upstream failed",
+            category=upstream_category,
+            retryable=False,
+            upstream_status=503,
+            details={
+                "authorization": "Bearer secret",
+                "oauth_token": "hidden",
+                "upstream_body": {"secret": "hidden"},
+                "stacktrace": "hidden",
+                "comments": "sensitive report text",
+                "reason": "safe",
+            },
+        )
+    )
+    handler = build_videos_report_abuse_handler(wrapper=wrapper, oauth_token="local-oauth")
+
+    with pytest.raises(VideosReportAbuseToolError) as exc_info:
+        handler(_valid_videos_report_abuse_arguments())
+
+    assert exc_info.value.category == expected_category
+    assert exc_info.value.details == {"reason": "safe"}
+    assert "Bearer" not in str(exc_info.value.details)
+    assert "hidden" not in str(exc_info.value.details)
+    assert "sensitive" not in str(exc_info.value.details)
 
 
 def test_validate_videos_update_accepts_authorized_snippet_title_and_delegation():
