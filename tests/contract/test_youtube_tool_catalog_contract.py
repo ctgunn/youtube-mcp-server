@@ -1840,6 +1840,11 @@ def test_representative_examples_cover_required_us2_shapes():
     assert by_name["videos_getRating"].resource_family == "videos"
     assert by_name["videos_getRating"].response_convention["resultKind"] == "rating_lookup"
     assert by_name["videos_getRating"].response_boundary["boundaryKind"] == "near_raw"
+    assert by_name["videos_reportAbuse"].quota_cost == 50
+    assert by_name["videos_reportAbuse"].auth_mode.value == "oauth_required"
+    assert by_name["videos_reportAbuse"].resource_family == "videos"
+    assert by_name["videos_reportAbuse"].response_convention["resultKind"] == "mutation_acknowledgment"
+    assert by_name["videos_reportAbuse"].response_boundary["boundaryKind"] == "near_raw"
 
 
 def test_representative_videos_update_descriptor_examples_cover_boundaries():
@@ -1939,3 +1944,48 @@ def test_representative_videos_get_rating_descriptor_examples_cover_boundaries()
     assert "one to fifty" in metadata_text
     assert "no request body" in metadata_text
     assert {"authorized_single_video_lookup", "authorized_multi_video_lookup", "missing_oauth"}.issubset(example_names)
+
+
+def test_representative_videos_report_abuse_descriptor_examples_cover_boundaries():
+    """Expose concrete videos reportAbuse examples and safe metadata in the catalog."""
+    from mcp_server.tools.youtube_common.videos import build_videos_report_abuse_tool_descriptor
+
+    descriptor = build_videos_report_abuse_tool_descriptor()
+    metadata = descriptor["metadata"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([descriptor["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert descriptor["name"] == "videos_reportAbuse"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["upstream"]["operationKey"] == "videos.reportAbuse"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["body"]
+    assert metadata["responseConvention"]["resultKind"] == "mutation_acknowledgment"
+    assert metadata["responseConvention"]["requestBody"] == "required"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "body.videoId" in metadata_text
+    assert "body.reasonId" in metadata_text
+    assert "secondaryReasonId" in metadata_text
+    assert "comments" in metadata_text
+    assert "language" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "classification" in metadata_text
+    assert {
+        "authorized_abuse_report",
+        "authorized_abuse_report_with_optional_details",
+        "missing_body_failure",
+        "missing_target_failure",
+        "missing_reason_failure",
+        "unsupported_optional_field_failure",
+        "rejected_partner_delegation",
+        "missing_oauth",
+        "quota_or_upstream_report_failure",
+        "unavailable_target_failure",
+        "upstream_refusal_failure",
+        "out_of_scope_video_workflow",
+    }.issubset(example_names)

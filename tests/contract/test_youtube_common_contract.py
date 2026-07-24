@@ -370,6 +370,45 @@ def test_videos_get_rating_contract_uses_existing_resource_family():
     assert "none" in metadata_text
 
 
+def test_videos_report_abuse_contract_uses_existing_resource_family():
+    """Expose the concrete ``videos_reportAbuse`` contract in the videos family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import videos
+    from mcp_server.tools.youtube_common.videos import build_videos_report_abuse_contract
+
+    videos_family = get_resource_family("videos")
+    contract = build_videos_report_abuse_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert videos_family.definition_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert videos_family.layer1_dependency == "mcp_server.integrations.resources.videos"
+    assert videos.VIDEOS_REPORT_ABUSE_TOOL_NAME == "videos_reportAbuse"
+    assert videos.VIDEOS_REPORT_ABUSE_QUOTA_COST == 50
+    assert youtube_common.VIDEOS_REPORT_ABUSE_TOOL_NAME == "videos_reportAbuse"
+    assert youtube_common.VIDEOS_REPORT_ABUSE_QUOTA_COST == 50
+    assert youtube_common.VIDEOS_REPORT_ABUSE_INPUT_SCHEMA["required"] == ["body"]
+    assert youtube_common.VideosReportAbuseToolError is videos.VideosReportAbuseToolError
+    assert callable(youtube_common.build_videos_report_abuse_contract)
+    assert callable(youtube_common.build_videos_report_abuse_handler)
+    assert callable(youtube_common.build_videos_report_abuse_tool_descriptor)
+    assert callable(youtube_common.map_videos_report_abuse_result)
+    assert callable(youtube_common.validate_videos_report_abuse_arguments)
+    assert metadata["name"] == "videos_reportAbuse"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["upstream"]["operationKey"] == "videos.reportAbuse"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["inputContract"]["required"] == ["body"]
+    assert metadata["responseConvention"]["resultKind"] == "mutation_acknowledgment"
+    assert metadata["responseConvention"]["mutation"] == "reported_abuse"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert "body.videoId" in metadata_text
+    assert "body.reasonId" in metadata_text
+    assert "OAuth" in metadata_text
+
+
 def test_thumbnails_set_contract_uses_existing_resource_family():
     """Expose the concrete ``thumbnails_set`` contract in the thumbnails family."""
     from mcp_server.tools import youtube_common

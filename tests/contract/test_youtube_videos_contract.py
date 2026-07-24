@@ -27,9 +27,21 @@ from mcp_server.tools.youtube_common.videos import (
     build_videos_get_rating_contract,
     build_videos_get_rating_handler,
     build_videos_get_rating_tool_descriptor,
+    VIDEOS_REPORT_ABUSE_CALLER_EXAMPLES,
+    VIDEOS_REPORT_ABUSE_CAVEATS,
+    VIDEOS_REPORT_ABUSE_DESCRIPTION,
+    VIDEOS_REPORT_ABUSE_INPUT_SCHEMA,
+    VIDEOS_REPORT_ABUSE_QUOTA_COST,
+    VIDEOS_REPORT_ABUSE_TOOL_NAME,
+    VIDEOS_REPORT_ABUSE_USAGE_NOTES,
+    VideosReportAbuseToolError,
+    build_videos_report_abuse_contract,
+    build_videos_report_abuse_handler,
+    build_videos_report_abuse_tool_descriptor,
     build_videos_rate_contract,
     build_videos_rate_handler,
     build_videos_rate_tool_descriptor,
+    validate_videos_report_abuse_arguments,
     validate_videos_get_rating_arguments,
     validate_videos_rate_arguments,
     VIDEOS_UPDATE_CALLER_EXAMPLES,
@@ -880,3 +892,172 @@ def test_videos_get_rating_maps_quota_failures_without_secret_details():
     assert exc_info.value.details == {"field": "quota"}
     assert "secret" not in str(exc_info.value)
     assert "Bearer" not in str(exc_info.value.details)
+
+
+def test_videos_report_abuse_input_contract_and_descriptor_shape():
+    """Publish the executable ``videos_reportAbuse`` abuse-report contract."""
+    schema = VIDEOS_REPORT_ABUSE_INPUT_SCHEMA
+    body_schema = schema["properties"]["body"]
+    contract = build_videos_report_abuse_contract()
+    descriptor = build_videos_report_abuse_tool_descriptor()
+    metadata = contract.to_tool_metadata()
+
+    assert VIDEOS_REPORT_ABUSE_TOOL_NAME == "videos_reportAbuse"
+    assert VIDEOS_REPORT_ABUSE_QUOTA_COST == 50
+    assert schema["required"] == ["body"]
+    assert body_schema["required"] == ["videoId", "reasonId"]
+    assert body_schema["properties"]["videoId"]["type"] == "string"
+    assert body_schema["properties"]["reasonId"]["type"] == "string"
+    assert body_schema["properties"]["secondaryReasonId"]["type"] == "string"
+    assert body_schema["properties"]["comments"]["type"] == "string"
+    assert body_schema["properties"]["language"]["type"] == "string"
+    assert body_schema["additionalProperties"] is False
+    assert schema["additionalProperties"] is False
+    assert metadata["upstream"]["operationKey"] == "videos.reportAbuse"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["responseConvention"]["resultKind"] == "mutation_acknowledgment"
+    assert metadata["responseConvention"]["requiredFields"] == ["body.videoId", "body.reasonId"]
+    assert metadata["responseConvention"]["optionalFields"] == [
+        "body.secondaryReasonId",
+        "body.comments",
+        "body.language",
+    ]
+    assert metadata["responseConvention"]["requestBody"] == "required"
+    assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
+    assert descriptor["name"] == "videos_reportAbuse"
+    assert descriptor["inputSchema"] == VIDEOS_REPORT_ABUSE_INPUT_SCHEMA
+    assert callable(descriptor["handler"])
+
+
+def test_videos_report_abuse_metadata_text_constants_are_public_safe_and_complete():
+    """Expose quota, OAuth, body-field, acknowledgment, and scope guidance."""
+    contract = build_videos_report_abuse_contract()
+    metadata = contract.to_tool_metadata()
+    combined = " ".join(
+        [
+            VIDEOS_REPORT_ABUSE_DESCRIPTION,
+            *VIDEOS_REPORT_ABUSE_USAGE_NOTES,
+            *VIDEOS_REPORT_ABUSE_CAVEATS,
+            *(example["description"] for example in VIDEOS_REPORT_ABUSE_CALLER_EXAMPLES),
+        ]
+    )
+    example_names = {example["name"] for example in VIDEOS_REPORT_ABUSE_CALLER_EXAMPLES}
+
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert contract.availability_state is AvailabilityState.ACTIVE
+    assert "Quota cost: 50" in combined
+    assert "videos.reportAbuse" in combined
+    assert "OAuth" in combined
+    assert "body.videoId" in combined
+    assert "body.reasonId" in combined
+    assert "secondaryReasonId" in combined
+    assert "comments" in combined
+    assert "language" in combined
+    assert "onBehalfOfContentOwner" in combined
+    assert "classification" in combined
+    assert "moderation" in combined
+    assert "apiKey" not in combined
+    assert "oauth_token" not in str(metadata)
+    assert "stack" not in str(metadata).lower()
+    assert {
+        "authorized_abuse_report",
+        "authorized_abuse_report_with_optional_details",
+        "missing_body_failure",
+        "missing_target_failure",
+        "missing_reason_failure",
+        "unsupported_optional_field_failure",
+        "rejected_partner_delegation",
+        "missing_oauth",
+        "quota_or_upstream_report_failure",
+        "unavailable_target_failure",
+        "upstream_refusal_failure",
+        "out_of_scope_video_workflow",
+    }.issubset(example_names)
+
+
+def test_videos_report_abuse_declares_expected_failure_categories():
+    """Keep caller-visible ``videos_reportAbuse`` failure categories stable."""
+    contract = build_videos_report_abuse_contract()
+
+    assert set(contract.error_categories) == {
+        "invalid_request",
+        "authentication_failed",
+        "authorization_failed",
+        "quota_exhausted",
+        "resource_not_found",
+        "endpoint_unavailable",
+        "deprecated_endpoint",
+        "upstream_failure",
+    }
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ({}, "body"),
+        ({"body": ""}, "body"),
+        ({"body": {}}, "body.videoId"),
+        ({"body": {"videoId": "", "reasonId": "VIOLENCE"}}, "body.videoId"),
+        ({"body": {"videoId": 123, "reasonId": "VIOLENCE"}}, "body.videoId"),
+        ({"body": {"videoId": "abc123"}}, "body.reasonId"),
+        ({"body": {"videoId": "abc123", "reasonId": ""}}, "body.reasonId"),
+        ({"body": {"videoId": "abc123", "reasonId": 123}}, "body.reasonId"),
+        ({"body": {"videoId": "abc123", "reasonId": "VIOLENCE", "comments": ""}}, "body.comments"),
+        ({"body": {"videoId": "abc123", "reasonId": "VIOLENCE", "unexpected": "value"}}, "body.unexpected"),
+        ({"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}, "onBehalfOfContentOwner": "owner"}, "onBehalfOfContentOwner"),
+        ({"videoId": "abc123", "reasonId": "VIOLENCE"}, "videoId"),
+    ],
+)
+def test_videos_report_abuse_validation_failures_are_safe(arguments, field):
+    """Reject malformed abuse-report requests with safe field details."""
+    with pytest.raises(VideosReportAbuseToolError) as exc_info:
+        validate_videos_report_abuse_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+    assert "secret" not in str(exc_info.value.details)
+
+
+def test_videos_report_abuse_maps_quota_failures_without_secret_details():
+    """Map report-abuse quota failures without leaking credentials or raw upstream details."""
+
+    class ReportAbuseQuotaFailingWrapper:
+        """Layer 1 wrapper double that raises a quota failure."""
+
+        def call(self, _executor, *, arguments, auth_context):
+            """Raise a quota failure with unsafe diagnostic details.
+
+            :param _executor: Ignored fake executor.
+            :param arguments: Normalized arguments supplied by the handler.
+            :param auth_context: Auth context supplied by the handler.
+            :raises NormalizedUpstreamError: Always raised for quota mapping.
+            """
+            raise NormalizedUpstreamError(
+                message="quota exceeded",
+                category="rate_limit",
+                retryable=False,
+                upstream_status=403,
+                details={
+                    "oauth_token": "secret",
+                    "authorization": "Bearer secret",
+                    "upstream_body": {"secret": "hidden"},
+                    "comments": "sensitive report details",
+                    "field": "quota",
+                },
+            )
+
+    handler = build_videos_report_abuse_handler(
+        wrapper=ReportAbuseQuotaFailingWrapper(),
+        oauth_token="visible-oauth",
+    )
+
+    with pytest.raises(VideosReportAbuseToolError) as exc_info:
+        handler({"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}})
+
+    assert exc_info.value.category == "quota_exhausted"
+    assert exc_info.value.details == {"field": "quota"}
+    assert "secret" not in str(exc_info.value)
+    assert "Bearer" not in str(exc_info.value.details)
+    assert "sensitive" not in str(exc_info.value.details)

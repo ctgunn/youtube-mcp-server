@@ -55,6 +55,7 @@ from mcp_server.tools.youtube_common import (
     build_videos_insert_tool_descriptor,
     build_videos_list_tool_descriptor,
     build_videos_rate_tool_descriptor,
+    build_videos_report_abuse_tool_descriptor,
     build_videos_update_tool_descriptor,
 )
 
@@ -131,6 +132,8 @@ class InMemoryToolDispatcher:
                     or {"type": "object", "properties": {}, "additionalProperties": True},
                     handler=entry.get("handler"),
                     metadata=entry.get("metadata"),
+                    validation_input_schema=entry.get("validationInputSchema")
+                    or entry.get("validation_input_schema"),
                 )
         else:
             for tool in initial_tools:
@@ -140,9 +143,19 @@ class InMemoryToolDispatcher:
                     input_schema=tool.get("inputSchema") or tool.get("input_schema"),
                     handler=tool.get("handler"),
                     metadata=tool.get("metadata"),
+                    validation_input_schema=tool.get("validationInputSchema")
+                    or tool.get("validation_input_schema"),
                 )
 
-    def register_tool(self, name: str, description: str, input_schema: dict, handler: Callable, metadata=None):
+    def register_tool(
+        self,
+        name: str,
+        description: str,
+        input_schema: dict,
+        handler: Callable,
+        metadata=None,
+        validation_input_schema: dict | None = None,
+    ):
         """Register a tool definition and callable handler.
 
         :param name: Public tool name.
@@ -150,6 +163,7 @@ class InMemoryToolDispatcher:
         :param input_schema: JSON-compatible input schema.
         :param handler: Callable tool handler.
         :param metadata: Optional safe public metadata for discovery.
+        :param validation_input_schema: Optional private schema used for dispatcher validation.
         """
         if not isinstance(description, str) or not description.strip():
             raise ToolRegistrationError("tool description is required")
@@ -169,6 +183,7 @@ class InMemoryToolDispatcher:
             "normalizedName": normalized,
             "description": description.strip(),
             "inputSchema": input_schema,
+            "validationInputSchema": validation_input_schema if isinstance(validation_input_schema, dict) else input_schema,
             "handler": handler,
         }
         if metadata is not None:
@@ -268,6 +283,7 @@ class InMemoryToolDispatcher:
             build_videos_update_tool_descriptor(),
             build_videos_rate_tool_descriptor(),
             build_videos_get_rating_tool_descriptor(),
+            build_videos_report_abuse_tool_descriptor(),
             build_playlist_items_insert_tool_descriptor(),
             build_playlist_items_update_tool_descriptor(),
             build_playlist_items_delete_tool_descriptor(),
@@ -320,21 +336,55 @@ class InMemoryToolDispatcher:
         if isinstance(properties, dict):
             for key, value in arguments.items():
                 definition = properties.get(key, {})
-                expected_type = definition.get("type")
-                if expected_type == "string":
-                    if not isinstance(value, str):
-                        raise ValueError(f"{key} must be a string")
-                    min_length = definition.get("minLength")
-                    if isinstance(min_length, int) and len(value) < min_length:
-                        raise ValueError(f"{key} must be at least {min_length} characters")
-                elif expected_type == "integer":
-                    if not isinstance(value, int):
-                        raise ValueError(f"{key} must be an integer")
-                    minimum = definition.get("minimum")
-                    if isinstance(minimum, int) and value < minimum:
-                        raise ValueError(f"{key} must be greater than or equal to {minimum}")
+                self._validate_property_value(key, value, definition)
 
         self._validate_composed_schema(schema, arguments)
+
+    def _validate_property_value(self, path: str, value: Any, definition: dict):
+        """Validate one property value against supported schema keywords.
+
+        :param path: Dotted field path used in validation messages.
+        :param value: Candidate property value.
+        :param definition: JSON-compatible schema definition for the property.
+        """
+        expected_type = definition.get("type")
+        if expected_type == "string":
+            if not isinstance(value, str):
+                raise ValueError(f"{path} must be a string")
+            min_length = definition.get("minLength")
+            if isinstance(min_length, int) and len(value) < min_length:
+                raise ValueError(f"{path} must be at least {min_length} characters")
+        elif expected_type == "integer":
+            if not isinstance(value, int):
+                raise ValueError(f"{path} must be an integer")
+            minimum = definition.get("minimum")
+            if isinstance(minimum, int) and value < minimum:
+                raise ValueError(f"{path} must be greater than or equal to {minimum}")
+        elif expected_type == "object" and definition.get("x-validateNestedSchema") is True:
+            self._validate_object_property(path, value, definition)
+
+    def _validate_object_property(self, path: str, value: Any, definition: dict):
+        """Validate supported nested object schema keywords.
+
+        :param path: Dotted object path used in validation messages.
+        :param value: Candidate object value.
+        :param definition: JSON-compatible object schema definition.
+        """
+        if not isinstance(value, dict):
+            raise ValueError(f"{path} must be an object")
+
+        required = definition.get("required", [])
+        if isinstance(required, list):
+            for field in required:
+                if field not in value:
+                    raise ValueError(f"{path} missing required field: {field}")
+
+        properties = definition.get("properties", {})
+        if isinstance(properties, dict):
+            for key, nested_value in value.items():
+                nested_definition = properties.get(key)
+                if isinstance(nested_definition, dict):
+                    self._validate_property_value(f"{path}.{key}", nested_value, nested_definition)
 
     def _validate_composed_schema(self, schema: dict, arguments: dict):
         """Validate supported composed-schema keywords."""
@@ -381,7 +431,7 @@ class InMemoryToolDispatcher:
         if handler is None:
             raise RuntimeError("Tool handler missing")
 
-        self._validate_arguments(entry.get("inputSchema", {}), arguments)
+        self._validate_arguments(entry.get("validationInputSchema", entry.get("inputSchema", {})), arguments)
         return handler(arguments)
 
     def _server_ping_payload(self):

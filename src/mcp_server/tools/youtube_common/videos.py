@@ -13,6 +13,7 @@ from mcp_server.integrations.resources.videos import (
     build_videos_insert_wrapper,
     build_videos_list_wrapper,
     build_videos_rate_wrapper,
+    build_videos_report_abuse_wrapper,
     build_videos_update_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
@@ -757,6 +758,169 @@ VIDEOS_GET_RATING_CALLER_EXAMPLES = (
     },
 )
 
+VIDEOS_REPORT_ABUSE_TOOL_NAME = "videos_reportAbuse"
+VIDEOS_REPORT_ABUSE_QUOTA_COST = 50
+VIDEOS_REPORT_ABUSE_REQUIRED_BODY_FIELDS = ("videoId", "reasonId")
+VIDEOS_REPORT_ABUSE_BODY_FIELDS = ("videoId", "reasonId", "secondaryReasonId", "comments", "language")
+VIDEOS_REPORT_ABUSE_ALLOWED_FIELDS = frozenset({"body"})
+VIDEOS_REPORT_ABUSE_UNSAFE_DETAIL_KEYS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "authorization",
+        "authorization_header",
+        "body",
+        "comments",
+        "headers",
+        "oauth_token",
+        "raw_body",
+        "report_body",
+        "request_body",
+        "request_context",
+        "request_headers",
+        "response_body",
+        "stack",
+        "stack_trace",
+        "stacktrace",
+        "traceback",
+        "upstream_body",
+    }
+)
+
+VIDEOS_REPORT_ABUSE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["body"],
+    "properties": {
+        "body": {
+            "type": "object",
+            "required": list(VIDEOS_REPORT_ABUSE_REQUIRED_BODY_FIELDS),
+            "properties": {
+                "videoId": {"type": "string", "minLength": 1},
+                "reasonId": {"type": "string", "minLength": 1},
+                "secondaryReasonId": {"type": "string", "minLength": 1},
+                "comments": {"type": "string", "minLength": 1},
+                "language": {"type": "string", "minLength": 1},
+            },
+            "additionalProperties": False,
+        }
+    },
+    "additionalProperties": False,
+}
+
+VIDEOS_REPORT_ABUSE_DESCRIPTION = (
+    "Submit an authorized YouTube abuse report through videos.reportAbuse. Quota cost: 50. "
+    "Auth: OAuth required. Requires body.videoId and body.reasonId, with optional body.secondaryReasonId, "
+    "body.comments, and body.language."
+)
+
+VIDEOS_REPORT_ABUSE_USAGE_NOTES = (
+    "Quota cost: 50. OAuth authorization is required for every videos.reportAbuse request.",
+    "Quota cost: 50. Provide body.videoId for the target video and body.reasonId for the selected abuse reason.",
+    "Quota cost: 50. Optional body.secondaryReasonId, body.comments, and body.language are passed only as report context.",
+    "Quota cost: 50. onBehalfOfContentOwner is not supported for videos_reportAbuse in this slice.",
+    "Quota cost: 50. Success is a no-content abuse-report acknowledgment, not video metadata, classification, moderation, evidence, or policy analysis.",
+)
+
+VIDEOS_REPORT_ABUSE_CAVEATS = (
+    "This tool is a low-level videos.reportAbuse wrapper for direct authorized abuse-report submission only.",
+    "Abuse reason discovery belongs to videoAbuseReportReasons_list and is not performed by videos_reportAbuse.",
+    "Automated abuse classification, moderation decisions, evidence collection, video lookup, video deletion, rating, thumbnail, caption, playlist, comment, transcript, analytics, recommendation, ranking, summarization, enrichment, and cross-endpoint workflows are out of scope.",
+    "Credentials, authorization headers, sensitive report comments, raw upstream diagnostics, raw request context, and secret-bearing fields are never returned to callers.",
+)
+
+VIDEOS_REPORT_ABUSE_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_abuse_report",
+        "description": "Quota cost: 50. Submit one abuse report with OAuth using body.videoId and body.reasonId.",
+        "arguments": {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}},
+        "result": {
+            "endpoint": "videos.reportAbuse",
+            "quotaCost": 50,
+            "acknowledgment": {"accepted": True, "status": "submitted"},
+        },
+        "quotaCost": 50,
+    },
+    {
+        "name": "authorized_abuse_report_with_optional_details",
+        "description": "Quota cost: 50. Include supported optional report details without returning sensitive comments.",
+        "arguments": {
+            "body": {
+                "videoId": "abc123",
+                "reasonId": "VIOLENCE",
+                "secondaryReasonId": "graphic",
+                "comments": "Additional report context omitted from results",
+                "language": "en",
+            }
+        },
+        "result": {
+            "endpoint": "videos.reportAbuse",
+            "report": {"videoId": "abc123", "reasonId": "VIOLENCE", "hasComments": True},
+            "status": {"code": 204, "body": "none"},
+        },
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_body_failure",
+        "description": "Quota cost: 50. Missing body is rejected before videos.reportAbuse execution.",
+        "arguments": {},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "missing_target_failure",
+        "description": "Quota cost: 50. Missing body.videoId is rejected before videos.reportAbuse execution.",
+        "arguments": {"body": {"reasonId": "VIOLENCE"}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "missing_reason_failure",
+        "description": "Quota cost: 50. Missing body.reasonId is rejected before videos.reportAbuse execution.",
+        "arguments": {"body": {"videoId": "abc123"}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "unsupported_optional_field_failure",
+        "description": "Quota cost: 50. Unsupported body fields are rejected before endpoint execution.",
+        "arguments": {"body": {"videoId": "abc123", "reasonId": "VIOLENCE", "evidence": "unsupported"}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "rejected_partner_delegation",
+        "description": "Quota cost: 50. onBehalfOfContentOwner is rejected because delegation is outside this slice.",
+        "arguments": {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}, "onBehalfOfContentOwner": "owner"},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "missing_oauth",
+        "description": "Quota cost: 50. Missing OAuth is reported as authentication_failed before report execution.",
+        "arguments": {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}},
+        "errorCategory": "authentication_failed",
+    },
+    {
+        "name": "quota_or_upstream_report_failure",
+        "description": "Quota cost: 50. Quota, policy, refusal, availability, and upstream failures map to safe categories.",
+        "arguments": {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}},
+        "errorCategory": "quota_exhausted",
+    },
+    {
+        "name": "unavailable_target_failure",
+        "description": "Quota cost: 50. Removed or unavailable target videos are reported without unsafe upstream details.",
+        "arguments": {"body": {"videoId": "missing-video", "reasonId": "VIOLENCE"}},
+        "errorCategory": "resource_not_found",
+    },
+    {
+        "name": "upstream_refusal_failure",
+        "description": "Quota cost: 50. Upstream refusal or duplicate-report style outcomes are categorized safely.",
+        "arguments": {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}},
+        "errorCategory": "authorization_failed",
+    },
+    {
+        "name": "out_of_scope_video_workflow",
+        "description": "Quota cost: 50. Classification, moderation, evidence, lookup, deletion, analytics, ranking, summarization, and enrichment fields are rejected.",
+        "arguments": {"body": {"videoId": "abc123", "reasonId": "VIOLENCE"}, "classify": True},
+        "errorCategory": "invalid_request",
+    },
+)
+
 
 class VideosListToolError(ValueError):
     """Represent a safe caller-facing ``videos_list`` failure.
@@ -858,6 +1022,26 @@ class VideosGetRatingToolError(ValueError):
         self.details = _sanitize_videos_get_rating_error_details(details or {})
 
 
+class VideosReportAbuseToolError(ValueError):
+    """Represent a safe caller-facing ``videos_reportAbuse`` failure.
+
+    :param message: Caller-facing error message.
+    :param category: Stable Layer 2 error category.
+    :param details: Safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str = "invalid_request", details: dict[str, Any] | None = None):
+        """Initialize the safe report-abuse tool error.
+
+        :param message: Caller-facing error message.
+        :param category: Stable Layer 2 error category.
+        :param details: Safe diagnostic details.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = _sanitize_videos_report_abuse_error_details(details or {})
+
+
 def _sanitize_videos_list_error_details(details: dict[str, Any]) -> dict[str, Any]:
     """Remove endpoint-specific unsafe diagnostic fields.
 
@@ -925,6 +1109,20 @@ def _sanitize_videos_get_rating_error_details(details: dict[str, Any]) -> dict[s
         key: value
         for key, value in sanitized.items()
         if key.lower().replace("-", "_") not in VIDEOS_GET_RATING_UNSAFE_DETAIL_KEYS
+    }
+
+
+def _sanitize_videos_report_abuse_error_details(details: dict[str, Any]) -> dict[str, Any]:
+    """Remove report-abuse-specific unsafe diagnostic fields.
+
+    :param details: Candidate diagnostic details.
+    :return: Safe details suitable for caller-facing report-abuse errors.
+    """
+    sanitized = sanitize_error_details(details)
+    return {
+        key: value
+        for key, value in sanitized.items()
+        if key.lower().replace("-", "_") not in VIDEOS_REPORT_ABUSE_UNSAFE_DETAIL_KEYS
     }
 
 
@@ -1486,6 +1684,70 @@ def validate_videos_get_rating_arguments(arguments: dict[str, Any]) -> dict[str,
     return normalized
 
 
+def _require_videos_report_abuse_body(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Require the report-abuse request body object.
+
+    :param arguments: Caller-provided arguments.
+    :return: Candidate report-abuse request body.
+    :raises VideosReportAbuseToolError: If the body is missing or malformed.
+    """
+    body = arguments.get("body")
+    if not isinstance(body, dict):
+        raise VideosReportAbuseToolError("videos_reportAbuse requires body", details={"field": "body"})
+    return body
+
+
+def _validate_videos_report_abuse_body_text_field(body: dict[str, Any], field: str) -> str:
+    """Validate one non-empty report-abuse body text field.
+
+    :param body: Caller-provided report body.
+    :param field: Body field name to validate.
+    :return: Stripped field value.
+    :raises VideosReportAbuseToolError: If the field is missing or invalid.
+    """
+    value = body.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise VideosReportAbuseToolError(
+            f"videos_reportAbuse requires non-empty body.{field}",
+            details={"field": f"body.{field}"},
+        )
+    return value.strip()
+
+
+def validate_videos_report_abuse_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate ``videos_reportAbuse`` abuse-report arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized report body accepted by the Layer 1 wrapper.
+    :raises VideosReportAbuseToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise VideosReportAbuseToolError("videos_reportAbuse arguments must be an object")
+    for field in arguments:
+        if field not in VIDEOS_REPORT_ABUSE_ALLOWED_FIELDS:
+            raise VideosReportAbuseToolError(
+                f"unsupported field for videos_reportAbuse: {field}",
+                details={"field": field},
+            )
+
+    body = _require_videos_report_abuse_body(arguments)
+    for field in body:
+        if field not in VIDEOS_REPORT_ABUSE_BODY_FIELDS:
+            raise VideosReportAbuseToolError(
+                f"unsupported body field for videos_reportAbuse: {field}",
+                details={"field": f"body.{field}"},
+            )
+
+    normalized_body = {
+        "videoId": _validate_videos_report_abuse_body_text_field(body, "videoId"),
+        "reasonId": _validate_videos_report_abuse_body_text_field(body, "reasonId"),
+    }
+    for field in ("secondaryReasonId", "comments", "language"):
+        if field in body:
+            normalized_body[field] = _validate_videos_report_abuse_body_text_field(body, field)
+    return {"body": normalized_body}
+
+
 def _videos_insert_upload_context(arguments: dict[str, Any]) -> dict[str, Any]:
     """Build safe upload context without raw media content.
 
@@ -1592,6 +1854,24 @@ def _videos_get_rating_item(item: dict[str, Any], fallback_video_id: str | None)
     }
 
 
+def _videos_report_abuse_context(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Build safe report context without exposing sensitive comment text.
+
+    :param arguments: Normalized report-abuse arguments.
+    :return: Public report context for acknowledgment results.
+    """
+    body = arguments["body"]
+    context: dict[str, Any] = {
+        "videoId": body["videoId"],
+        "reasonId": body["reasonId"],
+        "hasSecondaryReason": "secondaryReasonId" in body,
+        "hasComments": "comments" in body,
+    }
+    if "language" in body:
+        context["language"] = body["language"]
+    return context
+
+
 def map_videos_insert_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     """Map an upstream video-create payload to the public Layer 2 result.
 
@@ -1687,6 +1967,26 @@ def map_videos_get_rating_result(payload: dict[str, Any], arguments: dict[str, A
         if field in safe_payload:
             result[field] = safe_payload[field]
     return result
+
+
+def map_videos_report_abuse_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream video-abuse-report no-content response to a public acknowledgment.
+
+    :param payload: Upstream or Layer 1 report-abuse payload, if any.
+    :param arguments: Caller arguments used for the request.
+    :return: Structured report-abuse acknowledgment with safe operation context.
+    """
+    normalized = validate_videos_report_abuse_arguments(arguments)
+    _safe_payload = sanitize_error_details(payload if isinstance(payload, dict) else {})
+    return {
+        "endpoint": "videos.reportAbuse",
+        "quotaCost": VIDEOS_REPORT_ABUSE_QUOTA_COST,
+        "report": _videos_report_abuse_context(normalized),
+        "auth": {"mode": "oauth_required", "path": "restricted"},
+        "availability": {"state": "active"},
+        "acknowledgment": {"accepted": True, "status": "submitted"},
+        "status": {"code": 204, "body": "none"},
+    }
 
 
 def map_videos_update_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
@@ -2405,6 +2705,97 @@ def build_videos_get_rating_contract() -> YouTubeToolContract:
     )
 
 
+def _videos_report_abuse_disallowed_behavior() -> tuple[str, ...]:
+    """Return behaviors outside the low-level ``videos_reportAbuse`` endpoint boundary.
+
+    :return: Stable disallowed-behavior identifiers for metadata.
+    """
+    return (
+        "abuse_reason_discovery",
+        "abuse_classification",
+        "evidence_collection",
+        "moderation_decision",
+        "metadata_lookup",
+        "metadata_update",
+        "rating_lookup",
+        "rating_mutation",
+        "media_upload",
+        "media_replacement",
+        "transcoding",
+        "automatic_publishing",
+        "video_creation",
+        "video_update",
+        "video_delete",
+        "thumbnail_management",
+        "caption_management",
+        "playlist_management",
+        "comment_management",
+        "transcript_retrieval",
+        "analytics",
+        "recommendation",
+        "ranking",
+        "summarization",
+        "enrichment",
+        "cross_endpoint_aggregation",
+    )
+
+
+def build_videos_report_abuse_contract() -> YouTubeToolContract:
+    """Build the public contract for ``videos_reportAbuse``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "quotaCost",
+            "report",
+            "auth",
+            "availability",
+            "acknowledgment",
+            "status",
+        ),
+        preserved_upstream_fields=(),
+        disallowed_behavior=_videos_report_abuse_disallowed_behavior(),
+    )
+    return YouTubeToolContract(
+        tool_name=VIDEOS_REPORT_ABUSE_TOOL_NAME,
+        upstream_resource="videos",
+        upstream_method="reportAbuse",
+        operation_key="videos.reportAbuse",
+        description=VIDEOS_REPORT_ABUSE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=VIDEOS_REPORT_ABUSE_QUOTA_COST,
+        resource_family="videos",
+        input_contract=VIDEOS_REPORT_ABUSE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "mutation_acknowledgment",
+            "mutation": "reported_abuse",
+            "authMode": "oauth_required",
+            "requiredFields": ["body.videoId", "body.reasonId"],
+            "optionalFields": ["body.secondaryReasonId", "body.comments", "body.language"],
+            "requestBody": "required",
+            "successStatus": 204,
+            "statusBody": "none",
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "deprecated_endpoint",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=VIDEOS_REPORT_ABUSE_USAGE_NOTES,
+        caveats=VIDEOS_REPORT_ABUSE_CAVEATS,
+    )
+
+
 def _default_videos_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default video-list calls.
 
@@ -2530,6 +2921,23 @@ def _default_videos_get_rating_executor() -> IntegrationExecutor:
     return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
 
 
+def _default_videos_report_abuse_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default video abuse-report calls.
+
+    :return: Integration executor returning a representative no-content acknowledgment payload.
+    """
+
+    def transport(_execution):
+        """Return a representative empty report-abuse response.
+
+        :param _execution: Request execution context.
+        :return: Empty fake upstream report-abuse response for local invocation.
+        """
+        return {}
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
 def _videos_insert_auth_context(oauth_token: str | None) -> AuthContext:
     """Build the Layer 1 OAuth auth context for ``videos_insert``.
 
@@ -2629,6 +3037,32 @@ def _videos_get_rating_auth_context(oauth_token: str | None) -> AuthContext:
     except ValueError as exc:
         raise VideosGetRatingToolError(
             "videos_getRating requires OAuth authorization",
+            category="authentication_failed",
+            details={"authMode": "oauth_required"},
+        ) from exc
+
+
+def _videos_report_abuse_auth_context(oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 OAuth auth context for ``videos_reportAbuse``.
+
+    :param oauth_token: OAuth token credential value.
+    :return: Layer 1 auth context for OAuth-required abuse-report execution.
+    :raises VideosReportAbuseToolError: If OAuth access is missing.
+    """
+    if not isinstance(oauth_token, str) or not oauth_token.strip():
+        raise VideosReportAbuseToolError(
+            "videos_reportAbuse requires OAuth authorization",
+            category="authentication_failed",
+            details={"authMode": "oauth_required"},
+        )
+    try:
+        return AuthContext(
+            mode=Layer1AuthMode.OAUTH_REQUIRED,
+            credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+        )
+    except ValueError as exc:
+        raise VideosReportAbuseToolError(
+            "videos_reportAbuse requires OAuth authorization",
             category="authentication_failed",
             details={"authMode": "oauth_required"},
         ) from exc
@@ -2750,6 +3184,37 @@ def _map_videos_get_rating_upstream_error(error: NormalizedUpstreamError) -> Vid
     }
     category = category_map.get(error.category, "upstream_failure")
     return VideosGetRatingToolError(str(error), category=category, details=error.details or {})
+
+
+def _map_videos_report_abuse_upstream_error(error: NormalizedUpstreamError) -> VideosReportAbuseToolError:
+    """Map a normalized upstream failure to a safe ``videos_reportAbuse`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe caller-facing tool error.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "invalid_reason": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "policy": "authorization_failed",
+        "policy_restricted": "authorization_failed",
+        "refused": "authorization_failed",
+        "duplicate_report": "authorization_failed",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "not_found": "resource_not_found",
+        "resource_not_found": "resource_not_found",
+        "removed": "resource_not_found",
+        "unavailable": "endpoint_unavailable",
+        "availability": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return VideosReportAbuseToolError(str(error), category=category, details=error.details or {})
 
 
 def build_videos_insert_handler(
@@ -2886,6 +3351,52 @@ def build_videos_get_rating_handler(
                 details={"authMode": "oauth_required"} if category == "authentication_failed" else {"field": "request"},
             ) from exc
         return map_videos_get_rating_result(payload, normalized)
+
+    return handler
+
+
+def build_videos_report_abuse_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``videos_reportAbuse``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used for abuse-report submission.
+    :return: Callable that validates, executes, and maps abuse-report requests.
+    """
+    selected_wrapper = wrapper or build_videos_report_abuse_wrapper()
+    selected_executor = executor or _default_videos_report_abuse_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``videos_reportAbuse`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 abuse-report acknowledgment result.
+        :raises VideosReportAbuseToolError: If validation, access, or execution fails.
+        """
+        normalized = validate_videos_report_abuse_arguments(arguments)
+        auth_context = _videos_report_abuse_auth_context(oauth_token)
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_videos_report_abuse_upstream_error(exc) from exc
+        except ValueError as exc:
+            message = str(exc)
+            category = "authentication_failed" if "oauth" in message.lower() else "invalid_request"
+            raise VideosReportAbuseToolError(
+                message,
+                category=category,
+                details={"authMode": "oauth_required"} if category == "authentication_failed" else {"field": "request"},
+            ) from exc
+        return map_videos_report_abuse_result(payload, normalized)
 
     return handler
 
@@ -3118,6 +3629,42 @@ def build_videos_get_rating_tool_descriptor(
     }
 
 
+def build_videos_report_abuse_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``videos_reportAbuse``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_videos_report_abuse_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(VIDEOS_REPORT_ABUSE_CALLER_EXAMPLES)
+    validation_input_schema = {
+        **VIDEOS_REPORT_ABUSE_INPUT_SCHEMA,
+        "properties": {
+            **VIDEOS_REPORT_ABUSE_INPUT_SCHEMA["properties"],
+            "body": {
+                **VIDEOS_REPORT_ABUSE_INPUT_SCHEMA["properties"]["body"],
+                "x-validateNestedSchema": True,
+            },
+        },
+    }
+    return {
+        "name": VIDEOS_REPORT_ABUSE_TOOL_NAME,
+        "description": VIDEOS_REPORT_ABUSE_DESCRIPTION,
+        "inputSchema": VIDEOS_REPORT_ABUSE_INPUT_SCHEMA,
+        "validationInputSchema": validation_input_schema,
+        "handler": build_videos_report_abuse_handler(wrapper=wrapper, executor=executor, oauth_token=oauth_token),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
     "VIDEOS_GET_RATING_ALLOWED_FIELDS",
     "VIDEOS_GET_RATING_CALLER_EXAMPLES",
@@ -3161,6 +3708,17 @@ __all__ = [
     "VIDEOS_RATE_UNSAFE_DETAIL_KEYS",
     "VIDEOS_RATE_USAGE_NOTES",
     "VIDEOS_RATE_VALUES",
+    "VIDEOS_REPORT_ABUSE_ALLOWED_FIELDS",
+    "VIDEOS_REPORT_ABUSE_BODY_FIELDS",
+    "VIDEOS_REPORT_ABUSE_CALLER_EXAMPLES",
+    "VIDEOS_REPORT_ABUSE_CAVEATS",
+    "VIDEOS_REPORT_ABUSE_DESCRIPTION",
+    "VIDEOS_REPORT_ABUSE_INPUT_SCHEMA",
+    "VIDEOS_REPORT_ABUSE_QUOTA_COST",
+    "VIDEOS_REPORT_ABUSE_REQUIRED_BODY_FIELDS",
+    "VIDEOS_REPORT_ABUSE_TOOL_NAME",
+    "VIDEOS_REPORT_ABUSE_UNSAFE_DETAIL_KEYS",
+    "VIDEOS_REPORT_ABUSE_USAGE_NOTES",
     "VIDEOS_UPDATE_ALLOWED_BODY_FIELDS",
     "VIDEOS_UPDATE_ALLOWED_FIELDS",
     "VIDEOS_UPDATE_ALLOWED_SNIPPET_FIELDS",
@@ -3177,6 +3735,7 @@ __all__ = [
     "VideosInsertToolError",
     "VideosListToolError",
     "VideosRateToolError",
+    "VideosReportAbuseToolError",
     "VideosUpdateToolError",
     "build_videos_insert_contract",
     "build_videos_insert_handler",
@@ -3190,6 +3749,9 @@ __all__ = [
     "build_videos_rate_contract",
     "build_videos_rate_handler",
     "build_videos_rate_tool_descriptor",
+    "build_videos_report_abuse_contract",
+    "build_videos_report_abuse_handler",
+    "build_videos_report_abuse_tool_descriptor",
     "build_videos_update_contract",
     "build_videos_update_handler",
     "build_videos_update_tool_descriptor",
@@ -3197,10 +3759,12 @@ __all__ = [
     "map_videos_get_rating_result",
     "map_videos_list_result",
     "map_videos_rate_result",
+    "map_videos_report_abuse_result",
     "map_videos_update_result",
     "validate_videos_insert_arguments",
     "validate_videos_get_rating_arguments",
     "validate_videos_list_arguments",
     "validate_videos_rate_arguments",
+    "validate_videos_report_abuse_arguments",
     "validate_videos_update_arguments",
 ]
