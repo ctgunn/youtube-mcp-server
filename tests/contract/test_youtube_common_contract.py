@@ -289,6 +289,39 @@ def test_videos_update_contract_uses_existing_resource_family():
     assert metadata["responseConvention"]["resourcePath"] == "item"
     assert "body.id" in metadata_text
     assert "body.snippet.title" in metadata_text
+
+
+def test_watermarks_set_contract_uses_existing_resource_family():
+    """Expose the concrete ``watermarks_set`` contract in the watermarks family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import watermarks
+    from mcp_server.tools.youtube_common.watermarks import build_watermarks_set_contract
+
+    watermarks_family = get_resource_family("watermarks")
+    contract = build_watermarks_set_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert watermarks_family.definition_location.endswith("src/mcp_server/tools/youtube_common/watermarks.py")
+    assert watermarks_family.layer1_dependency == "mcp_server.integrations.resources.watermarks"
+    assert watermarks.WATERMARKS_SET_TOOL_NAME == "watermarks_set"
+    assert watermarks.WATERMARKS_SET_QUOTA_COST == 50
+    assert youtube_common.WATERMARKS_SET_TOOL_NAME == "watermarks_set"
+    assert youtube_common.WATERMARKS_SET_QUOTA_COST == 50
+    assert callable(youtube_common.build_watermarks_set_tool_descriptor)
+    assert metadata["name"] == "watermarks_set"
+    assert metadata["resourceFamily"] == "watermarks"
+    assert metadata["upstream"]["operationKey"] == "watermarks.set"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "owner_only"
+    assert metadata["inputContract"]["required"] == ["channelId", "body", "media"]
+    assert metadata["responseConvention"]["resultKind"] == "upload_mutation_acknowledgment"
+    assert "channelId" in metadata_text
+    assert "body" in metadata_text
+    assert "media" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
     assert "OAuth" in metadata_text
 
 

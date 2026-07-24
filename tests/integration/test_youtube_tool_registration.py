@@ -220,6 +220,46 @@ def test_default_registry_includes_executable_thumbnails_set_tool():
     assert "thumbnail generation" in metadata_text
 
 
+def test_default_registry_includes_executable_watermarks_set_tool():
+    """Register ``watermarks_set`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "watermarks_set" in listed
+    metadata = listed["watermarks_set"]["metadata"]
+    description = listed["watermarks_set"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "watermarks.set"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "owner_only"
+    assert metadata["inputContract"]["required"] == ["channelId", "body", "media"]
+    assert metadata["responseConvention"]["resultKind"] == "upload_mutation_acknowledgment"
+    assert metadata["responseConvention"]["mediaResult"] == "safe_media_summary"
+    assert "channelId" in metadata_text
+    assert "body" in metadata_text
+    assert "media" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "10 MB" in metadata_text
+
+    result = dispatcher.call_tool(
+        "watermarks_set",
+        {
+            "channelId": "UC123",
+            "body": {"timing": {"type": "offsetFromStart"}, "position": {"type": "corner"}},
+            "media": {"mimeType": "image/png", "content": "fake-watermark-content"},
+        },
+    )
+
+    assert result["endpoint"] == "watermarks.set"
+    assert result["quotaCost"] == 50
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["target"] == {"channelId": "UC123"}
+    assert result["upload"] == {"mimeType": "image/png", "contentProvided": True}
+    assert "fake-watermark-content" not in str(result)
+
+
 def test_default_registry_includes_executable_video_abuse_report_reasons_list_tool():
     """Register ``videoAbuseReportReasons_list`` by default with safe metadata and handler."""
     dispatcher = InMemoryToolDispatcher()

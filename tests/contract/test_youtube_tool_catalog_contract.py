@@ -45,6 +45,7 @@ def test_representative_examples_include_required_us1_shapes():
         "videos_list",
         "videos_reportAbuse",
         "videos_delete",
+        "watermarks_set",
         "watermarks_unset",
     }.issubset(names)
 
@@ -57,6 +58,8 @@ def test_representative_examples_expose_auth_quota_and_caveats():
     assert by_name["activities_list"].quota_cost == 1
     assert by_name["comments_setModerationStatus"].auth_mode is AuthMode.OAUTH_REQUIRED
     assert by_name["videos_getRating"].upstream_method == "getRating"
+    assert by_name["watermarks_set"].auth_mode is AuthMode.OAUTH_REQUIRED
+    assert by_name["watermarks_set"].quota_cost == 50
     assert by_name["watermarks_unset"].caveats
 
 
@@ -187,6 +190,35 @@ def test_representative_thumbnails_set_example_aligns_with_concrete_contract():
     assert "videoId" in metadata_text
     assert "media" in metadata_text
     assert "thumbnail generation" in metadata_text
+
+
+def test_representative_watermarks_set_example_aligns_with_concrete_contract():
+    """Keep the representative watermarks-set example aligned with YT-254."""
+    from mcp_server.tools.youtube_common.watermarks import build_watermarks_set_contract
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "watermarks_set"
+    ]
+    concrete = build_watermarks_set_contract()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 50
+    assert representative.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.input_contract["required"] == ["channelId", "body", "media"]
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert representative.response_convention["resultKind"] == "upload_mutation_acknowledgment"
+    assert representative.response_convention["mediaResult"] == "safe_media_summary"
+    assert "channelId" in metadata_text
+    assert "body" in metadata_text
+    assert "media" in metadata_text
+    assert "10 MB" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "owner" in metadata["availabilityState"]
 
 
 def test_representative_video_abuse_report_reasons_example_aligns_with_concrete_contract():
@@ -1852,8 +1884,8 @@ def test_representative_examples_include_response_boundary_metadata():
     assert by_kind["list"] in {"near_raw", "lightly_reshaped"}
     assert by_kind["rating_lookup"] in {"near_raw", "lightly_reshaped"}
     assert by_kind["mutation_acknowledgment"] == "lightly_reshaped"
-    assert "lightly_reshaped" in upload_boundaries
     assert "near_raw" in upload_boundaries
+    assert by_kind["upload_mutation_acknowledgment"] == "near_raw"
     assert by_kind["download_wrapper"] in {"near_raw", "lightly_reshaped"}
 
 
