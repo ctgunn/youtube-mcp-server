@@ -221,6 +221,27 @@ def test_videos_report_abuse_scaffolding_exports_concrete_layer2_symbols():
     assert youtube_common.VideosReportAbuseToolError is videos.VideosReportAbuseToolError
 
 
+def test_videos_delete_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``videos_delete`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import videos
+
+    videos_family = youtube_common.get_resource_family("videos")
+
+    assert videos_family.definition_location.endswith("src/mcp_server/tools/youtube_common/videos.py")
+    assert videos.VIDEOS_DELETE_TOOL_NAME == "videos_delete"
+    assert videos.VIDEOS_DELETE_QUOTA_COST == 50
+    assert youtube_common.VIDEOS_DELETE_TOOL_NAME == "videos_delete"
+    assert youtube_common.VIDEOS_DELETE_QUOTA_COST == 50
+    assert youtube_common.VIDEOS_DELETE_INPUT_SCHEMA["required"] == ["id"]
+    assert callable(videos.build_videos_delete_contract)
+    assert callable(videos.build_videos_delete_handler)
+    assert callable(videos.build_videos_delete_tool_descriptor)
+    assert callable(videos.map_videos_delete_result)
+    assert callable(videos.validate_videos_delete_arguments)
+    assert youtube_common.VideosDeleteToolError is videos.VideosDeleteToolError
+
+
 def test_playlists_resource_family_points_to_concrete_layer2_module():
     """Expose the concrete playlists family placement for YT-236."""
     from mcp_server.tools.youtube_common import get_resource_family

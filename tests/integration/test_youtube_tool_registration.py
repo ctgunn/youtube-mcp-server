@@ -516,6 +516,45 @@ def test_default_registry_includes_executable_videos_report_abuse_tool():
     assert result["status"] == {"code": 204, "body": "none"}
 
 
+def test_default_registry_includes_executable_videos_delete_tool():
+    """Register ``videos_delete`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "videos_delete" in listed
+    metadata = listed["videos_delete"]["metadata"]
+    description = listed["videos_delete"]["description"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "videos.delete"
+    assert metadata["resourceFamily"] == "videos"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "active"
+    assert metadata["inputContract"]["required"] == ["id"]
+    assert "body" not in metadata["inputContract"]["properties"]
+    assert metadata["responseConvention"]["resultKind"] == "mutation_acknowledgment"
+    assert metadata["responseConvention"]["mutation"] == "deleted"
+    assert metadata["responseConvention"]["requestBody"] == "none"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert "Quota cost: 50" in description
+    assert "OAuth" in metadata_text
+    assert "no request body" in metadata_text
+    assert "destructive" in metadata_text.lower()
+    assert {"authorized_video_deletion", "request_body_failure", "missing_oauth"}.issubset(example_names)
+
+    result = dispatcher.call_tool("videos_delete", {"id": "abc123"})
+
+    assert result["endpoint"] == "videos.delete"
+    assert result["quotaCost"] == 50
+    assert result["auth"] == {"mode": "oauth_required", "path": "restricted"}
+    assert result["target"] == {"id": "abc123"}
+    assert result["deleted"] is True
+    assert result["acknowledgment"] == {"accepted": True, "status": "deleted"}
+    assert result["status"] == {"code": 204, "body": "none"}
+
+
 def test_default_registry_includes_executable_comments_insert_tool_with_create_metadata():
     """Register ``comments_insert`` by default with create metadata."""
     dispatcher = InMemoryToolDispatcher()

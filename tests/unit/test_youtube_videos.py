@@ -388,6 +388,17 @@ def _valid_videos_report_abuse_arguments(**overrides):
     return arguments
 
 
+def _valid_videos_delete_arguments(**overrides):
+    """Build a valid ``videos_delete`` request for unit tests.
+
+    :param overrides: Field overrides for the default request.
+    :return: A valid delete request with any overrides applied.
+    """
+    arguments = {"id": " abc123 "}
+    arguments.update(overrides)
+    return arguments
+
+
 def test_validate_videos_insert_accepts_authorized_metadata_media_and_options():
     """Normalize valid video creation metadata, media, upload, and delegation fields."""
     from mcp_server.tools.youtube_common.videos import validate_videos_insert_arguments
@@ -1393,3 +1404,189 @@ def test_videos_update_handler_maps_and_sanitizes_upstream_failures(upstream_cat
     assert exc_info.value.category == expected_category
     assert exc_info.value.details == {"reason": "safe"}
     assert "Bearer" not in str(exc_info.value.details)
+
+
+def test_validate_videos_delete_accepts_one_normalized_target_id():
+    """Normalize a valid video delete target without changing identity semantics."""
+    from mcp_server.tools.youtube_common.videos import validate_videos_delete_arguments
+
+    assert validate_videos_delete_arguments(_valid_videos_delete_arguments()) == {"id": "abc123"}
+
+
+def test_map_videos_delete_result_returns_no_content_acknowledgment():
+    """Map successful no-content delete responses without fabricating video details."""
+    from mcp_server.tools.youtube_common.videos import map_videos_delete_result
+
+    result = map_videos_delete_result(
+        {"sourceOperation": "videos.delete", "isDeleted": True},
+        _valid_videos_delete_arguments(),
+    )
+
+    assert result == {
+        "endpoint": "videos.delete",
+        "quotaCost": 50,
+        "target": {"id": "abc123"},
+        "auth": {"mode": "oauth_required", "path": "restricted"},
+        "availability": {"state": "active"},
+        "deleted": True,
+        "acknowledgment": {"accepted": True, "status": "deleted"},
+        "status": {"code": 204, "body": "none"},
+        "sourceOperation": "videos.delete",
+    }
+    assert "item" not in result
+    assert "metadata" not in result
+
+
+def test_videos_delete_handler_calls_layer1_once_with_oauth():
+    """Execute the Layer 1 delete wrapper once with OAuth-required credentials."""
+    from mcp_server.tools.youtube_common.videos import build_videos_delete_handler
+
+    wrapper = RecordingWrapper(payload={"sourceOperation": "videos.delete", "isDeleted": True})
+    handler = build_videos_delete_handler(wrapper=wrapper, oauth_token="local-oauth")
+
+    result = handler(_valid_videos_delete_arguments())
+
+    assert result["endpoint"] == "videos.delete"
+    assert result["quotaCost"] == 50
+    assert result["target"] == {"id": "abc123"}
+    assert result["deleted"] is True
+    assert result["acknowledgment"] == {"accepted": True, "status": "deleted"}
+    assert result["status"] == {"code": 204, "body": "none"}
+    assert len(wrapper.calls) == 1
+    assert wrapper.calls[0]["arguments"] == {"id": "abc123"}
+    assert wrapper.calls[0]["auth_context"].mode is Layer1AuthMode.OAUTH_REQUIRED
+    assert wrapper.calls[0]["auth_context"].credentials.oauth_token == "local-oauth"
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        (None, None),
+        ({}, "id"),
+        ({"id": ""}, "id"),
+        ({"id": "   "}, "id"),
+        ({"id": 123}, "id"),
+        ({"id": "abc123,def456"}, "id"),
+        ({"id": "abc123,,def456"}, "id"),
+        ({"id": "abc123", "body": {}}, "body"),
+        ({"id": "abc123", "videoId": "abc123"}, "videoId"),
+        ({"id": "abc123", "onBehalfOfContentOwner": "owner"}, "onBehalfOfContentOwner"),
+    ],
+)
+def test_videos_delete_validation_rejects_missing_invalid_and_unsupported_inputs(arguments, field):
+    """Reject malformed delete requests and unsupported aliases or modifiers."""
+    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, validate_videos_delete_arguments
+
+    with pytest.raises(VideosDeleteToolError) as exc_info:
+        validate_videos_delete_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    if field is not None:
+        assert exc_info.value.details["field"] == field
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "part",
+        "myRating",
+        "rating",
+        "getRating",
+        "reportAbuse",
+        "body",
+        "bulkDelete",
+        "ids",
+        "media",
+        "uploadMode",
+        "update",
+        "thumbnail",
+        "caption",
+        "playlist",
+        "comment",
+        "includeTranscript",
+        "analytics",
+        "recommend",
+        "rankResults",
+        "summarize",
+        "enrich",
+        "recover",
+    ],
+)
+def test_videos_delete_validation_rejects_out_of_scope_workflow_fields(field):
+    """Reject lookup, bulk, recovery, analytics, ranking, and enrichment fields."""
+    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, validate_videos_delete_arguments
+
+    with pytest.raises(VideosDeleteToolError) as exc_info:
+        validate_videos_delete_arguments({"id": "abc123", field: "value"})
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+
+
+def test_videos_delete_handler_rejects_missing_oauth_before_layer1_execution():
+    """Surface missing OAuth without invoking the Layer 1 delete wrapper."""
+    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, build_videos_delete_handler
+
+    wrapper = RecordingWrapper()
+    handler = build_videos_delete_handler(wrapper=wrapper, oauth_token=None)
+
+    with pytest.raises(VideosDeleteToolError) as exc_info:
+        handler(_valid_videos_delete_arguments())
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+    assert wrapper.calls == []
+
+
+@pytest.mark.parametrize(
+    ("upstream_category", "expected_category"),
+    [
+        ("invalid_request", "invalid_request"),
+        ("authentication", "authentication_failed"),
+        ("auth", "authorization_failed"),
+        ("authorization", "authorization_failed"),
+        ("permission", "authorization_failed"),
+        ("forbidden", "authorization_failed"),
+        ("policy", "authorization_failed"),
+        ("policy_restricted", "authorization_failed"),
+        ("refused", "authorization_failed"),
+        ("conflict", "upstream_failure"),
+        ("rate_limit", "quota_exhausted"),
+        ("quota", "quota_exhausted"),
+        ("not_found", "resource_not_found"),
+        ("resource_not_found", "resource_not_found"),
+        ("removed", "resource_not_found"),
+        ("unavailable", "endpoint_unavailable"),
+        ("availability", "endpoint_unavailable"),
+        ("deprecated", "deprecated_endpoint"),
+        ("transient", "upstream_failure"),
+    ],
+)
+def test_videos_delete_handler_maps_and_sanitizes_upstream_failures(upstream_category, expected_category):
+    """Convert Layer 1 delete failures into safe caller-facing categories."""
+    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, build_videos_delete_handler
+
+    wrapper = FailingWrapper(
+        NormalizedUpstreamError(
+            message="upstream failed",
+            category=upstream_category,
+            retryable=False,
+            upstream_status=503,
+            details={
+                "authorization": "Bearer secret",
+                "oauth_token": "hidden",
+                "upstream_body": {"secret": "hidden"},
+                "stacktrace": "hidden",
+                "reason": "safe",
+            },
+        )
+    )
+    handler = build_videos_delete_handler(wrapper=wrapper, oauth_token="local-oauth")
+
+    with pytest.raises(VideosDeleteToolError) as exc_info:
+        handler(_valid_videos_delete_arguments())
+
+    assert exc_info.value.category == expected_category
+    assert exc_info.value.details == {"reason": "safe"}
+    assert "Bearer" not in str(exc_info.value.details)
+    assert "hidden" not in str(exc_info.value.details)

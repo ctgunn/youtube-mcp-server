@@ -60,6 +60,7 @@ from mcp_server.tools.youtube_common.video_abuse_report_reasons import (
 )
 from mcp_server.tools.youtube_common.video_categories import build_video_categories_list_contract
 from mcp_server.tools.youtube_common.videos import (
+    build_videos_delete_contract,
     build_videos_get_rating_contract,
     build_videos_insert_contract,
     build_videos_list_contract,
@@ -314,6 +315,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_videos_rate_contract(),
     build_videos_get_rating_contract(),
     build_videos_report_abuse_contract(),
+    build_videos_delete_contract(),
     _contract(
         resource="watermarks",
         method="unset",
