@@ -9,6 +9,7 @@ from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.videos import (
+    build_videos_delete_wrapper,
     build_videos_get_rating_wrapper,
     build_videos_insert_wrapper,
     build_videos_list_wrapper,
@@ -921,6 +922,151 @@ VIDEOS_REPORT_ABUSE_CALLER_EXAMPLES = (
     },
 )
 
+VIDEOS_DELETE_TOOL_NAME = "videos_delete"
+VIDEOS_DELETE_QUOTA_COST = 50
+VIDEOS_DELETE_ALLOWED_FIELDS = frozenset({"id"})
+VIDEOS_DELETE_UNSAFE_DETAIL_KEYS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "authorization",
+        "authorization_header",
+        "headers",
+        "oauth_token",
+        "raw_body",
+        "request_body",
+        "request_context",
+        "request_headers",
+        "response_body",
+        "stack",
+        "stack_trace",
+        "stacktrace",
+        "traceback",
+        "upstream_body",
+    }
+)
+
+VIDEOS_DELETE_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["id"],
+    "properties": {"id": {"type": "string", "minLength": 1}},
+    "additionalProperties": False,
+}
+
+VIDEOS_DELETE_DESCRIPTION = (
+    "Delete a YouTube video through videos.delete. Quota cost: 50. Auth: OAuth required. "
+    "Requires one target id, sends no request body, and returns a 204 No Content deletion acknowledgment."
+)
+
+VIDEOS_DELETE_USAGE_NOTES = (
+    "Quota cost: 50. OAuth authorization is required for every videos.delete request.",
+    "Quota cost: 50. Provide exactly one non-empty id for the target video; comma-separated or bulk targets are rejected where detectable.",
+    "Quota cost: 50. videos.delete sends no request body; body, videoId aliases, and onBehalfOfContentOwner delegation modifiers are rejected in this slice.",
+    "Quota cost: 50. Successful deletion returns a no-content acknowledgment, not a refreshed video resource, lookup result, recovery state, or policy review.",
+    "Quota cost: 50. Treat videos_delete as destructive: callers should confirm the target before invoking this low-level endpoint tool.",
+)
+
+VIDEOS_DELETE_CAVEATS = (
+    "This tool is a low-level destructive videos.delete wrapper for deleting one authorized target video only.",
+    "onBehalfOfContentOwner is intentionally rejected because partner delegation is outside the guaranteed boundary for this slice.",
+    "Missing, removed, inaccessible, policy-restricted, conflict, refused, or otherwise non-deletable videos are surfaced through safe failure categories.",
+    "Listing, metadata lookup, metadata update, upload, rating lookup, rating mutation, abuse reporting, thumbnail management, caption management, playlist management, comment management, transcript retrieval, analytics, recommendation, ranking, summarization, enrichment, recovery, policy review, and cross-endpoint workflows are out of scope.",
+    "Credentials, authorization headers, raw upstream diagnostics, raw request context, and secret-bearing fields are never returned to callers.",
+)
+
+VIDEOS_DELETE_CALLER_EXAMPLES = (
+    {
+        "name": "authorized_video_deletion",
+        "description": "Quota cost: 50. Delete one video with OAuth using videos.delete, one id, and no request body.",
+        "arguments": {"id": "abc123"},
+        "result": {
+            "endpoint": "videos.delete",
+            "quotaCost": 50,
+            "acknowledgment": {"accepted": True, "status": "deleted"},
+            "status": {"code": 204, "body": "none"},
+        },
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_identity_failure",
+        "description": "Quota cost: 50. Missing id is rejected before videos.delete execution.",
+        "arguments": {},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "malformed_identity_failure",
+        "description": "Quota cost: 50. Empty, non-string, or locally detectable multi-target id values are rejected.",
+        "arguments": {"id": "abc123,def456"},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "request_body_failure",
+        "description": "Quota cost: 50. Request body input is rejected because videos.delete sends no request body.",
+        "arguments": {"id": "abc123", "body": {}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "unsupported_modifier_failure",
+        "description": "Quota cost: 50. videoId aliases, bulk delete modifiers, recovery controls, and undocumented modifiers are rejected.",
+        "arguments": {"id": "abc123", "videoId": "abc123"},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "rejected_partner_delegation",
+        "description": "Quota cost: 50. onBehalfOfContentOwner is rejected because partner delegation is outside this videos_delete slice.",
+        "arguments": {"id": "abc123", "onBehalfOfContentOwner": "owner"},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "missing_oauth",
+        "description": "Quota cost: 50. Missing OAuth is reported as authentication_failed before delete execution.",
+        "arguments": {"id": "abc123"},
+        "errorCategory": "authentication_failed",
+    },
+    {
+        "name": "insufficient_permission_failure",
+        "description": "Quota cost: 50. Insufficient OAuth permission, ownership, forbidden, or policy failures are reported safely.",
+        "arguments": {"id": "restricted-video"},
+        "errorCategory": "authorization_failed",
+    },
+    {
+        "name": "quota_or_upstream_delete_failure",
+        "description": "Quota cost: 50. Quota, rate-limit, and unexpected upstream failures map to safe public categories.",
+        "arguments": {"id": "abc123"},
+        "errorCategory": "quota_exhausted",
+    },
+    {
+        "name": "unavailable_target_failure",
+        "description": "Quota cost: 50. Removed, missing, or unavailable target videos are reported without unsafe upstream details.",
+        "arguments": {"id": "missing-video"},
+        "errorCategory": "resource_not_found",
+    },
+    {
+        "name": "deprecated_endpoint",
+        "description": "Quota cost: 50. Deprecated endpoint failures are surfaced distinctly if upstream reports them.",
+        "arguments": {"id": "abc123"},
+        "errorCategory": "deprecated_endpoint",
+    },
+    {
+        "name": "endpoint_unavailable",
+        "description": "Quota cost: 50. Endpoint availability failures are surfaced without unsafe upstream details.",
+        "arguments": {"id": "abc123"},
+        "errorCategory": "endpoint_unavailable",
+    },
+    {
+        "name": "conflict_or_refusal_failure",
+        "description": "Quota cost: 50. Conflict, refusal, or non-deletable target outcomes are categorized safely.",
+        "arguments": {"id": "locked-video"},
+        "errorCategory": "upstream_failure",
+    },
+    {
+        "name": "out_of_scope_video_workflow",
+        "description": "Quota cost: 50. Lookup, update, upload, rating, abuse, caption, thumbnail, playlist, comment, transcript, analytics, recommendation, ranking, summarization, enrichment, recovery, and cross-endpoint fields are rejected.",
+        "arguments": {"id": "abc123", "analytics": True},
+        "errorCategory": "invalid_request",
+    },
+)
+
 
 class VideosListToolError(ValueError):
     """Represent a safe caller-facing ``videos_list`` failure.
@@ -1042,6 +1188,26 @@ class VideosReportAbuseToolError(ValueError):
         self.details = _sanitize_videos_report_abuse_error_details(details or {})
 
 
+class VideosDeleteToolError(ValueError):
+    """Represent a safe caller-facing ``videos_delete`` failure.
+
+    :param message: Caller-facing error message.
+    :param category: Stable Layer 2 error category.
+    :param details: Safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str = "invalid_request", details: dict[str, Any] | None = None):
+        """Initialize the safe delete tool error.
+
+        :param message: Caller-facing error message.
+        :param category: Stable Layer 2 error category.
+        :param details: Safe diagnostic details.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = _sanitize_videos_delete_error_details(details or {})
+
+
 def _sanitize_videos_list_error_details(details: dict[str, Any]) -> dict[str, Any]:
     """Remove endpoint-specific unsafe diagnostic fields.
 
@@ -1123,6 +1289,20 @@ def _sanitize_videos_report_abuse_error_details(details: dict[str, Any]) -> dict
         key: value
         for key, value in sanitized.items()
         if key.lower().replace("-", "_") not in VIDEOS_REPORT_ABUSE_UNSAFE_DETAIL_KEYS
+    }
+
+
+def _sanitize_videos_delete_error_details(details: dict[str, Any]) -> dict[str, Any]:
+    """Remove delete-specific unsafe diagnostic fields.
+
+    :param details: Candidate diagnostic details.
+    :return: Safe details suitable for caller-facing delete errors.
+    """
+    sanitized = sanitize_error_details(details)
+    return {
+        key: value
+        for key, value in sanitized.items()
+        if key.lower().replace("-", "_") not in VIDEOS_DELETE_UNSAFE_DETAIL_KEYS
     }
 
 
@@ -1748,6 +1928,48 @@ def validate_videos_report_abuse_arguments(arguments: dict[str, Any]) -> dict[st
     return {"body": normalized_body}
 
 
+def _require_videos_delete_text_field(arguments: dict[str, Any], field: str) -> str:
+    """Require one non-empty ``videos_delete`` text input field.
+
+    :param arguments: Caller-provided arguments.
+    :param field: Field name to validate.
+    :return: Stripped field value.
+    :raises VideosDeleteToolError: If the field is missing or invalid.
+    """
+    value = arguments.get(field)
+    if not isinstance(value, str) or not value.strip():
+        raise VideosDeleteToolError(f"videos_delete requires non-empty {field}", details={"field": field})
+    return value.strip()
+
+
+def _validate_videos_delete_id(arguments: dict[str, Any]) -> str:
+    """Validate the target video identity for a delete mutation.
+
+    :param arguments: Caller-provided arguments.
+    :return: Normalized video identifier.
+    :raises VideosDeleteToolError: If the identity is missing, ambiguous, or malformed.
+    """
+    video_id = _require_videos_delete_text_field(arguments, "id")
+    if "," in video_id or len(_split_ids(video_id)) != 1:
+        raise VideosDeleteToolError("videos_delete requires exactly one id", details={"field": "id"})
+    return video_id
+
+
+def validate_videos_delete_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate ``videos_delete`` destructive mutation arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized video id.
+    :raises VideosDeleteToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise VideosDeleteToolError("videos_delete arguments must be an object")
+    for field in arguments:
+        if field not in VIDEOS_DELETE_ALLOWED_FIELDS:
+            raise VideosDeleteToolError(f"unsupported field for videos_delete: {field}", details={"field": field})
+    return {"id": _validate_videos_delete_id(arguments)}
+
+
 def _videos_insert_upload_context(arguments: dict[str, Any]) -> dict[str, Any]:
     """Build safe upload context without raw media content.
 
@@ -1872,6 +2094,15 @@ def _videos_report_abuse_context(arguments: dict[str, Any]) -> dict[str, Any]:
     return context
 
 
+def _videos_delete_target_context(arguments: dict[str, Any]) -> dict[str, str]:
+    """Build safe target context for a video deletion.
+
+    :param arguments: Normalized delete arguments.
+    :return: Public target context for result payloads.
+    """
+    return {"id": arguments["id"]}
+
+
 def map_videos_insert_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     """Map an upstream video-create payload to the public Layer 2 result.
 
@@ -1986,6 +2217,29 @@ def map_videos_report_abuse_result(payload: dict[str, Any], arguments: dict[str,
         "availability": {"state": "active"},
         "acknowledgment": {"accepted": True, "status": "submitted"},
         "status": {"code": 204, "body": "none"},
+    }
+
+
+def map_videos_delete_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream video-delete no-content response to a public acknowledgment.
+
+    :param payload: Upstream or Layer 1 video-delete payload, if any.
+    :param arguments: Caller arguments used for the request.
+    :return: Structured deletion acknowledgment with safe operation context.
+    """
+    normalized = validate_videos_delete_arguments(arguments)
+    safe_payload = sanitize_error_details(payload if isinstance(payload, dict) else {})
+    source_operation = safe_payload.get("sourceOperation") or "videos.delete"
+    return {
+        "endpoint": "videos.delete",
+        "quotaCost": VIDEOS_DELETE_QUOTA_COST,
+        "target": _videos_delete_target_context(normalized),
+        "auth": {"mode": "oauth_required", "path": "restricted"},
+        "availability": {"state": "active"},
+        "deleted": bool(safe_payload.get("isDeleted", True)),
+        "acknowledgment": {"accepted": True, "status": "deleted"},
+        "status": {"code": 204, "body": "none"},
+        "sourceOperation": source_operation,
     }
 
 
@@ -2796,6 +3050,98 @@ def build_videos_report_abuse_contract() -> YouTubeToolContract:
     )
 
 
+def _videos_delete_disallowed_behavior() -> tuple[str, ...]:
+    """Return behaviors outside the low-level ``videos_delete`` endpoint boundary.
+
+    :return: Stable disallowed-behavior identifiers for metadata.
+    """
+    return (
+        "video_listing",
+        "metadata_lookup",
+        "metadata_update",
+        "media_upload",
+        "media_replacement",
+        "transcoding",
+        "automatic_publishing",
+        "video_creation",
+        "video_update",
+        "rating_lookup",
+        "rating_mutation",
+        "abuse_reporting",
+        "thumbnail_management",
+        "caption_management",
+        "playlist_management",
+        "comment_management",
+        "transcript_retrieval",
+        "analytics",
+        "recommendation",
+        "ranking",
+        "summarization",
+        "enrichment",
+        "recovery",
+        "policy_review",
+        "cross_endpoint_aggregation",
+    )
+
+
+def build_videos_delete_contract() -> YouTubeToolContract:
+    """Build the public contract for ``videos_delete``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "quotaCost",
+            "target",
+            "auth",
+            "availability",
+            "deleted",
+            "acknowledgment",
+            "status",
+            "sourceOperation",
+        ),
+        preserved_upstream_fields=(),
+        disallowed_behavior=_videos_delete_disallowed_behavior(),
+    )
+    return YouTubeToolContract(
+        tool_name=VIDEOS_DELETE_TOOL_NAME,
+        upstream_resource="videos",
+        upstream_method="delete",
+        operation_key="videos.delete",
+        description=VIDEOS_DELETE_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=VIDEOS_DELETE_QUOTA_COST,
+        resource_family="videos",
+        input_contract=VIDEOS_DELETE_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "mutation_acknowledgment",
+            "mutation": "deleted",
+            "authMode": "oauth_required",
+            "requiredFields": ["id"],
+            "requestBody": "none",
+            "successStatus": 204,
+            "statusBody": "none",
+            "targetPath": "target",
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "quota_exhausted",
+            "resource_not_found",
+            "endpoint_unavailable",
+            "deprecated_endpoint",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.ACTIVE,
+        usage_notes=VIDEOS_DELETE_USAGE_NOTES,
+        caveats=VIDEOS_DELETE_CAVEATS,
+    )
+
+
 def _default_videos_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default video-list calls.
 
@@ -2938,6 +3284,27 @@ def _default_videos_report_abuse_executor() -> IntegrationExecutor:
     return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
 
 
+def _default_videos_delete_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default video-delete calls.
+
+    :return: Integration executor returning a representative no-content acknowledgment payload.
+    """
+
+    def transport(execution):
+        """Return a representative video-delete response.
+
+        :param execution: Request execution context.
+        :return: Fake upstream delete acknowledgment for local invocation.
+        """
+        return {
+            "videoId": execution.arguments.get("id"),
+            "isDeleted": True,
+            "sourceOperation": execution.metadata.operation_key,
+        }
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
 def _videos_insert_auth_context(oauth_token: str | None) -> AuthContext:
     """Build the Layer 1 OAuth auth context for ``videos_insert``.
 
@@ -3063,6 +3430,32 @@ def _videos_report_abuse_auth_context(oauth_token: str | None) -> AuthContext:
     except ValueError as exc:
         raise VideosReportAbuseToolError(
             "videos_reportAbuse requires OAuth authorization",
+            category="authentication_failed",
+            details={"authMode": "oauth_required"},
+        ) from exc
+
+
+def _videos_delete_auth_context(oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 OAuth auth context for ``videos_delete``.
+
+    :param oauth_token: OAuth token credential value.
+    :return: Layer 1 auth context for OAuth-required delete execution.
+    :raises VideosDeleteToolError: If OAuth access is missing.
+    """
+    if not isinstance(oauth_token, str) or not oauth_token.strip():
+        raise VideosDeleteToolError(
+            "videos_delete requires OAuth authorization",
+            category="authentication_failed",
+            details={"authMode": "oauth_required"},
+        )
+    try:
+        return AuthContext(
+            mode=Layer1AuthMode.OAUTH_REQUIRED,
+            credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+        )
+    except ValueError as exc:
+        raise VideosDeleteToolError(
+            "videos_delete requires OAuth authorization",
             category="authentication_failed",
             details={"authMode": "oauth_required"},
         ) from exc
@@ -3215,6 +3608,36 @@ def _map_videos_report_abuse_upstream_error(error: NormalizedUpstreamError) -> V
     }
     category = category_map.get(error.category, "upstream_failure")
     return VideosReportAbuseToolError(str(error), category=category, details=error.details or {})
+
+
+def _map_videos_delete_upstream_error(error: NormalizedUpstreamError) -> VideosDeleteToolError:
+    """Map a normalized upstream failure to a safe ``videos_delete`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe caller-facing tool error.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "validation": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "policy": "authorization_failed",
+        "policy_restricted": "authorization_failed",
+        "refused": "authorization_failed",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "not_found": "resource_not_found",
+        "resource_not_found": "resource_not_found",
+        "removed": "resource_not_found",
+        "unavailable": "endpoint_unavailable",
+        "availability": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return VideosDeleteToolError(str(error), category=category, details=error.details or {})
 
 
 def build_videos_insert_handler(
@@ -3397,6 +3820,52 @@ def build_videos_report_abuse_handler(
                 details={"authMode": "oauth_required"} if category == "authentication_failed" else {"field": "request"},
             ) from exc
         return map_videos_report_abuse_result(payload, normalized)
+
+    return handler
+
+
+def build_videos_delete_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``videos_delete``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used for video deletion.
+    :return: Callable that validates, executes, and maps video-delete requests.
+    """
+    selected_wrapper = wrapper or build_videos_delete_wrapper()
+    selected_executor = executor or _default_videos_delete_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``videos_delete`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 video-delete acknowledgment result.
+        :raises VideosDeleteToolError: If validation, access, or execution fails.
+        """
+        normalized = validate_videos_delete_arguments(arguments)
+        auth_context = _videos_delete_auth_context(oauth_token)
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_videos_delete_upstream_error(exc) from exc
+        except ValueError as exc:
+            message = str(exc)
+            category = "authentication_failed" if "oauth" in message.lower() else "invalid_request"
+            raise VideosDeleteToolError(
+                message,
+                category=category,
+                details={"authMode": "oauth_required"} if category == "authentication_failed" else {"field": "request"},
+            ) from exc
+        return map_videos_delete_result(payload, normalized)
 
     return handler
 
@@ -3665,7 +4134,41 @@ def build_videos_report_abuse_tool_descriptor(
     }
 
 
+def build_videos_delete_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``videos_delete``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_videos_delete_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(VIDEOS_DELETE_CALLER_EXAMPLES)
+    return {
+        "name": VIDEOS_DELETE_TOOL_NAME,
+        "description": VIDEOS_DELETE_DESCRIPTION,
+        "inputSchema": VIDEOS_DELETE_INPUT_SCHEMA,
+        "handler": build_videos_delete_handler(wrapper=wrapper, executor=executor, oauth_token=oauth_token),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
+    "VIDEOS_DELETE_ALLOWED_FIELDS",
+    "VIDEOS_DELETE_CALLER_EXAMPLES",
+    "VIDEOS_DELETE_CAVEATS",
+    "VIDEOS_DELETE_DESCRIPTION",
+    "VIDEOS_DELETE_INPUT_SCHEMA",
+    "VIDEOS_DELETE_QUOTA_COST",
+    "VIDEOS_DELETE_TOOL_NAME",
+    "VIDEOS_DELETE_UNSAFE_DETAIL_KEYS",
+    "VIDEOS_DELETE_USAGE_NOTES",
     "VIDEOS_GET_RATING_ALLOWED_FIELDS",
     "VIDEOS_GET_RATING_CALLER_EXAMPLES",
     "VIDEOS_GET_RATING_CAVEATS",
@@ -3734,9 +4237,13 @@ __all__ = [
     "VideosGetRatingToolError",
     "VideosInsertToolError",
     "VideosListToolError",
+    "VideosDeleteToolError",
     "VideosRateToolError",
     "VideosReportAbuseToolError",
     "VideosUpdateToolError",
+    "build_videos_delete_contract",
+    "build_videos_delete_handler",
+    "build_videos_delete_tool_descriptor",
     "build_videos_insert_contract",
     "build_videos_insert_handler",
     "build_videos_insert_tool_descriptor",
@@ -3755,12 +4262,14 @@ __all__ = [
     "build_videos_update_contract",
     "build_videos_update_handler",
     "build_videos_update_tool_descriptor",
+    "map_videos_delete_result",
     "map_videos_insert_result",
     "map_videos_get_rating_result",
     "map_videos_list_result",
     "map_videos_rate_result",
     "map_videos_report_abuse_result",
     "map_videos_update_result",
+    "validate_videos_delete_arguments",
     "validate_videos_insert_arguments",
     "validate_videos_get_rating_arguments",
     "validate_videos_list_arguments",

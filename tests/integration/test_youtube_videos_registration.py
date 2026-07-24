@@ -730,3 +730,107 @@ def test_videos_report_abuse_descriptor_propagates_sanitized_access_failures():
     assert exc_info.value.category == "authorization_failed"
     assert exc_info.value.details == {"reason": "forbidden"}
     assert "secret" not in str(exc_info.value.details)
+
+
+def test_videos_delete_descriptor_registers_as_executable_mutation_tool():
+    """Register and execute the ``videos_delete`` descriptor through the dispatcher."""
+    from mcp_server.tools.youtube_common.videos import build_videos_delete_tool_descriptor
+
+    wrapper = RecordingWrapper(payload={"sourceOperation": "videos.delete", "isDeleted": True})
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor(wrapper=wrapper)])
+
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+    result = dispatcher.call_tool("videos_delete", {"id": "abc123"})
+
+    assert listed["videos_delete"]["metadata"]["upstream"]["operationKey"] == "videos.delete"
+    assert listed["videos_delete"]["metadata"]["quotaCost"] == 50
+    assert listed["videos_delete"]["metadata"]["authMode"] == "oauth_required"
+    assert listed["videos_delete"]["metadata"]["availabilityState"] == "active"
+    assert result["endpoint"] == "videos.delete"
+    assert result["quotaCost"] == 50
+    assert result["target"] == {"id": "abc123"}
+    assert result["auth"] == {"mode": "oauth_required", "path": "restricted"}
+    assert result["deleted"] is True
+    assert result["acknowledgment"] == {"accepted": True, "status": "deleted"}
+    assert result["status"] == {"code": 204, "body": "none"}
+    assert wrapper.calls[0]["arguments"] == {"id": "abc123"}
+
+
+def test_videos_delete_descriptor_exposes_caller_metadata_and_examples():
+    """Expose usage notes and examples needed before video deletion calls."""
+    from mcp_server.tools.youtube_common.videos import build_videos_delete_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor()])
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+    metadata = listed["videos_delete"]["metadata"]
+    example_names = {example["name"] for example in metadata["examples"]}
+    metadata_text = " ".join([listed["videos_delete"]["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "id" in metadata_text
+    assert "no request body" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "destructive" in metadata_text.lower()
+    assert {"authorized_video_deletion", "missing_identity_failure", "missing_oauth"}.issubset(example_names)
+
+
+def test_videos_delete_descriptor_schema_rejects_missing_required_inputs():
+    """Reject missing required delete fields before handler execution."""
+    from mcp_server.tools.youtube_common.videos import build_videos_delete_tool_descriptor
+
+    wrapper = RecordingWrapper()
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor(wrapper=wrapper)])
+
+    with pytest.raises(ValueError, match="arguments missing required field: id"):
+        dispatcher.call_tool("videos_delete", {})
+
+    assert wrapper.calls == []
+
+
+def test_videos_delete_descriptor_rejects_missing_oauth_safely():
+    """Reject valid delete requests with missing OAuth before Layer 1 execution."""
+    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, build_videos_delete_tool_descriptor
+
+    wrapper = RecordingWrapper()
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor(wrapper=wrapper, oauth_token=None)])
+
+    with pytest.raises(VideosDeleteToolError) as exc_info:
+        dispatcher.call_tool("videos_delete", {"id": "abc123"})
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"authMode": "oauth_required"}
+    assert wrapper.calls == []
+
+
+def test_videos_delete_descriptor_rejects_body_delegation_and_scope_fields():
+    """Reject request body, delegation, and workflow fields through the descriptor."""
+    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, build_videos_delete_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor()])
+
+    with pytest.raises(ValueError, match="arguments contain unsupported field: body"):
+        dispatcher.call_tool("videos_delete", {"id": "abc123", "body": {}})
+    with pytest.raises(ValueError, match="arguments contain unsupported field: onBehalfOfContentOwner"):
+        dispatcher.call_tool("videos_delete", {"id": "abc123", "onBehalfOfContentOwner": "owner"})
+    with pytest.raises(ValueError, match="arguments contain unsupported field: analytics"):
+        dispatcher.call_tool("videos_delete", {"id": "abc123", "analytics": True})
+    with pytest.raises(VideosDeleteToolError) as multi_exc:
+        dispatcher.call_tool("videos_delete", {"id": "abc123,def456"})
+
+    assert multi_exc.value.category == "invalid_request"
+    assert multi_exc.value.details["field"] == "id"
+
+
+def test_videos_delete_descriptor_propagates_sanitized_access_failures():
+    """Expose sanitized delete access failures from the registered handler."""
+    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, build_videos_delete_tool_descriptor
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor(wrapper=AccessFailingWrapper())])
+
+    with pytest.raises(VideosDeleteToolError) as exc_info:
+        dispatcher.call_tool("videos_delete", {"id": "abc123"})
+
+    assert exc_info.value.category == "authorization_failed"
+    assert exc_info.value.details == {"reason": "forbidden"}
+    assert "secret" not in str(exc_info.value.details)

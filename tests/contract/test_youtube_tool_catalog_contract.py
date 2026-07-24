@@ -44,6 +44,7 @@ def test_representative_examples_include_required_us1_shapes():
         "videos_getRating",
         "videos_list",
         "videos_reportAbuse",
+        "videos_delete",
         "watermarks_unset",
     }.issubset(names)
 
@@ -394,6 +395,49 @@ def test_representative_videos_insert_out_of_scope_boundaries_are_explicit():
         "enrichment",
     ):
         assert term in metadata_text
+
+
+def test_representative_videos_delete_example_aligns_with_concrete_contract():
+    """Keep the representative videos-delete example aligned with YT-253."""
+    from mcp_server.tools.youtube_common.videos import build_videos_delete_contract, build_videos_delete_tool_descriptor
+
+    representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
+        "videos_delete"
+    ]
+    concrete = build_videos_delete_contract()
+    descriptor = build_videos_delete_tool_descriptor()
+    metadata = representative.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+    example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
+
+    assert representative.tool_name == concrete.tool_name
+    assert representative.upstream_resource == concrete.upstream_resource
+    assert representative.upstream_method == concrete.upstream_method
+    assert representative.quota_cost == 50
+    assert representative.auth_mode is AuthMode.OAUTH_REQUIRED
+    assert representative.auth_mode == concrete.auth_mode
+    assert representative.availability_state == concrete.availability_state
+    assert representative.input_contract["required"] == ["id"]
+    assert representative.input_contract["required"] == concrete.input_contract["required"]
+    assert "body" not in representative.input_contract["properties"]
+    assert representative.response_convention["resultKind"] == "mutation_acknowledgment"
+    assert representative.response_convention["mutation"] == "deleted"
+    assert representative.response_convention["successStatus"] == 204
+    assert representative.response_convention["requestBody"] == "none"
+    assert representative.response_convention["resultKind"] == concrete.response_convention["resultKind"]
+    assert "Quota cost: 50" in metadata_text
+    assert "OAuth" in metadata_text
+    assert "id" in metadata_text
+    assert "no request body" in metadata_text
+    assert "destructive" in metadata_text.lower()
+    assert "recovery" in metadata_text
+    assert {
+        "authorized_video_deletion",
+        "request_body_failure",
+        "rejected_partner_delegation",
+        "missing_oauth",
+        "out_of_scope_video_workflow",
+    }.issubset(example_names)
 
 
 def test_representative_comments_insert_example_aligns_with_concrete_contract():
@@ -1845,6 +1889,12 @@ def test_representative_examples_cover_required_us2_shapes():
     assert by_name["videos_reportAbuse"].resource_family == "videos"
     assert by_name["videos_reportAbuse"].response_convention["resultKind"] == "mutation_acknowledgment"
     assert by_name["videos_reportAbuse"].response_boundary["boundaryKind"] == "near_raw"
+    assert by_name["videos_delete"].quota_cost == 50
+    assert by_name["videos_delete"].auth_mode.value == "oauth_required"
+    assert by_name["videos_delete"].resource_family == "videos"
+    assert by_name["videos_delete"].response_convention["resultKind"] == "mutation_acknowledgment"
+    assert by_name["videos_delete"].response_convention["mutation"] == "deleted"
+    assert by_name["videos_delete"].response_boundary["boundaryKind"] == "near_raw"
 
 
 def test_representative_videos_update_descriptor_examples_cover_boundaries():
