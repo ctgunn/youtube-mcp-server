@@ -8,7 +8,7 @@ from mcp_server.integrations.auth import AuthContext, CredentialBundle
 from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
-from mcp_server.integrations.resources.watermarks import build_watermarks_set_wrapper
+from mcp_server.integrations.resources.watermarks import build_watermarks_set_wrapper, build_watermarks_unset_wrapper
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
 from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
@@ -51,6 +51,29 @@ WATERMARKS_SET_INPUT_SCHEMA = {
             },
             "additionalProperties": False,
         },
+    },
+    "additionalProperties": False,
+}
+
+WATERMARKS_UNSET_TOOL_NAME = "watermarks_unset"
+WATERMARKS_UNSET_QUOTA_COST = 50
+WATERMARKS_UNSET_UNSAFE_DETAIL_KEYS = (
+    "authorization",
+    "auth_header",
+    "body",
+    "content",
+    "media",
+    "media.content",
+    "raw_content",
+    "raw_media",
+    "request_body",
+)
+
+WATERMARKS_UNSET_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["channelId"],
+    "properties": {
+        "channelId": {"type": "string", "minLength": 1},
     },
     "additionalProperties": False,
 }
@@ -218,6 +241,130 @@ WATERMARKS_SET_CALLER_EXAMPLES = (
     },
 )
 
+WATERMARKS_UNSET_DESCRIPTION = (
+    "Remove a channel watermark for one YouTube channel. Endpoint: watermarks.unset. "
+    "Quota cost: 50. Auth: OAuth required. Requires channelId only and accepts no upload body or media."
+)
+
+WATERMARKS_UNSET_USAGE_NOTES = (
+    "Quota cost: 50. OAuth authorization is required before removing a target channel watermark.",
+    "Provide exactly one channelId; body, media, upload content, metadata-only, and media-only requests are rejected.",
+    "This is a no upload mutation and successful upstream responses can be sparse 204 acknowledgments.",
+    "Successful results preserve target channel, auth, owner-only availability, no-upload, and acknowledgment context.",
+)
+
+WATERMARKS_UNSET_CAVEATS = (
+    "Availability is owner_only and depends on eligible OAuth access for the target channel.",
+    "onBehalfOfContentOwner partner delegation is rejected in this slice.",
+    "No-current-watermark, already-removed, or no-removal-possible outcomes are reported as safe failures rather than successful removals.",
+    "watermarks.set, watermark lookup, channel updates, banner tools, thumbnail tools, video workflows, captions, playlists, comments, transcripts, analytics, recommendations, ranking, summarization, enrichment, and automated branding are out of scope.",
+    "Raw media content, credentials, authorization headers, stack traces, raw upstream bodies, and unsafe diagnostics are never returned to callers.",
+)
+
+WATERMARKS_UNSET_CALLER_EXAMPLES = (
+    {
+        "name": "oauth_watermark_unset",
+        "description": "Quota cost: 50. Remove one channel watermark with OAuth and a target channelId.",
+        "arguments": {"channelId": "UC123"},
+        "result": {
+            "endpoint": "watermarks.unset",
+            "quotaCost": 50,
+            "removed": True,
+            "target": {"channelId": "UC123"},
+            "auth": {"mode": "oauth_required"},
+            "availability": {"state": "owner_only"},
+            "noUpload": {"bodyAccepted": False, "mediaAccepted": False},
+            "acknowledgment": {"accepted": True, "status": "watermark_unset"},
+        },
+        "quotaCost": 50,
+    },
+    {
+        "name": "sparse_success",
+        "description": "Quota cost: 50. Preserve target and no-upload context for a sparse 204 success.",
+        "arguments": {"channelId": "UC123"},
+        "result": {
+            "endpoint": "watermarks.unset",
+            "removed": True,
+            "target": {"channelId": "UC123"},
+            "noUpload": {"bodyAccepted": False, "mediaAccepted": False},
+            "upstream": {},
+        },
+        "quotaCost": 50,
+    },
+    {
+        "name": "missing_channel_id",
+        "description": "Reject requests missing the required target channelId.",
+        "arguments": {},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "invalid_channel_id",
+        "description": "Reject empty, non-string, or ambiguous multi-target channel identifiers.",
+        "arguments": {"channelId": "UC123,UC456"},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "unsupported_body",
+        "description": "Reject body metadata because watermarks_unset accepts no request body.",
+        "arguments": {"channelId": "UC123", "body": {"timing": {"type": "offsetFromStart"}}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "unsupported_media",
+        "description": "Reject media upload descriptors because watermarks_unset accepts no media.",
+        "arguments": {"channelId": "UC123", "media": {"mimeType": "image/png", "content": "<omitted>"}},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "rejected_partner_delegation",
+        "description": "Reject onBehalfOfContentOwner because partner delegation is outside this slice.",
+        "arguments": {"channelId": "UC123", "onBehalfOfContentOwner": "owner-123"},
+        "errorCategory": "invalid_request",
+    },
+    {
+        "name": "access_failure",
+        "description": "Map missing OAuth access to safe authentication failures.",
+        "arguments": {"channelId": "UC123"},
+        "errorCategory": "authentication_failed",
+    },
+    {
+        "name": "authorization_or_policy_failure",
+        "description": "Map insufficient OAuth, forbidden, or policy failures without private auth details.",
+        "arguments": {"channelId": "UC123"},
+        "errorCategory": "authorization_failed",
+    },
+    {
+        "name": "target_channel_or_quota_failure",
+        "description": "Map target-channel and quota failures to stable caller-facing categories.",
+        "arguments": {"channelId": "UC123"},
+        "errorCategory": "target_channel_failed",
+    },
+    {
+        "name": "no_removal_possible",
+        "description": "Report no-current-watermark or already-removed outcomes without treating them as success.",
+        "arguments": {"channelId": "UC123"},
+        "errorCategory": "no_removal_possible",
+    },
+    {
+        "name": "endpoint_unavailable_or_deprecated",
+        "description": "Map unavailable or deprecated endpoint outcomes to safe categories.",
+        "arguments": {"channelId": "UC123"},
+        "errorCategory": "endpoint_unavailable",
+    },
+    {
+        "name": "conflict_or_upstream_refusal",
+        "description": "Map conflict or upstream refusal cases to safe categories.",
+        "arguments": {"channelId": "UC123"},
+        "errorCategory": "conflict",
+    },
+    {
+        "name": "out_of_scope_watermark_workflow_request",
+        "description": "Reject upload, lookup, banner, thumbnail, video, analytics, ranking, or enrichment workflows.",
+        "arguments": {"channelId": "UC123", "rankResults": True},
+        "errorCategory": "invalid_request",
+    },
+)
+
 
 class WatermarksSetToolError(ValueError):
     """Represent a safe caller-facing ``watermarks_set`` failure.
@@ -239,6 +386,26 @@ class WatermarksSetToolError(ValueError):
         self.details = _sanitize_watermarks_set_error_details(details or {})
 
 
+class WatermarksUnsetToolError(ValueError):
+    """Represent a safe caller-facing ``watermarks_unset`` failure.
+
+    :param message: Caller-facing error message.
+    :param category: Shared Layer 2 error category.
+    :param details: Safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str = "invalid_request", details: dict[str, Any] | None = None):
+        """Initialize the safe tool error.
+
+        :param message: Caller-facing error message.
+        :param category: Shared Layer 2 error category.
+        :param details: Safe diagnostic details.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = _sanitize_watermarks_unset_error_details(details or {})
+
+
 def _sanitize_watermarks_set_error_details(details: dict[str, Any]) -> dict[str, Any]:
     """Remove watermark-specific secret and raw upload fields from error details.
 
@@ -249,6 +416,20 @@ def _sanitize_watermarks_set_error_details(details: dict[str, Any]) -> dict[str,
         key: value
         for key, value in details.items()
         if str(key).lower() not in set(WATERMARKS_SET_UNSAFE_DETAIL_KEYS)
+    }
+    return sanitize_error_details(filtered)
+
+
+def _sanitize_watermarks_unset_error_details(details: dict[str, Any]) -> dict[str, Any]:
+    """Remove watermark-unset secret, metadata, and raw upload fields from details.
+
+    :param details: Candidate diagnostic detail mapping.
+    :return: Safe diagnostic details for caller-facing errors.
+    """
+    filtered = {
+        key: value
+        for key, value in details.items()
+        if str(key).lower() not in set(WATERMARKS_UNSET_UNSAFE_DETAIL_KEYS)
     }
     return sanitize_error_details(filtered)
 
@@ -386,6 +567,45 @@ def validate_watermarks_set_arguments(arguments: dict[str, Any]) -> dict[str, An
     }
 
 
+def _validate_watermarks_unset_channel_id(channel_id: Any) -> str:
+    """Validate and normalize the target channel id for watermark removal.
+
+    :param channel_id: Candidate target channel identifier.
+    :return: Stripped target channel id.
+    :raises WatermarksUnsetToolError: If the identifier is missing, invalid, or ambiguous.
+    """
+    if not isinstance(channel_id, str) or not channel_id.strip():
+        raise WatermarksUnsetToolError("watermarks_unset requires channelId", details={"field": "channelId"})
+    normalized = channel_id.strip()
+    if "," in normalized:
+        raise WatermarksUnsetToolError(
+            "watermarks_unset accepts exactly one channelId",
+            details={"field": "channelId"},
+        )
+    return normalized
+
+
+def validate_watermarks_unset_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate a ``watermarks_unset`` request and return normalized arguments.
+
+    :param arguments: Candidate tool arguments.
+    :return: Normalized caller arguments for execution and result mapping.
+    :raises WatermarksUnsetToolError: If the request shape is unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise WatermarksUnsetToolError("watermarks_unset arguments must be an object", details={"field": "arguments"})
+
+    allowed = {"channelId"}
+    unsupported = sorted(set(arguments) - allowed)
+    if unsupported:
+        raise WatermarksUnsetToolError(
+            f"unsupported field for watermarks_unset: {unsupported[0]}",
+            details={"field": unsupported[0]},
+        )
+
+    return {"channelId": _validate_watermarks_unset_channel_id(arguments.get("channelId"))}
+
+
 def _safe_watermarks_set_upstream_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Build a safe upstream payload copy for public results.
 
@@ -395,6 +615,17 @@ def _safe_watermarks_set_upstream_payload(payload: dict[str, Any]) -> dict[str, 
     if not isinstance(payload, dict):
         return {}
     return _sanitize_watermarks_set_error_details(payload)
+
+
+def _safe_watermarks_unset_upstream_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Build a safe upstream payload copy for public watermark-unset results.
+
+    :param payload: Upstream or Layer 1 watermark-unset payload.
+    :return: Sanitized upstream payload that omits unsafe metadata, upload, or credential fields.
+    """
+    if not isinstance(payload, dict):
+        return {}
+    return _sanitize_watermarks_unset_error_details(payload)
 
 
 def _watermarks_set_metadata_context(body: dict[str, Any]) -> dict[str, Any]:
@@ -421,6 +652,23 @@ def _watermarks_set_upload_context(media: dict[str, Any]) -> dict[str, Any]:
     return {"mimeType": media["mimeType"], "contentProvided": bool(media.get("content"))}
 
 
+def _watermarks_unset_target_context(arguments: dict[str, Any]) -> dict[str, str]:
+    """Build safe target-channel context for a watermark-unset result.
+
+    :param arguments: Validated watermark-unset arguments.
+    :return: Safe target context containing the channel id.
+    """
+    return {"channelId": arguments["channelId"]}
+
+
+def _watermarks_unset_no_upload_context() -> dict[str, bool]:
+    """Build explicit no-upload context for a watermark-unset result.
+
+    :return: Safe context showing body and media are not accepted.
+    """
+    return {"bodyAccepted": False, "mediaAccepted": False}
+
+
 def map_watermarks_set_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
     """Map an upstream watermark-set payload to the public Layer 2 result.
 
@@ -441,6 +689,28 @@ def map_watermarks_set_result(payload: dict[str, Any], arguments: dict[str, Any]
         "availability": {"state": "owner_only"},
         "acknowledgment": {"accepted": True, "status": "watermark_set"},
         "upstream": _safe_watermarks_set_upstream_payload(payload),
+    }
+
+
+def map_watermarks_unset_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Map an upstream watermark-unset payload to the public Layer 2 result.
+
+    :param payload: Upstream or Layer 1 watermark-unset payload.
+    :param arguments: Validated caller arguments used for the request.
+    :return: Near-raw mutation acknowledgment with safe target and no-upload context.
+    """
+    normalized = validate_watermarks_unset_arguments(arguments)
+    return {
+        "endpoint": "watermarks.unset",
+        "sourceOperation": "watermarks.unset",
+        "quotaCost": WATERMARKS_UNSET_QUOTA_COST,
+        "removed": True,
+        "target": _watermarks_unset_target_context(normalized),
+        "auth": {"mode": "oauth_required"},
+        "availability": {"state": "owner_only"},
+        "noUpload": _watermarks_unset_no_upload_context(),
+        "acknowledgment": {"accepted": True, "status": "watermark_unset"},
+        "upstream": _safe_watermarks_unset_upstream_payload(payload),
     }
 
 
@@ -482,6 +752,45 @@ def _map_watermarks_set_upstream_error(error: NormalizedUpstreamError) -> Waterm
     return WatermarksSetToolError(str(error), category=category, details=error.details)
 
 
+def _map_watermarks_unset_upstream_error(error: NormalizedUpstreamError) -> WatermarksUnsetToolError:
+    """Map a normalized upstream failure to a safe ``watermarks_unset`` error.
+
+    :param error: Normalized Layer 1 or upstream failure.
+    :return: Safe watermarks-unset tool error with shared category and sanitized details.
+    """
+    category_map = {
+        "invalid_request": "invalid_request",
+        "authentication": "authentication_failed",
+        "auth": "authorization_failed",
+        "authorization": "authorization_failed",
+        "permission": "authorization_failed",
+        "forbidden": "authorization_failed",
+        "policy": "authorization_failed",
+        "policy_restricted": "authorization_failed",
+        "target_channel": "target_channel_failed",
+        "channel": "target_channel_failed",
+        "not_found": "target_channel_failed",
+        "resource_not_found": "target_channel_failed",
+        "unavailable_channel": "target_channel_failed",
+        "no_removal": "no_removal_possible",
+        "no_removal_possible": "no_removal_possible",
+        "already_removed": "no_removal_possible",
+        "no_current_watermark": "no_removal_possible",
+        "watermark_not_found": "no_removal_possible",
+        "rate_limit": "quota_exhausted",
+        "quota": "quota_exhausted",
+        "unavailable": "endpoint_unavailable",
+        "transient": "endpoint_unavailable",
+        "availability": "endpoint_unavailable",
+        "deprecated": "deprecated_endpoint",
+        "conflict": "conflict",
+        "refused": "upstream_refused",
+        "upstream_refusal": "upstream_refused",
+    }
+    category = category_map.get(error.category, "upstream_failure")
+    return WatermarksUnsetToolError(str(error), category=category, details=error.details)
+
+
 def _watermarks_set_auth_context(oauth_token: str | None) -> AuthContext:
     """Build the OAuth-required auth context for ``watermarks_set``.
 
@@ -492,6 +801,25 @@ def _watermarks_set_auth_context(oauth_token: str | None) -> AuthContext:
     if not isinstance(oauth_token, str) or not oauth_token.strip():
         raise WatermarksSetToolError(
             "watermarks_set requires OAuth authorization",
+            category="authentication_failed",
+            details={"field": "auth", "authMode": "oauth_required"},
+        )
+    return AuthContext(
+        mode=Layer1AuthMode.OAUTH_REQUIRED,
+        credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+    )
+
+
+def _watermarks_unset_auth_context(oauth_token: str | None) -> AuthContext:
+    """Build the OAuth-required auth context for ``watermarks_unset``.
+
+    :param oauth_token: OAuth token used for watermark removal.
+    :return: Layer 1 auth context configured for OAuth-required execution.
+    :raises WatermarksUnsetToolError: If no OAuth token is available.
+    """
+    if not isinstance(oauth_token, str) or not oauth_token.strip():
+        raise WatermarksUnsetToolError(
+            "watermarks_unset requires OAuth authorization",
             category="authentication_failed",
             details={"field": "auth", "authMode": "oauth_required"},
         )
@@ -582,6 +910,83 @@ def build_watermarks_set_contract() -> YouTubeToolContract:
     )
 
 
+def build_watermarks_unset_contract() -> YouTubeToolContract:
+    """Build the public contract for ``watermarks_unset``.
+
+    :return: Shared YouTube tool contract for discovery metadata.
+    """
+    boundary = ResponseBoundary(
+        boundary_kind=ResponseBoundaryKind.NEAR_RAW,
+        allowed_wrapper_fields=(
+            "endpoint",
+            "sourceOperation",
+            "quotaCost",
+            "removed",
+            "target",
+            "auth",
+            "availability",
+            "noUpload",
+            "acknowledgment",
+            "upstream",
+        ),
+        preserved_upstream_fields=("sourceOperation", "status", "statusCode", "etag", "kind"),
+        disallowed_behavior=(
+            "watermark_set",
+            "watermark_lookup",
+            "channel_update",
+            "banner_upload",
+            "thumbnail_upload",
+            "video_workflow",
+            "caption_workflow",
+            "playlist_workflow",
+            "comment_workflow",
+            "transcript_workflow",
+            "analytics",
+            "recommendation",
+            "ranking",
+            "summarization",
+            "enrichment",
+            "automated_branding",
+            "cross_endpoint_aggregation",
+        ),
+    )
+    return YouTubeToolContract(
+        tool_name=WATERMARKS_UNSET_TOOL_NAME,
+        upstream_resource="watermarks",
+        upstream_method="unset",
+        operation_key="watermarks.unset",
+        description=WATERMARKS_UNSET_DESCRIPTION,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
+        quota_cost=WATERMARKS_UNSET_QUOTA_COST,
+        resource_family="watermarks",
+        input_contract=WATERMARKS_UNSET_INPUT_SCHEMA,
+        response_convention={
+            "resultKind": "mutation_acknowledgment",
+            "targetFields": ["channelId"],
+            "noUploadFields": ["body", "media"],
+            "successStatus": 204,
+            "sparseResultPolicy": "preserve_target_no_upload_and_acknowledgment_context",
+        },
+        response_boundary=boundary.to_metadata(),
+        error_categories=(
+            "invalid_request",
+            "authentication_failed",
+            "authorization_failed",
+            "target_channel_failed",
+            "no_removal_possible",
+            "quota_exhausted",
+            "endpoint_unavailable",
+            "deprecated_endpoint",
+            "conflict",
+            "upstream_refused",
+            "upstream_failure",
+        ),
+        availability_state=AvailabilityState.OWNER_ONLY,
+        usage_notes=WATERMARKS_UNSET_USAGE_NOTES,
+        caveats=WATERMARKS_UNSET_CAVEATS,
+    )
+
+
 def _default_watermarks_set_executor() -> IntegrationExecutor:
     """Build a deterministic local executor for default watermark-set calls.
 
@@ -596,6 +1001,27 @@ def _default_watermarks_set_executor() -> IntegrationExecutor:
         """
         return {
             "sourceOperation": "watermarks.set",
+            "status": 204,
+            "target": {"channelId": execution.arguments["channelId"]},
+        }
+
+    return IntegrationExecutor(transport=transport, retry_policy=RetryPolicy(max_attempts=1))
+
+
+def _default_watermarks_unset_executor() -> IntegrationExecutor:
+    """Build a deterministic local executor for default watermark-unset calls.
+
+    :return: Integration executor returning representative watermark-unset data.
+    """
+
+    def transport(execution):
+        """Return a representative sparse watermark-unset response.
+
+        :param execution: Request execution context.
+        :return: Fake upstream watermark-unset response for local invocation.
+        """
+        return {
+            "sourceOperation": "watermarks.unset",
             "status": 204,
             "target": {"channelId": execution.arguments["channelId"]},
         }
@@ -647,6 +1073,50 @@ def build_watermarks_set_handler(
     return handler
 
 
+def build_watermarks_unset_handler(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+):
+    """Build the callable handler for ``watermarks_unset``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used to construct safe OAuth auth context.
+    :return: Callable that validates, executes, and maps watermark-unset requests.
+    """
+    selected_wrapper = wrapper or build_watermarks_unset_wrapper()
+    selected_executor = executor or _default_watermarks_unset_executor()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated ``watermarks_unset`` request.
+
+        :param arguments: Caller-provided tool arguments.
+        :return: Public Layer 2 watermark-unset result.
+        :raises WatermarksUnsetToolError: If validation or execution fails.
+        """
+        normalized = validate_watermarks_unset_arguments(arguments)
+        auth_context = _watermarks_unset_auth_context(oauth_token)
+        try:
+            payload = selected_wrapper.call(
+                selected_executor,
+                arguments=normalized,
+                auth_context=auth_context,
+            )
+        except NormalizedUpstreamError as exc:
+            raise _map_watermarks_unset_upstream_error(exc) from exc
+        except ValueError as exc:
+            raise WatermarksUnsetToolError(
+                str(exc),
+                category="invalid_request",
+                details={"operation": "watermarks.unset"},
+            ) from exc
+        return map_watermarks_unset_result(payload, normalized)
+
+    return handler
+
+
 def build_watermarks_set_tool_descriptor(
     *,
     wrapper=None,
@@ -672,6 +1142,31 @@ def build_watermarks_set_tool_descriptor(
     }
 
 
+def build_watermarks_unset_tool_descriptor(
+    *,
+    wrapper=None,
+    executor: IntegrationExecutor | object | None = None,
+    oauth_token: str | None = "local-oauth-token",
+) -> dict[str, Any]:
+    """Build the MCP tool descriptor for ``watermarks_unset``.
+
+    :param wrapper: Optional Layer 1 wrapper override for tests.
+    :param executor: Optional executor override for tests.
+    :param oauth_token: OAuth token value used by the default handler.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    contract = build_watermarks_unset_contract()
+    metadata = contract.to_tool_metadata()
+    metadata["examples"] = list(WATERMARKS_UNSET_CALLER_EXAMPLES)
+    return {
+        "name": WATERMARKS_UNSET_TOOL_NAME,
+        "description": WATERMARKS_UNSET_DESCRIPTION,
+        "inputSchema": WATERMARKS_UNSET_INPUT_SCHEMA,
+        "handler": build_watermarks_unset_handler(wrapper=wrapper, executor=executor, oauth_token=oauth_token),
+        "metadata": metadata,
+    }
+
+
 __all__ = [
     "WATERMARKS_SET_ALLOWED_MIME_TYPES",
     "WATERMARKS_SET_CALLER_EXAMPLES",
@@ -683,10 +1178,24 @@ __all__ = [
     "WATERMARKS_SET_TOOL_NAME",
     "WATERMARKS_SET_UNSAFE_DETAIL_KEYS",
     "WATERMARKS_SET_USAGE_NOTES",
+    "WATERMARKS_UNSET_CALLER_EXAMPLES",
+    "WATERMARKS_UNSET_CAVEATS",
+    "WATERMARKS_UNSET_DESCRIPTION",
+    "WATERMARKS_UNSET_INPUT_SCHEMA",
+    "WATERMARKS_UNSET_QUOTA_COST",
+    "WATERMARKS_UNSET_TOOL_NAME",
+    "WATERMARKS_UNSET_UNSAFE_DETAIL_KEYS",
+    "WATERMARKS_UNSET_USAGE_NOTES",
     "WatermarksSetToolError",
+    "WatermarksUnsetToolError",
     "build_watermarks_set_contract",
     "build_watermarks_set_handler",
     "build_watermarks_set_tool_descriptor",
+    "build_watermarks_unset_contract",
+    "build_watermarks_unset_handler",
+    "build_watermarks_unset_tool_descriptor",
     "map_watermarks_set_result",
+    "map_watermarks_unset_result",
     "validate_watermarks_set_arguments",
+    "validate_watermarks_unset_arguments",
 ]

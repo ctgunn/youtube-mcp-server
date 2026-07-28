@@ -264,6 +264,27 @@ def test_watermarks_set_scaffolding_exports_concrete_layer2_symbols():
     assert youtube_common.WatermarksSetToolError is watermarks.WatermarksSetToolError
 
 
+def test_watermarks_unset_scaffolding_exports_concrete_layer2_symbols():
+    """Expose foundational ``watermarks_unset`` symbols from the shared package."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import watermarks
+
+    watermarks_family = youtube_common.get_resource_family("watermarks")
+
+    assert watermarks_family.definition_location.endswith("src/mcp_server/tools/youtube_common/watermarks.py")
+    assert watermarks.WATERMARKS_UNSET_TOOL_NAME == "watermarks_unset"
+    assert watermarks.WATERMARKS_UNSET_QUOTA_COST == 50
+    assert youtube_common.WATERMARKS_UNSET_TOOL_NAME == "watermarks_unset"
+    assert youtube_common.WATERMARKS_UNSET_QUOTA_COST == 50
+    assert youtube_common.WATERMARKS_UNSET_INPUT_SCHEMA["required"] == ["channelId"]
+    assert callable(watermarks.build_watermarks_unset_contract)
+    assert callable(watermarks.build_watermarks_unset_handler)
+    assert callable(watermarks.build_watermarks_unset_tool_descriptor)
+    assert callable(watermarks.map_watermarks_unset_result)
+    assert callable(watermarks.validate_watermarks_unset_arguments)
+    assert youtube_common.WatermarksUnsetToolError is watermarks.WatermarksUnsetToolError
+
+
 def test_playlists_resource_family_points_to_concrete_layer2_module():
     """Expose the concrete playlists family placement for YT-236."""
     from mcp_server.tools.youtube_common import get_resource_family
