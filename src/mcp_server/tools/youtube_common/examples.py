@@ -68,7 +68,7 @@ from mcp_server.tools.youtube_common.videos import (
     build_videos_report_abuse_contract,
     build_videos_update_contract,
 )
-from mcp_server.tools.youtube_common.watermarks import build_watermarks_set_contract
+from mcp_server.tools.youtube_common.watermarks import build_watermarks_set_contract, build_watermarks_unset_contract
 
 
 def _contract(
@@ -317,19 +317,7 @@ REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS: tuple[YouTubeToolContract, ...] = (
     build_videos_get_rating_contract(),
     build_videos_report_abuse_contract(),
     build_videos_delete_contract(),
-    _contract(
-        resource="watermarks",
-        method="unset",
-        description="Remove a channel watermark. Endpoint: watermarks.unset. Quota cost: 50. Auth: oauth_required.",
-        auth_mode=AuthMode.OAUTH_REQUIRED,
-        quota_cost=50,
-        resource_family="watermarks",
-        input_contract={"required": [], "properties": {"onBehalfOfContentOwner": {"type": "string"}}},
-        response_convention={"resultKind": "mutation_acknowledgment"},
-        error_categories=("invalid_request", "authorization_failed", "endpoint_unavailable"),
-        availability_state=AvailabilityState.OWNER_ONLY,
-        caveats=("Availability may depend on channel ownership and current upstream support.",),
-    ),
+    build_watermarks_unset_contract(),
     build_watermarks_set_contract(),
     _contract(
         resource="playlistItems",

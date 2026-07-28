@@ -325,6 +325,41 @@ def test_watermarks_set_contract_uses_existing_resource_family():
     assert "OAuth" in metadata_text
 
 
+def test_watermarks_unset_contract_uses_existing_resource_family():
+    """Expose the concrete ``watermarks_unset`` contract in the watermarks family."""
+    from mcp_server.tools import youtube_common
+    from mcp_server.tools.youtube_common import get_resource_family
+    from mcp_server.tools.youtube_common import watermarks
+    from mcp_server.tools.youtube_common.watermarks import build_watermarks_unset_contract
+
+    watermarks_family = get_resource_family("watermarks")
+    contract = build_watermarks_unset_contract()
+    metadata = contract.to_tool_metadata()
+    metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert watermarks_family.definition_location.endswith("src/mcp_server/tools/youtube_common/watermarks.py")
+    assert watermarks_family.layer1_dependency == "mcp_server.integrations.resources.watermarks"
+    assert watermarks.WATERMARKS_UNSET_TOOL_NAME == "watermarks_unset"
+    assert watermarks.WATERMARKS_UNSET_QUOTA_COST == 50
+    assert youtube_common.WATERMARKS_UNSET_TOOL_NAME == "watermarks_unset"
+    assert youtube_common.WATERMARKS_UNSET_QUOTA_COST == 50
+    assert callable(youtube_common.build_watermarks_unset_tool_descriptor)
+    assert metadata["name"] == "watermarks_unset"
+    assert metadata["resourceFamily"] == "watermarks"
+    assert metadata["upstream"]["operationKey"] == "watermarks.unset"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "owner_only"
+    assert metadata["inputContract"]["required"] == ["channelId"]
+    assert metadata["responseConvention"]["resultKind"] == "mutation_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert "channelId" in metadata_text
+    assert "body" in metadata_text
+    assert "media" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+    assert "OAuth" in metadata_text
+
+
 def test_videos_rate_contract_uses_existing_resource_family():
     """Expose the concrete ``videos_rate`` contract in the videos family."""
     from mcp_server.tools import youtube_common

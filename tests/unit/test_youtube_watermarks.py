@@ -1,4 +1,4 @@
-"""Unit tests for the concrete Layer 2 ``watermarks_set`` tool."""
+"""Unit tests for the concrete Layer 2 ``watermarks`` tools."""
 
 from __future__ import annotations
 
@@ -9,11 +9,18 @@ from mcp_server.tools.youtube_common.watermarks import (
     WATERMARKS_SET_INPUT_SCHEMA,
     WATERMARKS_SET_MAX_BYTES,
     WATERMARKS_SET_QUOTA_COST,
+    WATERMARKS_UNSET_INPUT_SCHEMA,
+    WATERMARKS_UNSET_QUOTA_COST,
     WatermarksSetToolError,
+    WatermarksUnsetToolError,
     build_watermarks_set_handler,
     build_watermarks_set_tool_descriptor,
+    build_watermarks_unset_handler,
+    build_watermarks_unset_tool_descriptor,
     map_watermarks_set_result,
+    map_watermarks_unset_result,
     validate_watermarks_set_arguments,
+    validate_watermarks_unset_arguments,
 )
 
 
@@ -26,6 +33,8 @@ VALID_WATERMARKS_SET_ARGS = {
     },
     "media": {"mimeType": "image/png", "content": "fake-watermark-content"},
 }
+
+VALID_WATERMARKS_UNSET_ARGS = {"channelId": "UC123"}
 
 
 def _valid_watermarks_set_args(**overrides):
@@ -76,6 +85,67 @@ class FakeWatermarksSetWrapper:
 
 class FailingWatermarksSetWrapper:
     """Raise a configured upstream failure for ``watermarks_set`` tests."""
+
+    def __init__(self, error: NormalizedUpstreamError):
+        """Initialize the fake wrapper with a failure.
+
+        :param error: Normalized error raised for every call.
+        """
+        self.calls = []
+        self.error = error
+
+    def call(self, executor, *, arguments, auth_context):
+        """Record call arguments and raise the configured failure.
+
+        :param executor: Executor supplied by the Layer 2 handler.
+        :param arguments: Validated arguments forwarded to Layer 1.
+        :param auth_context: OAuth auth context selected by the handler.
+        :raises NormalizedUpstreamError: Always raised for this fake wrapper.
+        """
+        self.calls.append((executor, arguments, auth_context))
+        raise self.error
+
+
+def _valid_watermarks_unset_args(**overrides):
+    """Build a valid watermark-unset request with optional top-level overrides.
+
+    :param overrides: Top-level request fields to replace or add.
+    :return: Valid request mapping for unit tests.
+    """
+    arguments = dict(VALID_WATERMARKS_UNSET_ARGS)
+    arguments.update(overrides)
+    return arguments
+
+
+class FakeWatermarksUnsetWrapper:
+    """Capture wrapper calls for ``watermarks_unset`` tests.
+
+    The fake returns a representative sparse watermark-unset response and
+    exposes call arguments for assertions without performing network I/O.
+    """
+
+    def __init__(self, response: dict | None = None):
+        """Initialize the fake wrapper call log and response.
+
+        :param response: Optional upstream-shaped response to return.
+        """
+        self.calls = []
+        self.response = response or {"sourceOperation": "watermarks.unset", "status": 204}
+
+    def call(self, executor, *, arguments, auth_context):
+        """Record call arguments and return the configured response.
+
+        :param executor: Executor supplied by the Layer 2 handler.
+        :param arguments: Validated arguments forwarded to Layer 1.
+        :param auth_context: OAuth auth context selected by the handler.
+        :return: Configured upstream-shaped response.
+        """
+        self.calls.append((executor, arguments, auth_context))
+        return self.response
+
+
+class FailingWatermarksUnsetWrapper:
+    """Raise a configured upstream failure for ``watermarks_unset`` tests."""
 
     def __init__(self, error: NormalizedUpstreamError):
         """Initialize the fake wrapper with a failure.
@@ -330,6 +400,212 @@ def test_build_watermarks_set_handler_maps_safe_upstream_failures(upstream_categ
 
     with pytest.raises(WatermarksSetToolError) as exc_info:
         handler(VALID_WATERMARKS_SET_ARGS)
+
+    assert exc_info.value.category == expected_category
+    assert exc_info.value.details == {"channelId": "UC123"}
+    assert "secret" not in str(exc_info.value.details)
+    assert "fake-watermark-content" not in str(exc_info.value.details)
+
+
+def test_watermarks_unset_schema_accepts_only_channel_target():
+    """Expose only the target channel input for watermark removal."""
+    properties = WATERMARKS_UNSET_INPUT_SCHEMA["properties"]
+
+    assert WATERMARKS_UNSET_INPUT_SCHEMA["required"] == ["channelId"]
+    assert properties["channelId"] == {"type": "string", "minLength": 1}
+    assert set(properties) == {"channelId"}
+    assert WATERMARKS_UNSET_INPUT_SCHEMA["additionalProperties"] is False
+
+
+def test_validate_watermarks_unset_arguments_accepts_authorized_removal_request():
+    """Accept one supported OAuth-backed watermark-removal request."""
+    selected = validate_watermarks_unset_arguments(_valid_watermarks_unset_args(channelId=" UC123 "))
+
+    assert selected == {"channelId": "UC123"}
+
+
+def test_map_watermarks_unset_result_preserves_safe_acknowledgment_context():
+    """Map a watermark-unset response into a safe sparse mutation acknowledgment."""
+    result = map_watermarks_unset_result(
+        {"sourceOperation": "watermarks.unset", "status": 204},
+        VALID_WATERMARKS_UNSET_ARGS,
+    )
+
+    assert result["endpoint"] == "watermarks.unset"
+    assert result["sourceOperation"] == "watermarks.unset"
+    assert result["quotaCost"] == WATERMARKS_UNSET_QUOTA_COST == 50
+    assert result["removed"] is True
+    assert result["target"] == {"channelId": "UC123"}
+    assert result["noUpload"] == {"bodyAccepted": False, "mediaAccepted": False}
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["availability"] == {"state": "owner_only"}
+    assert result["acknowledgment"]["accepted"] is True
+    assert result["acknowledgment"]["status"] == "watermark_unset"
+
+
+def test_map_watermarks_unset_result_handles_sparse_success():
+    """Preserve target and no-upload context when upstream success is sparse."""
+    result = map_watermarks_unset_result({}, VALID_WATERMARKS_UNSET_ARGS)
+
+    assert result["endpoint"] == "watermarks.unset"
+    assert result["removed"] is True
+    assert result["target"] == {"channelId": "UC123"}
+    assert result["noUpload"] == {"bodyAccepted": False, "mediaAccepted": False}
+    assert result["acknowledgment"]["status"] == "watermark_unset"
+    assert result["upstream"] == {}
+
+
+def test_build_watermarks_unset_handler_invokes_wrapper_once():
+    """Invoke the Layer 1 wrapper once for valid watermark-removal requests."""
+    wrapper = FakeWatermarksUnsetWrapper()
+    executor = object()
+    handler = build_watermarks_unset_handler(wrapper=wrapper, executor=executor, oauth_token="token")
+
+    result = handler(VALID_WATERMARKS_UNSET_ARGS)
+
+    assert len(wrapper.calls) == 1
+    assert wrapper.calls[0][0] is executor
+    assert wrapper.calls[0][1] == VALID_WATERMARKS_UNSET_ARGS
+    assert wrapper.calls[0][2].requires_oauth_access() is True
+    assert result["endpoint"] == "watermarks.unset"
+    assert result["target"] == {"channelId": "UC123"}
+
+
+def test_build_watermarks_unset_tool_descriptor_is_executable():
+    """Build a descriptor whose handler can execute a representative unset request."""
+    wrapper = FakeWatermarksUnsetWrapper(response={})
+    descriptor = build_watermarks_unset_tool_descriptor(wrapper=wrapper, executor=object(), oauth_token="token")
+
+    result = descriptor["handler"](VALID_WATERMARKS_UNSET_ARGS)
+
+    assert descriptor["name"] == "watermarks_unset"
+    assert result["removed"] is True
+
+
+@pytest.mark.parametrize(
+    ("arguments", "field"),
+    [
+        ("not-object", "arguments"),
+        ({}, "channelId"),
+        (_valid_watermarks_unset_args(channelId=""), "channelId"),
+        (_valid_watermarks_unset_args(channelId=123), "channelId"),
+        (_valid_watermarks_unset_args(channelId="UC123,UC456"), "channelId"),
+        (_valid_watermarks_unset_args(body={}), "body"),
+        (_valid_watermarks_unset_args(media={"mimeType": "image/png", "content": "fake-watermark-content"}), "media"),
+        (_valid_watermarks_unset_args(onBehalfOfContentOwner="owner-123"), "onBehalfOfContentOwner"),
+        (_valid_watermarks_unset_args(videoId="video-123"), "videoId"),
+    ],
+)
+def test_validate_watermarks_unset_arguments_rejects_invalid_requests(arguments, field):
+    """Reject invalid or out-of-scope watermark-removal request shapes."""
+    with pytest.raises(WatermarksUnsetToolError) as exc_info:
+        validate_watermarks_unset_arguments(arguments)
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details["field"] == field
+
+
+@pytest.mark.parametrize(
+    "extra_field",
+    [
+        "id",
+        "ids",
+        "channelIds",
+        "mine",
+        "part",
+        "pageToken",
+        "set",
+        "body",
+        "media",
+        "removeWatermark",
+        "lookupWatermark",
+        "brandingSettings",
+        "banner",
+        "thumbnail",
+        "videoId",
+        "captionId",
+        "playlistId",
+        "commentId",
+        "transcript",
+        "analytics",
+        "recommend",
+        "rankResults",
+        "summarize",
+        "enrich",
+        "autoBranding",
+    ],
+)
+def test_validate_watermarks_unset_arguments_rejects_out_of_scope_fields(extra_field):
+    """Reject fields that imply unsupported watermark, upload, lookup, or enrichment behavior."""
+    with pytest.raises(WatermarksUnsetToolError) as exc_info:
+        validate_watermarks_unset_arguments(_valid_watermarks_unset_args(**{extra_field: True}))
+
+    assert exc_info.value.category == "invalid_request"
+    assert exc_info.value.details == {"field": extra_field}
+
+
+def test_build_watermarks_unset_handler_rejects_missing_oauth_before_wrapper_call():
+    """Reject missing OAuth access before invoking Layer 1."""
+    wrapper = FakeWatermarksUnsetWrapper()
+    handler = build_watermarks_unset_handler(wrapper=wrapper, executor=object(), oauth_token="")
+
+    with pytest.raises(WatermarksUnsetToolError) as exc_info:
+        handler(VALID_WATERMARKS_UNSET_ARGS)
+
+    assert exc_info.value.category == "authentication_failed"
+    assert exc_info.value.details == {"field": "auth", "authMode": "oauth_required"}
+    assert wrapper.calls == []
+
+
+@pytest.mark.parametrize(
+    ("upstream_category", "expected_category"),
+    [
+        ("authentication", "authentication_failed"),
+        ("auth", "authorization_failed"),
+        ("authorization", "authorization_failed"),
+        ("permission", "authorization_failed"),
+        ("forbidden", "authorization_failed"),
+        ("policy_restricted", "authorization_failed"),
+        ("target_channel", "target_channel_failed"),
+        ("not_found", "target_channel_failed"),
+        ("resource_not_found", "target_channel_failed"),
+        ("no_removal", "no_removal_possible"),
+        ("already_removed", "no_removal_possible"),
+        ("no_current_watermark", "no_removal_possible"),
+        ("quota", "quota_exhausted"),
+        ("rate_limit", "quota_exhausted"),
+        ("invalid_request", "invalid_request"),
+        ("unavailable", "endpoint_unavailable"),
+        ("deprecated", "deprecated_endpoint"),
+        ("conflict", "conflict"),
+        ("refused", "upstream_refused"),
+        ("weird", "upstream_failure"),
+    ],
+)
+def test_build_watermarks_unset_handler_maps_safe_upstream_failures(upstream_category, expected_category):
+    """Map normalized upstream failures to stable safe unset categories."""
+    error = NormalizedUpstreamError(
+        message="watermark removal failed",
+        category=upstream_category,
+        retryable=False,
+        upstream_status=403,
+        details={
+            "channelId": "UC123",
+            "oauth_token": "secret",
+            "authorization": "Bearer secret",
+            "raw_media": "fake-watermark-content",
+            "content": "fake-watermark-content",
+            "stack_trace": "private",
+        },
+    )
+    handler = build_watermarks_unset_handler(
+        wrapper=FailingWatermarksUnsetWrapper(error),
+        executor=object(),
+        oauth_token="token",
+    )
+
+    with pytest.raises(WatermarksUnsetToolError) as exc_info:
+        handler(VALID_WATERMARKS_UNSET_ARGS)
 
     assert exc_info.value.category == expected_category
     assert exc_info.value.details == {"channelId": "UC123"}

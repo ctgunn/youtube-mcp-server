@@ -260,6 +260,38 @@ def test_default_registry_includes_executable_watermarks_set_tool():
     assert "fake-watermark-content" not in str(result)
 
 
+def test_default_registry_includes_executable_watermarks_unset_tool():
+    """Register ``watermarks_unset`` by default with safe metadata and handler."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "watermarks_unset" in listed
+    metadata = listed["watermarks_unset"]["metadata"]
+    description = listed["watermarks_unset"]["description"]
+    metadata_text = " ".join([description, *metadata["usageNotes"], *metadata["caveats"]])
+
+    assert metadata["upstream"]["operationKey"] == "watermarks.unset"
+    assert metadata["quotaCost"] == 50
+    assert metadata["authMode"] == "oauth_required"
+    assert metadata["availabilityState"] == "owner_only"
+    assert metadata["inputContract"]["required"] == ["channelId"]
+    assert metadata["responseConvention"]["resultKind"] == "mutation_acknowledgment"
+    assert metadata["responseConvention"]["successStatus"] == 204
+    assert "channelId" in metadata_text
+    assert "body" in metadata_text
+    assert "media" in metadata_text
+    assert "onBehalfOfContentOwner" in metadata_text
+
+    result = dispatcher.call_tool("watermarks_unset", {"channelId": "UC123"})
+
+    assert result["endpoint"] == "watermarks.unset"
+    assert result["quotaCost"] == 50
+    assert result["auth"] == {"mode": "oauth_required"}
+    assert result["target"] == {"channelId": "UC123"}
+    assert result["noUpload"] == {"bodyAccepted": False, "mediaAccepted": False}
+    assert result["removed"] is True
+
+
 def test_default_registry_includes_executable_video_abuse_report_reasons_list_tool():
     """Register ``videoAbuseReportReasons_list`` by default with safe metadata and handler."""
     dispatcher = InMemoryToolDispatcher()
