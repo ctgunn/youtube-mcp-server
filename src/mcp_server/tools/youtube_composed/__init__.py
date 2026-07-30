@@ -29,6 +29,16 @@ from mcp_server.tools.youtube_composed.families import (
     get_family,
 )
 from . import channels, playlists, transcripts, videos
+from .videos import (
+    VIDEOS_GET_VIDEO_INPUT_SCHEMA,
+    VIDEOS_GET_VIDEO_TOOL_NAME,
+    VideosGetVideoToolError,
+    build_videos_get_video_handler,
+    build_videos_get_video_metadata,
+    build_videos_get_video_tool_descriptor,
+    normalize_videos_get_video_result,
+    validate_videos_get_video_arguments,
+)
 
 __all__ = [
     "CONCRETE_TOOL_EXECUTION_ENABLED",
@@ -42,14 +52,22 @@ __all__ = [
     "ToolContract",
     "ToolContractError",
     "ToolFamily",
+    "VIDEOS_GET_VIDEO_INPUT_SCHEMA",
+    "VIDEOS_GET_VIDEO_TOOL_NAME",
+    "VideosGetVideoToolError",
     "build_representative_tool_descriptor",
+    "build_videos_get_video_handler",
+    "build_videos_get_video_metadata",
+    "build_videos_get_video_tool_descriptor",
     "channels",
     "get_family",
     "get_family_for_tool_name",
     "infer_family",
     "playlists",
+    "normalize_videos_get_video_result",
     "transcripts",
     "validate_tool_name",
     "validate_safe_public_metadata",
+    "validate_videos_get_video_arguments",
     "videos",
 ]

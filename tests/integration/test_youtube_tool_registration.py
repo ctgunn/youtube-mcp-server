@@ -55,6 +55,18 @@ def test_representative_youtube_descriptor_metadata_includes_cost_access_and_not
     assert metadata["usageNotes"]
 
 
+def test_default_registry_includes_and_executes_video_details_tool():
+    """Discover and invoke the default concrete video-details tool."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    result = dispatcher.call_tool("videos_getVideo", {"videoId": "abc123"})
+
+    assert "videos_getVideo" in listed
+    assert listed["videos_getVideo"]["metadata"]["compositionBoundary"]["kind"] == "normalized_retrieval"
+    assert result == {"videoId": "abc123", "title": "Example video"}
+
+
 def test_default_registry_includes_executable_captions_insert_tool():
     """Register ``captions_insert`` by default with safe metadata."""
     dispatcher = InMemoryToolDispatcher()
