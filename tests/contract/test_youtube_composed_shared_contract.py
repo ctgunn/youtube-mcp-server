@@ -1,29 +1,29 @@
 """Contract tests for shared Layer 3 YouTube tool contracts."""
 
 
-def test_layer3_package_exposes_shared_contract_boundaries():
+def test_package_exposes_shared_contract_boundaries():
     """Require the Layer 3 package to expose shared contract surfaces only."""
-    import mcp_server.tools.youtube_layer3 as youtube_layer3
+    import mcp_server.tools.youtube_composed as youtube_composed
 
-    assert youtube_layer3.SHARED_LAYER3_HELPER_BOUNDARY == "representative_contracts_only"
-    assert youtube_layer3.CONCRETE_LAYER3_TOOL_EXECUTION_ENABLED is False
+    assert youtube_composed.SHARED_HELPER_BOUNDARY == "representative_contracts_only"
+    assert youtube_composed.CONCRETE_TOOL_EXECUTION_ENABLED is False
 
 
-def test_layer3_contract_module_declares_no_concrete_tool_scope():
+def test_contract_module_declares_no_concrete_tool_scope():
     """Require public contract primitives to declare non-executing scope."""
-    from mcp_server.tools.youtube_layer3 import contracts
+    from mcp_server.tools.youtube_composed import contracts
 
-    assert contracts.CONCRETE_LAYER3_TOOL_EXECUTION_ENABLED is False
-    assert contracts.SHARED_LAYER3_HELPER_BOUNDARY == "representative_contracts_only"
+    assert contracts.CONCRETE_TOOL_EXECUTION_ENABLED is False
+    assert contracts.SHARED_HELPER_BOUNDARY == "representative_contracts_only"
 
 
-def test_layer3_tool_contract_requires_public_metadata():
+def test_tool_contract_requires_public_metadata():
     """Require representative Layer 3 contracts to expose MCP-facing metadata."""
-    from mcp_server.tools.youtube_layer3 import Layer3ToolContract, Layer3ToolFamily
+    from mcp_server.tools.youtube_composed import ToolContract, ToolFamily
 
-    contract = Layer3ToolContract(
+    contract = ToolContract(
         tool_name="videos_getVideo",
-        family=Layer3ToolFamily.VIDEOS,
+        family=ToolFamily.VIDEOS,
         description="Return normalized details for one YouTube video.",
         parameters=("videoId", "parts"),
         response_fields=(
@@ -48,21 +48,21 @@ def test_layer3_tool_contract_requires_public_metadata():
     assert metadata["representativeOnly"] is True
 
 
-def test_layer3_public_metadata_rejects_unsafe_fields():
+def test_public_metadata_rejects_unsafe_fields():
     """Reject public Layer 3 metadata that exposes unsafe diagnostic fields."""
     import pytest
 
-    from mcp_server.tools.youtube_layer3 import Layer3ToolContractError, validate_safe_public_metadata
+    from mcp_server.tools.youtube_composed import ToolContractError, validate_safe_public_metadata
 
-    with pytest.raises(Layer3ToolContractError):
+    with pytest.raises(ToolContractError):
         validate_safe_public_metadata({"safe": "ok", "oauthToken": "secret"})
 
 
-def test_layer3_public_metadata_rejects_secret_diagnostic_fields():
+def test_public_metadata_rejects_secret_diagnostic_fields():
     """Reject common secret, stack trace, signed URL, and raw media fields."""
     import pytest
 
-    from mcp_server.tools.youtube_layer3 import Layer3ToolContractError, validate_safe_public_metadata
+    from mcp_server.tools.youtube_composed import ToolContractError, validate_safe_public_metadata
 
     unsafe_examples = (
         {"apiKey": "hidden"},
@@ -74,7 +74,7 @@ def test_layer3_public_metadata_rejects_secret_diagnostic_fields():
     )
 
     for metadata in unsafe_examples:
-        with pytest.raises(Layer3ToolContractError):
+        with pytest.raises(ToolContractError):
             validate_safe_public_metadata(metadata)
 
 
@@ -82,8 +82,8 @@ def test_response_field_provenance_requires_heuristic_disclosure():
     """Require heuristic fields to include basis and limitation notes."""
     import pytest
 
-    from mcp_server.tools.youtube_layer3 import Layer3ToolContractError
-    from mcp_server.tools.youtube_layer3.conventions import ResponseFieldCategory, ResponseFieldProvenance
+    from mcp_server.tools.youtube_composed import ToolContractError
+    from mcp_server.tools.youtube_composed.conventions import ResponseFieldCategory, ResponseFieldProvenance
 
     provenance = ResponseFieldProvenance(
         field_name="creatorSignals",
@@ -95,7 +95,7 @@ def test_response_field_provenance_requires_heuristic_disclosure():
 
     assert provenance.to_metadata()["category"] == "heuristic_inferred"
 
-    with pytest.raises(Layer3ToolContractError):
+    with pytest.raises(ToolContractError):
         ResponseFieldProvenance(
             field_name="creatorSignals",
             category=ResponseFieldCategory.HEURISTIC_INFERRED,
@@ -109,8 +109,8 @@ def test_heuristic_disclosure_requires_basis_and_limitations():
     """Require heuristic disclosures to tell callers how to treat inferred fields."""
     import pytest
 
-    from mcp_server.tools.youtube_layer3 import Layer3ToolContractError
-    from mcp_server.tools.youtube_layer3.conventions import HeuristicDisclosure
+    from mcp_server.tools.youtube_composed import ToolContractError
+    from mcp_server.tools.youtube_composed.conventions import HeuristicDisclosure
 
     disclosure = HeuristicDisclosure(
         name="rankingScore",
@@ -122,7 +122,7 @@ def test_heuristic_disclosure_requires_basis_and_limitations():
 
     assert disclosure.to_metadata()["basis"].startswith("Search rank")
 
-    with pytest.raises(Layer3ToolContractError):
+    with pytest.raises(ToolContractError):
         HeuristicDisclosure(
             name="rankingScore",
             basis="",

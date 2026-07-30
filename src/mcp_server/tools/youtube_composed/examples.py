@@ -1,4 +1,4 @@
-"""Representative non-executing Layer 3 YouTube contract examples.
+"""Representative non-executing higher-level YouTube contract examples.
 
 Examples in this module prove shared contract coverage across videos, channels,
 playlists, and transcripts without invoking lower-layer tools or upstream APIs.
@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp_server.tools.youtube_layer3.contracts import Layer3ToolContract, Layer3ToolFamily
-from mcp_server.tools.youtube_layer3.conventions import (
+from mcp_server.tools.youtube_composed.contracts import ToolContract, ToolFamily
+from mcp_server.tools.youtube_composed.conventions import (
     CompositionBoundary,
     HeuristicDisclosure,
     ResponseFieldProvenance,
@@ -55,7 +55,7 @@ def _heuristic(name: str, basis: str, limitations: str, applicable_tools: tuple[
 def _contract(
     *,
     tool_name: str,
-    family: Layer3ToolFamily,
+    family: ToolFamily,
     description: str,
     parameters: tuple[str, ...],
     response_fields: tuple[dict[str, Any], ...],
@@ -67,10 +67,10 @@ def _contract(
     ranking_and_filtering: tuple[str, ...] = (),
     heuristics: tuple[dict[str, Any], ...] = (),
     caveats: tuple[str, ...] = (),
-) -> Layer3ToolContract:
-    """Build a representative non-executing Layer 3 tool contract.
+) -> ToolContract:
+    """Build a representative non-executing higher-level tool contract.
 
-    :param tool_name: Planned public Layer 3 tool name.
+    :param tool_name: Planned public YouTube tool name.
     :param family: Owning Layer 3 family.
     :param description: Caller-facing summary.
     :param parameters: Shared parameter convention names used by the tool.
@@ -83,9 +83,9 @@ def _contract(
     :param ranking_and_filtering: Optional ranking or filtering rules.
     :param heuristics: Optional heuristic disclosure metadata.
     :param caveats: Optional caveat notes.
-    :return: Validated representative Layer 3 contract.
+    :return: Validated representative public YouTube contract.
     """
-    return Layer3ToolContract(
+    return ToolContract(
         tool_name=tool_name,
         family=family,
         description=description,
@@ -111,10 +111,10 @@ def _contract(
     )
 
 
-REPRESENTATIVE_LAYER3_TOOL_CONTRACTS: tuple[Layer3ToolContract, ...] = (
+REPRESENTATIVE_TOOL_CONTRACTS: tuple[ToolContract, ...] = (
     _contract(
         tool_name="videos_getVideo",
-        family=Layer3ToolFamily.VIDEOS,
+        family=ToolFamily.VIDEOS,
         description="Return normalized details for one YouTube video.",
         parameters=("videoId", "parts"),
         response_fields=(
@@ -129,7 +129,7 @@ REPRESENTATIVE_LAYER3_TOOL_CONTRACTS: tuple[Layer3ToolContract, ...] = (
     ),
     _contract(
         tool_name="videos_searchVideos",
-        family=Layer3ToolFamily.VIDEOS,
+        family=ToolFamily.VIDEOS,
         description="Search videos with optional channel-aware enrichment and ranking.",
         parameters=("query", "maxResults", "order", "channelId", "publishedAfter", "publishedBefore", "sortBy"),
         response_fields=(
@@ -154,7 +154,7 @@ REPRESENTATIVE_LAYER3_TOOL_CONTRACTS: tuple[Layer3ToolContract, ...] = (
     ),
     _contract(
         tool_name="channels_findCreators",
-        family=Layer3ToolFamily.CHANNELS,
+        family=ToolFamily.CHANNELS,
         description="Discover and rank creator channels from search results and channel metadata.",
         parameters=("query", "maxResults", "creatorOnly", "channelMinSubscribers", "channelMaxSubscribers", "sortBy"),
         response_fields=(
@@ -179,7 +179,7 @@ REPRESENTATIVE_LAYER3_TOOL_CONTRACTS: tuple[Layer3ToolContract, ...] = (
     ),
     _contract(
         tool_name="transcripts_getTranscript",
-        family=Layer3ToolFamily.TRANSCRIPTS,
+        family=ToolFamily.TRANSCRIPTS,
         description="Retrieve transcript text for one video in a requested or default language.",
         parameters=("videoId", "language"),
         response_fields=(
@@ -195,7 +195,7 @@ REPRESENTATIVE_LAYER3_TOOL_CONTRACTS: tuple[Layer3ToolContract, ...] = (
     ),
     _contract(
         tool_name="transcripts_searchTranscript",
-        family=Layer3ToolFamily.TRANSCRIPTS,
+        family=ToolFamily.TRANSCRIPTS,
         description="Search transcript text and return matching snippets with timing.",
         parameters=("videoId", "query", "language", "maxMatches"),
         response_fields=(
@@ -219,7 +219,7 @@ REPRESENTATIVE_LAYER3_TOOL_CONTRACTS: tuple[Layer3ToolContract, ...] = (
     ),
     _contract(
         tool_name="playlists_getPlaylistItems",
-        family=Layer3ToolFamily.PLAYLISTS,
+        family=ToolFamily.PLAYLISTS,
         description="Return videos contained in one playlist with normalized item summaries.",
         parameters=("playlistId", "maxResults"),
         response_fields=(
@@ -234,7 +234,7 @@ REPRESENTATIVE_LAYER3_TOOL_CONTRACTS: tuple[Layer3ToolContract, ...] = (
     ),
     _contract(
         tool_name="playlists_searchItems",
-        family=Layer3ToolFamily.PLAYLISTS,
+        family=ToolFamily.PLAYLISTS,
         description="Search within playlist items using bounded server-side matching.",
         parameters=("playlistId", "query", "maxResults"),
         response_fields=(
@@ -258,7 +258,7 @@ REPRESENTATIVE_LAYER3_TOOL_CONTRACTS: tuple[Layer3ToolContract, ...] = (
     ),
     _contract(
         tool_name="playlists_getVideoTranscripts",
-        family=Layer3ToolFamily.PLAYLISTS,
+        family=ToolFamily.PLAYLISTS,
         description="Retrieve transcripts for videos contained in a playlist with bounded fan-out.",
         parameters=("playlistId", "language", "maxResults"),
         response_fields=(
@@ -284,7 +284,7 @@ REPRESENTATIVE_LAYER3_TOOL_CONTRACTS: tuple[Layer3ToolContract, ...] = (
 )
 
 
-def build_representative_layer3_tool_descriptor(contract: Layer3ToolContract) -> dict[str, Any]:
+def build_representative_tool_descriptor(contract: ToolContract) -> dict[str, Any]:
     """Build an inert descriptor for registration-readiness checks.
 
     :param contract: Representative Layer 3 tool contract.

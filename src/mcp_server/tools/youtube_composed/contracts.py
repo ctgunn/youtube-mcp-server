@@ -1,4 +1,4 @@
-"""Shared Layer 3 public contract primitives for higher-level YouTube tools.
+"""Shared public contract primitives for higher-level YouTube tools.
 
 This module owns only shared, representative contract metadata for the Layer 3
 public catalog. Concrete public tool execution belongs to later YT-302+ slices.
@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-SHARED_LAYER3_HELPER_BOUNDARY = "representative_contracts_only"
-CONCRETE_LAYER3_TOOL_EXECUTION_ENABLED = False
+SHARED_HELPER_BOUNDARY = "representative_contracts_only"
+CONCRETE_TOOL_EXECUTION_ENABLED = False
 
 UNSAFE_METADATA_MARKERS = (
     "api_key",
@@ -29,12 +29,12 @@ UNSAFE_METADATA_MARKERS = (
 SAFE_TOKEN_FIELDS = ("nextpagetoken", "prevpagetoken", "pagetoken", "continuationtoken")
 
 
-class Layer3ToolContractError(ValueError):
-    """Raised when shared Layer 3 contract metadata is invalid."""
+class ToolContractError(ValueError):
+    """Raised when shared public YouTube contract metadata is invalid."""
 
 
-class Layer3ToolFamily(Enum):
-    """Represent the grouped public Layer 3 tool families."""
+class ToolFamily(Enum):
+    """Represent the grouped public YouTube tool families."""
 
     VIDEOS = "videos"
     CHANNELS = "channels"
@@ -42,19 +42,19 @@ class Layer3ToolFamily(Enum):
     TRANSCRIPTS = "transcripts"
 
 
-PLANNED_LAYER3_TOOLS_BY_FAMILY: dict[str, tuple[str, ...]] = {
-    Layer3ToolFamily.VIDEOS.value: (
+PLANNED_TOOLS_BY_FAMILY: dict[str, tuple[str, ...]] = {
+    ToolFamily.VIDEOS.value: (
         "videos_getVideo",
         "videos_searchVideos",
         "videos_getStatistics",
     ),
-    Layer3ToolFamily.TRANSCRIPTS.value: (
+    ToolFamily.TRANSCRIPTS.value: (
         "transcripts_getTranscript",
         "transcripts_listLanguages",
         "transcripts_getTimestampedCaptions",
         "transcripts_searchTranscript",
     ),
-    Layer3ToolFamily.CHANNELS.value: (
+    ToolFamily.CHANNELS.value: (
         "channels_getChannel",
         "channels_getChannels",
         "channels_searchChannels",
@@ -64,7 +64,7 @@ PLANNED_LAYER3_TOOLS_BY_FAMILY: dict[str, tuple[str, ...]] = {
         "channels_getStatistics",
         "channels_searchContent",
     ),
-    Layer3ToolFamily.PLAYLISTS.value: (
+    ToolFamily.PLAYLISTS.value: (
         "playlists_getPlaylist",
         "playlists_getPlaylistItems",
         "playlists_searchItems",
@@ -72,8 +72,8 @@ PLANNED_LAYER3_TOOLS_BY_FAMILY: dict[str, tuple[str, ...]] = {
     ),
 }
 
-PLANNED_LAYER3_TOOL_NAMES: tuple[str, ...] = tuple(
-    tool_name for tool_names in PLANNED_LAYER3_TOOLS_BY_FAMILY.values() for tool_name in tool_names
+PLANNED_TOOL_NAMES: tuple[str, ...] = tuple(
+    tool_name for tool_names in PLANNED_TOOLS_BY_FAMILY.values() for tool_name in tool_names
 )
 
 
@@ -83,63 +83,63 @@ def _require_text(value: str, field_name: str) -> str:
     :param value: Candidate text value.
     :param field_name: Name of the field being validated.
     :return: The stripped text value.
-    :raises Layer3ToolContractError: If the value is not non-empty text.
+    :raises ToolContractError: If the value is not non-empty text.
     """
     if not isinstance(value, str) or not value.strip():
-        raise Layer3ToolContractError(f"{field_name} is required")
+        raise ToolContractError(f"{field_name} is required")
     return value.strip()
 
 
-def normalize_layer3_family(family: Layer3ToolFamily | str) -> Layer3ToolFamily:
-    """Normalize a family value to the shared Layer 3 family enum.
+def normalize_family(family: ToolFamily | str) -> ToolFamily:
+    """Normalize a family value to the shared public YouTube family enum.
 
     :param family: Candidate family enum or string.
-    :return: Matching :class:`Layer3ToolFamily`.
-    :raises Layer3ToolContractError: If the family is not supported.
+    :return: Matching :class:`ToolFamily`.
+    :raises ToolContractError: If the family is not supported.
     """
-    if isinstance(family, Layer3ToolFamily):
+    if isinstance(family, ToolFamily):
         return family
     value = _require_text(family, "family")
     try:
-        return Layer3ToolFamily(value)
+        return ToolFamily(value)
     except ValueError as exc:
-        raise Layer3ToolContractError(f"unsupported Layer 3 family: {value}") from exc
+        raise ToolContractError(f"unsupported public YouTube family: {value}") from exc
 
 
-def validate_layer3_tool_name(tool_name: str, family: Layer3ToolFamily | str | None = None) -> str:
-    """Validate a grouped public Layer 3 tool name.
+def validate_tool_name(tool_name: str, family: ToolFamily | str | None = None) -> str:
+    """Validate a grouped public YouTube tool name.
 
     :param tool_name: Candidate public tool name.
     :param family: Optional expected family for the tool.
     :return: The validated public tool name.
-    :raises Layer3ToolContractError: If the name is outside the planned catalog
+    :raises ToolContractError: If the name is outside the planned catalog
         or does not match the expected grouped family.
     """
     name = _require_text(tool_name, "tool_name")
     if name.startswith("youtube_"):
-        raise Layer3ToolContractError("Layer 3 tool names must not use a youtube_ prefix")
-    if name not in PLANNED_LAYER3_TOOL_NAMES:
-        raise Layer3ToolContractError(f"unsupported Layer 3 tool name: {name}")
+        raise ToolContractError("Public YouTube tool names must not use a youtube_ prefix")
+    if name not in PLANNED_TOOL_NAMES:
+        raise ToolContractError(f"unsupported public YouTube tool name: {name}")
     if family is not None:
-        normalized_family = normalize_layer3_family(family)
-        expected_names = PLANNED_LAYER3_TOOLS_BY_FAMILY[normalized_family.value]
+        normalized_family = normalize_family(family)
+        expected_names = PLANNED_TOOLS_BY_FAMILY[normalized_family.value]
         if name not in expected_names:
-            raise Layer3ToolContractError(f"{name} does not belong to {normalized_family.value}")
+            raise ToolContractError(f"{name} does not belong to {normalized_family.value}")
     return name
 
 
-def infer_layer3_family(tool_name: str) -> Layer3ToolFamily:
-    """Infer a Layer 3 family from a planned public tool name.
+def infer_family(tool_name: str) -> ToolFamily:
+    """Infer a public YouTube family from a planned public tool name.
 
     :param tool_name: Planned public Layer 3 tool name.
     :return: Owning Layer 3 family.
-    :raises Layer3ToolContractError: If the name is not in the planned catalog.
+    :raises ToolContractError: If the name is not in the planned catalog.
     """
-    name = validate_layer3_tool_name(tool_name)
-    for family, names in PLANNED_LAYER3_TOOLS_BY_FAMILY.items():
+    name = validate_tool_name(tool_name)
+    for family, names in PLANNED_TOOLS_BY_FAMILY.items():
         if name in names:
-            return Layer3ToolFamily(family)
-    raise Layer3ToolContractError(f"unable to infer family for {name}")
+            return ToolFamily(family)
+    raise ToolContractError(f"unable to infer family for {name}")
 
 
 def _contains_unsafe_marker(key: str) -> bool:
@@ -152,31 +152,34 @@ def _contains_unsafe_marker(key: str) -> bool:
     compact = normalized.replace("_", "")
     if "token" in compact and compact not in SAFE_TOKEN_FIELDS:
         return True
-    return any(marker in normalized or marker.replace("_", "") in compact for marker in UNSAFE_METADATA_MARKERS)
+    return any(
+        marker in normalized or marker.replace("_", "") in compact
+        for marker in UNSAFE_METADATA_MARKERS
+    )
 
 
 def validate_safe_public_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
-    """Validate public Layer 3 metadata before discovery exposure.
+    """Validate public YouTube metadata before discovery exposure.
 
     :param metadata: JSON-compatible metadata intended for public surfaces.
     :return: The original metadata mapping when it contains no unsafe keys.
-    :raises Layer3ToolContractError: If a key suggests secrets, stack traces,
+    :raises ToolContractError: If a key suggests secrets, stack traces,
         signed URLs, or unsafe raw media payloads.
     """
     if not isinstance(metadata, dict):
-        raise Layer3ToolContractError("metadata must be a mapping")
+        raise ToolContractError("metadata must be a mapping")
 
     def walk(value: Any, path: str) -> None:
         """Walk nested metadata and reject unsafe public keys.
 
         :param value: Current metadata value.
         :param path: Dot-separated path to the current value.
-        :raises Layer3ToolContractError: If an unsafe key is encountered.
+        :raises ToolContractError: If an unsafe key is encountered.
         """
         if isinstance(value, dict):
             for key, nested in value.items():
                 if _contains_unsafe_marker(str(key)):
-                    raise Layer3ToolContractError(f"unsafe public metadata field: {path}{key}")
+                    raise ToolContractError(f"unsafe public metadata field: {path}{key}")
                 walk(nested, f"{path}{key}.")
         elif isinstance(value, list | tuple):
             for index, nested in enumerate(value):
@@ -187,11 +190,11 @@ def validate_safe_public_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
 
 
 @dataclass(frozen=True)
-class Layer3ToolContract:
-    """Describe the shared public contract for one Layer 3 YouTube tool.
+class ToolContract:
+    """Describe the shared public contract for one higher-level YouTube tool.
 
-    :param tool_name: Grouped public Layer 3 tool name.
-    :param family: Owning Layer 3 tool family.
+    :param tool_name: Grouped public YouTube tool name.
+    :param family: Owning public YouTube tool family.
     :param description: Caller-facing summary.
     :param parameters: Shared parameter convention names used by the tool.
     :param response_fields: Field provenance metadata.
@@ -207,7 +210,7 @@ class Layer3ToolContract:
     """
 
     tool_name: str
-    family: Layer3ToolFamily | str
+    family: ToolFamily | str
     description: str
     parameters: tuple[str, ...]
     response_fields: tuple[dict[str, Any], ...]
@@ -224,14 +227,18 @@ class Layer3ToolContract:
     def __post_init__(self) -> None:
         """Validate contract metadata after dataclass construction.
 
-        :raises Layer3ToolContractError: If required metadata is missing,
+        :raises ToolContractError: If required metadata is missing,
             inconsistent, or unsafe for public Layer 3 use.
         """
-        normalized_family = normalize_layer3_family(self.family)
+        normalized_family = normalize_family(self.family)
         object.__setattr__(self, "family", normalized_family)
-        object.__setattr__(self, "tool_name", validate_layer3_tool_name(self.tool_name, normalized_family))
+        object.__setattr__(self, "tool_name", validate_tool_name(self.tool_name, normalized_family))
         object.__setattr__(self, "description", _require_text(self.description, "description"))
-        object.__setattr__(self, "partial_result_policy", _require_text(self.partial_result_policy, "partial_result_policy"))
+        object.__setattr__(
+            self,
+            "partial_result_policy",
+            _require_text(self.partial_result_policy, "partial_result_policy"),
+        )
 
         for field_name in (
             "parameters",
@@ -243,7 +250,7 @@ class Layer3ToolContract:
             "review_evidence",
         ):
             if not getattr(self, field_name):
-                raise Layer3ToolContractError(f"{field_name} is required")
+                raise ToolContractError(f"{field_name} is required")
         validate_safe_public_metadata(self.to_tool_metadata(validate=False))
 
     def to_tool_metadata(self, *, validate: bool = True) -> dict[str, Any]:
