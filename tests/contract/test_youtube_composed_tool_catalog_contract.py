@@ -1,7 +1,7 @@
 """Contract tests for the Layer 3 public YouTube catalog."""
 
 
-EXPECTED_LAYER3_TOOL_NAMES = {
+EXPECTED_TOOL_NAMES = {
     "videos_getVideo",
     "videos_searchVideos",
     "videos_getStatistics",
@@ -24,31 +24,31 @@ EXPECTED_LAYER3_TOOL_NAMES = {
 }
 
 
-def test_planned_layer3_catalog_names_match_initial_prd_catalog():
+def test_planned_catalog_names_match_initial_prd_catalog():
     """Validate all planned Layer 3 public names from the shared catalog."""
-    from mcp_server.tools.youtube_layer3 import PLANNED_LAYER3_TOOL_NAMES
+    from mcp_server.tools.youtube_composed import PLANNED_TOOL_NAMES
 
-    assert set(PLANNED_LAYER3_TOOL_NAMES) == EXPECTED_LAYER3_TOOL_NAMES
-    assert len(PLANNED_LAYER3_TOOL_NAMES) == 19
+    assert set(PLANNED_TOOL_NAMES) == EXPECTED_TOOL_NAMES
+    assert len(PLANNED_TOOL_NAMES) == 19
 
 
-def test_planned_layer3_catalog_names_use_grouped_family_prefixes():
+def test_planned_catalog_names_use_grouped_family_prefixes():
     """Require each planned public name to use its owning family prefix."""
-    from mcp_server.tools.youtube_layer3 import PLANNED_LAYER3_TOOLS_BY_FAMILY
+    from mcp_server.tools.youtube_composed import PLANNED_TOOLS_BY_FAMILY
 
-    assert set(PLANNED_LAYER3_TOOLS_BY_FAMILY) == {"videos", "channels", "playlists", "transcripts"}
-    for family, tool_names in PLANNED_LAYER3_TOOLS_BY_FAMILY.items():
+    assert set(PLANNED_TOOLS_BY_FAMILY) == {"videos", "channels", "playlists", "transcripts"}
+    for family, tool_names in PLANNED_TOOLS_BY_FAMILY.items():
         assert tool_names
         assert all(name.startswith(f"{family}_") for name in tool_names)
 
 
-def test_representative_layer3_contract_examples_cover_catalog_shapes():
+def test_representative_contract_examples_cover_catalog_shapes():
     """Expose representative non-executing examples for initial Layer 3 shapes."""
-    from mcp_server.tools.youtube_layer3 import REPRESENTATIVE_LAYER3_TOOL_CONTRACTS
+    from mcp_server.tools.youtube_composed import REPRESENTATIVE_TOOL_CONTRACTS
 
-    names = {contract.tool_name for contract in REPRESENTATIVE_LAYER3_TOOL_CONTRACTS}
+    names = {contract.tool_name for contract in REPRESENTATIVE_TOOL_CONTRACTS}
 
-    assert len(REPRESENTATIVE_LAYER3_TOOL_CONTRACTS) >= 8
+    assert len(REPRESENTATIVE_TOOL_CONTRACTS) >= 8
     assert {
         "videos_getVideo",
         "videos_searchVideos",
@@ -61,16 +61,16 @@ def test_representative_layer3_contract_examples_cover_catalog_shapes():
     }.issubset(names)
 
 
-def test_representative_layer3_examples_disclose_provenance_and_heuristics():
+def test_representative_examples_disclose_provenance_and_heuristics():
     """Require representative examples to separate raw, normalized, and heuristic fields."""
-    from mcp_server.tools.youtube_layer3 import REPRESENTATIVE_LAYER3_TOOL_CONTRACTS
+    from mcp_server.tools.youtube_composed import REPRESENTATIVE_TOOL_CONTRACTS
 
     categories = {
         field["category"]
-        for contract in REPRESENTATIVE_LAYER3_TOOL_CONTRACTS
+        for contract in REPRESENTATIVE_TOOL_CONTRACTS
         for field in contract.to_tool_metadata()["responseFields"]
     }
-    heuristic_contracts = [contract for contract in REPRESENTATIVE_LAYER3_TOOL_CONTRACTS if contract.heuristics]
+    heuristic_contracts = [contract for contract in REPRESENTATIVE_TOOL_CONTRACTS if contract.heuristics]
 
     assert {"raw_upstream", "normalized", "heuristic_inferred"}.issubset(categories)
     assert heuristic_contracts
@@ -79,10 +79,10 @@ def test_representative_layer3_examples_disclose_provenance_and_heuristics():
 
 def test_ranking_filtering_and_composition_rules_are_metadata_ready():
     """Expose ranking/filtering, composition, partial-result, and error metadata."""
-    from mcp_server.tools.youtube_layer3.conventions import (
+    from mcp_server.tools.youtube_composed.conventions import (
         CompositionBoundary,
         CompositionKind,
-        Layer3ErrorCategory,
+        ErrorCategory,
         RankingFilteringRule,
     )
 
@@ -107,22 +107,22 @@ def test_ranking_filtering_and_composition_rules_are_metadata_ready():
 
     assert boundary.to_metadata()["kind"] == "fan_out"
     assert rule.to_metadata()["name"] == "creatorOnly"
-    assert Layer3ErrorCategory.PARTIAL_ENRICHMENT_FAILURE.value == "partial_enrichment_failure"
+    assert ErrorCategory.PARTIAL_ENRICHMENT_FAILURE.value == "partial_enrichment_failure"
 
 
-def test_each_planned_layer3_name_maps_to_one_family_and_source_area():
+def test_each_planned_name_maps_to_one_family_and_source_area():
     """Map every planned public name to exactly one family and source module."""
-    from mcp_server.tools.youtube_layer3 import PLANNED_LAYER3_TOOL_NAMES, get_family_for_tool_name, get_layer3_family
+    from mcp_server.tools.youtube_composed import PLANNED_TOOL_NAMES, get_family, get_family_for_tool_name
 
     seen = {}
-    for tool_name in PLANNED_LAYER3_TOOL_NAMES:
+    for tool_name in PLANNED_TOOL_NAMES:
         family_name = get_family_for_tool_name(tool_name)
-        family = get_layer3_family(family_name)
+        family = get_family(family_name)
         seen[tool_name] = family_name
 
         assert tool_name in family.planned_tools
-        assert family.definition_location.endswith(f"src/mcp_server/tools/youtube_layer3/{family_name}.py")
-        assert family.example_location.endswith("src/mcp_server/tools/youtube_layer3/examples.py")
+        assert family.definition_location.endswith(f"src/mcp_server/tools/youtube_composed/{family_name}.py")
+        assert family.example_location.endswith("src/mcp_server/tools/youtube_composed/examples.py")
 
-    assert len(seen) == len(PLANNED_LAYER3_TOOL_NAMES)
+    assert len(seen) == len(PLANNED_TOOL_NAMES)
     assert set(seen.values()) == {"videos", "channels", "playlists", "transcripts"}

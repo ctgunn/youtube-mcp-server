@@ -171,3 +171,4 @@ Reviewers must be able to verify that:
 ## Implementation Alignment
 
 The planned shared implementation uses `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py` for public contract records and naming, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/conventions.py` for parameter, response provenance, heuristic, ranking, filtering, and composition conventions, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/examples.py` for representative non-executing examples, and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/families.py` for family scaffolding metadata.
+<!-- Filename normalized to avoid implementation-layer numbering. -->

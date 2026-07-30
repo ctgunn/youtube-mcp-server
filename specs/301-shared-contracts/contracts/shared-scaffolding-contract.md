@@ -167,3 +167,4 @@ Reviewers must be able to verify that:
 - Representative examples cover all four families and the major workflow shapes.
 - Later slices can reference YT-301 without redefining cross-cutting Layer 3 rules.
 - Any new or changed Python functions include reStructuredText docstrings.
+<!-- Filename normalized to avoid implementation-layer numbering. -->

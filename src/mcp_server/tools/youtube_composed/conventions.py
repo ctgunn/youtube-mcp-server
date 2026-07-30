@@ -1,4 +1,4 @@
-"""Shared Layer 3 parameter, response, heuristic, and composition conventions.
+"""Shared parameter, response, heuristic, and composition conventions.
 
 The conventions in this module are safe metadata surfaces used by later
 higher-level YouTube tools. They do not perform hosted transport, persistence,
@@ -11,11 +11,14 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from mcp_server.tools.youtube_layer3.contracts import Layer3ToolContractError, validate_layer3_tool_name
+from mcp_server.tools.youtube_composed.contracts import (
+    ToolContractError,
+    validate_tool_name,
+)
 
 
 class Requiredness(Enum):
-    """Represent how a shared Layer 3 parameter applies to a tool."""
+    """Represent how a shared public YouTube parameter applies to a tool."""
 
     REQUIRED = "required"
     OPTIONAL = "optional"
@@ -24,7 +27,7 @@ class Requiredness(Enum):
 
 
 class ResponseFieldCategory(Enum):
-    """Represent the provenance category for a Layer 3 response field."""
+    """Represent the provenance category for a higher-level YouTube response field."""
 
     RAW_UPSTREAM = "raw_upstream"
     NORMALIZED = "normalized"
@@ -32,7 +35,7 @@ class ResponseFieldCategory(Enum):
 
 
 class CompositionKind(Enum):
-    """Represent the amount of higher-level behavior in a Layer 3 tool."""
+    """Represent the amount of higher-level behavior in a public YouTube tool."""
 
     DIRECT_RETRIEVAL = "direct_retrieval"
     NORMALIZED_RETRIEVAL = "normalized_retrieval"
@@ -45,8 +48,8 @@ class CompositionKind(Enum):
     FAN_OUT = "fan_out"
 
 
-class Layer3ErrorCategory(Enum):
-    """Represent stable safe error categories for Layer 3 public contracts."""
+class ErrorCategory(Enum):
+    """Represent stable safe error categories for public YouTube contracts."""
 
     INVALID_PARAMETERS = "invalid_parameters"
     UNAVAILABLE_RESOURCE = "unavailable_resource"
@@ -66,10 +69,10 @@ def _require_text(value: str, field_name: str) -> str:
     :param value: Candidate text value.
     :param field_name: Name of the field being validated.
     :return: The stripped text value.
-    :raises Layer3ToolContractError: If the value is not non-empty text.
+    :raises ToolContractError: If the value is not non-empty text.
     """
     if not isinstance(value, str) or not value.strip():
-        raise Layer3ToolContractError(f"{field_name} is required")
+        raise ToolContractError(f"{field_name} is required")
     return value.strip()
 
 
@@ -80,19 +83,19 @@ def _enum_value(value: Enum | str, enum_type: type[Enum], field_name: str) -> st
     :param enum_type: Enum type to validate against.
     :param field_name: Name of the field being validated.
     :return: Public string value.
-    :raises Layer3ToolContractError: If the value does not belong to the enum.
+    :raises ToolContractError: If the value does not belong to the enum.
     """
     if isinstance(value, enum_type):
         return value.value
     text = _require_text(value, field_name)
     if text not in {member.value for member in enum_type}:
-        raise Layer3ToolContractError(f"unsupported {field_name}: {text}")
+        raise ToolContractError(f"unsupported {field_name}: {text}")
     return text
 
 
 @dataclass(frozen=True)
 class SharedParameterConvention:
-    """Describe a reusable caller-facing Layer 3 parameter rule.
+    """Describe a reusable caller-facing public YouTube parameter rule.
 
     :param name: Stable MCP-facing parameter name.
     :param value_kind: Expected user-facing value type or shape.
@@ -116,7 +119,7 @@ class SharedParameterConvention:
     def __post_init__(self) -> None:
         """Validate the shared parameter convention.
 
-        :raises Layer3ToolContractError: If required convention metadata is missing.
+        :raises ToolContractError: If required convention metadata is missing.
         """
         object.__setattr__(self, "name", _require_text(self.name, "name"))
         object.__setattr__(self, "value_kind", _require_text(self.value_kind, "value_kind"))
@@ -124,11 +127,11 @@ class SharedParameterConvention:
         object.__setattr__(self, "default_behavior", _require_text(self.default_behavior, "default_behavior"))
         object.__setattr__(self, "validation_behavior", _require_text(self.validation_behavior, "validation_behavior"))
         if not self.applicable_families:
-            raise Layer3ToolContractError("applicable_families are required")
+            raise ToolContractError("applicable_families are required")
         if self.name in {"maxResults", "maxMatches", "sampleVideosPerChannel"} and not self.bounds:
-            raise Layer3ToolContractError(f"{self.name} requires explicit bounds")
+            raise ToolContractError(f"{self.name} requires explicit bounds")
         if "date" in self.value_kind.lower() and "iso 8601" not in self.validation_behavior.lower():
-            raise Layer3ToolContractError(f"{self.name} requires ISO 8601 validation behavior")
+            raise ToolContractError(f"{self.name} requires ISO 8601 validation behavior")
 
     def to_metadata(self) -> dict[str, Any]:
         """Build JSON-compatible metadata for this parameter convention.
@@ -149,7 +152,7 @@ class SharedParameterConvention:
 
 @dataclass(frozen=True)
 class ResponseFieldProvenance:
-    """Describe the provenance of a representative Layer 3 response field.
+    """Describe the provenance of a representative public YouTube response field.
 
     :param field_name: Public result field name.
     :param category: Field provenance category.
@@ -167,7 +170,7 @@ class ResponseFieldProvenance:
     def __post_init__(self) -> None:
         """Validate response field provenance metadata.
 
-        :raises Layer3ToolContractError: If required provenance metadata is missing.
+        :raises ToolContractError: If required provenance metadata is missing.
         """
         object.__setattr__(self, "field_name", _require_text(self.field_name, "field_name"))
         object.__setattr__(self, "category", _enum_value(self.category, ResponseFieldCategory, "category"))
@@ -192,7 +195,7 @@ class ResponseFieldProvenance:
 
 @dataclass(frozen=True)
 class HeuristicDisclosure:
-    """Describe a required disclosure for an inferred Layer 3 field.
+    """Describe a required disclosure for an inferred public YouTube field.
 
     :param name: Heuristic field or signal name.
     :param basis: Signals or evidence used to infer the value.
@@ -210,16 +213,16 @@ class HeuristicDisclosure:
     def __post_init__(self) -> None:
         """Validate heuristic disclosure metadata.
 
-        :raises Layer3ToolContractError: If required disclosure metadata is missing.
+        :raises ToolContractError: If required disclosure metadata is missing.
         """
         object.__setattr__(self, "name", _require_text(self.name, "name"))
         object.__setattr__(self, "basis", _require_text(self.basis, "basis"))
         object.__setattr__(self, "limitations", _require_text(self.limitations, "limitations"))
         object.__setattr__(self, "safe_usage_guidance", _require_text(self.safe_usage_guidance, "safe_usage_guidance"))
         if not self.applicable_tools:
-            raise Layer3ToolContractError("applicable_tools are required")
+            raise ToolContractError("applicable_tools are required")
         for tool_name in self.applicable_tools:
-            validate_layer3_tool_name(tool_name)
+            validate_tool_name(tool_name)
 
     def to_metadata(self) -> dict[str, Any]:
         """Build JSON-compatible heuristic disclosure metadata.
@@ -237,7 +240,7 @@ class HeuristicDisclosure:
 
 @dataclass(frozen=True)
 class RankingFilteringRule:
-    """Describe shared ranking or filtering behavior for Layer 3 tools.
+    """Describe shared ranking or filtering behavior for public YouTube tools.
 
     :param name: Public rule or parameter name.
     :param semantics: Caller-facing behavior.
@@ -259,7 +262,7 @@ class RankingFilteringRule:
     def __post_init__(self) -> None:
         """Validate ranking and filtering rule metadata.
 
-        :raises Layer3ToolContractError: If required rule metadata is missing.
+        :raises ToolContractError: If required rule metadata is missing.
         """
         for field_name in (
             "name",
@@ -270,7 +273,7 @@ class RankingFilteringRule:
         ):
             object.__setattr__(self, field_name, _require_text(getattr(self, field_name), field_name))
         if not self.applicable_families:
-            raise Layer3ToolContractError("applicable_families are required")
+            raise ToolContractError("applicable_families are required")
 
     def to_metadata(self) -> dict[str, Any]:
         """Build JSON-compatible ranking or filtering metadata.
@@ -290,7 +293,7 @@ class RankingFilteringRule:
 
 @dataclass(frozen=True)
 class CompositionBoundary:
-    """Describe how much higher-level behavior a Layer 3 tool performs.
+    """Describe how much higher-level behavior a public YouTube tool performs.
 
     :param kind: Composition boundary kind.
     :param lower_layer_dependencies: Lower-layer resources or contracts involved.
@@ -312,13 +315,13 @@ class CompositionBoundary:
     def __post_init__(self) -> None:
         """Validate composition-boundary metadata.
 
-        :raises Layer3ToolContractError: If required boundary metadata is missing.
+        :raises ToolContractError: If required boundary metadata is missing.
         """
         object.__setattr__(self, "kind", _enum_value(self.kind, CompositionKind, "kind"))
         for field_name in ("quota_behavior", "auth_sensitivity", "partial_result_policy", "boundedness"):
             object.__setattr__(self, field_name, _require_text(getattr(self, field_name), field_name))
         if not self.lower_layer_dependencies:
-            raise Layer3ToolContractError("lower_layer_dependencies are required")
+            raise ToolContractError("lower_layer_dependencies are required")
 
     def to_metadata(self) -> dict[str, Any]:
         """Build JSON-compatible composition-boundary metadata.

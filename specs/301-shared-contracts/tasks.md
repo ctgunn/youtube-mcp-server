@@ -61,7 +61,7 @@ Write these tests FIRST and confirm they fail before implementation.
 
 ### Implementation for User Story 1
 
-- [X] T018 [US1] Implement `Layer3ToolContractError`, `Layer3ToolFamily`, `Layer3ToolContract`, grouped-name validation, and safe metadata validation in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py`
+- [X] T018 [US1] Implement `ToolContractError`, `ToolFamily`, `ToolContract`, grouped-name validation, and safe metadata validation in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py`
 - [X] T019 [US1] Implement planned catalog constants for all 19 Layer 3 public tool names in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py`
 - [X] T020 [US1] Implement representative public contract builders for at least eight Layer 3 catalog shapes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/examples.py`
 - [X] T021 [US1] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py`
@@ -120,7 +120,7 @@ Write these tests FIRST and confirm they fail before implementation.
 
 ### Implementation for User Story 3
 
-- [X] T041 [US3] Implement `Layer3FamilyScaffolding`, family placement records, and planned tool ownership validation in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/families.py`
+- [X] T041 [US3] Implement `FamilyScaffolding`, family placement records, and planned tool ownership validation in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/families.py`
 - [X] T042 [P] [US3] Add video-family scaffolding declarations without concrete tool handlers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/videos.py`
 - [X] T043 [P] [US3] Add channel-family scaffolding declarations without concrete tool handlers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/channels.py`
 - [X] T044 [P] [US3] Add playlist-family scaffolding declarations without concrete tool handlers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/playlists.py`
