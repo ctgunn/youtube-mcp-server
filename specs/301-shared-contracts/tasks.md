@@ -1,7 +1,7 @@
 # Tasks: YT-301 Layer 3 Shared Scaffolding and Contracts
 
-**Input**: Design documents from `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/`
-**Prerequisites**: [plan.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/plan.md), [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/spec.md), [research.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/research.md), [data-model.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/data-model.md), [contracts/](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/contracts/)
+**Input**: Design documents from `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/`
+**Prerequisites**: [plan.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/plan.md), [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/spec.md), [research.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/research.md), [data-model.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/data-model.md), [contracts/](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/contracts/)
 
 **Tests**: Test tasks are REQUIRED. Every user story and foundational change includes Red-Green-Refactor coverage tasks. Completion requires a passing full repository test-suite run after the final code changes. Python code changes require reStructuredText docstrings for all new or modified functions.
 
@@ -10,18 +10,18 @@
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel with other marked tasks in the same phase when files do not overlap
-- **[Story]**: Maps to a user story from [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/spec.md)
+- **[Story]**: Maps to a user story from [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/spec.md)
 - Every task below includes an exact repository path
 
 ## Phase 1: Setup (Shared Infrastructure)
 
 **Purpose**: Create the Layer 3 shared package shell and test placeholders without implementing public Layer 3 tool behavior.
 
-- [X] T001 Create the Layer 3 package directory and empty package initializer in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/__init__.py`
-- [X] T002 [P] Create empty shared contract module placeholder in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py`
-- [X] T003 [P] Create empty shared convention module placeholder in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/conventions.py`
-- [X] T004 [P] Create empty representative examples module placeholder in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/examples.py`
-- [X] T005 [P] Create empty family registry module placeholder in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/families.py`
+- [X] T001 Create the Layer 3 package directory and empty package initializer in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/__init__.py`
+- [X] T002 [P] Create empty shared contract module placeholder in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/contracts.py`
+- [X] T003 [P] Create empty shared convention module placeholder in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/conventions.py`
+- [X] T004 [P] Create empty representative examples module placeholder in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/examples.py`
+- [X] T005 [P] Create empty family registry module placeholder in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/families.py`
 
 ---
 
@@ -31,14 +31,14 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete.
 
-- [X] T006 [P] Add failing import and no-concrete-tool contract checks for the new Layer 3 package in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py`
-- [X] T007 [P] Add failing package-boundary unit checks that reject hosted transport, persistence, and concrete tool execution dependencies in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`
-- [X] T008 Add module-level reStructuredText docstrings and explicit no-concrete-tool scope notes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/__init__.py`
-- [X] T009 Add module-level reStructuredText docstrings and safe dependency notes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py`
-- [X] T010 Add module-level reStructuredText docstrings and safe dependency notes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/conventions.py`
-- [X] T011 Add module-level reStructuredText docstrings and safe dependency notes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/examples.py`
-- [X] T012 Add module-level reStructuredText docstrings and safe dependency notes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/families.py`
-- [X] T013 Run foundational Red checks and confirm they fail for missing Layer 3 primitives from `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`
+- [X] T006 [P] Add failing import and no-concrete-tool contract checks for the new Layer 3 package in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py`
+- [X] T007 [P] Add failing package-boundary unit checks that reject hosted transport, persistence, and concrete tool execution dependencies in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`
+- [X] T008 Add module-level reStructuredText docstrings and explicit no-concrete-tool scope notes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/__init__.py`
+- [X] T009 Add module-level reStructuredText docstrings and safe dependency notes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/contracts.py`
+- [X] T010 Add module-level reStructuredText docstrings and safe dependency notes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/conventions.py`
+- [X] T011 Add module-level reStructuredText docstrings and safe dependency notes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/examples.py`
+- [X] T012 Add module-level reStructuredText docstrings and safe dependency notes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/families.py`
+- [X] T013 Run foundational Red checks and confirm they fail for missing Layer 3 primitives from `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`
 
 **Checkpoint**: Layer 3 package shell and failing baseline tests are ready.
 
@@ -54,20 +54,20 @@
 
 Write these tests FIRST and confirm they fail before implementation.
 
-- [X] T014 [P] [US1] Add failing contract tests for all 19 grouped Layer 3 public names in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py`
-- [X] T015 [P] [US1] Add failing contract tests for required Layer 3 tool contract fields and safe public metadata in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py`
-- [X] T016 [P] [US1] Add failing unit tests for grouped name validation and rejected `youtube_` prefixes in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`
-- [X] T017 [US1] Run US1 Red tests and record expected failures from `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`
+- [X] T014 [P] [US1] Add failing contract tests for all 19 grouped Layer 3 public names in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py`
+- [X] T015 [P] [US1] Add failing contract tests for required Layer 3 tool contract fields and safe public metadata in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py`
+- [X] T016 [P] [US1] Add failing unit tests for grouped name validation and rejected `youtube_` prefixes in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`
+- [X] T017 [US1] Run US1 Red tests and record expected failures from `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`
 
 ### Implementation for User Story 1
 
-- [X] T018 [US1] Implement `ToolContractError`, `ToolFamily`, `ToolContract`, grouped-name validation, and safe metadata validation in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py`
-- [X] T019 [US1] Implement planned catalog constants for all 19 Layer 3 public tool names in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py`
-- [X] T020 [US1] Implement representative public contract builders for at least eight Layer 3 catalog shapes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/examples.py`
-- [X] T021 [US1] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py`
-- [X] T022 [US1] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/examples.py`
-- [X] T023 [US1] Run focused US1 Green checks from `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`
-- [X] T024 [US1] Refactor Layer 3 contract and example wording while keeping focused checks green in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/examples.py`
+- [X] T018 [US1] Implement `ToolContractError`, `ToolFamily`, `ToolContract`, grouped-name validation, and safe metadata validation in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/contracts.py`
+- [X] T019 [US1] Implement planned catalog constants for all 19 Layer 3 public tool names in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/contracts.py`
+- [X] T020 [US1] Implement representative public contract builders for at least eight Layer 3 catalog shapes in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/examples.py`
+- [X] T021 [US1] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/contracts.py`
+- [X] T022 [US1] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/examples.py`
+- [X] T023 [US1] Run focused US1 Green checks from `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`
+- [X] T024 [US1] Refactor Layer 3 contract and example wording while keeping focused checks green in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/contracts.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/examples.py`
 
 **Checkpoint**: User Story 1 is independently testable and provides the MVP shared Layer 3 public contract.
 
@@ -83,21 +83,21 @@ Write these tests FIRST and confirm they fail before implementation.
 
 Write these tests FIRST and confirm they fail before implementation.
 
-- [X] T025 [P] [US2] Add failing unit tests for shared parameter conventions, defaults, bounds, and unsupported combinations in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`
-- [X] T026 [P] [US2] Add failing contract tests for response field provenance categories and heuristic disclosure completeness in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py`
-- [X] T027 [P] [US2] Add failing contract tests for ranking/filtering semantics, composition boundaries, partial-result policies, and safe error categories in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py`
-- [X] T028 [US2] Run US2 Red tests and record expected failures from `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py`
+- [X] T025 [P] [US2] Add failing unit tests for shared parameter conventions, defaults, bounds, and unsupported combinations in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`
+- [X] T026 [P] [US2] Add failing contract tests for response field provenance categories and heuristic disclosure completeness in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py`
+- [X] T027 [P] [US2] Add failing contract tests for ranking/filtering semantics, composition boundaries, partial-result policies, and safe error categories in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py`
+- [X] T028 [US2] Run US2 Red tests and record expected failures from `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py`
 
 ### Implementation for User Story 2
 
-- [X] T029 [US2] Implement `SharedParameterConvention`, `Requiredness`, and parameter metadata conversion in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/conventions.py`
-- [X] T030 [US2] Implement `ResponseFieldCategory`, `ResponseFieldProvenance`, and response provenance validation in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/conventions.py`
-- [X] T031 [US2] Implement `HeuristicDisclosure`, `RankingFilteringRule`, `CompositionBoundary`, and safe error category declarations in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/conventions.py`
-- [X] T032 [US2] Update representative examples with provenance, heuristic, ranking/filtering, composition, auth/quota, partial-result, and safe-error metadata in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/examples.py`
-- [X] T033 [US2] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/conventions.py`
-- [X] T034 [US2] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/examples.py`
-- [X] T035 [US2] Run focused US2 Green checks from `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py`
-- [X] T036 [US2] Refactor shared conventions and representative metadata while keeping focused checks green in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/conventions.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/examples.py`
+- [X] T029 [US2] Implement `SharedParameterConvention`, `Requiredness`, and parameter metadata conversion in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/conventions.py`
+- [X] T030 [US2] Implement `ResponseFieldCategory`, `ResponseFieldProvenance`, and response provenance validation in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/conventions.py`
+- [X] T031 [US2] Implement `HeuristicDisclosure`, `RankingFilteringRule`, `CompositionBoundary`, and safe error category declarations in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/conventions.py`
+- [X] T032 [US2] Update representative examples with provenance, heuristic, ranking/filtering, composition, auth/quota, partial-result, and safe-error metadata in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/examples.py`
+- [X] T033 [US2] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/conventions.py`
+- [X] T034 [US2] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/examples.py`
+- [X] T035 [US2] Run focused US2 Green checks from `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py`
+- [X] T036 [US2] Refactor shared conventions and representative metadata while keeping focused checks green in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/conventions.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/examples.py`
 
 **Checkpoint**: User Story 2 is independently testable and representative Layer 3 results are predictable for clients.
 
@@ -113,23 +113,23 @@ Write these tests FIRST and confirm they fail before implementation.
 
 Write these tests FIRST and confirm they fail before implementation.
 
-- [X] T037 [P] [US3] Add failing unit tests for family registry ownership, placement metadata, and no monolithic family leakage in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`
-- [X] T038 [P] [US3] Add failing integration-style tests for Layer 3 shared metadata registration readiness without concrete handlers in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_layer3_tool_registration.py`
-- [X] T039 [P] [US3] Add failing contract tests that map each planned public name to exactly one family and expected source area in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py`
-- [X] T040 [US3] Run US3 Red tests and record expected failures from `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_layer3_tool_registration.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py`
+- [X] T037 [P] [US3] Add failing unit tests for family registry ownership, placement metadata, and no monolithic family leakage in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`
+- [X] T038 [P] [US3] Add failing integration-style tests for Layer 3 shared metadata registration readiness without concrete handlers in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_youtube_composed_tool_registration.py`
+- [X] T039 [P] [US3] Add failing contract tests that map each planned public name to exactly one family and expected source area in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py`
+- [X] T040 [US3] Run US3 Red tests and record expected failures from `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_youtube_composed_tool_registration.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py`
 
 ### Implementation for User Story 3
 
-- [X] T041 [US3] Implement `FamilyScaffolding`, family placement records, and planned tool ownership validation in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/families.py`
-- [X] T042 [P] [US3] Add video-family scaffolding declarations without concrete tool handlers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/videos.py`
-- [X] T043 [P] [US3] Add channel-family scaffolding declarations without concrete tool handlers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/channels.py`
-- [X] T044 [P] [US3] Add playlist-family scaffolding declarations without concrete tool handlers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/playlists.py`
-- [X] T045 [P] [US3] Add transcript-family scaffolding declarations without concrete tool handlers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/transcripts.py`
-- [X] T046 [US3] Export shared Layer 3 families and contract primitives from `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/__init__.py`
-- [X] T047 [US3] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/families.py`
-- [X] T048 [US3] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/videos.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/channels.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/playlists.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/transcripts.py`
-- [X] T049 [US3] Run focused US3 Green checks from `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_layer3_tool_registration.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py`
-- [X] T050 [US3] Refactor family scaffolding exports while keeping focused checks green in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/families.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/__init__.py`
+- [X] T041 [US3] Implement `FamilyScaffolding`, family placement records, and planned tool ownership validation in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/families.py`
+- [X] T042 [P] [US3] Add video-family scaffolding declarations without concrete tool handlers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/videos.py`
+- [X] T043 [P] [US3] Add channel-family scaffolding declarations without concrete tool handlers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/channels.py`
+- [X] T044 [P] [US3] Add playlist-family scaffolding declarations without concrete tool handlers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/playlists.py`
+- [X] T045 [P] [US3] Add transcript-family scaffolding declarations without concrete tool handlers in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/transcripts.py`
+- [X] T046 [US3] Export shared Layer 3 families and contract primitives from `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/__init__.py`
+- [X] T047 [US3] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/families.py`
+- [X] T048 [US3] Add or update reStructuredText docstrings for every new or modified function in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/videos.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/channels.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/playlists.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/transcripts.py`
+- [X] T049 [US3] Run focused US3 Green checks from `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_youtube_composed_tool_registration.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py`
+- [X] T050 [US3] Refactor family scaffolding exports while keeping focused checks green in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/families.py` and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/__init__.py`
 
 **Checkpoint**: User Story 3 is independently testable and family placement is ready for later YT-302+ slices.
 
@@ -139,13 +139,13 @@ Write these tests FIRST and confirm they fail before implementation.
 
 **Purpose**: Validate docs, security boundaries, docstrings, and full repository behavior across the completed shared Layer 3 scaffolding.
 
-- [X] T051 [P] Verify `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/contracts/layer3-public-tool-contract.md` matches implemented public contract fields in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/contracts.py`
-- [X] T052 [P] Verify `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/contracts/layer3-scaffolding-contract.md` matches implemented family placement metadata in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/families.py`
-- [X] T053 [P] Verify `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/quickstart.md` targeted checks match the final test file paths in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`
-- [X] T054 [P] Add regression checks that public Layer 3 metadata rejects unsafe secret, token, stack trace, signed URL, and raw media fields in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py`
-- [X] T055 Review all new and modified Python functions for reStructuredText docstrings in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/`
-- [X] T056 Run focused Layer 3 checks from `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_layer3_tool_registration.py`
-- [X] T057 Run `python3 -m ruff check .` from `/Users/ctgunn/Projects/youtube-mcp-server` and fix any lint failures in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/` or `/Users/ctgunn/Projects/youtube-mcp-server/tests/`
+- [X] T051 [P] Verify `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/contracts/public-tool-contract.md` matches implemented public contract fields in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/contracts.py`
+- [X] T052 [P] Verify `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/contracts/shared-scaffolding-contract.md` matches implemented family placement metadata in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/families.py`
+- [X] T053 [P] Verify `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/quickstart.md` targeted checks match the final test file paths in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`
+- [X] T054 [P] Add regression checks that public Layer 3 metadata rejects unsafe secret, token, stack trace, signed URL, and raw media fields in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py`
+- [X] T055 Review all new and modified Python functions for reStructuredText docstrings in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/`
+- [X] T056 Run focused Layer 3 checks from `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_youtube_composed_tool_registration.py`
+- [X] T057 Run `python3 -m ruff check .` from `/Users/ctgunn/Projects/youtube-mcp-server` and fix any lint failures in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/` or `/Users/ctgunn/Projects/youtube-mcp-server/tests/`
 - [X] T058 Run `python3 -m pytest` from `/Users/ctgunn/Projects/youtube-mcp-server` against `/Users/ctgunn/Projects/youtube-mcp-server/tests/` and fix any repository test failures before considering YT-301 complete
 
 ---
@@ -193,28 +193,28 @@ Write these tests FIRST and confirm they fail before implementation.
 
 ```bash
 # Launch US1 Red test creation in parallel:
-Task: "T014 [P] [US1] Add failing contract tests for all 19 grouped Layer 3 public names in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py"
-Task: "T015 [P] [US1] Add failing contract tests for required Layer 3 tool contract fields and safe public metadata in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py"
-Task: "T016 [P] [US1] Add failing unit tests for grouped name validation and rejected youtube_ prefixes in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py"
+Task: "T014 [P] [US1] Add failing contract tests for all 19 grouped Layer 3 public names in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py"
+Task: "T015 [P] [US1] Add failing contract tests for required Layer 3 tool contract fields and safe public metadata in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py"
+Task: "T016 [P] [US1] Add failing unit tests for grouped name validation and rejected youtube_ prefixes in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py"
 ```
 
 ## Parallel Example: User Story 2
 
 ```bash
 # Launch US2 Red test creation in parallel:
-Task: "T025 [P] [US2] Add failing unit tests for shared parameter conventions, defaults, bounds, and unsupported combinations in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py"
-Task: "T026 [P] [US2] Add failing contract tests for response field provenance categories and heuristic disclosure completeness in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py"
-Task: "T027 [P] [US2] Add failing contract tests for ranking/filtering semantics, composition boundaries, partial-result policies, and safe error categories in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py"
+Task: "T025 [P] [US2] Add failing unit tests for shared parameter conventions, defaults, bounds, and unsupported combinations in /Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py"
+Task: "T026 [P] [US2] Add failing contract tests for response field provenance categories and heuristic disclosure completeness in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py"
+Task: "T027 [P] [US2] Add failing contract tests for ranking/filtering semantics, composition boundaries, partial-result policies, and safe error categories in /Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py"
 ```
 
 ## Parallel Example: User Story 3
 
 ```bash
 # Launch US3 family scaffolding modules in parallel after T041:
-Task: "T042 [P] [US3] Add video-family scaffolding declarations without concrete tool handlers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/videos.py"
-Task: "T043 [P] [US3] Add channel-family scaffolding declarations without concrete tool handlers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/channels.py"
-Task: "T044 [P] [US3] Add playlist-family scaffolding declarations without concrete tool handlers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/playlists.py"
-Task: "T045 [P] [US3] Add transcript-family scaffolding declarations without concrete tool handlers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/transcripts.py"
+Task: "T042 [P] [US3] Add video-family scaffolding declarations without concrete tool handlers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/videos.py"
+Task: "T043 [P] [US3] Add channel-family scaffolding declarations without concrete tool handlers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/channels.py"
+Task: "T044 [P] [US3] Add playlist-family scaffolding declarations without concrete tool handlers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/playlists.py"
+Task: "T045 [P] [US3] Add transcript-family scaffolding declarations without concrete tool handlers in /Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/transcripts.py"
 ```
 
 ---
@@ -249,7 +249,7 @@ Task: "T045 [P] [US3] Add transcript-family scaffolding declarations without con
 ## Notes
 
 - `[P]` tasks touch different files or can be prepared without depending on incomplete implementation tasks.
-- `[US1]`, `[US2]`, and `[US3]` labels map to prioritized user stories in [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/spec.md).
+- `[US1]`, `[US2]`, and `[US3]` labels map to prioritized user stories in [spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/spec.md).
 - Tests are mandatory and must be written before implementation.
 - reStructuredText docstrings are mandatory for every new or modified Python function.
 - YT-301 must remain shared scaffolding only; concrete YT-302+ public tool execution is out of scope.

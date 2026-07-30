@@ -122,9 +122,9 @@ def _family_scaffolding(
         helper_location=source,
         example_location=f"{REPO_ROOT}/src/mcp_server/tools/youtube_composed/examples.py",
         test_locations={
-            "unit": f"{REPO_ROOT}/tests/unit/test_layer3_shared_scaffolding.py",
-            "contract": f"{REPO_ROOT}/tests/contract/test_layer3_tool_catalog_contract.py",
-            "integration": f"{REPO_ROOT}/tests/integration/test_layer3_tool_registration.py",
+            "unit": f"{REPO_ROOT}/tests/unit/test_youtube_composed_shared_scaffolding.py",
+            "contract": f"{REPO_ROOT}/tests/contract/test_youtube_composed_tool_catalog_contract.py",
+            "integration": f"{REPO_ROOT}/tests/integration/test_youtube_composed_tool_registration.py",
         },
         caveat_location=source,
         shared_helpers=shared_helpers,

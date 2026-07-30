@@ -7,7 +7,7 @@ from mcp_server.tools.youtube_composed import (
 )
 
 
-def test_representative_layer3_descriptor_registers_without_tool_execution():
+def test_representative_youtube_composed_descriptor_registers_without_tool_execution():
     """Register representative Layer 3 metadata while keeping the handler inert."""
     descriptor = build_representative_tool_descriptor(REPRESENTATIVE_TOOL_CONTRACTS[0])
     dispatcher = InMemoryToolDispatcher(tools=[])
@@ -28,7 +28,7 @@ def test_representative_layer3_descriptor_registers_without_tool_execution():
     assert result["concreteToolExecuted"] is False
 
 
-def test_representative_layer3_descriptor_exposes_family_and_composition_metadata():
+def test_representative_youtube_composed_descriptor_exposes_family_and_composition_metadata():
     """Expose Layer 3 family and composition metadata through discovery shape."""
     descriptor = build_representative_tool_descriptor(REPRESENTATIVE_TOOL_CONTRACTS[-1])
     metadata = descriptor["metadata"]

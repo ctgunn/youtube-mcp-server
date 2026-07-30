@@ -11,7 +11,7 @@ This contract defines layout and dependency boundaries only. It does not add con
 Layer 3 shared scaffolding belongs under:
 
 ```text
-/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/
+/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/
 ```
 
 The package may depend on existing lower-layer contracts for metadata and dependency facts:
@@ -71,10 +71,10 @@ Later tool slices must add concrete behavior within the owning family area rathe
 Layer 3 shared tests should use the existing repository test tiers:
 
 ```text
-/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_layer3_shared_scaffolding.py
-/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_shared_contract.py
-/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_layer3_tool_catalog_contract.py
-/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_layer3_tool_registration.py
+/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_composed_shared_scaffolding.py
+/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_shared_contract.py
+/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_youtube_composed_tool_catalog_contract.py
+/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_youtube_composed_tool_registration.py
 ```
 
 Required test responsibilities:

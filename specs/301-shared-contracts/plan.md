@@ -1,7 +1,7 @@
 # Implementation Plan: YT-301 Layer 3 Shared Scaffolding and Contracts
 
-**Branch**: `301-layer3-shared-contracts` | **Date**: 2026-07-28 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/spec.md)  
-**Input**: Feature specification from `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/spec.md`
+**Branch**: `301-shared-contracts` | **Date**: 2026-07-28 | **Spec**: [/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/spec.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/spec.md)
+**Input**: Feature specification from `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
 
@@ -15,7 +15,7 @@ Define the shared Layer 3 public MCP tool contract and implementation scaffoldin
 **Primary Dependencies**: Existing MCP tool registry and dispatcher under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/`; existing Layer 2 shared YouTube contract primitives under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/`; existing Layer 1 YouTube integration resource modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/resources/`; Python standard library dataclasses, enums, and JSON-compatible dictionaries; pytest; Ruff  
 **Storage**: N/A for feature-specific persistence; Layer 3 contract metadata, representative examples, validation fixtures, and planning artifacts remain in memory or file-based only  
 **Testing**: `python3 -m pytest` for full repository validation; targeted Layer 3 unit, contract, and integration-style tests during Red-Green; `python3 -m ruff check .` for lint validation  
-**Documentation Style**: Python reStructuredText docstrings for every new or changed Python function, plus feature-local contract markdown under `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/contracts/`  
+**Documentation Style**: Python reStructuredText docstrings for every new or changed Python function, plus feature-local contract markdown under `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/contracts/`
 **Target Platform**: Local macOS/Linux development and the existing hosted Linux MCP service runtime  
 **Project Type**: Python MCP service exposing higher-level public YouTube tools backed by lower-level YouTube contracts and integrations  
 **Performance Goals**: A maintainer can derive correct grouped public names for all 19 initial Layer 3 tools in under 10 minutes; a future Layer 3 author can identify family placement in under 3 minutes; reviewers can classify at least 20 representative response fields by provenance with 100% agreement  
@@ -38,7 +38,7 @@ Define the shared Layer 3 public MCP tool contract and implementation scaffoldin
 
 Gate rationale:
 
-- YT-301 is contract-first by design: `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/contracts/layer3-public-tool-contract.md` defines the MCP-facing Layer 3 public tool contract, while `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/contracts/layer3-scaffolding-contract.md` defines the internal family layout and shared dependency contract for later tool slices.
+- YT-301 is contract-first by design: `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/contracts/public-tool-contract.md` defines the MCP-facing Layer 3 public tool contract, while `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/contracts/shared-scaffolding-contract.md` defines the internal family layout and shared dependency contract for later tool slices.
 - No concrete Layer 3 public tool behavior is planned in this slice; implementation must be limited to shared contract records, reusable conventions, representative examples, and validation expectations that later YT-302+ slices can consume.
 - Red-Green-Refactor is required in Phase 0, Phase 1, and each Phase 2 user story. Implementation must begin from failing or characterization checks for missing naming, repeated-parameter, response-provenance, heuristic-disclosure, ranking/filtering, composition-boundary, and family-layout compliance.
 - Full repository verification before completion will use `python3 -m pytest` and `python3 -m ruff check .` from `/Users/ctgunn/Projects/youtube-mcp-server`.
@@ -50,14 +50,14 @@ Gate rationale:
 ### Documentation (this feature)
 
 ```text
-/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/
+/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/
 ├── plan.md
 ├── research.md
 ├── data-model.md
 ├── quickstart.md
 ├── contracts/
-│   ├── layer3-public-tool-contract.md
-│   └── layer3-scaffolding-contract.md
+│   ├── public-tool-contract.md
+│   └── shared-scaffolding-contract.md
 └── tasks.md
 ```
 
@@ -73,7 +73,7 @@ Gate rationale:
     │   │   ├── conventions.py
     │   │   ├── examples.py
     │   │   └── families.py
-    │   └── youtube_layer3/
+    │   └── youtube_composed/
     │       ├── __init__.py
     │       ├── contracts.py
     │       ├── conventions.py
@@ -94,15 +94,15 @@ Gate rationale:
 
 /Users/ctgunn/Projects/youtube-mcp-server/tests/
 ├── contract/
-│   ├── test_layer3_shared_contract.py
-│   └── test_layer3_tool_catalog_contract.py
+│   ├── test_youtube_composed_shared_contract.py
+│   └── test_youtube_composed_tool_catalog_contract.py
 ├── integration/
-│   └── test_layer3_tool_registration.py
+│   └── test_youtube_composed_tool_registration.py
 └── unit/
-    └── test_layer3_shared_scaffolding.py
+    └── test_youtube_composed_shared_scaffolding.py
 ```
 
-**Structure Decision**: Keep YT-301 in the existing single Python MCP service. Add a new Layer 3-oriented shared package under `src/mcp_server/tools/youtube_layer3/` so higher-level composed contracts are visibly distinct from the existing near-raw Layer 2 `youtube_common` primitives, while still reusing Layer 2 and Layer 1 metadata where composition decisions need upstream identity, auth, quota, and response-boundary information. The family modules are scaffolding targets for cohesive later slices, not concrete public tool implementations in this feature.
+**Structure Decision**: Keep YT-301 in the existing single Python MCP service. Add a new Layer 3-oriented shared package under `src/mcp_server/tools/youtube_composed/` so higher-level composed contracts are visibly distinct from the existing near-raw Layer 2 `youtube_common` primitives, while still reusing Layer 2 and Layer 1 metadata where composition decisions need upstream identity, auth, quota, and response-boundary information. The family modules are scaffolding targets for cohesive later slices, not concrete public tool implementations in this feature.
 
 ## Phase 0: Research and Open Questions
 
@@ -119,7 +119,7 @@ Gate rationale:
 
 ### Research Tasks
 
-- Review `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/spec.md`, `/Users/ctgunn/Projects/youtube-mcp-server/requirements/PRD.md`, and `/Users/ctgunn/Projects/youtube-mcp-server/requirements/spec-kit-seed.md` for Layer 3 public catalog and shared contract requirements.
+- Review `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/spec.md`, `/Users/ctgunn/Projects/youtube-mcp-server/requirements/PRD.md`, and `/Users/ctgunn/Projects/youtube-mcp-server/requirements/spec-kit-seed.md` for Layer 3 public catalog and shared contract requirements.
 - Review `/Users/ctgunn/Projects/youtube-mcp-server/specs/201-layer2-shared-contracts/`, `/Users/ctgunn/Projects/youtube-mcp-server/specs/202-layer2-metadata-standards/`, and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/` for reusable lower-layer contract primitives and boundaries.
 - Review `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py` and existing registration tests for MCP discovery, schema, and result metadata expectations that Layer 3 tools must eventually satisfy.
 - Review representative Layer 1 modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/resources/` for composition dependencies used by later Layer 3 tools without planning new upstream execution in this slice.
@@ -127,7 +127,7 @@ Gate rationale:
 ### Phase 0 Red-Green-Refactor
 
 - **Red**: Capture every unresolved Layer 3 naming, repeated-parameter, response-provenance, heuristic-disclosure, ranking/filtering, composition-boundary, package-layout, docstring, and verification decision as a research topic before task generation.
-- **Green**: Resolve each topic in `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/research.md` with concrete decisions and alternatives considered.
+- **Green**: Resolve each topic in `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/research.md` with concrete decisions and alternatives considered.
 - **Refactor**: Remove duplicated Layer 2 endpoint detail from research notes and keep YT-301 focused on higher-level public tool contracts, family scaffolding, and validation expectations.
 
 ## Phase 1: Design and Contracts
@@ -141,10 +141,10 @@ Gate rationale:
 
 ### Design Artifacts
 
-- `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/data-model.md`
-- `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/contracts/layer3-public-tool-contract.md`
-- `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/contracts/layer3-scaffolding-contract.md`
-- `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/quickstart.md`
+- `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/data-model.md`
+- `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/contracts/public-tool-contract.md`
+- `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/contracts/shared-scaffolding-contract.md`
+- `/Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/quickstart.md`
 
 ### Phase 1 Red-Green-Refactor
 
@@ -177,7 +177,7 @@ Gate rationale:
 - Preserve existing MCP registry, dispatcher, baseline tools, retrieval tools, hosted transport, Layer 1 endpoint wrappers, and Layer 2 endpoint-backed public tool contracts.
 - Treat YT-301 as shared scaffolding only; any accidental concrete public Layer 3 tool implementation must move to the relevant YT-302+ slice.
 - Use representative contract tests before any shared helper is added, then targeted unit and integration-style tests for naming, parameter conventions, response provenance, heuristic disclosure, ranking/filtering semantics, composition boundaries, safe errors, and family registration/discovery shape.
-- Run targeted checks such as `python3 -m pytest tests/unit/test_layer3_shared_scaffolding.py tests/contract/test_layer3_shared_contract.py tests/contract/test_layer3_tool_catalog_contract.py tests/integration/test_layer3_tool_registration.py` before final validation.
+- Run targeted checks such as `python3 -m pytest tests/unit/test_youtube_composed_shared_scaffolding.py tests/contract/test_youtube_composed_shared_contract.py tests/contract/test_youtube_composed_tool_catalog_contract.py tests/integration/test_youtube_composed_tool_registration.py` before final validation.
 - Complete final validation with `python3 -m pytest` and `python3 -m ruff check .` after the last code change.
 
 ### Rollback and Mitigation

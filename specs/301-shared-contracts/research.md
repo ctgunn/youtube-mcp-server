@@ -2,7 +2,7 @@
 
 ## Decision: Build Layer 3 Shared Contracts as an Additive Package
 
-Layer 3 shared contract primitives will be planned under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_layer3/`, separate from the existing Layer 2 `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/` package.
+Layer 3 shared contract primitives will be planned under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_composed/`, separate from the existing Layer 2 `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/` package.
 
 **Rationale**: Layer 2 contracts are near-raw endpoint-backed primitives. Layer 3 tools are public, higher-level, composed, normalized, ranked, filtered, and heuristic-aware. A distinct package keeps the boundary visible while still allowing Layer 3 contracts to reference Layer 2 metadata for upstream identity, auth, quota, and response-boundary facts.
 

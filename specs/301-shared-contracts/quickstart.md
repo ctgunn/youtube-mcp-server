@@ -9,26 +9,26 @@ Use this guide to validate that YT-301 planning is ready for task generation and
 1. Review the feature spec:
 
    ```bash
-   sed -n '1,240p' /Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/spec.md
+   sed -n '1,240p' /Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/spec.md
    ```
 
 2. Review the implementation plan:
 
    ```bash
-   sed -n '1,280p' /Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/plan.md
+   sed -n '1,280p' /Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/plan.md
    ```
 
 3. Review the research decisions:
 
    ```bash
-   sed -n '1,240p' /Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/research.md
+   sed -n '1,240p' /Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/research.md
    ```
 
 4. Review the contracts:
 
    ```bash
-   sed -n '1,260p' /Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/contracts/layer3-public-tool-contract.md
-   sed -n '1,260p' /Users/ctgunn/Projects/youtube-mcp-server/specs/301-layer3-shared-contracts/contracts/layer3-scaffolding-contract.md
+   sed -n '1,260p' /Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/contracts/public-tool-contract.md
+   sed -n '1,260p' /Users/ctgunn/Projects/youtube-mcp-server/specs/301-shared-contracts/contracts/shared-scaffolding-contract.md
    ```
 
 ## Planning Validation
@@ -57,7 +57,7 @@ Implementation tasks generated later should follow this order:
 Planned focused checks:
 
 ```bash
-python3 -m pytest tests/unit/test_layer3_shared_scaffolding.py tests/contract/test_layer3_shared_contract.py tests/contract/test_layer3_tool_catalog_contract.py tests/integration/test_layer3_tool_registration.py
+python3 -m pytest tests/unit/test_youtube_composed_shared_scaffolding.py tests/contract/test_youtube_composed_shared_contract.py tests/contract/test_youtube_composed_tool_catalog_contract.py tests/integration/test_youtube_composed_tool_registration.py
 ```
 
 Full validation after the final code change:

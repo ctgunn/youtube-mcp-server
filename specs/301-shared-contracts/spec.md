@@ -1,6 +1,6 @@
 # Feature Specification: Layer 3 Shared Scaffolding and Contracts
 
-**Feature Branch**: `301-layer3-shared-contracts`  
+**Feature Branch**: `301-shared-contracts`
 **Created**: 2026-07-28  
 **Status**: Draft  
 **Input**: User description: "Read the requirements/PRD.md to get an overview of the project and its goals for context. Then, work on the requirements for YT-301, as outlined in requirements/spec-kit-seed.md."
