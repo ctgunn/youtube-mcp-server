@@ -2199,6 +2199,24 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertIn("id", result["sourceNotes"])
         self.assertIn("target-state", result["sourceNotes"])
 
+    def test_configured_runtime_preserves_activities_public_contract(self):
+        from mcp_server.config import load_youtube_live_runtime_settings
+        from mcp_server.integrations.runtime import build_configured_youtube_runtime
+        from mcp_server.tools.dispatcher import InMemoryToolDispatcher
+
+        configured = InMemoryToolDispatcher(
+            youtube_runtime=build_configured_youtube_runtime(
+                load_youtube_live_runtime_settings({"YOUTUBE_API_KEY": "api-key-for-test"})
+            )
+        )
+        default = InMemoryToolDispatcher()
+        configured_descriptor = next(item for item in configured.list_tools() if item["name"] == "activities_list")
+        default_descriptor = next(item for item in default.list_tools() if item["name"] == "activities_list")
+
+        self.assertEqual(configured_descriptor["name"], default_descriptor["name"])
+        self.assertEqual(configured_descriptor["inputSchema"], default_descriptor["inputSchema"])
+        self.assertEqual(configured_descriptor["metadata"], default_descriptor["metadata"])
+
 
 if __name__ == "__main__":
     unittest.main()

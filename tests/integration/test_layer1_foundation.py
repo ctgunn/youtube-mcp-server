@@ -5350,6 +5350,30 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
 
         self.assertEqual(context.exception.category, "upstream_service")
 
+    def test_configured_runtime_uses_existing_safe_observability_hooks(self):
+        """Record safe lifecycle events when the configured runtime executes live work."""
+        from mcp_server.config import load_youtube_live_runtime_settings
+        from mcp_server.integrations.runtime import build_configured_youtube_runtime
+
+        observability = InMemoryObservability()
+        runtime = build_configured_youtube_runtime(
+            load_youtube_live_runtime_settings({"YOUTUBE_API_KEY": "api-key-for-test"}),
+            observability=observability,
+            opener=lambda _request, timeout: _FakeHTTPResponse({"items": []}),
+        )
+
+        result = build_activities_list_wrapper().call(
+            runtime.executor,
+            arguments={"part": "snippet", "channelId": "UC123"},
+            auth_context=runtime.auth_context_for(AuthMode.API_KEY),
+        )
+
+        self.assertEqual(result, {"items": []})
+        events = [event for event in observability.logs if event.get("event") == "integration.execution"]
+        self.assertEqual([event["phase"] for event in events], ["request", "response"])
+        self.assertTrue(all(event["authMode"] == "api_key" for event in events))
+        self.assertNotIn("api-key-for-test", str(events))
+
 
 if __name__ == "__main__":
     unittest.main()

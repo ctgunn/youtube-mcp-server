@@ -9,7 +9,9 @@ sys.path.insert(0, os.path.abspath("src"))
 
 import mcp_server.integrations.wrappers as wrappers_module
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
+from mcp_server.config import load_youtube_live_runtime_settings
 from mcp_server.integrations.executor import RequestExecution
+from mcp_server.integrations.runtime import build_configured_youtube_runtime
 from mcp_server.integrations.youtube import (
     ResponseNormalizer,
     build_response_normalizer_registry,
@@ -6384,6 +6386,35 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertIn("/youtube/v3/captions/caption-123?", captured["url"])
         self.assertEqual(captured["authorization"], "Bearer oauth-token")
         self.assertEqual(captured["timeout"], 6.0)
+
+    def test_configured_runtime_preserves_oauth_request_construction(self):
+        """Exercise the shared configured runtime with an OAuth activity request."""
+        captured = {}
+
+        def opener(request, timeout):
+            """Capture a controlled outgoing OAuth request.
+
+            :param request: Constructed upstream request.
+            :param timeout: Per-attempt upstream timeout.
+            :return: Controlled upstream response.
+            """
+            captured["authorization"] = request.headers.get("Authorization")
+            captured["timeout"] = timeout
+            return _FakeHTTPResponse({"items": []})
+
+        runtime = build_configured_youtube_runtime(
+            load_youtube_live_runtime_settings({"YOUTUBE_OAUTH_TOKEN": "oauth-token"}),
+            opener=opener,
+        )
+        result = build_activities_list_wrapper().call(
+            runtime.executor,
+            arguments={"part": "snippet", "mine": True},
+            auth_context=runtime.auth_context_for(AuthMode.OAUTH_REQUIRED),
+        )
+
+        self.assertEqual(result, {"items": []})
+        self.assertEqual(captured["authorization"], "Bearer oauth-token")
+        self.assertEqual(captured["timeout"], 10.0)
 
 
 if __name__ == "__main__":

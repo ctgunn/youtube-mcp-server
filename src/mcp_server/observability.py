@@ -287,4 +287,5 @@ class InMemoryObservability:
 
         :param event: Prebuilt integration execution event payload.
         """
-        self._logs.append(event)
+        sanitized = _sanitize_event_payload(event)
+        self._logs.append(sanitized)

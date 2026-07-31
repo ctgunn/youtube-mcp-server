@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import os
-from typing import Mapping, TextIO
+from typing import Any, Callable, Mapping, TextIO
 
-from mcp_server.config import ConfigValidationError, StartupValidationResult, ensure_runtime_config, load_hosted_runtime_settings
+from mcp_server.config import (
+    ConfigValidationError,
+    StartupValidationResult,
+    ensure_runtime_config,
+    load_hosted_runtime_settings,
+    load_youtube_live_runtime_settings,
+)
 from mcp_server.health import initialize_runtime_lifecycle
 from mcp_server.transport.http import MCPHTTPTransport
 
@@ -42,6 +48,7 @@ def create_app(
     validate_startup: bool = True,
     runtime_stdout: TextIO | None = None,
     runtime_stderr: TextIO | None = None,
+    youtube_opener: Callable[..., Any] | None = None,
 ) -> MCPHTTPTransport:
     """Create the in-process transport used by local flows and tests.
 
@@ -49,11 +56,13 @@ def create_app(
     :param validate_startup: Whether invalid startup config should raise immediately.
     :param runtime_stdout: Optional structured-log stdout stream.
     :param runtime_stderr: Optional structured-log stderr stream.
+    :param youtube_opener: Optional controlled upstream opener for tests or local development.
     :return: Configured HTTP transport instance.
     :raises RuntimeError: If startup validation fails while strict validation is enabled.
     """
     runtime_env = dict(os.environ if env is None else env)
     runtime_settings = load_hosted_runtime_settings(runtime_env)
+    youtube_runtime_settings = load_youtube_live_runtime_settings(runtime_env)
     try:
         validation = ensure_runtime_config(runtime_env)
     except ConfigValidationError as exc:
@@ -70,4 +79,6 @@ def create_app(
         runtime_env=runtime_env,
         runtime_stdout=runtime_stdout,
         runtime_stderr=runtime_stderr,
+        youtube_runtime_settings=youtube_runtime_settings,
+        youtube_opener=youtube_opener,
     )

@@ -23,7 +23,8 @@ server can run correctly," this is the right README.
 
 - Cloud Run service foundation for `youtube-mcp-server`
 - Runtime service account used by the hosted service
-- Secret Manager integration points for `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`
+- Secret Manager integration points for `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`,
+  with optional `YOUTUBE_OAUTH_TOKEN` support for OAuth-required YouTube operations
 - Redis-compatible shared session backend for hosted session durability
 - Runtime secret-access bindings for the Cloud Run service account
 - Terraform-managed hosted network layer for durable sessions

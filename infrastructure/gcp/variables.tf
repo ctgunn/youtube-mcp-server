@@ -142,7 +142,7 @@ variable "managed_network_name" {
 }
 
 variable "secret_names" {
-  description = "Secret names created as integration points for runtime deployment."
+  description = "Secret names created as integration points for runtime deployment. Add YOUTUBE_OAUTH_TOKEN only when OAuth-required YouTube operations are enabled."
   type        = list(string)
   default     = ["YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"]
 }
