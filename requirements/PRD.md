@@ -215,6 +215,16 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - The Layer 1 integration layer MUST keep upstream API naming and transport details out of Layer 3 tool handlers wherever practical.
 - The Layer 1 integration layer MUST explicitly document or flag known official-doc inconsistencies encountered during endpoint inventorying, especially around quota or availability/deprecation behavior.
 
+### 6.2.0 Layer 1 Live Execution Completion Gate
+- The shared Layer 1 foundation MUST provide the configured production execution path for YouTube Data API requests. It must construct and issue real authenticated outbound requests, rather than returning representative payloads or relying on a caller to inject a transport.
+- The production execution path MUST support the HTTP methods, query parameters, JSON request bodies, and media-upload request forms required by the supported endpoint inventory.
+- The production execution path MUST attach the applicable API-key or OAuth credential, preserve existing retry/backoff and observability hooks, prevent credential values from appearing in logs or error messages, and normalize upstream HTTP and payload errors into the shared error model.
+- Representative transports, static example results, and injected fake executors MAY remain available for isolated tests and explicitly selected local development scenarios. They MUST NOT be the implicit default for a configured runtime or a public tool invocation.
+- When live execution cannot be configured or a required credential is unavailable, the request MUST fail with a clear, safe configuration or authorization error. It MUST NOT silently return fixture or sample data.
+- The existing resource-family wrapper modules MUST be retrofitted in grouped workstreams so every previously declared endpoint wrapper is connected to this shared live execution path without duplicating auth, HTTP, retry, quota, or error-handling logic per endpoint.
+- Each resource-family retrofit MUST prove the request method, path, parameters, credential mode, request body or upload form where applicable, successful-response mapping, and normalized failure behavior for every endpoint method in that family. Controlled test doubles are appropriate for this proof, but the test suite must also demonstrate that the configured default path selects the live transport rather than a representative default.
+- Public Layer 2 endpoint tools and higher-level tools MAY continue to use the existing wrapper contracts, but their configured runtime path MUST reach the live Layer 1 execution path. Higher-level tools must not embed raw YouTube HTTP logic solely to work around an incomplete wrapper.
+
 ### 6.2.1 Layer 2 Public Endpoint Tool Requirements
 - The Layer 2 public MCP layer MUST expose one endpoint-backed tool for each documented YouTube Data API v3 resource method included in the supported Layer 1 inventory.
 - Layer 2 public tool names MUST follow `resource_method` naming such as:
@@ -734,12 +744,14 @@ The initial public Layer 3 catalog contains 19 MCP tools.
 16. Stand up Cloud Run deployment for the expanded foundation build and validate end-to-end hosted MCP behavior.
 17. Define the layered YouTube product model plus the public Layer 2 and Layer 3 tool taxonomies.
 18. Define the Layer 1 shared client foundation, endpoint metadata/quota standards, and full documented YouTube Data API endpoint inventory.
-19. Implement the Layer 1 endpoint wrappers and organize the completed integration layer by resource family before Layer 2 builds on it.
-20. Implement the Layer 2 endpoint-backed public MCP catalog with per-endpoint quota/auth/deprecation documentation.
-21. Implement the Layer 3 core public tools.
-22. Implement the additional Layer 3 value-add tools for statistics, transcript discovery/search, channel playlist/content workflows, and playlist transcript/search workflows.
-23. Add auth, secrets, quota/error handling, and transcript-access hardening across low-level and composed public workflows.
-24. Add monitoring, alerts, and release documentation.
+19. Implement the Layer 1 endpoint wrappers and organize the integration layer by resource family.
+20. Complete the shared authenticated live YouTube Data API execution path and replace representative default execution in all existing resource-family wrappers, grouped for delivery by resource family.
+21. Verify that every configured Layer 1, Layer 2, and higher-level request reaches the live execution path or fails safely when configuration or credentials are unavailable.
+22. Implement the Layer 2 endpoint-backed public MCP catalog with per-endpoint quota/auth/deprecation documentation.
+23. Implement the Layer 3 core public tools.
+24. Implement the additional Layer 3 value-add tools for statistics, transcript discovery/search, channel playlist/content workflows, and playlist transcript/search workflows.
+25. Add auth, secrets, quota/error handling, and transcript-access hardening across low-level and composed public workflows.
+26. Add monitoring, alerts, and release documentation.
 
 ## 16. Open Decisions
 - Final transcript fallback approach when official captions are unavailable.
