@@ -120,10 +120,12 @@ def test_family_registry_exposes_placement_metadata():
     assert "tests/contract" in videos.test_locations["contract"]
 
 
-def test_family_modules_remain_scaffolding_only():
-    """Keep family modules cohesive without concrete public tool handlers."""
+def test_unimplemented_family_modules_remain_scaffolding_only():
+    """Keep unimplemented family modules cohesive without concrete handlers."""
     from mcp_server.tools.youtube_composed import channels, playlists, transcripts, videos
 
-    for module in (videos, channels, playlists, transcripts):
+    assert callable(videos.build_videos_get_video_handler)
+
+    for module in (channels, playlists, transcripts):
         assert module.FAMILY_SCAFFOLDING.family_name in {"videos", "channels", "playlists", "transcripts"}
         assert not any(name.startswith("build_") and name.endswith("_handler") for name in dir(module))

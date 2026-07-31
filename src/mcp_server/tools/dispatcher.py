@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from mcp_server.tools.retrieval import FETCH_TOOL_SCHEMA, SEARCH_TOOL_SCHEMA, fetch_tool, search_tool
+from mcp_server.tools.youtube_composed import build_videos_get_video_tool_descriptor
 from mcp_server.tools.youtube_common import (
     build_activities_list_tool_descriptor,
     build_captions_delete_tool_descriptor,
@@ -284,6 +285,7 @@ class InMemoryToolDispatcher:
             build_video_abuse_report_reasons_list_tool_descriptor(),
             build_video_categories_list_tool_descriptor(),
             build_videos_list_tool_descriptor(),
+            build_videos_get_video_tool_descriptor(),
             build_videos_insert_tool_descriptor(),
             build_videos_update_tool_descriptor(),
             build_videos_rate_tool_descriptor(),

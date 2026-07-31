@@ -193,6 +193,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - N/A for feature-specific persistence; tool metadata, request validation state, watermark-removal acknowledgments, representative examples, and test fixtures remain in memory or file-based only (255-watermarks-unset)
 - Python 3.11 + Existing MCP tool registry and dispatcher under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/`; existing Layer 2 shared YouTube contract primitives under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/`; existing Layer 1 YouTube integration resource modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/resources/`; Python standard library dataclasses, enums, and JSON-compatible dictionaries; pytest; Ruff (301-shared-contracts)
 - N/A for feature-specific persistence; Layer 3 contract metadata, representative examples, validation fixtures, and planning artifacts remain in memory or file-based only (301-shared-contracts)
+- Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` public-tool conventions; existing `videos_list` descriptor and `videos.list` integration wrapper; Python standard-library dataclasses and JSON-compatible dictionaries; pytest; Ruff (302-video-details)
+- N/A; request handling and normalization are in-memory only (302-video-details)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -213,9 +215,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 302-video-details: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` public-tool conventions; existing `videos_list` descriptor and `videos.list` integration wrapper; Python standard-library dataclasses and JSON-compatible dictionaries; pytest; Ruff
 - 301-shared-contracts: Added Python 3.11 + Existing MCP tool registry and dispatcher under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/`; existing Layer 2 shared YouTube contract primitives under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/`; existing Layer 1 YouTube integration resource modules under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/resources/`; Python standard library dataclasses, enums, and JSON-compatible dictionaries; pytest; Ruff
 - 255-watermarks-unset: Added Python 3.11 + Existing in-repo MCP tool registry and dispatcher under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/`; shared Layer 2 contracts under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/`; existing watermarks Layer 2 family module at `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/watermarks.py`; existing Layer 1 `watermarks.unset` wrapper under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/resources/watermarks.py`; Python standard library dataclasses, enums, and JSON-compatible dictionaries; pytest; Ruff
-- 254-watermarks-set: Added Python 3.11 + Existing in-repo MCP tool registry and dispatcher under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/`; shared Layer 2 contracts under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/`; new watermarks Layer 2 family module at `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/tools/youtube_common/watermarks.py`; existing Layer 1 `watermarks.set` wrapper under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/resources/watermarks.py`; Python standard library dataclasses, enums, and JSON-compatible dictionaries; pytest; Ruff
 
 
 <!-- MANUAL ADDITIONS START -->
