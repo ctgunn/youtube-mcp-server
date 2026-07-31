@@ -1332,8 +1332,8 @@ semantics, quota metadata, request shapes, response shapes, or public import
 compatibility.
 
 Context:
-Layer 1 endpoint work from `YT-103` through `YT-155` implemented the full
-YouTube Data API endpoint inventory. Prior to `YT-156`, much of that
+Layer 1 endpoint work from `YT-103` through `YT-155` established the full
+YouTube Data API endpoint inventory and wrapper contracts. Prior to `YT-156`, much of that
 implementation was concentrated in a small number of broad modules:
 `src/mcp_server/integrations/wrappers.py` held wrapper classes, builder
 functions, metadata declarations, and endpoint-specific validators;
@@ -1344,7 +1344,9 @@ summary helpers. `YT-156` reorganizes those endpoint-specific responsibilities
 around resource-family modules while keeping shared foundations and
 compatibility imports stable, so Layer 2 and Layer 3 agents should build on the
 resource-family package rather than re-concentrating endpoint logic in the
-compatibility modules.
+compatibility modules. This reorganization preserves the existing contracts;
+the later `YT-157` through `YT-160` slices complete the missing live-default
+execution cutover for those wrappers.
 
 Primary stories:
 - As a maintainer, I can find all Layer 1 integration code for a YouTube
@@ -1353,7 +1355,7 @@ Primary stories:
 - As a future Layer 2 or Layer 3 author, I can import and compose endpoint
   wrappers from stable resource-family modules while existing compatibility
   imports continue to work.
-- As a reviewer, I can verify that the refactor preserves the already-complete
+- As a reviewer, I can verify that the refactor preserves the established
   Layer 1 endpoint contracts instead of reimplementing or changing them.
 
 Acceptance criteria:
@@ -1443,6 +1445,167 @@ Implementation guidance:
 Dependencies:
 - `YT-103` through `YT-155`
 
+### YT-157: Layer 1 Live YouTube Data API Execution Runtime
+Description:
+Complete the shared Layer 1 runtime so configured requests execute against the
+real YouTube Data API instead of returning representative default results.
+Reuse the existing wrapper contracts, endpoint metadata, validation,
+normalization, retry, and observability hooks from `YT-101` through `YT-156`;
+do not reimplement those concerns in each endpoint wrapper.
+
+Primary stories:
+- As an operator, I can configure API-key or OAuth-backed YouTube access and
+  know that a public tool invocation reaches the real upstream API.
+- As a maintainer, I can add or retrofit an endpoint wrapper without copying
+  credential, HTTP, retry, logging, or upstream error-handling code.
+- As a user, I receive a safe configuration or authorization error when live
+  access is unavailable, never a plausible-looking sample response.
+
+Acceptance criteria:
+- A configured default runtime constructs and sends real authenticated YouTube
+  Data API requests using the existing shared execution abstractions.
+- The shared runtime supports the endpoint inventory's HTTP methods, query
+  parameters, JSON bodies, and media-upload request forms.
+- API-key and OAuth credential modes are selected from runtime configuration;
+  credential values are never included in logs, errors, or representative
+  results.
+- Existing retry/backoff, request/response observability, and error
+  normalization hooks apply to live requests.
+- A missing runtime configuration or required credential produces a clear,
+  normalized failure and cannot fall back to a representative response.
+- Representative transports and static results remain available only through
+  explicit test or local-development injection, never as the configured
+  runtime default.
+- Tests prove that a configured default wrapper invocation selects the live
+  transport, while isolated tests may use controlled transports to assert
+  request construction and response/error mapping.
+
+Dependencies:
+- `YT-101`, `YT-102`, `YT-156`
+
+### YT-158: Layer 1 Live Calls for Channel and Community Resources
+Description:
+Retrofit the existing channel and community resource-family wrappers to use
+the shared live runtime from `YT-157`. This is a grouped execution-completion
+slice for existing wrappers, not a new endpoint-inventory exercise.
+
+Resource families and endpoint methods:
+- `activities.list`
+- `captions.list`, `captions.insert`, `captions.update`,
+  `captions.download`, `captions.delete`
+- `channelBanners.insert`
+- `channels.list`, `channels.update`
+- `channelSections.list`, `channelSections.insert`,
+  `channelSections.update`, `channelSections.delete`
+- `comments.list`, `comments.insert`, `comments.update`,
+  `comments.setModerationStatus`, `comments.delete`
+- `commentThreads.list`, `commentThreads.insert`
+
+Acceptance criteria:
+- Every listed wrapper method uses the `YT-157` live runtime for a configured
+  default invocation; no listed method retains a representative default
+  executor or static successful result.
+- Each method preserves its existing public wrapper contract, metadata,
+  selector validation, quota documentation, auth requirements, and response
+  normalization while issuing the correct upstream method, path, parameters,
+  body, or upload form.
+- API-key, OAuth, and conditional authorization rules are applied as declared
+  by the existing endpoint metadata.
+- Request-level tests cover every listed method's path, HTTP method,
+  parameters, credential mode, body or upload form where applicable, success
+  mapping, and normalized upstream failure behavior.
+- At least one configured public-tool flow per resource family demonstrates
+  that the Layer 2 or higher-level caller reaches the live-wrapper path.
+
+Dependencies:
+- `YT-103` through `YT-122`, `YT-157`
+
+### YT-159: Layer 1 Live Calls for Catalog, Membership, and Playlist Resources
+Description:
+Retrofit the existing catalog, membership, and playlist resource-family
+wrappers to the shared live runtime from `YT-157`, preserving their completed
+contracts while replacing representative default execution.
+
+Resource families and endpoint methods:
+- `guideCategories.list`
+- `i18nLanguages.list`, `i18nRegions.list`
+- `members.list`, `membershipsLevels.list`
+- `playlistImages.list`, `playlistImages.insert`, `playlistImages.update`,
+  `playlistImages.delete`
+- `playlistItems.list`, `playlistItems.insert`, `playlistItems.update`,
+  `playlistItems.delete`
+- `playlists.list`, `playlists.insert`, `playlists.update`, `playlists.delete`
+
+Acceptance criteria:
+- Every listed wrapper method uses the `YT-157` live runtime for a configured
+  default invocation and never returns a static or representative default
+  result.
+- Existing validation, quota documentation, auth behavior, request/response
+  shapes, and error normalization remain compatible while each method sends
+  the correct real YouTube Data API request.
+- Media-bearing playlist-image methods build and submit their required upload
+  form through the shared runtime without duplicating transport logic.
+- Request-level tests cover every listed method's path, HTTP method,
+  parameters, credential mode, body or upload form where applicable, success
+  mapping, and normalized upstream failure behavior.
+- At least one configured public-tool flow per resource family demonstrates
+  that the caller reaches the live-wrapper path.
+
+Dependencies:
+- `YT-123` through `YT-139`, `YT-157`
+
+### YT-160: Layer 1 Live Calls for Discovery, Video, and Branding Resources
+Description:
+Retrofit the existing discovery, subscription, video, and branding
+resource-family wrappers to the shared live runtime from `YT-157`. This makes
+the default execution path for video lookup, search, statistics, and related
+public workflows use real authenticated upstream data.
+
+Resource families and endpoint methods:
+- `search.list`
+- `subscriptions.list`, `subscriptions.insert`, `subscriptions.delete`
+- `thumbnails.set`
+- `videoAbuseReportReasons.list`, `videoCategories.list`
+- `videos.list`, `videos.insert`, `videos.update`, `videos.rate`,
+  `videos.getRating`, `videos.reportAbuse`, `videos.delete`
+- `watermarks.set`, `watermarks.unset`
+
+Acceptance criteria:
+- Every listed wrapper method uses the `YT-157` live runtime for a configured
+  default invocation and never returns a static or representative default
+  result.
+- Existing validation, metadata, quota documentation, auth behavior,
+  request/response shapes, and normalized errors are preserved while the
+  wrapper issues the correct real YouTube Data API request.
+- Thumbnail, video-upload, and watermark media requests use the shared upload
+  execution support; they do not add resource-specific HTTP clients.
+- Request-level tests cover every listed method's path, HTTP method,
+  parameters, credential mode, body or upload form where applicable, success
+  mapping, and normalized upstream failure behavior.
+- Configured calls through the existing low-level video/search tools and the
+  higher-level video-detail tool demonstrably reach the live-wrapper path.
+
+Dependencies:
+- `YT-140` through `YT-156`, `YT-157`
+
+## Live Execution Dependency Rule
+
+The existing endpoint-wrapper slices established contracts and resource-family
+modules, but the `YT-157` through `YT-160` remediation slices are the release
+gate for real upstream execution. Public endpoint tools and higher-level tools
+MUST use the live-wrapper path for their configured runtime and MUST NOT treat
+an injected fake executor or representative response as production behavior.
+
+- Work depending on channels, captions, comments, channel sections, banner,
+  activity, or comment-thread data depends on `YT-158`.
+- Work depending on category, localization, membership, playlist-image,
+  playlist-item, or playlist data depends on `YT-159`.
+- Work depending on search, subscription, thumbnail, video, or watermark data
+  depends on `YT-160`.
+- Higher-level composition may reuse normalized wrapper results, but it must
+  not issue its own raw YouTube HTTP request merely to bypass an incomplete
+  wrapper.
+
 ### YT-201: Layer 2 Shared Scaffolding and Contracts
 Description:
 Build the shared Layer 2 scaffolding required before individual YouTube Data
@@ -1472,7 +1635,7 @@ Acceptance criteria:
   cross-cutting rules in every endpoint tool spec.
 
 Dependencies:
-- `YT-101`, `YT-102`, `YT-156`
+- `YT-101`, `YT-102`, `YT-156`, `YT-157`, `YT-158`, `YT-159`, `YT-160`
 
 ### YT-202: Layer 2 Tool Metadata, Naming, and Quota Standards
 Description:
@@ -2224,7 +2387,7 @@ Acceptance criteria:
 - Layer 3 tool slices can depend on these shared contracts without redefining cross-cutting rules in each tool spec.
 
 Dependencies:
-- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`, `FND-019`, `FND-020`, `FND-021`, `FND-022`, `FND-023`, `FND-024`, `FND-025`, `FND-026`, `FND-027`, `FND-028`
+- `FND-005`, `FND-006`, `FND-007`, `FND-008`, `FND-009`, `FND-010`, `FND-011`, `FND-012`, `FND-013`, `FND-014`, `FND-015`, `FND-016`, `FND-017`, `FND-018`, `FND-019`, `FND-020`, `FND-021`, `FND-022`, `FND-023`, `FND-024`, `FND-025`, `FND-026`, `FND-027`, `FND-028`, `YT-157`, `YT-158`, `YT-159`, `YT-160`
 
 ### YT-302: Layer 3 Tool `videos_getVideo`
 Description:
@@ -2242,7 +2405,7 @@ Acceptance criteria:
 - Error behavior is documented for invalid IDs, unavailable videos, and upstream quota/access failures.
 
 Dependencies:
-- `YT-301`
+- `YT-301`, `YT-160`
 
 ### YT-303: Layer 3 Tool `videos_searchVideos`
 Description:
@@ -2651,21 +2814,23 @@ Dependencies:
 33. `YT-124` through `YT-139` (localization, member, playlist-image, playlist-item, and playlist endpoints)
 34. `YT-140` through `YT-155` (search, subscriptions, thumbnails, video, and watermark endpoints)
 35. `YT-156` (Layer 1 resource-family module reorganization before Layer 2 builds on the wrappers)
-36. `YT-201`
-37. `YT-202`
-38. `YT-203` through `YT-210` (initial read/list Layer 2 endpoint tools)
-39. `YT-211` through `YT-223` (update/comment/category Layer 2 endpoint tools)
-40. `YT-224` through `YT-239` (localization/member/playlist Layer 2 endpoint tools)
-41. `YT-240` through `YT-255` (search/subscription/video/watermark Layer 2 endpoint tools)
-42. `YT-301`
-43. `YT-302` + `YT-304` + `YT-305` + `YT-309` + `YT-310` (parallel where practical)
-44. `YT-303` + `YT-306` + `YT-307` + `YT-311` (parallel where practical)
-45. `YT-308`
-46. `YT-312` + `YT-313` + `YT-316` + `YT-317` (parallel where practical)
-47. `YT-314` + `YT-318` + `YT-319` (parallel where practical)
-48. `YT-315` + `YT-320`
-49. `OPS-401`
-50. `OPS-402`
+36. `YT-157` (shared authenticated live execution runtime)
+37. `YT-158` + `YT-159` + `YT-160` (resource-family live-call retrofits; parallel after `YT-157`)
+38. `YT-201`
+39. `YT-202`
+40. `YT-203` through `YT-210` (initial read/list Layer 2 endpoint tools)
+41. `YT-211` through `YT-223` (update/comment/category Layer 2 endpoint tools)
+42. `YT-224` through `YT-239` (localization/member/playlist Layer 2 endpoint tools)
+43. `YT-240` through `YT-255` (search/subscription/video/watermark Layer 2 endpoint tools)
+44. `YT-301`
+45. `YT-302` + `YT-304` + `YT-305` + `YT-309` + `YT-310` (parallel where practical)
+46. `YT-303` + `YT-306` + `YT-307` + `YT-311` (parallel where practical)
+47. `YT-308`
+48. `YT-312` + `YT-313` + `YT-316` + `YT-317` (parallel where practical)
+49. `YT-314` + `YT-318` + `YT-319` (parallel where practical)
+50. `YT-315` + `YT-320`
+51. `OPS-401`
+52. `OPS-402`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
