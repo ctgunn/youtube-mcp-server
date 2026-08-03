@@ -442,9 +442,19 @@ def test_validate_playlist_images_insert_arguments_rejects_unsupported_requests(
 
 
 def test_playlist_images_insert_handler_requires_oauth_access():
-    """Reject insert handler construction when OAuth access is unavailable."""
+    """Reject insert invocation when OAuth access is unavailable."""
+    handler = build_playlist_images_insert_handler(
+        wrapper=FakePlaylistImagesInsertWrapper(), executor=object(), oauth_token=None
+    )
+
     with pytest.raises(PlaylistImagesInsertToolError) as exc_info:
-        build_playlist_images_insert_handler(wrapper=FakePlaylistImagesInsertWrapper(), executor=object(), oauth_token=None)
+        handler(
+            {
+                "part": "snippet",
+                "body": {"snippet": {"playlistId": "PL123"}},
+                "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+            }
+        )
 
     assert exc_info.value.category == "authentication_failed"
     assert exc_info.value.details == {"field": "auth"}
@@ -619,9 +629,19 @@ def test_validate_playlist_images_update_arguments_rejects_unsupported_requests(
 
 
 def test_playlist_images_update_handler_requires_oauth_access():
-    """Reject update handler construction when OAuth access is unavailable."""
+    """Reject update invocation when OAuth access is unavailable."""
+    handler = build_playlist_images_update_handler(
+        wrapper=FakePlaylistImagesUpdateWrapper(), executor=object(), oauth_token=None
+    )
+
     with pytest.raises(PlaylistImagesUpdateToolError) as exc_info:
-        build_playlist_images_update_handler(wrapper=FakePlaylistImagesUpdateWrapper(), executor=object(), oauth_token=None)
+        handler(
+            {
+                "part": "snippet",
+                "body": {"id": "playlist-image-123", "snippet": {"playlistId": "PL123"}},
+                "media": {"mimeType": "image/jpeg", "content": "fake-image-content"},
+            }
+        )
 
     assert exc_info.value.category == "authentication_failed"
     assert exc_info.value.details == {"field": "auth"}
@@ -653,9 +673,13 @@ def test_validate_playlist_images_delete_arguments_rejects_unsupported_requests(
 
 
 def test_playlist_images_delete_handler_requires_oauth_access():
-    """Reject delete handler construction when OAuth access is unavailable."""
+    """Reject delete invocation when OAuth access is unavailable."""
+    handler = build_playlist_images_delete_handler(
+        wrapper=FakePlaylistImagesDeleteWrapper(), executor=object(), oauth_token=None
+    )
+
     with pytest.raises(PlaylistImagesDeleteToolError) as exc_info:
-        build_playlist_images_delete_handler(wrapper=FakePlaylistImagesDeleteWrapper(), executor=object(), oauth_token=None)
+        handler({"id": "playlist-image-123"})
 
     assert exc_info.value.category == "authentication_failed"
     assert exc_info.value.details == {"field": "auth"}

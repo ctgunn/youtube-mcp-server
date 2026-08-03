@@ -186,6 +186,8 @@ UNSAFE_DETAIL_MARKERS = (
     "rawrequest",
     "raw_body",
     "rawbody",
+    "response_body",
+    "responsebody",
     "signed_url",
     "signedurl",
 )
@@ -209,3 +211,11 @@ def sanitize_error_details(details: dict[str, Any]) -> dict[str, Any]:
         else:
             safe[key] = value
     return safe
+
+
+def safe_upstream_error_message() -> str:
+    """Return the stable public message for an upstream YouTube failure.
+
+    :return: A credential-safe message suitable for caller-facing tool errors.
+    """
+    return "The upstream YouTube service request failed."

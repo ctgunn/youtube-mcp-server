@@ -16,7 +16,12 @@ from mcp_server.integrations.resources.playlists import (
 )
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
 
 
 PLAYLISTS_LIST_TOOL_NAME = "playlists_list"
@@ -1173,7 +1178,7 @@ def _map_playlists_list_upstream_error(error: NormalizedUpstreamError) -> Playli
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistsListToolError(str(error), category=category, details=error.details)
+    return PlaylistsListToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _map_playlists_insert_upstream_error(error: NormalizedUpstreamError) -> PlaylistsInsertToolError:
@@ -1200,7 +1205,7 @@ def _map_playlists_insert_upstream_error(error: NormalizedUpstreamError) -> Play
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistsInsertToolError(str(error), category=category, details=error.details)
+    return PlaylistsInsertToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _map_playlists_update_upstream_error(error: NormalizedUpstreamError) -> PlaylistsUpdateToolError:
@@ -1227,7 +1232,7 @@ def _map_playlists_update_upstream_error(error: NormalizedUpstreamError) -> Play
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistsUpdateToolError(str(error), category=category, details=error.details)
+    return PlaylistsUpdateToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _map_playlists_delete_upstream_error(error: NormalizedUpstreamError) -> PlaylistsDeleteToolError:
@@ -1254,7 +1259,7 @@ def _map_playlists_delete_upstream_error(error: NormalizedUpstreamError) -> Play
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistsDeleteToolError(str(error), category=category, details=error.details)
+    return PlaylistsDeleteToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def build_playlists_list_contract() -> YouTubeToolContract:

@@ -218,9 +218,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 159-catalog-playlist-live-calls: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff
 - 158-channel-community-live-calls: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff
 - 157-live-execution-runtime: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff
-- 302-video-details: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` public-tool conventions; existing `videos_list` descriptor and `videos.list` integration wrapper; Python standard-library dataclasses and JSON-compatible dictionaries; pytest; Ruff
 
 
 <!-- MANUAL ADDITIONS START -->

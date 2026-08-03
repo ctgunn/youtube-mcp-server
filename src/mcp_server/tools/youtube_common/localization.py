@@ -14,7 +14,12 @@ from mcp_server.integrations.resources.localization import (
 )
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
 
 
 I18N_LANGUAGES_LIST_TOOL_NAME = "i18nLanguages_list"
@@ -403,7 +408,7 @@ def _map_upstream_error(error: NormalizedUpstreamError) -> I18nLanguagesListTool
         "unavailable": "endpoint_unavailable",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return I18nLanguagesListToolError(str(error), category=category, details=error.details)
+    return I18nLanguagesListToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _map_i18n_regions_upstream_error(error: NormalizedUpstreamError) -> I18nRegionsListToolError:
@@ -424,7 +429,7 @@ def _map_i18n_regions_upstream_error(error: NormalizedUpstreamError) -> I18nRegi
         "unavailable": "endpoint_unavailable",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return I18nRegionsListToolError(str(error), category=category, details=error.details)
+    return I18nRegionsListToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def build_i18n_languages_list_contract() -> YouTubeToolContract:
@@ -627,10 +632,6 @@ def build_i18n_languages_list_handler(
     """
     selected_wrapper = wrapper or build_i18n_languages_list_wrapper()
     selected_executor = executor or _default_i18n_languages_executor()
-    auth_context = AuthContext(
-        mode=Layer1AuthMode.API_KEY,
-        credentials=CredentialBundle(api_key=api_key),
-    )
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``i18nLanguages_list`` request.
@@ -640,6 +641,16 @@ def build_i18n_languages_list_handler(
         :raises I18nLanguagesListToolError: If validation or execution fails.
         """
         normalized = validate_i18n_languages_list_arguments(arguments)
+        if not isinstance(api_key, str) or not api_key.strip():
+            raise I18nLanguagesListToolError(
+                "i18nLanguages_list requires API-key access",
+                category="authentication_failed",
+                details={"field": "auth"},
+            )
+        auth_context = AuthContext(
+            mode=Layer1AuthMode.API_KEY,
+            credentials=CredentialBundle(api_key=api_key.strip()),
+        )
         try:
             payload = selected_wrapper.call(
                 selected_executor,
@@ -668,10 +679,6 @@ def build_i18n_regions_list_handler(
     """
     selected_wrapper = wrapper or build_i18n_regions_list_wrapper()
     selected_executor = executor or _default_i18n_regions_executor()
-    auth_context = AuthContext(
-        mode=Layer1AuthMode.API_KEY,
-        credentials=CredentialBundle(api_key=api_key),
-    )
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``i18nRegions_list`` request.
@@ -681,6 +688,16 @@ def build_i18n_regions_list_handler(
         :raises I18nRegionsListToolError: If validation or execution fails.
         """
         normalized = validate_i18n_regions_list_arguments(arguments)
+        if not isinstance(api_key, str) or not api_key.strip():
+            raise I18nRegionsListToolError(
+                "i18nRegions_list requires API-key access",
+                category="authentication_failed",
+                details={"field": "auth"},
+            )
+        auth_context = AuthContext(
+            mode=Layer1AuthMode.API_KEY,
+            credentials=CredentialBundle(api_key=api_key.strip()),
+        )
         try:
             payload = selected_wrapper.call(
                 selected_executor,

@@ -11,7 +11,12 @@ from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.memberships_levels import build_memberships_levels_list_wrapper
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
 
 
 MEMBERSHIPS_LEVELS_LIST_TOOL_NAME = "membershipsLevels_list"
@@ -198,7 +203,7 @@ def _map_memberships_levels_list_upstream_error(error: NormalizedUpstreamError) 
         "deprecated": "endpoint_unavailable",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return MembershipsLevelsListToolError(str(error), category=category, details=error.details)
+    return MembershipsLevelsListToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _memberships_levels_list_auth_context(oauth_token: str | None) -> AuthContext:
@@ -325,7 +330,6 @@ def build_memberships_levels_list_handler(
     """
     selected_wrapper = wrapper or build_memberships_levels_list_wrapper()
     selected_executor = executor or _default_memberships_levels_list_executor()
-    auth_context = _memberships_levels_list_auth_context(oauth_token)
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``membershipsLevels_list`` request.
@@ -335,6 +339,7 @@ def build_memberships_levels_list_handler(
         :raises MembershipsLevelsListToolError: If validation or execution fails.
         """
         normalized = validate_memberships_levels_list_arguments(arguments)
+        auth_context = _memberships_levels_list_auth_context(oauth_token)
         try:
             payload = selected_wrapper.call(
                 selected_executor,

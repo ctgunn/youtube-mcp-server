@@ -55,6 +55,21 @@ def test_representative_youtube_descriptor_metadata_includes_cost_access_and_not
     assert metadata["usageNotes"]
 
 
+def test_yt159_default_registry_retains_explicit_no_runtime_local_behavior():
+    """Keep no-runtime dispatcher construction available for isolated local tests."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    result = dispatcher.call_tool(
+        "guideCategories_list",
+        {"part": "snippet", "regionCode": "US"},
+    )
+
+    assert "guideCategories_list" in listed
+    assert listed["guideCategories_list"]["metadata"]["upstream"]["operationKey"] == "guideCategories.list"
+    assert result["items"][0]["id"] == "guide-category-123"
+
+
 def test_default_registry_includes_and_executes_video_details_tool():
     """Discover and invoke the default concrete video-details tool."""
     dispatcher = InMemoryToolDispatcher()

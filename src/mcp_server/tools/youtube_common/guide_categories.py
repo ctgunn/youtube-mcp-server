@@ -11,7 +11,12 @@ from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.guide_categories import build_guide_categories_list_wrapper
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
 
 
 GUIDE_CATEGORIES_LIST_TOOL_NAME = "guideCategories_list"
@@ -202,7 +207,7 @@ def _map_upstream_error(error: NormalizedUpstreamError) -> GuideCategoriesListTo
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return GuideCategoriesListToolError(str(error), category=category, details=error.details)
+    return GuideCategoriesListToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def build_guide_categories_list_contract() -> YouTubeToolContract:
@@ -312,10 +317,6 @@ def build_guide_categories_list_handler(
     """
     selected_wrapper = wrapper or build_guide_categories_list_wrapper()
     selected_executor = executor or _default_guide_categories_executor()
-    auth_context = AuthContext(
-        mode=Layer1AuthMode.API_KEY,
-        credentials=CredentialBundle(api_key=api_key),
-    )
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``guideCategories_list`` request.
@@ -325,6 +326,16 @@ def build_guide_categories_list_handler(
         :raises GuideCategoriesListToolError: If validation or execution fails.
         """
         validate_guide_categories_list_arguments(arguments)
+        if not isinstance(api_key, str) or not api_key.strip():
+            raise GuideCategoriesListToolError(
+                "guideCategories_list requires API-key access",
+                category="authentication_failed",
+                details={"field": "auth"},
+            )
+        auth_context = AuthContext(
+            mode=Layer1AuthMode.API_KEY,
+            credentials=CredentialBundle(api_key=api_key.strip()),
+        )
         try:
             payload = selected_wrapper.call(
                 selected_executor,
