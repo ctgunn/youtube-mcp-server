@@ -16,7 +16,12 @@ from mcp_server.integrations.resources.playlist_items import (
 )
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
 
 
 PLAYLIST_ITEMS_LIST_TOOL_NAME = "playlistItems_list"
@@ -1289,7 +1294,7 @@ def _map_playlist_items_list_upstream_error(error: NormalizedUpstreamError) -> P
         "transient": "endpoint_unavailable",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistItemsListToolError(str(error), category=category, details=error.details)
+    return PlaylistItemsListToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _map_playlist_items_insert_upstream_error(error: NormalizedUpstreamError) -> PlaylistItemsInsertToolError:
@@ -1317,7 +1322,7 @@ def _map_playlist_items_insert_upstream_error(error: NormalizedUpstreamError) ->
         "transient": "endpoint_unavailable",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistItemsInsertToolError(str(error), category=category, details=error.details)
+    return PlaylistItemsInsertToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _map_playlist_items_update_upstream_error(error: NormalizedUpstreamError) -> PlaylistItemsUpdateToolError:
@@ -1344,7 +1349,7 @@ def _map_playlist_items_update_upstream_error(error: NormalizedUpstreamError) ->
         "transient": "endpoint_unavailable",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistItemsUpdateToolError(str(error), category=category, details=error.details)
+    return PlaylistItemsUpdateToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _map_playlist_items_delete_upstream_error(error: NormalizedUpstreamError) -> PlaylistItemsDeleteToolError:
@@ -1370,7 +1375,7 @@ def _map_playlist_items_delete_upstream_error(error: NormalizedUpstreamError) ->
         "transient": "endpoint_unavailable",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistItemsDeleteToolError(str(error), category=category, details=error.details)
+    return PlaylistItemsDeleteToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _playlist_items_list_access_context(api_key: str | None) -> AuthContext:
@@ -1866,7 +1871,6 @@ def build_playlist_items_list_handler(
     """
     selected_wrapper = wrapper or build_playlist_items_list_wrapper()
     selected_executor = executor or _default_playlist_items_list_executor()
-    auth_context = _playlist_items_list_access_context(api_key)
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``playlistItems_list`` request.
@@ -1876,6 +1880,7 @@ def build_playlist_items_list_handler(
         :raises PlaylistItemsListToolError: If validation or execution fails.
         """
         normalized = validate_playlist_items_list_arguments(arguments)
+        auth_context = _playlist_items_list_access_context(api_key)
         try:
             payload = selected_wrapper.call(
                 selected_executor,
@@ -1910,7 +1915,6 @@ def build_playlist_items_insert_handler(
     """
     selected_wrapper = wrapper or build_playlist_items_insert_wrapper()
     selected_executor = executor or _default_playlist_items_insert_executor()
-    auth_context = _playlist_items_insert_auth_context(oauth_token)
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``playlistItems_insert`` request.
@@ -1920,6 +1924,7 @@ def build_playlist_items_insert_handler(
         :raises PlaylistItemsInsertToolError: If validation or execution fails.
         """
         normalized = validate_playlist_items_insert_arguments(arguments)
+        auth_context = _playlist_items_insert_auth_context(oauth_token)
         try:
             payload = selected_wrapper.call(
                 selected_executor,
@@ -1954,7 +1959,6 @@ def build_playlist_items_update_handler(
     """
     selected_wrapper = wrapper or build_playlist_items_update_wrapper()
     selected_executor = executor or _default_playlist_items_update_executor()
-    auth_context = _playlist_items_update_auth_context(oauth_token)
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``playlistItems_update`` request.
@@ -1964,6 +1968,7 @@ def build_playlist_items_update_handler(
         :raises PlaylistItemsUpdateToolError: If validation or execution fails.
         """
         normalized = validate_playlist_items_update_arguments(arguments)
+        auth_context = _playlist_items_update_auth_context(oauth_token)
         try:
             payload = selected_wrapper.call(
                 selected_executor,
@@ -1998,7 +2003,6 @@ def build_playlist_items_delete_handler(
     """
     selected_wrapper = wrapper or build_playlist_items_delete_wrapper()
     selected_executor = executor or _default_playlist_items_delete_executor()
-    auth_context = _playlist_items_delete_auth_context(oauth_token)
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``playlistItems_delete`` request.
@@ -2008,6 +2012,7 @@ def build_playlist_items_delete_handler(
         :raises PlaylistItemsDeleteToolError: If validation or execution fails.
         """
         normalized = validate_playlist_items_delete_arguments(arguments)
+        auth_context = _playlist_items_delete_auth_context(oauth_token)
         try:
             payload = selected_wrapper.call(
                 selected_executor,

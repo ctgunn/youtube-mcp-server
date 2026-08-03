@@ -167,8 +167,10 @@ def test_playlist_items_delete_descriptor_rejects_invalid_requests(arguments):
 
 def test_playlist_items_delete_descriptor_rejects_missing_oauth_access():
     """Surface missing OAuth access as a safe delete authentication failure."""
+    dispatcher = _register_playlist_items_delete(oauth_token=None)
+
     with pytest.raises(PlaylistItemsDeleteToolError) as exc_info:
-        _register_playlist_items_delete(oauth_token=None)
+        dispatcher.call_tool("playlistItems_delete", _delete_arguments())
 
     assert exc_info.value.category == "authentication_failed"
     assert exc_info.value.details == {"field": "auth", "authMode": "oauth_required"}
@@ -269,8 +271,10 @@ def test_playlist_items_update_descriptor_rejects_invalid_requests(arguments):
 
 def test_playlist_items_update_descriptor_rejects_missing_oauth_access():
     """Surface missing OAuth access as a safe update authentication failure."""
+    dispatcher = _register_playlist_items_update(oauth_token=None)
+
     with pytest.raises(PlaylistItemsUpdateToolError) as exc_info:
-        _register_playlist_items_update(oauth_token=None)
+        dispatcher.call_tool("playlistItems_update", _update_arguments())
 
     assert exc_info.value.category == "authentication_failed"
     assert exc_info.value.details == {"field": "auth", "authMode": "oauth_required"}

@@ -16,7 +16,12 @@ from mcp_server.integrations.resources.playlist_images import (
 )
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
 
 
 PLAYLIST_IMAGES_ALLOWED_MIME_TYPES = ("image/jpeg", "image/png", "application/octet-stream")
@@ -1131,7 +1136,7 @@ def _map_playlist_images_list_upstream_error(error: NormalizedUpstreamError) -> 
         "deprecated": "endpoint_unavailable",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistImagesListToolError(str(error), category=category, details=error.details)
+    return PlaylistImagesListToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _map_playlist_images_insert_upstream_error(error: NormalizedUpstreamError) -> PlaylistImagesInsertToolError:
@@ -1158,7 +1163,7 @@ def _map_playlist_images_insert_upstream_error(error: NormalizedUpstreamError) -
         "transient": "endpoint_unavailable",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistImagesInsertToolError(str(error), category=category, details=error.details)
+    return PlaylistImagesInsertToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _map_playlist_images_update_upstream_error(error: NormalizedUpstreamError) -> PlaylistImagesUpdateToolError:
@@ -1185,7 +1190,7 @@ def _map_playlist_images_update_upstream_error(error: NormalizedUpstreamError) -
         "transient": "endpoint_unavailable",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistImagesUpdateToolError(str(error), category=category, details=error.details)
+    return PlaylistImagesUpdateToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _map_playlist_images_delete_upstream_error(error: NormalizedUpstreamError) -> PlaylistImagesDeleteToolError:
@@ -1211,7 +1216,7 @@ def _map_playlist_images_delete_upstream_error(error: NormalizedUpstreamError) -
         "transient": "endpoint_unavailable",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return PlaylistImagesDeleteToolError(str(error), category=category, details=error.details)
+    return PlaylistImagesDeleteToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _playlist_images_list_auth_context(oauth_token: str | None) -> AuthContext:
@@ -1679,7 +1684,6 @@ def build_playlist_images_list_handler(
     """
     selected_wrapper = wrapper or build_playlist_images_list_wrapper()
     selected_executor = executor or _default_playlist_images_list_executor()
-    auth_context = _playlist_images_list_auth_context(oauth_token)
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``playlistImages_list`` request.
@@ -1689,6 +1693,7 @@ def build_playlist_images_list_handler(
         :raises PlaylistImagesListToolError: If validation or execution fails.
         """
         normalized = validate_playlist_images_list_arguments(arguments)
+        auth_context = _playlist_images_list_auth_context(oauth_token)
         try:
             payload = selected_wrapper.call(
                 selected_executor,
@@ -1717,7 +1722,6 @@ def build_playlist_images_insert_handler(
     """
     selected_wrapper = wrapper or build_playlist_images_insert_wrapper()
     selected_executor = executor or _default_playlist_images_insert_executor()
-    auth_context = _playlist_images_insert_auth_context(oauth_token)
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``playlistImages_insert`` request.
@@ -1727,6 +1731,7 @@ def build_playlist_images_insert_handler(
         :raises PlaylistImagesInsertToolError: If validation or execution fails.
         """
         normalized = validate_playlist_images_insert_arguments(arguments)
+        auth_context = _playlist_images_insert_auth_context(oauth_token)
         try:
             payload = selected_wrapper.call(
                 selected_executor,
@@ -1761,7 +1766,6 @@ def build_playlist_images_update_handler(
     """
     selected_wrapper = wrapper or build_playlist_images_update_wrapper()
     selected_executor = executor or _default_playlist_images_update_executor()
-    auth_context = _playlist_images_update_auth_context(oauth_token)
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``playlistImages_update`` request.
@@ -1771,6 +1775,7 @@ def build_playlist_images_update_handler(
         :raises PlaylistImagesUpdateToolError: If validation or execution fails.
         """
         normalized = validate_playlist_images_update_arguments(arguments)
+        auth_context = _playlist_images_update_auth_context(oauth_token)
         try:
             payload = selected_wrapper.call(
                 selected_executor,
@@ -1805,7 +1810,6 @@ def build_playlist_images_delete_handler(
     """
     selected_wrapper = wrapper or build_playlist_images_delete_wrapper()
     selected_executor = executor or _default_playlist_images_delete_executor()
-    auth_context = _playlist_images_delete_auth_context(oauth_token)
 
     def handler(arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one validated ``playlistImages_delete`` request.
@@ -1815,6 +1819,7 @@ def build_playlist_images_delete_handler(
         :raises PlaylistImagesDeleteToolError: If validation or execution fails.
         """
         normalized = validate_playlist_images_delete_arguments(arguments)
+        auth_context = _playlist_images_delete_auth_context(oauth_token)
         try:
             payload = selected_wrapper.call(
                 selected_executor,
