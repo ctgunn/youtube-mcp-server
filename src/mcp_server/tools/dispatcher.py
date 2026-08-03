@@ -221,15 +221,38 @@ class InMemoryToolDispatcher:
             items.append(self._tool_descriptor(entry))
         return items
 
+    def _configured_youtube_descriptor_dependencies(self) -> dict[str, dict[str, object]]:
+        """Build credential-safe dependency groups for configured YouTube descriptors.
+
+        :return: Executor and only the credential kinds accepted by conditional,
+            API-key-only, and OAuth-only descriptor builders. Empty mappings keep
+            explicit test and local-default descriptor construction unchanged.
+        """
+        if self._youtube_runtime is None:
+            return {"conditional": {}, "api_key": {}, "oauth": {}}
+
+        executor = self._youtube_runtime.executor
+        settings = self._youtube_runtime.settings
+        return {
+            "conditional": {
+                "executor": executor,
+                "api_key": settings.api_key,
+                "oauth_token": settings.oauth_token,
+            },
+            "api_key": {"executor": executor, "api_key": settings.api_key},
+            "oauth": {"executor": executor, "oauth_token": settings.oauth_token},
+        }
+
     def _baseline_tool_definitions(self):
-        """Build the default built-in tool registry."""
-        activities_descriptor = build_activities_list_tool_descriptor()
-        if self._youtube_runtime is not None:
-            activities_descriptor = build_activities_list_tool_descriptor(
-                executor=self._youtube_runtime.executor,
-                api_key=self._youtube_runtime.settings.api_key,
-                oauth_token=self._youtube_runtime.settings.oauth_token,
-            )
+        """Build the default built-in tool registry.
+
+        :return: Tool definitions that use the configured shared YouTube runtime
+            when one was supplied, otherwise preserving explicit local defaults.
+        """
+        runtime_dependencies = self._configured_youtube_descriptor_dependencies()
+        conditional_dependencies = runtime_dependencies["conditional"]
+        api_key_dependencies = runtime_dependencies["api_key"]
+        oauth_dependencies = runtime_dependencies["oauth"]
         return [
             {
                 "name": "server_ping",
@@ -261,26 +284,26 @@ class InMemoryToolDispatcher:
                 "inputSchema": FETCH_TOOL_SCHEMA,
                 "handler": fetch_tool,
             },
-            activities_descriptor,
-            build_captions_list_tool_descriptor(),
-            build_captions_insert_tool_descriptor(),
-            build_captions_update_tool_descriptor(),
-            build_captions_download_tool_descriptor(),
-            build_captions_delete_tool_descriptor(),
-            build_channel_banners_insert_tool_descriptor(),
-            build_channel_sections_insert_tool_descriptor(),
-            build_channel_sections_list_tool_descriptor(),
-            build_channel_sections_update_tool_descriptor(),
-            build_channel_sections_delete_tool_descriptor(),
-            build_channels_list_tool_descriptor(),
-            build_channels_update_tool_descriptor(),
-            build_comments_list_tool_descriptor(),
-            build_comment_threads_list_tool_descriptor(),
-            build_comment_threads_insert_tool_descriptor(),
-            build_comments_insert_tool_descriptor(),
-            build_comments_update_tool_descriptor(),
-            build_comments_set_moderation_status_tool_descriptor(),
-            build_comments_delete_tool_descriptor(),
+            build_activities_list_tool_descriptor(**conditional_dependencies),
+            build_captions_list_tool_descriptor(**oauth_dependencies),
+            build_captions_insert_tool_descriptor(**oauth_dependencies),
+            build_captions_update_tool_descriptor(**oauth_dependencies),
+            build_captions_download_tool_descriptor(**oauth_dependencies),
+            build_captions_delete_tool_descriptor(**oauth_dependencies),
+            build_channel_banners_insert_tool_descriptor(**oauth_dependencies),
+            build_channel_sections_insert_tool_descriptor(**oauth_dependencies),
+            build_channel_sections_list_tool_descriptor(**conditional_dependencies),
+            build_channel_sections_update_tool_descriptor(**oauth_dependencies),
+            build_channel_sections_delete_tool_descriptor(**oauth_dependencies),
+            build_channels_list_tool_descriptor(**conditional_dependencies),
+            build_channels_update_tool_descriptor(**oauth_dependencies),
+            build_comments_list_tool_descriptor(**api_key_dependencies),
+            build_comment_threads_list_tool_descriptor(**api_key_dependencies),
+            build_comment_threads_insert_tool_descriptor(**oauth_dependencies),
+            build_comments_insert_tool_descriptor(**oauth_dependencies),
+            build_comments_update_tool_descriptor(**oauth_dependencies),
+            build_comments_set_moderation_status_tool_descriptor(**oauth_dependencies),
+            build_comments_delete_tool_descriptor(**oauth_dependencies),
             build_members_list_tool_descriptor(),
             build_memberships_levels_list_tool_descriptor(),
             build_playlist_images_list_tool_descriptor(),
