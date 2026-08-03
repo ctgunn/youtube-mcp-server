@@ -2217,6 +2217,52 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertEqual(configured_descriptor["inputSchema"], default_descriptor["inputSchema"])
         self.assertEqual(configured_descriptor["metadata"], default_descriptor["metadata"])
 
+    def test_configured_runtime_preserves_all_channel_and_community_public_contracts(self):
+        """Keep every scoped descriptor's public discovery contract stable.
+
+        :return: ``None`` after comparing configured and default descriptors.
+        """
+        from mcp_server.config import load_youtube_live_runtime_settings
+        from mcp_server.integrations.runtime import build_configured_youtube_runtime
+        from mcp_server.tools.dispatcher import InMemoryToolDispatcher
+
+        configured = InMemoryToolDispatcher(
+            youtube_runtime=build_configured_youtube_runtime(
+                load_youtube_live_runtime_settings(
+                    {"YOUTUBE_API_KEY": "api-key-for-test", "YOUTUBE_OAUTH_TOKEN": "oauth-token-for-test"}
+                )
+            )
+        )
+        configured_descriptors = {item["name"]: item for item in configured.list_tools()}
+        default_descriptors = {item["name"]: item for item in InMemoryToolDispatcher().list_tools()}
+        scoped_tools = (
+            "activities_list",
+            "captions_list",
+            "captions_insert",
+            "captions_update",
+            "captions_download",
+            "captions_delete",
+            "channelBanners_insert",
+            "channels_list",
+            "channels_update",
+            "channelSections_list",
+            "channelSections_insert",
+            "channelSections_update",
+            "channelSections_delete",
+            "comments_list",
+            "comments_insert",
+            "comments_update",
+            "comments_setModerationStatus",
+            "comments_delete",
+            "commentThreads_list",
+            "commentThreads_insert",
+        )
+
+        for tool_name in scoped_tools:
+            self.assertEqual(configured_descriptors[tool_name]["name"], default_descriptors[tool_name]["name"])
+            self.assertEqual(configured_descriptors[tool_name]["inputSchema"], default_descriptors[tool_name]["inputSchema"])
+            self.assertEqual(configured_descriptors[tool_name]["metadata"], default_descriptors[tool_name]["metadata"])
+
 
 if __name__ == "__main__":
     unittest.main()

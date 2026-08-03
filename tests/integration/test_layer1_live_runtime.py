@@ -8,6 +8,9 @@ from urllib.error import HTTPError
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
+from mcp_server.config import load_youtube_live_runtime_settings
+from mcp_server.integrations.runtime import build_configured_youtube_runtime
+from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.activities import ActivitiesListToolError
 
 
@@ -26,6 +29,51 @@ class _FakeHTTPResponse:
 
 
 class Layer1LiveRuntimeIntegrationTests(unittest.TestCase):
+    def test_configured_runtime_is_injected_into_every_channel_and_community_descriptor(self):
+        """Inject one configured executor and only configured credentials into every scoped tool.
+
+        :return: ``None`` after verifying the dispatcher construction boundary.
+        """
+        runtime = build_configured_youtube_runtime(
+            load_youtube_live_runtime_settings(
+                {
+                    "YOUTUBE_API_KEY": "configured-api-key",
+                    "YOUTUBE_OAUTH_TOKEN": "configured-oauth-token",
+                }
+            )
+        )
+        dispatcher = InMemoryToolDispatcher(youtube_runtime=runtime)
+        scoped_tools = (
+            "activities_list",
+            "captions_list",
+            "captions_insert",
+            "captions_update",
+            "captions_download",
+            "captions_delete",
+            "channelBanners_insert",
+            "channels_list",
+            "channels_update",
+            "channelSections_list",
+            "channelSections_insert",
+            "channelSections_update",
+            "channelSections_delete",
+            "comments_list",
+            "comments_insert",
+            "comments_update",
+            "comments_setModerationStatus",
+            "comments_delete",
+            "commentThreads_list",
+            "commentThreads_insert",
+        )
+
+        for tool_name in scoped_tools:
+            handler = dispatcher._tools[tool_name.lower()]["handler"]
+            closure_values = tuple(cell.cell_contents for cell in handler.__closure__ or ())
+            self.assertIn(runtime.executor, closure_values, tool_name)
+            self.assertNotIn("public-channel-access", closure_values, tool_name)
+            self.assertNotIn("eligible-caption-access", closure_values, tool_name)
+            self.assertNotIn("authorized-comment-write", closure_values, tool_name)
+
     def test_configured_app_routes_activities_through_live_transport(self):
         captured = []
         transport = create_app(
