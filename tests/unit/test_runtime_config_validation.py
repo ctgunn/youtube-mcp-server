@@ -4,7 +4,12 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.config import config_validation_error_details, ensure_runtime_config, validate_runtime_config
+from mcp_server.config import (
+    config_validation_error_details,
+    ensure_runtime_config,
+    load_youtube_live_runtime_settings,
+    validate_runtime_config,
+)
 
 
 class RuntimeConfigValidationTests(unittest.TestCase):
@@ -49,6 +54,43 @@ class RuntimeConfigValidationTests(unittest.TestCase):
     def test_ensure_runtime_config_raises_on_invalid_config(self):
         with self.assertRaisesRegex(RuntimeError, "Required runtime configuration is invalid"):
             ensure_runtime_config({})
+
+    def test_live_youtube_settings_load_available_credentials_without_exposing_them(self):
+        settings = load_youtube_live_runtime_settings(
+            {
+                "YOUTUBE_API_KEY": "api-key-for-test",
+                "YOUTUBE_OAUTH_TOKEN": "oauth-token-for-test",
+            }
+        )
+
+        self.assertTrue(settings.has_api_key)
+        self.assertTrue(settings.has_oauth_token)
+        self.assertEqual(settings.timeout_seconds, 10.0)
+        self.assertEqual(settings.max_attempts, 3)
+        self.assertEqual(
+            settings.safe_details(),
+            {
+                "apiKeyConfigured": True,
+                "oauthTokenConfigured": True,
+                "timeoutSeconds": 10.0,
+                "maxAttempts": 3,
+            },
+        )
+        self.assertNotIn("api-key-for-test", str(settings.safe_details()))
+        self.assertNotIn("oauth-token-for-test", str(settings.safe_details()))
+
+    def test_live_youtube_settings_treat_blank_credentials_as_unavailable(self):
+        settings = load_youtube_live_runtime_settings(
+            {
+                "YOUTUBE_API_KEY": "   ",
+                "YOUTUBE_OAUTH_TOKEN": "\t",
+            }
+        )
+
+        self.assertFalse(settings.has_api_key)
+        self.assertFalse(settings.has_oauth_token)
+        self.assertEqual(settings.safe_details()["apiKeyConfigured"], False)
+        self.assertEqual(settings.safe_details()["oauthTokenConfigured"], False)
 
 
 if __name__ == "__main__":

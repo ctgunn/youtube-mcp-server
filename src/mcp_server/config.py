@@ -61,6 +61,77 @@ class ConfigValidationError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class YouTubeLiveRuntimeSettings:
+    """Store secret-backed settings for configured Layer 1 live execution.
+
+    :param api_key: Optional YouTube API-key credential.
+    :param oauth_token: Optional YouTube OAuth access token.
+    :param timeout_seconds: Timeout applied to one upstream request attempt.
+    :param max_attempts: Maximum shared-executor attempts for one request.
+    """
+
+    api_key: str | None
+    oauth_token: str | None
+    timeout_seconds: float = 10.0
+    max_attempts: int = 3
+
+    @property
+    def has_api_key(self) -> bool:
+        """Return whether a nonblank API-key credential is available.
+
+        :return: ``True`` when API-key access can be selected.
+        """
+        return self.api_key is not None
+
+    @property
+    def has_oauth_token(self) -> bool:
+        """Return whether a nonblank OAuth credential is available.
+
+        :return: ``True`` when OAuth-required access can be selected.
+        """
+        return self.oauth_token is not None
+
+    def safe_details(self) -> dict[str, object]:
+        """Return a credential-free description of available runtime settings.
+
+        :return: Safe diagnostics containing configuration state but no secrets.
+        """
+        return {
+            "apiKeyConfigured": self.has_api_key,
+            "oauthTokenConfigured": self.has_oauth_token,
+            "timeoutSeconds": self.timeout_seconds,
+            "maxAttempts": self.max_attempts,
+        }
+
+
+def load_youtube_live_runtime_settings(env: Mapping[str, str]) -> YouTubeLiveRuntimeSettings:
+    """Load secret-backed Layer 1 live-execution settings from an environment.
+
+    Blank credential values are treated as unavailable so configured callers can
+    return a safe failure instead of accidentally using representative data.
+
+    :param env: Environment mapping to read without mutating process state.
+    :return: Normalized settings with default timeout and retry-attempt values.
+    """
+    return YouTubeLiveRuntimeSettings(
+        api_key=_optional_secret(env.get("YOUTUBE_API_KEY")),
+        oauth_token=_optional_secret(env.get("YOUTUBE_OAUTH_TOKEN")),
+    )
+
+
+def _optional_secret(value: str | None) -> str | None:
+    """Normalize a secret value without returning blank credentials.
+
+    :param value: Candidate secret value from runtime configuration.
+    :return: Stripped secret value when nonblank, otherwise ``None``.
+    """
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+@dataclass(frozen=True)
 class HostedRuntimeSettings:
     """Normalized hosted runtime settings derived from environment variables."""
 

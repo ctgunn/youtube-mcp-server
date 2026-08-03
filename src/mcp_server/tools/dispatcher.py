@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from mcp_server.integrations.runtime import ConfiguredYouTubeRuntime
 from mcp_server.tools.retrieval import FETCH_TOOL_SCHEMA, SEARCH_TOOL_SCHEMA, fetch_tool, search_tool
 from mcp_server.tools.youtube_composed import build_videos_get_video_tool_descriptor
 from mcp_server.tools.youtube_common import (
@@ -118,10 +119,16 @@ def normalize_tool_name(name: str) -> str:
 class InMemoryToolDispatcher:
     """Maintain an in-memory registry of MCP tools and handlers."""
 
-    def __init__(self, tools=None, server_metadata=None):
-        """Initialize the dispatcher with baseline or caller-provided tools."""
+    def __init__(self, tools=None, server_metadata=None, youtube_runtime: ConfiguredYouTubeRuntime | None = None):
+        """Initialize the dispatcher with baseline or caller-provided tools.
+
+        :param tools: Optional explicit registry entries used by tests.
+        :param server_metadata: Optional safe server metadata.
+        :param youtube_runtime: Optional configured live runtime for supported default descriptors.
+        """
         self._tools: dict[str, dict[str, Any]] = {}
         self._server_metadata = self._normalize_server_metadata(server_metadata)
+        self._youtube_runtime = youtube_runtime
 
         initial_tools = tools if tools is not None else self._baseline_tool_definitions()
 
@@ -216,6 +223,13 @@ class InMemoryToolDispatcher:
 
     def _baseline_tool_definitions(self):
         """Build the default built-in tool registry."""
+        activities_descriptor = build_activities_list_tool_descriptor()
+        if self._youtube_runtime is not None:
+            activities_descriptor = build_activities_list_tool_descriptor(
+                executor=self._youtube_runtime.executor,
+                api_key=self._youtube_runtime.settings.api_key,
+                oauth_token=self._youtube_runtime.settings.oauth_token,
+            )
         return [
             {
                 "name": "server_ping",
@@ -247,7 +261,7 @@ class InMemoryToolDispatcher:
                 "inputSchema": FETCH_TOOL_SCHEMA,
                 "handler": fetch_tool,
             },
-            build_activities_list_tool_descriptor(),
+            activities_descriptor,
             build_captions_list_tool_descriptor(),
             build_captions_insert_tool_descriptor(),
             build_captions_update_tool_descriptor(),

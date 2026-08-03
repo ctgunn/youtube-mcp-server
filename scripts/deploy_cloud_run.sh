@@ -30,6 +30,8 @@ if [[ -n "${MCP_ENVIRONMENT:-}" && "${MCP_ENVIRONMENT}" != "dev" && "${MCP_ENVIR
 fi
 
 if [[ "${MCP_ENVIRONMENT:-}" == "staging" || "${MCP_ENVIRONMENT:-}" == "prod" ]]; then
+  # OAuth-backed YouTube operations are opt-in: include YOUTUBE_OAUTH_TOKEN in
+  # SECRET_REFERENCES only when the operator has provisioned that secret.
   : "${SECRET_REFERENCES:=YOUTUBE_API_KEY,MCP_AUTH_TOKEN}"
 else
   : "${SECRET_REFERENCES:=}"

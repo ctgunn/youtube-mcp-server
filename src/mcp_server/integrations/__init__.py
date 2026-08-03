@@ -12,6 +12,11 @@ from mcp_server.integrations.executor import (
     timed_execution,
 )
 from mcp_server.integrations.retry import RetryPolicy
+from mcp_server.integrations.runtime import (
+    ConfiguredYouTubeRuntime,
+    LiveRuntimeConfigurationError,
+    build_configured_youtube_runtime,
+)
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
@@ -78,10 +83,12 @@ __all__ = [
     "AuthContext",
     "AuthMode",
     "CredentialBundle",
+    "ConfiguredYouTubeRuntime",
     "EndpointMetadata",
     "EndpointRequestShape",
     "IntegrationExecutor",
     "IntegrationHooks",
+    "LiveRuntimeConfigurationError",
     "NormalizedUpstreamError",
     "RepresentativeEndpointWrapper",
     "build_activities_list_wrapper",
@@ -137,6 +144,7 @@ __all__ = [
     "build_captions_insert_wrapper",
     "build_captions_list_wrapper",
     "build_captions_update_wrapper",
+    "build_configured_youtube_runtime",
     "build_youtube_data_api_executor",
     "build_youtube_data_api_request",
     "build_youtube_data_api_transport",

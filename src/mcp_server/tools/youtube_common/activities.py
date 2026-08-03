@@ -11,7 +11,7 @@ from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.activities import build_activities_list_wrapper
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
+from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
 
 
 ACTIVITIES_LIST_TOOL_NAME = "activities_list"
@@ -63,7 +63,7 @@ class ActivitiesListToolError(ValueError):
         """
         super().__init__(message)
         self.category = category
-        self.details = details or {}
+        self.details = sanitize_error_details(details or {})
 
 
 def _default_activities_transport(_execution) -> dict[str, Any]:
@@ -76,7 +76,11 @@ def _default_activities_transport(_execution) -> dict[str, Any]:
 
 
 def _default_executor() -> IntegrationExecutor:
-    """Build the default Layer 1 executor used by ``activities_list``.
+    """Build the explicit local/test executor used by ``activities_list``.
+
+    This executor is retained for direct isolated tests and local-development
+    injection. Configured dispatcher construction supplies the shared live
+    runtime instead.
 
     :return: Executor with a safe local transport for endpoint-shaped results.
     """
@@ -261,10 +265,17 @@ def _map_upstream_error(error: NormalizedUpstreamError) -> ActivitiesListToolErr
         "transient": "endpoint_unavailable",
         "upstream_service": "upstream_failure",
     }
+    messages = {
+        "auth": "YouTube authorization was rejected.",
+        "not_found": "The requested YouTube resource was not found.",
+        "rate_limit": "YouTube request quota is currently unavailable.",
+        "transient": "YouTube is temporarily unavailable.",
+        "upstream_service": "YouTube request failed upstream.",
+    }
     return ActivitiesListToolError(
-        str(error),
+        messages.get(error.category, "YouTube request failed upstream."),
         category=categories.get(error.category, "upstream_failure"),
-        details={"upstreamStatus": error.upstream_status} if error.upstream_status else {},
+        details=sanitize_error_details({"upstreamStatus": error.upstream_status} if error.upstream_status else {}),
     )
 
 

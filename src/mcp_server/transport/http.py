@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Mapping, TextIO
+from typing import Any, Callable, Mapping, TextIO
 
-from mcp_server.config import HostedRuntimeSettings, StartupValidationResult, secret_access_readiness
+from mcp_server.config import HostedRuntimeSettings, StartupValidationResult, YouTubeLiveRuntimeSettings, secret_access_readiness
 from mcp_server.health import RuntimeLifecycleState, health_payload, initialize_runtime_lifecycle, readiness_payload
 from mcp_server.observability import InMemoryObservability, build_request_context
 from mcp_server.protocol.envelope import error_response_for_category
@@ -14,6 +14,7 @@ from mcp_server.protocol.methods import route_mcp_request
 from mcp_server.security import is_mcp_application_security_category
 from mcp_server.transport.streaming import StreamManager
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
+from mcp_server.integrations.runtime import ConfiguredYouTubeRuntime, build_configured_youtube_runtime
 
 JSON_CONTENT_TYPE = "application/json"
 SUPPORTED_HOSTED_METHODS = {
@@ -161,10 +162,36 @@ class MCPHTTPTransport:
         runtime_env: Mapping[str, str] | None = None,
         runtime_stdout: TextIO | None = None,
         runtime_stderr: TextIO | None = None,
+        youtube_runtime: ConfiguredYouTubeRuntime | None = None,
+        youtube_runtime_settings: YouTubeLiveRuntimeSettings | None = None,
+        youtube_opener: Callable[..., Any] | None = None,
     ):
-        """Initialize the local in-process transport facade."""
-        self.dispatcher = dispatcher or InMemoryToolDispatcher(server_metadata=server_metadata)
+        """Initialize the local in-process transport facade.
+
+        :param dispatcher: Optional prebuilt dispatcher for isolated tests.
+        :param server_metadata: Optional safe server metadata.
+        :param startup_validation: Optional startup validation result.
+        :param runtime_lifecycle: Optional lifecycle state.
+        :param runtime_settings: Optional hosted runtime settings.
+        :param runtime_env: Optional environment mapping used for readiness checks.
+        :param runtime_stdout: Optional structured-log stdout stream.
+        :param runtime_stderr: Optional structured-log stderr stream.
+        :param youtube_runtime: Optional explicit live runtime dependency.
+        :param youtube_runtime_settings: Optional settings used to build the configured live runtime.
+        :param youtube_opener: Optional controlled opener for tests or local development.
+        """
         self.observability = InMemoryObservability(runtime_stdout=runtime_stdout, runtime_stderr=runtime_stderr)
+        selected_youtube_runtime = youtube_runtime
+        if selected_youtube_runtime is None and youtube_runtime_settings is not None:
+            selected_youtube_runtime = build_configured_youtube_runtime(
+                youtube_runtime_settings,
+                observability=self.observability,
+                opener=youtube_opener,
+            )
+        self.dispatcher = dispatcher or InMemoryToolDispatcher(
+            server_metadata=server_metadata,
+            youtube_runtime=selected_youtube_runtime,
+        )
         session_settings = runtime_settings.session if runtime_settings is not None else None
         self.stream_manager = (
             StreamManager.from_session_settings(session_settings)
