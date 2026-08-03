@@ -190,3 +190,16 @@ def test_thumbnails_set_handler_maps_upstream_target_failures():
 
     assert exc_info.value.category == "target_video_failed"
     assert exc_info.value.details == {"videoId": "video-123"}
+
+
+def test_configured_thumbnail_descriptor_preserves_media_contract_without_credentials():
+    """Keep runtime injection out of public thumbnail metadata.
+
+    :return: ``None`` after validating the configured descriptor.
+    """
+    descriptor = build_thumbnails_set_tool_descriptor(executor=object(), oauth_token="configured-oauth-token")
+
+    assert descriptor["name"] == "thumbnails_set"
+    assert descriptor["metadata"]["authMode"] == "oauth_required"
+    assert descriptor["metadata"]["responseConvention"]["mediaResult"] == "safe_media_summary"
+    assert "configured-oauth-token" not in str(descriptor)

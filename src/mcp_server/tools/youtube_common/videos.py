@@ -19,7 +19,7 @@ from mcp_server.integrations.resources.videos import (
 )
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, safe_upstream_error_message, sanitize_error_details
 
 
 VIDEOS_LIST_TOOL_NAME = "videos_list"
@@ -2389,7 +2389,7 @@ def _map_upstream_error(error: NormalizedUpstreamError) -> VideosListToolError:
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return VideosListToolError(str(error), category=category, details=error.details or {})
+    return VideosListToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def _api_key_auth_context(api_key: str | None) -> AuthContext:
@@ -3487,7 +3487,7 @@ def _map_videos_insert_upstream_error(error: NormalizedUpstreamError) -> VideosI
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return VideosInsertToolError(str(error), category=category, details=error.details or {})
+    return VideosInsertToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def _map_videos_update_upstream_error(error: NormalizedUpstreamError) -> VideosUpdateToolError:
@@ -3515,7 +3515,7 @@ def _map_videos_update_upstream_error(error: NormalizedUpstreamError) -> VideosU
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return VideosUpdateToolError(str(error), category=category, details=error.details or {})
+    return VideosUpdateToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def _map_videos_rate_upstream_error(error: NormalizedUpstreamError) -> VideosRateToolError:
@@ -3548,7 +3548,7 @@ def _map_videos_rate_upstream_error(error: NormalizedUpstreamError) -> VideosRat
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return VideosRateToolError(str(error), category=category, details=error.details or {})
+    return VideosRateToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def _map_videos_get_rating_upstream_error(error: NormalizedUpstreamError) -> VideosGetRatingToolError:
@@ -3576,7 +3576,7 @@ def _map_videos_get_rating_upstream_error(error: NormalizedUpstreamError) -> Vid
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return VideosGetRatingToolError(str(error), category=category, details=error.details or {})
+    return VideosGetRatingToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def _map_videos_report_abuse_upstream_error(error: NormalizedUpstreamError) -> VideosReportAbuseToolError:
@@ -3607,7 +3607,7 @@ def _map_videos_report_abuse_upstream_error(error: NormalizedUpstreamError) -> V
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return VideosReportAbuseToolError(str(error), category=category, details=error.details or {})
+    return VideosReportAbuseToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def _map_videos_delete_upstream_error(error: NormalizedUpstreamError) -> VideosDeleteToolError:
@@ -3637,7 +3637,7 @@ def _map_videos_delete_upstream_error(error: NormalizedUpstreamError) -> VideosD
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return VideosDeleteToolError(str(error), category=category, details=error.details or {})
+    return VideosDeleteToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def build_videos_insert_handler(

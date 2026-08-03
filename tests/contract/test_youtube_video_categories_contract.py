@@ -196,3 +196,15 @@ def test_video_categories_list_metadata_text_constants_are_public_safe():
     assert "video search" in combined
     assert "recommendation" in combined
     assert "apiKey" not in combined
+
+
+def test_video_categories_configured_dependencies_preserve_public_contract():
+    """Keep public category metadata credential-free after runtime injection."""
+    descriptor = build_video_categories_list_tool_descriptor(
+        executor=object(),
+        api_key="configured-api-key",
+    )
+
+    assert descriptor["name"] == "videoCategories_list"
+    assert descriptor["metadata"]["authMode"] == "api_key"
+    assert "configured-api-key" not in str(descriptor)

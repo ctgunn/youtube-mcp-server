@@ -198,6 +198,7 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff (157-live-execution-runtime)
 - No feature-specific persistent storage; runtime configuration and credentials are environment/secret-backed and request state remains in memory (157-live-execution-runtime)
 - No feature-specific persistent storage; runtime settings and credentials are environment/secret-backed, and request/observability state is in memory (158-channel-community-live-calls)
+- No feature-specific persistent storage; runtime settings and credentials are environment/secret-backed, while request and observability state are in memory (160-discovery-video-live-calls)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -218,9 +219,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 160-discovery-video-live-calls: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff
 - 159-catalog-playlist-live-calls: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff
 - 158-channel-community-live-calls: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff
-- 157-live-execution-runtime: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff
 
 
 <!-- MANUAL ADDITIONS START -->

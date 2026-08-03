@@ -72,6 +72,20 @@ def test_concrete_video_details_descriptor_registers_and_executes():
     assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
 
 
+def test_concrete_video_details_registration_preserves_lower_layer_provenance():
+    """Keep concrete video details tied to the public ``videos.list`` boundary.
+
+    :return: ``None`` after validating registration metadata and result shape.
+    """
+    from mcp_server.tools.youtube_composed.videos import build_videos_get_video_tool_descriptor
+
+    descriptor = build_videos_get_video_tool_descriptor(lookup=SuccessfulVideoLookup())
+
+    assert descriptor["metadata"]["lowerLayerDependencies"] == ["videos.list"]
+    assert "representativeOnly" not in descriptor["metadata"]
+    assert descriptor["inputSchema"]["required"] == ["videoId"]
+
+
 def test_concrete_video_details_descriptor_returns_requested_optional_groups():
     """Return selected optional groups while retaining the core result."""
     from mcp_server.tools.youtube_composed.videos import build_videos_get_video_tool_descriptor

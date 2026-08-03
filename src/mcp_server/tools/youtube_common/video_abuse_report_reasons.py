@@ -13,7 +13,7 @@ from mcp_server.integrations.resources.video_abuse_report_reasons import (
 )
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, safe_upstream_error_message, sanitize_error_details
 
 
 VIDEO_ABUSE_REPORT_REASONS_LIST_TOOL_NAME = "videoAbuseReportReasons_list"
@@ -281,7 +281,7 @@ def _map_upstream_error(error: NormalizedUpstreamError) -> VideoAbuseReportReaso
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return VideoAbuseReportReasonsListToolError(str(error), category=category, details=error.details or {})
+    return VideoAbuseReportReasonsListToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def _api_key_auth_context(api_key: str | None) -> AuthContext:

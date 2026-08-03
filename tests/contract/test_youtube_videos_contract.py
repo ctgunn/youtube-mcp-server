@@ -30,6 +30,7 @@ from mcp_server.tools.youtube_common.videos import (
     VIDEOS_RATE_TOOL_NAME,
     VIDEOS_RATE_USAGE_NOTES,
     VideosDeleteToolError,
+    build_videos_insert_tool_descriptor,
     VideosGetRatingToolError,
     VideosRateToolError,
     build_videos_delete_contract,
@@ -1220,3 +1221,35 @@ def test_videos_delete_maps_quota_failures_without_secret_details():
     assert exc_info.value.details == {"field": "quota"}
     assert "secret" not in str(exc_info.value)
     assert "Bearer" not in str(exc_info.value.details)
+
+
+def test_videos_list_configured_dependencies_preserve_public_contract():
+    """Keep public video metadata credential-free after runtime injection."""
+    descriptor = build_videos_list_tool_descriptor(
+        executor=object(),
+        api_key="configured-api-key",
+        oauth_token="configured-oauth-token",
+    )
+
+    assert descriptor["name"] == "videos_list"
+    assert descriptor["metadata"]["authMode"] == "mixed/conditional"
+    assert "configured-api-key" not in str(descriptor)
+    assert "configured-oauth-token" not in str(descriptor)
+
+
+def test_configured_video_mutation_descriptors_preserve_oauth_contracts():
+    """Keep configured OAuth dependencies out of video mutation metadata.
+
+    :return: ``None`` after validating all selected mutation descriptors.
+    """
+    descriptors = (
+        build_videos_insert_tool_descriptor(executor=object(), oauth_token="configured-oauth-token"),
+        build_videos_update_tool_descriptor(executor=object(), oauth_token="configured-oauth-token"),
+        build_videos_rate_tool_descriptor(executor=object(), oauth_token="configured-oauth-token"),
+        build_videos_get_rating_tool_descriptor(executor=object(), oauth_token="configured-oauth-token"),
+        build_videos_report_abuse_tool_descriptor(executor=object(), oauth_token="configured-oauth-token"),
+        build_videos_delete_tool_descriptor(executor=object(), oauth_token="configured-oauth-token"),
+    )
+
+    assert all(descriptor["metadata"]["authMode"] == "oauth_required" for descriptor in descriptors)
+    assert "configured-oauth-token" not in str(descriptors)

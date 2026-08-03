@@ -65,3 +65,16 @@ def test_video_details_contract_documents_safe_failure_categories_without_secret
     assert "token" not in str(metadata).lower()
     assert "stack" not in str(metadata).lower()
     assert metadata["errorGuidance"]["quota_exhaustion"] == "Retry after capacity is available."
+
+
+def test_video_details_contract_retains_videos_list_dependency_without_representative_fallback():
+    """Keep the concrete detail contract tied to the lower-layer list tool.
+
+    :return: ``None`` after validating the concrete dependency boundary.
+    """
+    from mcp_server.tools.youtube_composed.videos import build_videos_get_video_tool_descriptor
+
+    metadata = build_videos_get_video_tool_descriptor()["metadata"]
+
+    assert metadata["lowerLayerDependencies"] == ["videos.list"]
+    assert "representativeOnly" not in metadata

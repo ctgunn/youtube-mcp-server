@@ -115,6 +115,271 @@ class Layer1LiveRuntimeIntegrationTests(unittest.TestCase):
             self.assertNotIn("eligible-caption-access", closure_values, tool_name)
             self.assertNotIn("authorized-comment-write", closure_values, tool_name)
 
+    def test_configured_runtime_is_injected_into_every_discovery_video_and_branding_descriptor(self):
+        """Inject configured live dependencies into every YT-160 descriptor.
+
+        :return: ``None`` after checking the configured dispatcher boundary.
+        """
+        runtime = build_configured_youtube_runtime(
+            load_youtube_live_runtime_settings(
+                {
+                    "YOUTUBE_API_KEY": "configured-api-key",
+                    "YOUTUBE_OAUTH_TOKEN": "configured-oauth-token",
+                }
+            )
+        )
+        dispatcher = InMemoryToolDispatcher(youtube_runtime=runtime)
+        scoped_tools = (
+            "search_list",
+            "subscriptions_list",
+            "subscriptions_insert",
+            "subscriptions_delete",
+            "thumbnails_set",
+            "videoAbuseReportReasons_list",
+            "videoCategories_list",
+            "videos_list",
+            "videos_insert",
+            "videos_update",
+            "videos_rate",
+            "videos_getRating",
+            "videos_reportAbuse",
+            "videos_delete",
+            "watermarks_set",
+            "watermarks_unset",
+        )
+
+        for tool_name in scoped_tools:
+            handler = dispatcher._tools[tool_name.lower()]["handler"]
+            closure_values = tuple(cell.cell_contents for cell in handler.__closure__ or ())
+            self.assertIn(runtime.executor, closure_values, tool_name)
+            self.assertNotIn("local-api-key", str(closure_values), tool_name)
+            self.assertNotIn("local-oauth-token", str(closure_values), tool_name)
+
+    def test_configured_app_routes_every_discovery_video_and_branding_operation_through_live_transport(self):
+        """Route every configured YT-160 operation through the live executor.
+
+        :return: ``None`` after checking request paths, credential placement,
+            methods, and distinctive controlled responses for all operations.
+        """
+        flows = (
+            ("search_list", {"part": "snippet", "q": "mcp server"}, "/youtube/v3/search", "api_key", "GET"),
+            ("subscriptions_list", {"part": "snippet", "channelId": "UC123"}, "/youtube/v3/subscriptions", "api_key", "GET"),
+            (
+                "subscriptions_insert",
+                {"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}},
+                "/youtube/v3/subscriptions",
+                "oauth",
+                "POST",
+            ),
+            ("subscriptions_delete", {"id": "subscription-123"}, "/youtube/v3/subscriptions", "oauth", "DELETE"),
+            (
+                "thumbnails_set",
+                {"videoId": "video-123", "media": {"mimeType": "image/png", "content": "image-content"}},
+                "/youtube/v3/thumbnails/set",
+                "oauth",
+                "POST",
+            ),
+            (
+                "videoAbuseReportReasons_list",
+                {"part": "snippet", "hl": "en"},
+                "/youtube/v3/videoAbuseReportReasons",
+                "api_key",
+                "GET",
+            ),
+            (
+                "videoCategories_list",
+                {"part": "snippet", "regionCode": "US"},
+                "/youtube/v3/videoCategories",
+                "api_key",
+                "GET",
+            ),
+            ("videos_list", {"part": "snippet", "id": "video-123"}, "/youtube/v3/videos", "api_key", "GET"),
+            (
+                "videos_insert",
+                {
+                    "part": "snippet",
+                    "body": {"snippet": {"title": "Live upload"}},
+                    "media": {"mimeType": "video/mp4", "content": "video-content"},
+                },
+                "/youtube/v3/videos",
+                "oauth",
+                "POST",
+            ),
+            (
+                "videos_update",
+                {"part": "snippet", "body": {"id": "video-123", "snippet": {"title": "Updated title"}}},
+                "/youtube/v3/videos",
+                "oauth",
+                "PUT",
+            ),
+            ("videos_rate", {"id": "video-123", "rating": "like"}, "/youtube/v3/videos/rate", "oauth", "POST"),
+            ("videos_getRating", {"id": "video-123"}, "/youtube/v3/videos/getRating", "oauth", "GET"),
+            (
+                "videos_reportAbuse",
+                {"body": {"videoId": "video-123", "reasonId": "VIOLENCE"}},
+                "/youtube/v3/videos/reportAbuse",
+                "oauth",
+                "POST",
+            ),
+            ("videos_delete", {"id": "video-123"}, "/youtube/v3/videos", "oauth", "DELETE"),
+            (
+                "watermarks_set",
+                {
+                    "channelId": "UC123",
+                    "body": {
+                        "timing": {"type": "offsetFromStart", "offsetMs": 0},
+                        "position": {"type": "corner", "cornerPosition": "topRight"},
+                        "targetChannelId": "UC-target",
+                    },
+                    "media": {"mimeType": "image/png", "content": "watermark-content"},
+                },
+                "/upload/youtube/v3/watermarks/set",
+                "oauth",
+                "POST",
+            ),
+            ("watermarks_unset", {"channelId": "UC123"}, "/youtube/v3/watermarks/unset", "oauth", "POST"),
+        )
+
+        for tool_name, arguments, expected_path, credential_mode, expected_method in flows:
+            captured = []
+            transport = create_app(
+                env={
+                    "MCP_ENVIRONMENT": "dev",
+                    "YOUTUBE_API_KEY": "configured-api-key",
+                    "YOUTUBE_OAUTH_TOKEN": "configured-oauth-token",
+                },
+                youtube_opener=lambda request, timeout: captured.append((request, timeout))
+                or _FakeHTTPResponse({"items": [{"id": f"live-{tool_name}"}]}),
+            )
+
+            result = transport.dispatcher.call_tool(tool_name, arguments)
+
+            self.assertEqual(len(captured), 1, tool_name)
+            request = captured[0][0]
+            self.assertIn(expected_path, request.full_url, tool_name)
+            self.assertEqual(request.method, expected_method, tool_name)
+            if credential_mode == "api_key":
+                self.assertIn("key=configured-api-key", request.full_url, tool_name)
+                self.assertIsNone(request.headers.get("Authorization"), tool_name)
+            else:
+                self.assertEqual(request.headers.get("Authorization"), "Bearer configured-oauth-token", tool_name)
+                self.assertNotIn("key=", request.full_url, tool_name)
+            self.assertNotIn("representative", str(result).lower(), tool_name)
+
+    def test_configured_videos_get_video_routes_through_live_videos_list(self):
+        """Route configured video details through the live lower-level lookup.
+
+        :return: ``None`` after verifying no local-default detail lookup is used.
+        """
+        captured = []
+        transport = create_app(
+            env={"MCP_ENVIRONMENT": "dev", "YOUTUBE_API_KEY": "configured-api-key"},
+            youtube_opener=lambda request, timeout: captured.append((request, timeout))
+            or _FakeHTTPResponse(
+                {"items": [{"id": "video-123", "snippet": {"title": "Live detail"}, "statistics": {}}]}
+            ),
+        )
+
+        result = transport.dispatcher.call_tool("videos_getVideo", {"videoId": "video-123"})
+
+        self.assertEqual(len(captured), 1)
+        self.assertIn("/youtube/v3/videos", captured[0][0].full_url)
+        self.assertIn("key=configured-api-key", captured[0][0].full_url)
+        self.assertEqual(result["videoId"], "video-123")
+        self.assertEqual(result["title"], "Live detail")
+        self.assertNotIn("representative", str(result).lower())
+
+    def test_configured_discovery_video_and_branding_failures_are_normalized_without_fallback(self):
+        """Map one controlled live failure for every YT-160 operation.
+
+        :return: ``None`` after confirming normalized, credential-free failures.
+        """
+        flows = (
+            ("search_list", {"part": "snippet", "q": "mcp server"}),
+            ("subscriptions_list", {"part": "snippet", "channelId": "UC123"}),
+            ("subscriptions_insert", {"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}}),
+            ("subscriptions_delete", {"id": "subscription-123"}),
+            ("thumbnails_set", {"videoId": "video-123", "media": {"mimeType": "image/png", "content": "image-content"}}),
+            ("videoAbuseReportReasons_list", {"part": "snippet", "hl": "en"}),
+            ("videoCategories_list", {"part": "snippet", "regionCode": "US"}),
+            ("videos_list", {"part": "snippet", "id": "video-123"}),
+            ("videos_insert", {"part": "snippet", "body": {"snippet": {"title": "Live upload"}}, "media": {"mimeType": "video/mp4", "content": "video-content"}}),
+            ("videos_update", {"part": "snippet", "body": {"id": "video-123", "snippet": {"title": "Updated title"}}}),
+            ("videos_rate", {"id": "video-123", "rating": "like"}),
+            ("videos_getRating", {"id": "video-123"}),
+            ("videos_reportAbuse", {"body": {"videoId": "video-123", "reasonId": "VIOLENCE"}}),
+            ("videos_delete", {"id": "video-123"}),
+            ("watermarks_set", {"channelId": "UC123", "body": {"timing": {"type": "offsetFromStart", "offsetMs": 0}, "position": {"type": "corner", "cornerPosition": "topRight"}, "targetChannelId": "UC-target"}, "media": {"mimeType": "image/png", "content": "watermark-content"}}),
+            ("watermarks_unset", {"channelId": "UC123"}),
+        )
+
+        for tool_name, arguments in flows:
+            captured = []
+            transport = create_app(
+                env={
+                    "MCP_ENVIRONMENT": "dev",
+                    "YOUTUBE_API_KEY": "configured-api-key",
+                    "YOUTUBE_OAUTH_TOKEN": "configured-oauth-token",
+                },
+                youtube_opener=lambda request, timeout: captured.append((request, timeout))
+                or (_ for _ in ()).throw(
+                    HTTPError(
+                        url=request.full_url,
+                        code=403,
+                        msg="Forbidden",
+                        hdrs=None,
+                        fp=BytesIO(b'{"error":{"message":"configured-api-key and configured-oauth-token must remain secret"}}'),
+                    )
+                ),
+            )
+
+            with self.assertRaises(ValueError) as exc_info:
+                transport.dispatcher.call_tool(tool_name, arguments)
+
+            self.assertTrue(exc_info.exception.category, tool_name)
+            self.assertGreaterEqual(len(captured), 1, tool_name)
+            self.assertNotIn("representative", str(exc_info.exception).lower(), tool_name)
+            self.assertNotIn("configured-api-key", str(exc_info.exception), tool_name)
+            self.assertNotIn("configured-oauth-token", str(exc_info.exception), tool_name)
+
+    def test_missing_configured_discovery_video_and_branding_credentials_fail_per_call(self):
+        """Reject every selected YT-160 credential path before network use.
+
+        :return: ``None`` after checking safe per-call configuration failures.
+        """
+        flows = (
+            ("search_list", {"part": "snippet", "q": "mcp server"}),
+            ("subscriptions_list", {"part": "snippet", "channelId": "UC123"}),
+            ("subscriptions_insert", {"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}}),
+            ("subscriptions_delete", {"id": "subscription-123"}),
+            ("thumbnails_set", {"videoId": "video-123", "media": {"mimeType": "image/png", "content": "image-content"}}),
+            ("videoAbuseReportReasons_list", {"part": "snippet", "hl": "en"}),
+            ("videoCategories_list", {"part": "snippet", "regionCode": "US"}),
+            ("videos_list", {"part": "snippet", "id": "video-123"}),
+            ("videos_insert", {"part": "snippet", "body": {"snippet": {"title": "Live upload"}}, "media": {"mimeType": "video/mp4", "content": "video-content"}}),
+            ("videos_update", {"part": "snippet", "body": {"id": "video-123", "snippet": {"title": "Updated title"}}}),
+            ("videos_rate", {"id": "video-123", "rating": "like"}),
+            ("videos_getRating", {"id": "video-123"}),
+            ("videos_reportAbuse", {"body": {"videoId": "video-123", "reasonId": "VIOLENCE"}}),
+            ("videos_delete", {"id": "video-123"}),
+            ("watermarks_set", {"channelId": "UC123", "body": {"timing": {"type": "offsetFromStart", "offsetMs": 0}, "position": {"type": "corner", "cornerPosition": "topRight"}, "targetChannelId": "UC-target"}, "media": {"mimeType": "image/png", "content": "watermark-content"}}),
+            ("watermarks_unset", {"channelId": "UC123"}),
+        )
+
+        for tool_name, arguments in flows:
+            captured = []
+            transport = create_app(
+                env={"MCP_ENVIRONMENT": "dev"},
+                youtube_opener=lambda request, timeout: captured.append((request, timeout)),
+            )
+
+            with self.assertRaises(ValueError) as exc_info:
+                transport.dispatcher.call_tool(tool_name, arguments)
+
+            self.assertTrue(exc_info.exception.category, tool_name)
+            self.assertEqual(captured, [], tool_name)
+            self.assertNotIn("representative", str(exc_info.exception).lower(), tool_name)
+
     def test_configured_app_routes_activities_through_live_transport(self):
         captured = []
         transport = create_app(

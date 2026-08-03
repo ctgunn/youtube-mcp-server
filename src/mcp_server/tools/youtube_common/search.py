@@ -11,7 +11,7 @@ from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.search import build_search_list_wrapper
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, safe_upstream_error_message, sanitize_error_details
 
 
 SEARCH_LIST_TOOL_NAME = "search_list"
@@ -489,7 +489,7 @@ def _map_search_list_upstream_error(error: NormalizedUpstreamError) -> SearchLis
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return SearchListToolError(str(error), category=category, details=error.details or {})
+    return SearchListToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def build_search_list_contract() -> YouTubeToolContract:
