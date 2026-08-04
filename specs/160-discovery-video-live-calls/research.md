@@ -4,7 +4,7 @@
 
 **Decision**: Pass the existing YT-157 `ConfiguredYouTubeRuntime` executor and the applicable configured credentials from `InMemoryToolDispatcher` to every in-scope descriptor.
 
-**Rationale**: Application composition and the HTTP transport already construct this runtime, which contains the concrete authenticated YouTube transport, configured timeout, shared retries, error normalization, and safe observability hooks. The dispatcher already uses conditional, API-key, and OAuth dependency groups for earlier resource-family retrofits. The 16 YT-160 descriptors are currently the unconnected group.
+**Rationale**: Application composition and the HTTP transport already construct this runtime, which contains the concrete authenticated YouTube transport, configured timeout, shared retries, error normalization, and safe observability hooks. The dispatcher uses conditional, API-key, and OAuth dependency groups for all YouTube Data API-backed descriptors; the original 16 YT-160 descriptors remain the regression subset for this retrofit.
 
 **Alternatives considered**:
 
@@ -48,21 +48,21 @@
 - Change the detail tool's public request or result contract: rejected because no public contract change is required.
 - Leave the default lookup unmodified: rejected because it leaves a configured public flow representative-backed.
 
-## Decision 5: Preserve current shared media behavior; do not add a resumable protocol
+## Decision 5: Extend the shared transport with Google upload protocols
 
-**Decision**: Test the existing shared request behavior for thumbnail, video, and watermark media inputs. Retain `videos.insert` upload-mode validation and metadata, but do not add a resumable-session protocol in this wiring retrofit.
+**Decision**: Keep all media behavior in the shared transport. Direct raw-media requests use `/upload/youtube/v3/...` with `uploadType=media`; metadata-plus-media uses `uploadType=multipart`; and `videos.insert` with `uploadMode=resumable` creates and uses a resumable Google upload session.
 
-**Rationale**: The feature requires shared upload execution and forbids resource-specific clients. The common transport already builds the established raw-media and multipart payloads from validated inputs. A resumable-session protocol is a distinct transport capability, not required to connect configured defaults to the runtime.
+**Rationale**: Google treats media uploads as a distinct transport protocol. Implementing it once in the shared transport preserves wrapper contracts and avoids resource-family HTTP clients while making every advertised upload form conform to the Data API protocol.
 
 **Alternatives considered**:
 
-- Add video-family resumable logic: rejected because it would be a second transport path and expands feature scope.
-- Remove the accepted upload-mode value: rejected because it changes the existing public contract.
-- Skip media request coverage: rejected because the seed requires request-form proof for media-bearing methods.
+- Keep `uploadMode=resumable` as a query parameter: rejected because it does not create a resumable session and falsely advertises support.
+- Remove `uploadMode=resumable`: rejected because the shared transport can implement the protocol without a public contract regression.
+- Add video-family upload logic: rejected because it would duplicate credential, error, retry, and redaction behavior.
 
 ## Decision 6: Prove configured live behavior with controlled openers
 
-**Decision**: Use configured runtime settings plus a controlled opener to capture generated requests and return distinctive test responses or normalized upstream failures. Cover all 16 operations and the three named public-tool flows.
+**Decision**: Use configured runtime settings plus a controlled opener to capture generated requests and return distinctive test responses or normalized upstream failures. Preserve the 16-operation and three-public-flow regression matrix, then add focused transport tests for OAuth renewal, Google upload routing, resumable chunks/recovery, and retry safety.
 
 **Rationale**: This proves composition, request shape, credential mode, result mapping, error mapping, retry behavior, and redaction deterministically without external network calls, quota usage, account-state dependencies, or secrets in continuous integration.
 
@@ -72,7 +72,24 @@
 - Test descriptor metadata alone: rejected because it cannot prove runtime selection or request construction.
 - Test only the common transport: rejected because it misses the dispatcher and composed-tool gaps that select representative defaults.
 
-## Decision 7: Retain explicit test and local overrides only
+## Decision 7: Support renewable OAuth without widening the credential boundary
+
+**Decision**: Accept either a static OAuth access token or a complete refresh-token credential set. The runtime refreshes and caches access tokens in memory, while all long-lived credentials remain operator-managed secrets.
+
+**Rationale**: A static token cannot sustain owner and mutation operations in a hosted deployment. Refresh support keeps secret ownership outside tools and responses while avoiding an external credential store.
+
+**Alternatives considered**:
+
+- Require only static tokens: rejected because expiry would make hosted operation unreliable.
+- Persist access or refresh tokens in application storage: rejected because YT-160 requires environment/secret-backed credentials and no persistent credential store.
+
+## Decision 8: Limit automatic retries to idempotent requests
+
+**Decision**: Use bounded exponential backoff only for `GET`, `HEAD`, `PUT`, and `DELETE`; do not retry POST mutations automatically.
+
+**Rationale**: A transport error after a POST can occur after YouTube has already applied a mutation. Conservatively avoiding replay prevents duplicate user-visible side effects.
+
+## Decision 9: Retain explicit test and local overrides only
 
 **Decision**: Preserve optional wrapper, executor, opener, API-key, OAuth-token, and composed lookup injection for isolated tests and deliberate local development, but never select them implicitly in configured public composition.
 
@@ -86,4 +103,4 @@
 
 ## Resolved Questions
 
-All research questions are resolved. Existing YT-157 runtime configuration, shared execution, authorization rules, request forms, error normalization, observability, and test seams define all choices required for YT-160.
+All research questions are resolved. YT-160 now owns the shared live-execution completion gate: configured runtime composition, safe credential lifecycle, Google upload protocols, method-safe retry behavior, readiness capability reporting, deterministic protocol tests, and an operator-gated real smoke check.

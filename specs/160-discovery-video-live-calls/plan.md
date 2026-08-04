@@ -5,7 +5,7 @@
 
 ## Summary
 
-Retrofit 16 existing discovery, subscription, video, and branding Layer 1 operations so a normal configured public-tool invocation reaches the YT-157 shared live runtime rather than a family-local representative executor. Extend the existing application → HTTP transport → dispatcher dependency-injection seam to the seven affected families, and inject the same configured low-level video lookup into the higher-level `videos_getVideo` flow. Preserve public MCP schemas and metadata, wrapper contracts, validation, quota disclosures, authorization selection, response normalizers, safe error mapping, retry behavior, and observability. Explicit fake executors, credentials, and controlled openers remain test or deliberate local-development dependencies only.
+Retrofit the original 16 discovery, subscription, video, and branding configured-default operations so a normal public-tool invocation reaches the shared live runtime rather than a family-local representative executor. YT-160 is also the shared live-execution completion owner for every YouTube Data API-backed tool: capability readiness, renewable OAuth, Google media upload protocol, resumable video upload, method-safe retry, and operator-gated real verification. Preserve public MCP schemas and metadata, wrapper contracts, validation, quota disclosures, authorization selection, response normalizers, safe error mapping, and observability. Explicit fake executors, credentials, and controlled openers remain test or deliberate local-development dependencies only.
 
 ## Technical Context
 
@@ -16,9 +16,9 @@ Retrofit 16 existing discovery, subscription, video, and branding Layer 1 operat
 **Documentation Style**: reStructuredText docstrings for every new or changed Python function; feature-local Markdown contract documentation  
 **Target Platform**: Local macOS/Linux development and the existing hosted Linux MCP service  
 **Project Type**: Python MCP web service with internal Layer 1 YouTube integrations and public Layer 2 and Layer 3 tools  
-**Performance Goals**: Preserve the shared runtime's existing 10-second per-attempt timeout and three-attempt maximum; add no endpoint-specific persistence, concurrency, or retry policy  
-**Constraints**: All 16 configured default operations must use the shared live executor; `videos_getVideo` must delegate to the configured live `videos.list` handler; no configured-path fallback may return representative data; API keys, OAuth tokens, bearer headers, credential-bearing URLs, raw request bodies, and media must not appear in logs, errors, MCP results, documentation examples, or test evidence; existing MCP schemas, metadata, wrapper contracts, normalizers, and safe error categories remain compatible; every changed Python function requires a reStructuredText docstring  
-**Scale/Scope**: Seven resource families and 16 operations: search (1), subscriptions (3), thumbnails (1), video abuse-report reasons (1), video categories (1), videos (7), and watermarks (2); no new endpoint inventory or public MCP tools
+**Performance Goals**: Preserve the configured per-attempt timeout; use bounded exponential backoff only for idempotent retries; transfer resumable video uploads in configurable 256 KiB-aligned chunks
+**Constraints**: All configured default YouTube Data API operations must use the shared live executor; the original 16 operations remain the request-level regression matrix; `videos_getVideo` must delegate to the configured live `videos.list` handler; no configured-path fallback may return representative data; API keys, OAuth tokens, bearer headers, credential-bearing URLs, raw request bodies, media, and opaque resumable session URLs must not appear in logs, errors, MCP results, documentation examples, or test evidence; existing MCP schemas, metadata, wrapper contracts, normalizers, and safe error categories remain compatible; every changed Python function requires a reStructuredText docstring
+**Scale/Scope**: Shared execution capability for all YouTube Data API-backed tools, with the original seven-family/16-operation set retained for configured-default regression coverage; no new public tool inventory or persistent credential store
 
 ## Constitution Check
 
@@ -39,7 +39,7 @@ Gate rationale:
 - [layer1-discovery-video-branding-live-call-contract.md](/Users/ctgunn/Projects/youtube-mcp-server/specs/160-discovery-video-live-calls/contracts/layer1-discovery-video-branding-live-call-contract.md) defines the configured default-execution boundary and preserves public MCP contracts, Layer 1 contracts, and error categories.
 - Every implementation grouping begins with failing characterization tests, adds only dependency injection or a narrowly scoped composed lookup injection, then performs behavior-preserving cleanup. Final verification from `/Users/ctgunn/Projects/youtube-mcp-server` is `python3 -m pytest` followed by `python3 -m ruff check .`.
 - Any changed Python builder, handler, helper, or dispatcher function must retain or gain a reStructuredText docstring with `:param:`, `:return:`, `:raises:` where applicable, and side-effect documentation. No docstring or test fixture may contain a real credential.
-- The design reuses `ConfiguredYouTubeRuntime`, `IntegrationExecutor`, the concrete YouTube transport, response normalizers, error mapper, retry policy, and observability hooks. It adds no second client, endpoint-specific transport, storage, MCP route, public tool, or secret source.
+- The design reuses `ConfiguredYouTubeRuntime`, `IntegrationExecutor`, the concrete YouTube transport, response normalizers, error mapper, retry policy, and observability hooks. It adds shared OAuth refresh and Google upload protocol support, but no second client, resource-family transport, storage, MCP route, public tool, or persistent secret source.
 
 ## Project Structure
 

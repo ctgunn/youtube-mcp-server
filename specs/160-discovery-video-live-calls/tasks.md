@@ -5,7 +5,7 @@
 
 **Tests**: Test tasks are mandatory. Every changed Python function requires a reStructuredText docstring with purpose, parameters, return value, relevant raised errors, and side effects. Completion requires `python3 -m pytest` and `python3 -m ruff check .` to pass from `/Users/ctgunn/Projects/youtube-mcp-server` after the final code change.
 
-**Organization**: Tasks are grouped by independently testable user story. Existing shared runtime, transport, normalizers, retries, and observability are reused; no new endpoint, client, public schema, or storage is introduced.
+**Organization**: Tasks are grouped by independently testable user story. Existing shared runtime, transport, normalizers, retries, and observability are reused. YT-160 completion work adds shared OAuth refresh and Google upload protocol behavior without a new public tool, resource-family client, or persistent credential store.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
@@ -111,6 +111,20 @@
 
 ---
 
+## Phase 7: Live Execution Completion Gate
+
+**Purpose**: Close the cross-cutting runtime gaps identified after the original 16-operation wiring retrofit, while retaining deterministic verification and safe credential handling.
+
+- [X] T025 Add safe API-key/OAuth capability readiness reporting in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/config.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/health.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/transport/http.py` with unit and integration coverage.
+- [X] T026 Add static-or-refreshable OAuth credential support, in-memory access-token caching, and safe refresh failure behavior in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/oauth.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/runtime.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_oauth.py`.
+- [X] T027 Route direct media requests through Google's `/upload/youtube/v3/...` endpoint with `uploadType=media` or `uploadType=multipart` in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/youtube.py` and prove all supported media forms in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_transport.py`.
+- [X] T028 Implement and test `videos.insert` resumable-session initialization, bounded 256 KiB-aligned chunk transfer, `308` progression, and committed-range recovery in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/youtube.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_transport.py`.
+- [X] T029 Add bounded exponential backoff for idempotent methods and prohibit automatic POST mutation replay in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/retry.py`, `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/executor.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_youtube_transport.py`.
+- [X] T030 Add the opt-in read-only real API smoke command and pytest guard in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_youtube_live.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_youtube_live_smoke.py`, and document static/renewable OAuth setup in `/Users/ctgunn/Projects/youtube-mcp-server/.env.example` and `/Users/ctgunn/Projects/youtube-mcp-server/README.md`.
+- [X] T031 Update all YT-160 Markdown artifacts for the final shared live-execution scope and run `python3 -m pytest`, `python3 -m ruff check .`, and `git diff --check` from `/Users/ctgunn/Projects/youtube-mcp-server`.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -181,6 +195,6 @@ Task: "T015 Add composed-video contract and registration coverage in /Users/ctgu
 
 ### Task Format Validation
 
-- All 24 tasks use the required `- [ ] T### [P?] [US#?] Description with absolute path` checklist format.
+- All 31 tasks use the required `- [ ] T### [P?] [US#?] Description with absolute path` checklist format.
 - Every user-story task carries exactly one story label; Setup, Foundational, and Polish tasks carry no story label.
 - `[P]` appears only on tasks that modify different files from their concurrently runnable companion task.
