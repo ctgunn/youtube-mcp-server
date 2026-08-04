@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from time import perf_counter
+from time import perf_counter, sleep
 from typing import Any, Callable
 
 from mcp_server.integrations.auth import AuthContext
@@ -55,16 +55,19 @@ class IntegrationExecutor:
         transport: Callable[[RequestExecution], dict[str, Any]],
         retry_policy: RetryPolicy,
         hooks: IntegrationHooks | None = None,
+        sleeper: Callable[[float], None] = sleep,
     ) -> None:
         """Initialize the shared executor.
 
         :param transport: Callable that performs the actual upstream work.
         :param retry_policy: Retry behavior for failures.
         :param hooks: Optional request, response, and error hooks.
+        :param sleeper: Delay function used between permitted retries.
         """
         self._transport = transport
         self._retry_policy = retry_policy
         self._hooks = hooks or IntegrationHooks()
+        self._sleeper = sleeper
 
     def execute(self, execution: RequestExecution) -> dict[str, Any]:
         """Execute one request through the shared transport and retry policy.
@@ -83,19 +86,47 @@ class IntegrationExecutor:
             except NormalizedUpstreamError as error:
                 if self._hooks.on_error is not None:
                     self._hooks.on_error(execution, error)
-                if self._retry_policy.should_retry(error, attempt_number):
+                if self._should_retry(error, execution, attempt_number):
+                    self._sleep_before_retry(attempt_number)
                     continue
                 raise
             except Exception as error:  # pragma: no cover - exercised in integration tests
                 normalized = normalize_upstream_error(error)
                 if self._hooks.on_error is not None:
                     self._hooks.on_error(execution, normalized)
-                if self._retry_policy.should_retry(normalized, attempt_number):
+                if self._should_retry(normalized, execution, attempt_number):
+                    self._sleep_before_retry(attempt_number)
                     continue
                 raise normalized
             if self._hooks.on_response is not None:
                 self._hooks.on_response(execution, response)
             return response
+
+    def _should_retry(
+        self,
+        error: NormalizedUpstreamError,
+        execution: RequestExecution,
+        attempt_number: int,
+    ) -> bool:
+        """Return whether a failed execution may be retried safely.
+
+        :param error: Normalized error from the failed attempt.
+        :param execution: Request execution that failed.
+        :param attempt_number: One-based failed attempt number.
+        :return: Whether a retry is permitted.
+        """
+        return self._retry_policy.should_retry(
+            error,
+            attempt_number,
+            http_method=execution.metadata.http_method,
+        )
+
+    def _sleep_before_retry(self, attempt_number: int) -> None:
+        """Wait for the policy-defined backoff before retrying a request.
+
+        :param attempt_number: One-based failed attempt number.
+        """
+        self._sleeper(self._retry_policy.backoff_seconds(attempt_number))
 
 
 def build_observability_hooks(

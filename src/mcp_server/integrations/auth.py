@@ -66,7 +66,7 @@ class AuthContext:
         if self.credentials.api_key:
             payload["apiKey"] = self.credentials.api_key
         if self.credentials.oauth_token:
-            payload["oauthToken"] = self.credentials.oauth_token
+            payload["oauthToken"] = str(self.credentials.oauth_token)
         if self.conditional_reason:
             payload["conditionalReason"] = self.conditional_reason
         return payload

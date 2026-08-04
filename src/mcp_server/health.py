@@ -87,6 +87,7 @@ def readiness_payload(
     lifecycle: RuntimeLifecycleState | None = None,
     secret_access: dict | None = None,
     session_durability: dict | None = None,
+    youtube_capability: dict[str, str] | None = None,
 ) -> dict:
     """Build the readiness payload for hosted probes.
 
@@ -94,21 +95,33 @@ def readiness_payload(
     :param lifecycle: Optional lifecycle state tracking runtime readiness.
     :param secret_access: Optional secret-access readiness details.
     :param session_durability: Optional durable-session readiness details.
+    :param youtube_capability: Optional credential-free YouTube capability state.
     :return: Structured readiness response.
     """
     lifecycle_state = lifecycle.state if lifecycle is not None else ("ready" if validation.is_valid else "degraded")
     secret_ok = True if secret_access is None else bool(secret_access.get("available", validation.is_valid))
     session_ok = True if session_durability is None else bool(session_durability.get("available", True))
+    youtube_capability_state = dict(youtube_capability or {})
+    youtube_check = (
+        "pass"
+        if not youtube_capability_state
+        or all(value == "available" for value in youtube_capability_state.values())
+        else "partial"
+    )
     if validation.is_valid and lifecycle_state == "ready" and secret_ok and session_ok:
-        return {
+        payload = {
             "status": "ready",
             "checks": {
                 "configuration": "pass",
                 "secrets": "pass",
                 "runtime": "pass",
                 "sessionDurability": "pass" if session_ok else "fail",
+                "youtubeCapabilities": youtube_check,
             },
         }
+        if youtube_capability_state:
+            payload["capabilities"] = {"youtube": youtube_capability_state}
+        return payload
     reason = lifecycle.degraded_reason if lifecycle and lifecycle.degraded_reason else {
         "code": "CONFIG_VALIDATION_ERROR",
         "message": "Required configuration is invalid or incomplete.",
@@ -123,13 +136,17 @@ def readiness_payload(
             "code": "SESSION_DURABILITY_UNAVAILABLE",
             "message": "Durable hosted sessions are not available.",
         }
-    return {
+    payload = {
         "status": "not_ready",
         "checks": {
             "configuration": "pass" if validation.is_valid else "fail",
             "secrets": "pass" if secret_ok else "fail",
             "runtime": "pass" if lifecycle_state == "ready" else "fail",
             "sessionDurability": "pass" if session_ok else "fail",
+            "youtubeCapabilities": youtube_check,
         },
         "reason": reason,
     }
+    if youtube_capability_state:
+        payload["capabilities"] = {"youtube": youtube_capability_state}
+    return payload

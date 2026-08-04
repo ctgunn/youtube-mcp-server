@@ -8,6 +8,7 @@ from typing import Any, Callable
 from mcp_server.config import YouTubeLiveRuntimeSettings
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.executor import IntegrationExecutor, build_observability_hooks
+from mcp_server.integrations.oauth import OAuthCredentialProvider, RenewableOAuthToken, build_oauth_credential_provider
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.youtube import build_youtube_data_api_executor
 from mcp_server.observability import InMemoryObservability
@@ -45,6 +46,7 @@ class ConfiguredYouTubeRuntime:
     settings: YouTubeLiveRuntimeSettings
     executor: IntegrationExecutor
     retry_policy: RetryPolicy
+    oauth_provider: OAuthCredentialProvider
 
     @property
     def timeout_seconds(self) -> float:
@@ -53,6 +55,16 @@ class ConfiguredYouTubeRuntime:
         :return: Timeout applied to each upstream request attempt.
         """
         return self.settings.timeout_seconds
+
+    @property
+    def oauth_token(self) -> RenewableOAuthToken | None:
+        """Return a token-compatible adapter that renews OAuth access on demand.
+
+        :return: String-compatible adapter, or ``None`` when OAuth is unavailable.
+        """
+        if not self.oauth_provider.is_configured:
+            return None
+        return RenewableOAuthToken(self.oauth_provider)
 
     def auth_context_for(self, mode: AuthMode) -> AuthContext:
         """Return the configured credential context for a resolved auth mode.
@@ -73,7 +85,7 @@ class ConfiguredYouTubeRuntime:
                 credentials=CredentialBundle(api_key=self.settings.api_key),
             )
         if mode is AuthMode.OAUTH_REQUIRED:
-            if self.settings.oauth_token is None:
+            if not self.oauth_provider.is_configured:
                 raise LiveRuntimeConfigurationError(
                     "YouTube OAuth access is not configured.",
                     category="authorization_failed",
@@ -81,7 +93,7 @@ class ConfiguredYouTubeRuntime:
                 )
             return AuthContext(
                 mode=AuthMode.OAUTH_REQUIRED,
-                credentials=CredentialBundle(oauth_token=self.settings.oauth_token),
+                credentials=CredentialBundle(oauth_token=self.oauth_token),
             )
         raise LiveRuntimeConfigurationError(
             "A conditional YouTube operation must resolve its authorization mode before execution.",
@@ -96,6 +108,7 @@ def build_configured_youtube_runtime(
     observability: InMemoryObservability | None = None,
     request_id: str = "layer1-live-runtime",
     opener: Callable[..., Any] | None = None,
+    oauth_opener: Callable[..., Any] | None = None,
 ) -> ConfiguredYouTubeRuntime:
     """Build the configured shared executor for live YouTube requests.
 
@@ -103,6 +116,7 @@ def build_configured_youtube_runtime(
     :param observability: Optional sink for safe integration lifecycle events.
     :param request_id: Correlation identifier attached to lifecycle events.
     :param opener: Optional controlled opener for isolated tests or local development.
+    :param oauth_opener: Optional controlled opener for OAuth refresh tests.
     :return: Configured runtime with a concrete YouTube transport executor.
     """
     retry_policy = RetryPolicy(max_attempts=settings.max_attempts)
@@ -113,4 +127,17 @@ def build_configured_youtube_runtime(
         retry_policy=retry_policy,
         hooks=hooks,
     )
-    return ConfiguredYouTubeRuntime(settings=settings, executor=executor, retry_policy=retry_policy)
+    oauth_provider = build_oauth_credential_provider(
+        oauth_token=settings.oauth_token,
+        refresh_token=settings.oauth_refresh_token,
+        client_id=settings.oauth_client_id,
+        client_secret=settings.oauth_client_secret,
+        opener=oauth_opener,
+        timeout_seconds=settings.timeout_seconds,
+    )
+    return ConfiguredYouTubeRuntime(
+        settings=settings,
+        executor=executor,
+        retry_policy=retry_policy,
+        oauth_provider=oauth_provider,
+    )

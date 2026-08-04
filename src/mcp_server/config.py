@@ -72,6 +72,9 @@ class YouTubeLiveRuntimeSettings:
 
     api_key: str | None
     oauth_token: str | None
+    oauth_refresh_token: str | None = None
+    oauth_client_id: str | None = None
+    oauth_client_secret: str | None = None
     timeout_seconds: float = 10.0
     max_attempts: int = 3
 
@@ -85,11 +88,19 @@ class YouTubeLiveRuntimeSettings:
 
     @property
     def has_oauth_token(self) -> bool:
-        """Return whether a nonblank OAuth credential is available.
+        """Return whether a static or renewable OAuth credential is available.
 
         :return: ``True`` when OAuth-required access can be selected.
         """
-        return self.oauth_token is not None
+        return self.oauth_token is not None or self.has_oauth_refresh_configuration
+
+    @property
+    def has_oauth_refresh_configuration(self) -> bool:
+        """Return whether a complete Google OAuth refresh grant is configured.
+
+        :return: ``True`` when the runtime can renew an expiring access token.
+        """
+        return all((self.oauth_refresh_token, self.oauth_client_id, self.oauth_client_secret))
 
     def safe_details(self) -> dict[str, object]:
         """Return a credential-free description of available runtime settings.
@@ -99,6 +110,7 @@ class YouTubeLiveRuntimeSettings:
         return {
             "apiKeyConfigured": self.has_api_key,
             "oauthTokenConfigured": self.has_oauth_token,
+            "oauthLifecycle": "refreshable" if self.has_oauth_refresh_configuration else ("static" if self.oauth_token else "notConfigured"),
             "timeoutSeconds": self.timeout_seconds,
             "maxAttempts": self.max_attempts,
         }
@@ -116,7 +128,25 @@ def load_youtube_live_runtime_settings(env: Mapping[str, str]) -> YouTubeLiveRun
     return YouTubeLiveRuntimeSettings(
         api_key=_optional_secret(env.get("YOUTUBE_API_KEY")),
         oauth_token=_optional_secret(env.get("YOUTUBE_OAUTH_TOKEN")),
+        oauth_refresh_token=_optional_secret(env.get("YOUTUBE_OAUTH_REFRESH_TOKEN")),
+        oauth_client_id=_optional_secret(env.get("YOUTUBE_OAUTH_CLIENT_ID")),
+        oauth_client_secret=_optional_secret(env.get("YOUTUBE_OAUTH_CLIENT_SECRET")),
     )
+
+
+def youtube_capability_readiness(settings: YouTubeLiveRuntimeSettings) -> dict[str, str]:
+    """Describe configured YouTube capability without exposing credentials.
+
+    :param settings: Normalized live-execution settings for the runtime.
+    :return: Stable API-key and OAuth capability states for readiness reporting.
+    """
+    return {
+        "apiKeyRead": "available" if settings.has_api_key else "not_configured",
+        "oauthOwnerAndMutation": "available" if settings.has_oauth_token else "not_configured",
+        "oauthLifecycle": "refreshable" if settings.has_oauth_refresh_configuration else (
+            "static" if settings.oauth_token else "not_configured"
+        ),
+    }
 
 
 def _optional_secret(value: str | None) -> str | None:

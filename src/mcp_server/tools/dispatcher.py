@@ -238,10 +238,10 @@ class InMemoryToolDispatcher:
             "conditional": {
                 "executor": executor,
                 "api_key": settings.api_key,
-                "oauth_token": settings.oauth_token,
+                "oauth_token": self._youtube_runtime.oauth_token,
             },
             "api_key": {"executor": executor, "api_key": settings.api_key},
-            "oauth": {"executor": executor, "oauth_token": settings.oauth_token},
+            "oauth": {"executor": executor, "oauth_token": self._youtube_runtime.oauth_token},
         }
 
     def _baseline_tool_definitions(self):
