@@ -11,7 +11,7 @@ from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.watermarks import build_watermarks_set_wrapper, build_watermarks_unset_wrapper
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, safe_upstream_error_message, sanitize_error_details
 
 
 WATERMARKS_SET_ALLOWED_MIME_TYPES = ("image/jpeg", "image/png", "application/octet-stream")
@@ -749,7 +749,7 @@ def _map_watermarks_set_upstream_error(error: NormalizedUpstreamError) -> Waterm
         "upstream_refusal": "upstream_refused",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return WatermarksSetToolError(str(error), category=category, details=error.details)
+    return WatermarksSetToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _map_watermarks_unset_upstream_error(error: NormalizedUpstreamError) -> WatermarksUnsetToolError:
@@ -788,7 +788,7 @@ def _map_watermarks_unset_upstream_error(error: NormalizedUpstreamError) -> Wate
         "upstream_refusal": "upstream_refused",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return WatermarksUnsetToolError(str(error), category=category, details=error.details)
+    return WatermarksUnsetToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _watermarks_set_auth_context(oauth_token: str | None) -> AuthContext:

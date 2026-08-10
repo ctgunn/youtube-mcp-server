@@ -6,7 +6,13 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, Callable, Mapping, TextIO
 
-from mcp_server.config import HostedRuntimeSettings, StartupValidationResult, YouTubeLiveRuntimeSettings, secret_access_readiness
+from mcp_server.config import (
+    HostedRuntimeSettings,
+    StartupValidationResult,
+    YouTubeLiveRuntimeSettings,
+    secret_access_readiness,
+    youtube_capability_readiness,
+)
 from mcp_server.health import RuntimeLifecycleState, health_payload, initialize_runtime_lifecycle, readiness_payload
 from mcp_server.observability import InMemoryObservability, build_request_context
 from mcp_server.protocol.envelope import error_response_for_category
@@ -207,6 +213,7 @@ class MCPHTTPTransport:
         self.runtime_lifecycle = runtime_lifecycle or initialize_runtime_lifecycle(self.startup_validation)
         self.runtime_settings = runtime_settings
         self.runtime_env = dict(runtime_env or {})
+        self.youtube_runtime_settings = youtube_runtime_settings
         if runtime_settings is not None:
             secret_access = secret_access_readiness(self.runtime_env, self.startup_validation)
             durability = self.stream_manager.durability_status(required=runtime_settings.session.durability_required)
@@ -235,6 +242,11 @@ class MCPHTTPTransport:
                 self.runtime_lifecycle,
                 secret_access=secret_access,
                 session_durability=session_durability,
+                youtube_capability=(
+                    youtube_capability_readiness(self.youtube_runtime_settings)
+                    if self.youtube_runtime_settings is not None
+                    else None
+                ),
             )
         elif path != "/mcp":
             response = error_response_for_category(

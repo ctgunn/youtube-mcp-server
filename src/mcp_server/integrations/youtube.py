@@ -19,6 +19,8 @@ from mcp_server.integrations.resources.normalizers import (
 from mcp_server.integrations.retry import RetryPolicy
 
 YOUTUBE_DATA_API_ORIGIN = "https://www.googleapis.com"
+DEFAULT_RESUMABLE_CHUNK_SIZE = 8 * 1024 * 1024
+_MAX_RESUMABLE_RECOVERY_ATTEMPTS = 2
 
 __all__ = [
     "ResponseNormalizer",
@@ -35,14 +37,18 @@ def build_youtube_data_api_transport(
     *,
     opener: Callable[..., Any] | None = None,
     timeout_seconds: float = 10.0,
+    resumable_chunk_size: int = DEFAULT_RESUMABLE_CHUNK_SIZE,
 ) -> Callable[[RequestExecution], dict[str, Any]]:
     """Build a transport callable that executes Layer 1 requests against YouTube.
 
     :param opener: Optional request opener compatible with ``urllib.request.urlopen``.
     :param timeout_seconds: Timeout used for upstream requests.
+    :param resumable_chunk_size: Maximum bytes sent in each resumable upload chunk.
     :return: Transport callable suitable for ``IntegrationExecutor``.
     """
     request_opener = opener or urlopen
+    if resumable_chunk_size <= 0 or resumable_chunk_size % (256 * 1024) != 0:
+        raise ValueError("resumable_chunk_size must be a positive multiple of 256 KiB")
 
     def transport(execution: RequestExecution) -> dict[str, Any]:
         """Execute one YouTube Data API request for the given execution context.
@@ -50,10 +56,18 @@ def build_youtube_data_api_transport(
         :param execution: Shared request execution details.
         :return: Parsed JSON response from the upstream API.
         """
-        request = build_youtube_data_api_request(execution)
         try:
-            with request_opener(request, timeout=timeout_seconds) as response:
-                payload = response.read().decode("utf-8")
+            if _is_resumable_upload(execution.arguments):
+                payload = _execute_resumable_upload(
+                    execution,
+                    opener=request_opener,
+                    timeout_seconds=timeout_seconds,
+                    chunk_size=resumable_chunk_size,
+                )
+            else:
+                request = build_youtube_data_api_request(execution)
+                with request_opener(request, timeout=timeout_seconds) as response:
+                    payload = response.read().decode("utf-8")
         except HTTPError as error:
             details = _error_details(error)
             raise _normalized_upstream_failure(
@@ -97,6 +111,7 @@ def build_youtube_data_api_executor(
     *,
     opener: Callable[..., Any] | None = None,
     timeout_seconds: float = 10.0,
+    resumable_chunk_size: int = DEFAULT_RESUMABLE_CHUNK_SIZE,
     retry_policy: RetryPolicy | None = None,
     hooks: IntegrationHooks | None = None,
 ) -> IntegrationExecutor:
@@ -104,12 +119,17 @@ def build_youtube_data_api_executor(
 
     :param opener: Optional request opener compatible with ``urllib.request.urlopen``.
     :param timeout_seconds: Timeout used for upstream requests.
+    :param resumable_chunk_size: Maximum bytes sent in each resumable upload chunk.
     :param retry_policy: Optional retry policy override.
     :param hooks: Optional request lifecycle hooks.
     :return: Shared executor configured for live YouTube requests.
     """
     return IntegrationExecutor(
-        transport=build_youtube_data_api_transport(opener=opener, timeout_seconds=timeout_seconds),
+        transport=build_youtube_data_api_transport(
+            opener=opener,
+            timeout_seconds=timeout_seconds,
+            resumable_chunk_size=resumable_chunk_size,
+        ),
         retry_policy=retry_policy or RetryPolicy(max_attempts=3),
         hooks=hooks,
     )
@@ -122,24 +142,82 @@ def build_youtube_data_api_request(execution: RequestExecution) -> Request:
     :return: Configured HTTP request object.
     """
     resolved_path = _resolved_path_shape(execution.metadata.path_shape, execution.arguments)
-    query_arguments = _query_arguments(
+    query_arguments = dict(_query_arguments(
         execution.metadata.http_method,
         execution.metadata.path_shape,
         execution.arguments,
-    )
+    ))
+    if _has_media_upload(execution.arguments):
+        resolved_path = _upload_path(resolved_path)
+        query_arguments["uploadType"] = (
+            "resumable" if _is_resumable_upload(execution.arguments) else _upload_type(execution.arguments)
+        )
     query = _query_parameters(query_arguments, execution.credentials)
     query_string = urlencode(query, doseq=True)
     url = f"{YOUTUBE_DATA_API_ORIGIN}{resolved_path}"
     if query_string:
         url = f"{url}?{query_string}"
     headers = {"Accept": "application/json"}
-    request_data = _request_data(execution.metadata.http_method, execution.arguments)
+    request_data = _request_data(
+        execution.metadata.http_method,
+        execution.arguments,
+        resumable_initialization=_is_resumable_upload(execution.arguments),
+    )
     oauth_token = execution.credentials.get("oauthToken")
     if oauth_token:
         headers["Authorization"] = f"Bearer {oauth_token}"
     if request_data is not None:
-        headers["Content-Type"] = _request_content_type(execution.arguments)
+        headers["Content-Type"] = _request_content_type(
+            execution.arguments,
+            resumable_initialization=_is_resumable_upload(execution.arguments),
+        )
+    if _is_resumable_upload(execution.arguments):
+        media = execution.arguments["media"]
+        assert isinstance(media, Mapping)
+        media_bytes = _media_content_bytes(media.get("content"))
+        headers["X-Upload-Content-Length"] = str(len(media_bytes))
+        headers["X-Upload-Content-Type"] = str(media.get("mimeType", "application/octet-stream"))
     return Request(url, data=request_data, method=execution.metadata.http_method.upper(), headers=headers)
+
+
+def _has_media_upload(arguments: Mapping[str, object]) -> bool:
+    """Return whether an execution includes a media upload payload.
+
+    :param arguments: Wrapper arguments selected for the execution.
+    :return: ``True`` when the request must use Google's upload endpoint.
+    """
+    return isinstance(arguments.get("media"), Mapping)
+
+
+def _upload_path(path: str) -> str:
+    """Return the Google upload endpoint path for a media request.
+
+    :param path: Resolved standard or upload endpoint path.
+    :return: Upload endpoint path preserving an explicitly declared upload path.
+    """
+    if path.startswith("/upload/"):
+        return path
+    if path.startswith("/youtube/"):
+        return f"/upload{path}"
+    raise ValueError(f"unsupported YouTube Data API path for media upload: {path}")
+
+
+def _upload_type(arguments: Mapping[str, object]) -> str:
+    """Return Google's direct upload type for one media request.
+
+    :param arguments: Wrapper arguments selected for the execution.
+    :return: ``multipart`` for metadata plus media, otherwise ``media``.
+    """
+    return "multipart" if isinstance(arguments.get("body"), Mapping) else "media"
+
+
+def _is_resumable_upload(arguments: Mapping[str, object]) -> bool:
+    """Return whether an execution selects the supported resumable upload flow.
+
+    :param arguments: Wrapper arguments selected for the execution.
+    :return: ``True`` when the upload must create and use a resumable session.
+    """
+    return arguments.get("uploadMode") == "resumable"
 
 
 def _query_arguments(
@@ -160,7 +238,7 @@ def _query_arguments(
     return {
         key: value
         for key, value in arguments.items()
-        if key not in {"body", "media"} and key not in path_fields
+        if key not in {"body", "media", "uploadMode"} and key not in path_fields
     }
 
 
@@ -197,7 +275,12 @@ def _path_parameters(path_shape: str) -> tuple[str, ...]:
     return tuple(parameters)
 
 
-def _request_data(http_method: str, arguments: Mapping[str, object]) -> bytes | None:
+def _request_data(
+    http_method: str,
+    arguments: Mapping[str, object],
+    *,
+    resumable_initialization: bool = False,
+) -> bytes | None:
     """Return encoded request data for caption write operations.
 
     :param http_method: Upstream HTTP method for the request.
@@ -208,6 +291,8 @@ def _request_data(http_method: str, arguments: Mapping[str, object]) -> bytes | 
         return None
     body = arguments.get("body")
     media = arguments.get("media")
+    if resumable_initialization and isinstance(body, Mapping):
+        return json.dumps(body).encode("utf-8")
     if isinstance(body, dict) and isinstance(media, dict):
         return _multipart_related_payload(body=body, media=media)
     if isinstance(media, dict):
@@ -217,12 +302,18 @@ def _request_data(http_method: str, arguments: Mapping[str, object]) -> bytes | 
     return None
 
 
-def _request_content_type(arguments: Mapping[str, object]) -> str:
+def _request_content_type(
+    arguments: Mapping[str, object],
+    *,
+    resumable_initialization: bool = False,
+) -> str:
     """Return the content type for the outgoing request body.
 
     :param arguments: Wrapper arguments selected for the execution.
     :return: Content type header value.
     """
+    if resumable_initialization:
+        return "application/json; charset=utf-8"
     media = arguments.get("media")
     if isinstance(media, dict) and not isinstance(arguments.get("body"), dict):
         return str(media.get("mimeType", "application/octet-stream"))
@@ -312,6 +403,214 @@ def _stringify_scalar(value: object) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     return str(value)
+
+
+def _execute_resumable_upload(
+    execution: RequestExecution,
+    *,
+    opener: Callable[..., Any],
+    timeout_seconds: float,
+    chunk_size: int,
+) -> str:
+    """Create a resumable session and upload its media in bounded chunks.
+
+    A failed chunk is recovered by querying the session's committed byte range
+    before attempting the remaining bytes again. The session URL is intentionally
+    never returned or included in normalized errors.
+
+    :param execution: Shared request execution details.
+    :param opener: HTTP request opener compatible with ``urllib.request.urlopen``.
+    :param timeout_seconds: Timeout used for each upstream request.
+    :param chunk_size: Maximum bytes for each upload request.
+    :return: The final JSON response payload from YouTube.
+    :raises RuntimeError: If YouTube does not return a resumable session location.
+    """
+    initialization_request = build_youtube_data_api_request(execution)
+    with opener(initialization_request, timeout=timeout_seconds) as response:
+        session_url = _response_header(response, "Location")
+    if not session_url:
+        raise RuntimeError("YouTube did not provide a resumable upload session")
+
+    media = execution.arguments.get("media")
+    assert isinstance(media, Mapping)
+    media_bytes = _media_content_bytes(media.get("content"))
+    mime_type = str(media.get("mimeType", "application/octet-stream"))
+    offset = 0
+    recovery_attempts = 0
+
+    while offset < len(media_bytes):
+        chunk = media_bytes[offset : offset + chunk_size]
+        chunk_end = offset + len(chunk) - 1
+        request = _resumable_chunk_request(
+            session_url=session_url,
+            data=chunk,
+            mime_type=mime_type,
+            start=offset,
+            end=chunk_end,
+            total=len(media_bytes),
+            credentials=execution.credentials,
+        )
+        try:
+            with opener(request, timeout=timeout_seconds) as response:
+                status_code = _response_status(response)
+                payload = response.read().decode("utf-8")
+                committed_range = _response_header(response, "Range")
+        except HTTPError as error:
+            if error.code != 308:
+                if recovery_attempts >= _MAX_RESUMABLE_RECOVERY_ATTEMPTS:
+                    raise
+                offset = _recover_resumable_offset(
+                    session_url=session_url,
+                    total=len(media_bytes),
+                    credentials=execution.credentials,
+                    opener=opener,
+                    timeout_seconds=timeout_seconds,
+                )
+                recovery_attempts += 1
+                continue
+            status_code = error.code
+            payload = error.read().decode("utf-8", errors="replace")
+            committed_range = _error_header(error, "Range")
+
+        if status_code == 308:
+            offset = _next_resumable_offset(committed_range, fallback=chunk_end + 1)
+            continue
+        if 200 <= status_code < 300:
+            return payload
+        raise RuntimeError(f"unexpected resumable upload response status: {status_code}")
+
+    raise RuntimeError("YouTube resumable upload completed without a final response")
+
+
+def _resumable_chunk_request(
+    *,
+    session_url: str,
+    data: bytes,
+    mime_type: str,
+    start: int,
+    end: int,
+    total: int,
+    credentials: Mapping[str, str],
+) -> Request:
+    """Build one bounded resumable media upload request.
+
+    :param session_url: Opaque session URL supplied by YouTube.
+    :param data: Bytes for this upload chunk.
+    :param mime_type: Media MIME type.
+    :param start: Zero-based first byte in the chunk.
+    :param end: Zero-based last byte in the chunk.
+    :param total: Total media size in bytes.
+    :param credentials: Resolved credentials for the execution.
+    :return: Configured PUT request for the upload session.
+    """
+    headers = {
+        "Content-Type": mime_type,
+        "Content-Length": str(len(data)),
+        "Content-Range": f"bytes {start}-{end}/{total}",
+    }
+    oauth_token = credentials.get("oauthToken")
+    if oauth_token:
+        headers["Authorization"] = f"Bearer {oauth_token}"
+    return Request(session_url, data=data, method="PUT", headers=headers)
+
+
+def _recover_resumable_offset(
+    *,
+    session_url: str,
+    total: int,
+    credentials: Mapping[str, str],
+    opener: Callable[..., Any],
+    timeout_seconds: float,
+) -> int:
+    """Query a resumable session for the next safe byte offset.
+
+    :param session_url: Opaque session URL supplied by YouTube.
+    :param total: Total media size in bytes.
+    :param credentials: Resolved credentials for the execution.
+    :param opener: HTTP request opener compatible with ``urllib.request.urlopen``.
+    :param timeout_seconds: Timeout used for the status query.
+    :return: Next byte offset confirmed by the session.
+    """
+    headers = {"Content-Length": "0", "Content-Range": f"bytes */{total}"}
+    oauth_token = credentials.get("oauthToken")
+    if oauth_token:
+        headers["Authorization"] = f"Bearer {oauth_token}"
+    request = Request(session_url, data=b"", method="PUT", headers=headers)
+    try:
+        with opener(request, timeout=timeout_seconds) as response:
+            status_code = _response_status(response)
+            committed_range = _response_header(response, "Range")
+    except HTTPError as error:
+        if error.code != 308:
+            raise
+        status_code = error.code
+        committed_range = _error_header(error, "Range")
+    if status_code != 308:
+        raise RuntimeError("YouTube resumable upload session did not return its upload status")
+    return _next_resumable_offset(committed_range, fallback=0)
+
+
+def _next_resumable_offset(committed_range: str | None, *, fallback: int) -> int:
+    """Return the next upload offset based on YouTube's committed byte range.
+
+    :param committed_range: ``Range`` header returned by the resumable session.
+    :param fallback: Next offset when YouTube did not include a range header.
+    :return: Safe byte offset for the next chunk.
+    """
+    if not committed_range:
+        return fallback
+    try:
+        return int(committed_range.rsplit("-", maxsplit=1)[1]) + 1
+    except (IndexError, ValueError):
+        return fallback
+
+
+def _response_header(response: Any, name: str) -> str | None:
+    """Return one response header across urllib and test response shapes.
+
+    :param response: Upstream HTTP response.
+    :param name: Header name to retrieve.
+    :return: Header value when present.
+    """
+    getheader = getattr(response, "getheader", None)
+    if callable(getheader):
+        value = getheader(name)
+        if value:
+            return str(value)
+    headers = getattr(response, "headers", None)
+    if headers is not None:
+        value = headers.get(name)
+        if value:
+            return str(value)
+    return None
+
+
+def _error_header(error: HTTPError, name: str) -> str | None:
+    """Return one header from an ``HTTPError`` without exposing it externally.
+
+    :param error: HTTP error returned by the upstream request.
+    :param name: Header name to retrieve.
+    :return: Header value when present.
+    """
+    if error.headers is None:
+        return None
+    value = error.headers.get(name)
+    return str(value) if value else None
+
+
+def _response_status(response: Any) -> int:
+    """Return an HTTP response status, defaulting test doubles to success.
+
+    :param response: Upstream HTTP response.
+    :return: Integer HTTP status code.
+    """
+    getcode = getattr(response, "getcode", None)
+    if callable(getcode):
+        status = getcode()
+        if isinstance(status, int):
+            return status
+    status = getattr(response, "status", None)
+    return status if isinstance(status, int) else 200
 
 
 def _error_details(error: HTTPError) -> dict[str, object]:

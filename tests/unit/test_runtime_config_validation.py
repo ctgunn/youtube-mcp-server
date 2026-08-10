@@ -8,6 +8,7 @@ from mcp_server.config import (
     config_validation_error_details,
     ensure_runtime_config,
     load_youtube_live_runtime_settings,
+    youtube_capability_readiness,
     validate_runtime_config,
 )
 
@@ -72,6 +73,7 @@ class RuntimeConfigValidationTests(unittest.TestCase):
             {
                 "apiKeyConfigured": True,
                 "oauthTokenConfigured": True,
+                "oauthLifecycle": "static",
                 "timeoutSeconds": 10.0,
                 "maxAttempts": 3,
             },
@@ -91,6 +93,36 @@ class RuntimeConfigValidationTests(unittest.TestCase):
         self.assertFalse(settings.has_oauth_token)
         self.assertEqual(settings.safe_details()["apiKeyConfigured"], False)
         self.assertEqual(settings.safe_details()["oauthTokenConfigured"], False)
+
+    def test_youtube_capability_readiness_distinguishes_public_and_oauth_access(self):
+        """Report API-key and OAuth capability independently without exposing secrets."""
+        api_key_only = youtube_capability_readiness(
+            load_youtube_live_runtime_settings({"YOUTUBE_API_KEY": "api-key-for-test"})
+        )
+        complete = youtube_capability_readiness(
+            load_youtube_live_runtime_settings(
+                {"YOUTUBE_API_KEY": "api-key-for-test", "YOUTUBE_OAUTH_TOKEN": "oauth-token-for-test"}
+            )
+        )
+
+        self.assertEqual(
+            api_key_only,
+            {
+                "apiKeyRead": "available",
+                "oauthOwnerAndMutation": "not_configured",
+                "oauthLifecycle": "not_configured",
+            },
+        )
+        self.assertEqual(
+            complete,
+            {
+                "apiKeyRead": "available",
+                "oauthOwnerAndMutation": "available",
+                "oauthLifecycle": "static",
+            },
+        )
+        self.assertNotIn("api-key-for-test", str(complete))
+        self.assertNotIn("oauth-token-for-test", str(complete))
 
 
 if __name__ == "__main__":

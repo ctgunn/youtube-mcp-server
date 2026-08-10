@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp_server.tools.youtube_common.conventions import sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import safe_upstream_error_message, sanitize_error_details
 from mcp_server.tools.youtube_common.videos import VideosListToolError, build_videos_list_handler
 
 from mcp_server.tools.youtube_composed.families import get_family
@@ -247,7 +247,7 @@ def _map_videos_list_error(error: VideosListToolError) -> VideosGetVideoToolErro
         "authorization_failed": "authorization_sensitive_data",
         "quota_exhausted": "quota_exhaustion",
     }.get(category, "upstream_failure")
-    return VideosGetVideoToolError(str(error), category=public_category, details=error.details)
+    return VideosGetVideoToolError(safe_upstream_error_message(), category=public_category, details=error.details)
 
 
 def build_videos_get_video_handler(*, lookup=None):

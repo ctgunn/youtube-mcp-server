@@ -144,3 +144,17 @@ def test_search_list_failure_examples_cover_safe_rejection_surface():
     assert error_examples["missing_part"] == {"category": "invalid_request", "field": "part"}
     assert error_examples["access_failure"]["category"] == "authentication_failed"
     assert error_examples["quota_or_upstream_failure"]["category"] == "quota_exhausted"
+
+
+def test_search_list_configured_dependencies_preserve_public_contract():
+    """Keep public search metadata credential-free after runtime injection."""
+    descriptor = build_search_list_tool_descriptor(
+        executor=object(),
+        api_key="configured-api-key",
+        oauth_token="configured-oauth-token",
+    )
+
+    assert descriptor["name"] == "search_list"
+    assert descriptor["metadata"]["authMode"] == "mixed/conditional"
+    assert "configured-api-key" not in str(descriptor)
+    assert "configured-oauth-token" not in str(descriptor)

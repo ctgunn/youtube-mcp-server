@@ -453,3 +453,20 @@ def test_subscriptions_delete_failure_examples_cover_safe_rejection_surface():
     assert error_examples["already_removed_or_missing_target"]["category"] == "not_found"
     assert error_examples["non_removable_target"]["category"] == "non_removable_target"
     assert error_examples["quota_or_upstream_delete_failure"]["category"] == "quota_exhausted"
+
+
+def test_configured_subscription_descriptors_preserve_public_contracts():
+    """Keep configured conditional and OAuth descriptor metadata credential-free.
+
+    :return: ``None`` after validating the public subscription descriptors.
+    """
+    descriptors = (
+        build_subscriptions_list_tool_descriptor(executor=object(), api_key="configured-api-key", oauth_token="configured-oauth-token"),
+        build_subscriptions_insert_tool_descriptor(executor=object(), oauth_token="configured-oauth-token"),
+        build_subscriptions_delete_tool_descriptor(executor=object(), oauth_token="configured-oauth-token"),
+    )
+
+    assert [descriptor["name"] for descriptor in descriptors] == ["subscriptions_list", "subscriptions_insert", "subscriptions_delete"]
+    assert [descriptor["metadata"]["authMode"] for descriptor in descriptors] == ["mixed/conditional", "oauth_required", "oauth_required"]
+    assert "configured-api-key" not in str(descriptors)
+    assert "configured-oauth-token" not in str(descriptors)

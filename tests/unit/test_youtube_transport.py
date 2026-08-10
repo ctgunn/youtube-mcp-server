@@ -2,6 +2,7 @@ import io
 import json
 import os
 import sys
+from email.message import Message
 import unittest
 from urllib.error import HTTPError
 
@@ -10,7 +11,9 @@ sys.path.insert(0, os.path.abspath("src"))
 import mcp_server.integrations.wrappers as wrappers_module
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.config import load_youtube_live_runtime_settings
-from mcp_server.integrations.executor import RequestExecution
+from mcp_server.integrations.errors import NormalizedUpstreamError
+from mcp_server.integrations.executor import IntegrationExecutor, RequestExecution
+from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.runtime import build_configured_youtube_runtime
 from mcp_server.integrations.youtube import (
     ResponseNormalizer,
@@ -90,6 +93,29 @@ class _FakeHTTPResponse:
         return False
 
 
+class _ResumableHTTPResponse(_FakeHTTPResponse):
+    """Provide status and headers for resumable-upload transport tests."""
+
+    def __init__(self, payload: dict | str, *, status: int, headers: dict[str, str] | None = None):
+        super().__init__(payload)
+        self.status = status
+        self.headers = headers or {}
+
+
+def _http_error(status: int, *, headers: dict[str, str] | None = None) -> HTTPError:
+    """Build an HTTP error with optional headers for transport tests."""
+    error_headers = Message()
+    for name, value in (headers or {}).items():
+        error_headers[name] = value
+    return HTTPError(
+        url="https://upload.example/session/opaque",
+        code=status,
+        msg="upstream failure",
+        hdrs=error_headers,
+        fp=io.BytesIO(b""),
+    )
+
+
 class YouTubeTransportUnitTests(unittest.TestCase):
     def _execution(self, *, arguments: dict[str, object], auth_context: AuthContext) -> RequestExecution:
         return RequestExecution(
@@ -97,6 +123,97 @@ class YouTubeTransportUnitTests(unittest.TestCase):
             arguments=arguments,
             auth_context=auth_context,
         )
+
+    def test_retry_uses_exponential_backoff_for_safe_read_requests(self):
+        attempts = []
+        delays = []
+
+        def transport(_execution):
+            attempts.append("request")
+            if len(attempts) < 3:
+                raise NormalizedUpstreamError(
+                    "temporarily unavailable",
+                    category="transient",
+                    retryable=True,
+                    upstream_status=503,
+                )
+            return {"items": []}
+
+        executor = IntegrationExecutor(
+            transport=transport,
+            retry_policy=RetryPolicy(
+                max_attempts=3,
+                initial_backoff_seconds=0.1,
+                max_backoff_seconds=1.0,
+                jitter=lambda _minimum, maximum: maximum,
+            ),
+            sleeper=delays.append,
+        )
+
+        result = executor.execute(
+            self._execution(
+                arguments={"part": "snippet", "channelId": "UC123"},
+                auth_context=AuthContext(
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
+                ),
+            )
+        )
+
+        self.assertEqual(result, {"items": []})
+        self.assertEqual(len(attempts), 3)
+        self.assertEqual(delays, [0.1, 0.2])
+
+    def test_retry_policy_uses_full_jitter_within_the_exponential_bound(self):
+        """Sample full jitter only within the capped exponential retry window."""
+        requested_ranges = []
+
+        def jitter(minimum, maximum):
+            requested_ranges.append((minimum, maximum))
+            return maximum / 2
+
+        retry_policy = RetryPolicy(
+            initial_backoff_seconds=0.25,
+            max_backoff_seconds=2.0,
+            jitter=jitter,
+        )
+
+        self.assertEqual(retry_policy.backoff_seconds(1), 0.125)
+        self.assertEqual(retry_policy.backoff_seconds(2), 0.25)
+        self.assertEqual(retry_policy.backoff_seconds(5), 1.0)
+        self.assertEqual(requested_ranges, [(0.0, 0.25), (0.0, 0.5), (0.0, 2.0)])
+
+    def test_retry_does_not_repeat_non_idempotent_post_mutations(self):
+        attempts = []
+        delays = []
+
+        def transport(_execution):
+            attempts.append("request")
+            raise NormalizedUpstreamError(
+                "temporarily unavailable",
+                category="transient",
+                retryable=True,
+                upstream_status=503,
+            )
+
+        executor = IntegrationExecutor(
+            transport=transport,
+            retry_policy=RetryPolicy(max_attempts=3),
+            sleeper=delays.append,
+        )
+        execution = self._subscriptions_insert_execution(
+            arguments={"part": "snippet", "body": {"snippet": {"resourceId": {"channelId": "UC123"}}}},
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        with self.assertRaises(NormalizedUpstreamError):
+            executor.execute(execution)
+
+        self.assertEqual(len(attempts), 1)
+        self.assertEqual(delays, [])
 
     def test_response_normalizer_registry_handles_supported_input_shapes(self):
         execution = self._execution(
@@ -2369,7 +2486,7 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertEqual(
             request.full_url,
-            "https://www.googleapis.com/youtube/v3/videos?part=snippet%2Cstatus",
+            "https://www.googleapis.com/upload/youtube/v3/videos?part=snippet%2Cstatus&uploadType=multipart",
         )
         self.assertEqual(request.method, "POST")
         self.assertEqual(request.headers.get("Authorization"), "Bearer oauth-token")
@@ -2402,16 +2519,18 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertEqual(result["authPath"], "oauth_required")
 
     def test_executor_can_run_live_videos_insert_transport_shape(self):
-        captured = {}
+        captured = {"requests": []}
 
         def opener(request, timeout):
-            captured["url"] = request.full_url
-            captured["authorization"] = request.headers.get("Authorization")
+            captured["requests"].append(request)
             captured["timeout"] = timeout
-            captured["method"] = request.method
-            captured["content_type"] = request.headers.get("Content-type")
-            captured["data"] = request.data
-            return _FakeHTTPResponse({"id": "video-321", "kind": "youtube#video"})
+            if request.full_url.startswith("https://www.googleapis.com/upload/"):
+                return _ResumableHTTPResponse(
+                    "",
+                    status=200,
+                    headers={"Location": "https://upload.example/session/opaque"},
+                )
+            return _ResumableHTTPResponse({"id": "video-321", "kind": "youtube#video"}, status=201)
 
         executor = build_youtube_data_api_executor(opener=opener, timeout_seconds=12.0)
         result = wrappers_module.build_videos_insert_wrapper().call(
@@ -2430,13 +2549,100 @@ class YouTubeTransportUnitTests(unittest.TestCase):
 
         self.assertEqual(result["id"], "video-321")
         self.assertEqual(result["uploadMode"], "resumable")
-        self.assertEqual(captured["method"], "POST")
-        self.assertIn("part=snippet%2Cstatus", captured["url"])
-        self.assertIn("uploadMode=resumable", captured["url"])
-        self.assertEqual(captured["authorization"], "Bearer oauth-token")
-        self.assertIn("multipart/related", captured["content_type"])
-        self.assertIn(b"video-payload", captured["data"])
+        initialization, media_chunk = captured["requests"]
+        self.assertEqual(initialization.method, "POST")
+        self.assertIn("/upload/youtube/v3/videos?", initialization.full_url)
+        self.assertIn("part=snippet%2Cstatus", initialization.full_url)
+        self.assertIn("uploadType=resumable", initialization.full_url)
+        self.assertNotIn("uploadMode=", initialization.full_url)
+        self.assertEqual(initialization.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(initialization.headers["Content-type"], "application/json; charset=utf-8")
+        self.assertEqual(initialization.headers["X-upload-content-length"], "13")
+        self.assertEqual(initialization.data, b'{"snippet": {"title": "Launch video"}, "status": {"privacyStatus": "private"}}')
+        self.assertEqual(media_chunk.method, "PUT")
+        self.assertEqual(media_chunk.full_url, "https://upload.example/session/opaque")
+        self.assertEqual(media_chunk.headers["Authorization"], "Bearer oauth-token")
+        self.assertEqual(media_chunk.headers["Content-range"], "bytes 0-12/13")
+        self.assertEqual(media_chunk.data, b"video-payload")
         self.assertEqual(captured["timeout"], 12.0)
+
+    def test_resumable_upload_uses_chunks_and_recovers_from_committed_range(self):
+        requests = []
+
+        def opener(request, timeout):
+            requests.append(request)
+            if request.full_url.startswith("https://www.googleapis.com/upload/"):
+                return _ResumableHTTPResponse(
+                    "",
+                    status=200,
+                    headers={"Location": "https://upload.example/session/opaque"},
+                )
+            if request.headers.get("Content-range") == "bytes 0-262143/524288":
+                return _ResumableHTTPResponse("", status=308, headers={"Range": "bytes=0-262143"})
+            return _ResumableHTTPResponse({"id": "video-999"}, status=201)
+
+        executor = build_youtube_data_api_executor(
+            opener=opener,
+            resumable_chunk_size=256 * 1024,
+        )
+        result = wrappers_module.build_videos_insert_wrapper().call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"title": "Chunked video"}},
+                "media": {"mimeType": "video/mp4", "content": b"x" * (512 * 1024)},
+                "uploadMode": "resumable",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "video-999")
+        self.assertEqual(len(requests), 3)
+        self.assertEqual(requests[1].headers["Content-range"], "bytes 0-262143/524288")
+        self.assertEqual(requests[2].headers["Content-range"], "bytes 262144-524287/524288")
+
+    def test_resumable_upload_recovers_session_after_a_failed_chunk(self):
+        requests = []
+
+        def opener(request, timeout):
+            requests.append(request)
+            if request.full_url.startswith("https://www.googleapis.com/upload/"):
+                return _ResumableHTTPResponse(
+                    "",
+                    status=200,
+                    headers={"Location": "https://upload.example/session/opaque"},
+                )
+            if request.headers.get("Content-range") == "bytes 0-262143/524288":
+                raise _http_error(503)
+            if request.headers.get("Content-range") == "bytes */524288":
+                return _ResumableHTTPResponse("", status=308, headers={"Range": "bytes=0-262143"})
+            return _ResumableHTTPResponse({"id": "video-998"}, status=201)
+
+        executor = build_youtube_data_api_executor(
+            opener=opener,
+            resumable_chunk_size=256 * 1024,
+        )
+        result = wrappers_module.build_videos_insert_wrapper().call(
+            executor,
+            arguments={
+                "part": "snippet",
+                "body": {"snippet": {"title": "Recoverable video"}},
+                "media": {"mimeType": "video/mp4", "content": b"x" * (512 * 1024)},
+                "uploadMode": "resumable",
+            },
+            auth_context=AuthContext(
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-token"),
+            ),
+        )
+
+        self.assertEqual(result["id"], "video-998")
+        self.assertEqual(len(requests), 4)
+        self.assertEqual(requests[2].headers["Content-range"], "bytes */524288")
+        self.assertEqual(requests[3].headers["Content-range"], "bytes 262144-524287/524288")
 
     def test_transport_normalizes_videos_insert_invalid_request_errors(self):
         error = HTTPError(
@@ -3587,9 +3793,10 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         request = build_youtube_data_api_request(execution)
 
         self.assertEqual(request.method, "POST")
-        self.assertIn("https://www.googleapis.com/youtube/v3/captions?", request.full_url)
+        self.assertIn("https://www.googleapis.com/upload/youtube/v3/captions?", request.full_url)
         self.assertIn("part=snippet", request.full_url)
         self.assertIn("sync=true", request.full_url)
+        self.assertIn("uploadType=multipart", request.full_url)
         self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
         self.assertIn("multipart/related", request.headers["Content-type"])
         self.assertIn(b'"videoId": "video-123"', request.data)
@@ -3686,8 +3893,10 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         request = build_youtube_data_api_request(execution)
 
         self.assertEqual(request.method, "PUT")
+        self.assertIn("https://www.googleapis.com/upload/youtube/v3/captions?", request.full_url)
         self.assertIn("part=snippet", request.full_url)
         self.assertIn("onBehalfOfContentOwner=owner-123", request.full_url)
+        self.assertIn("uploadType=multipart", request.full_url)
         self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
         self.assertIn("multipart/related", request.headers["Content-type"])
         self.assertIn(b'"id": "caption-123"', request.data)
@@ -3766,7 +3975,8 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         request = build_youtube_data_api_request(execution)
 
         self.assertEqual(request.method, "POST")
-        self.assertIn("https://www.googleapis.com/youtube/v3/channelBanners/insert", request.full_url)
+        self.assertIn("https://www.googleapis.com/upload/youtube/v3/channelBanners/insert", request.full_url)
+        self.assertIn("uploadType=media", request.full_url)
         self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
         self.assertEqual(request.headers["Content-type"], "image/png")
         self.assertEqual(request.data, b"banner-bytes")
@@ -3820,8 +4030,9 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         request = build_youtube_data_api_request(execution)
 
         self.assertEqual(request.method, "POST")
-        self.assertIn("https://www.googleapis.com/youtube/v3/thumbnails/set?", request.full_url)
+        self.assertIn("https://www.googleapis.com/upload/youtube/v3/thumbnails/set?", request.full_url)
         self.assertIn("videoId=video-123", request.full_url)
+        self.assertIn("uploadType=media", request.full_url)
         self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
         self.assertEqual(request.headers["Content-type"], "image/png")
         self.assertEqual(request.data, b"thumbnail-bytes")
@@ -4199,8 +4410,9 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         request = build_youtube_data_api_request(execution)
 
         self.assertEqual(request.method, "POST")
-        self.assertIn("https://www.googleapis.com/youtube/v3/playlistImages?", request.full_url)
+        self.assertIn("https://www.googleapis.com/upload/youtube/v3/playlistImages?", request.full_url)
         self.assertIn("part=snippet", request.full_url)
+        self.assertIn("uploadType=multipart", request.full_url)
         self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
         self.assertIn("multipart/related", request.headers["Content-type"])
         self.assertIn(b'"playlistId": "PL123"', request.data)
@@ -4328,8 +4540,9 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         request = build_youtube_data_api_request(execution)
 
         self.assertEqual(request.method, "PUT")
-        self.assertIn("https://www.googleapis.com/youtube/v3/playlistImages?", request.full_url)
+        self.assertIn("https://www.googleapis.com/upload/youtube/v3/playlistImages?", request.full_url)
         self.assertIn("part=snippet", request.full_url)
+        self.assertIn("uploadType=multipart", request.full_url)
         self.assertEqual(request.headers["Authorization"], "Bearer oauth-token")
         self.assertIn("multipart/related", request.headers["Content-type"])
         self.assertIn(b'"id": "playlist-image-123"', request.data)

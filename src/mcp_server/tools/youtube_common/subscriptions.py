@@ -15,7 +15,7 @@ from mcp_server.integrations.resources.subscriptions import (
 )
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, safe_upstream_error_message, sanitize_error_details
 
 
 SUBSCRIPTIONS_LIST_TOOL_NAME = "subscriptions_list"
@@ -991,7 +991,7 @@ def _map_subscriptions_list_upstream_error(error: NormalizedUpstreamError) -> Su
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return SubscriptionsListToolError(str(error), category=category, details=error.details or {})
+    return SubscriptionsListToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def _map_subscriptions_insert_upstream_error(error: NormalizedUpstreamError) -> SubscriptionsInsertToolError:
@@ -1022,7 +1022,7 @@ def _map_subscriptions_insert_upstream_error(error: NormalizedUpstreamError) -> 
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return SubscriptionsInsertToolError(str(error), category=category, details=error.details or {})
+    return SubscriptionsInsertToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def _map_subscriptions_delete_upstream_error(error: NormalizedUpstreamError) -> SubscriptionsDeleteToolError:
@@ -1055,7 +1055,7 @@ def _map_subscriptions_delete_upstream_error(error: NormalizedUpstreamError) -> 
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return SubscriptionsDeleteToolError(str(error), category=category, details=error.details or {})
+    return SubscriptionsDeleteToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
 def build_subscriptions_list_contract() -> YouTubeToolContract:

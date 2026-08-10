@@ -52,6 +52,24 @@ class ReadinessStateTests(unittest.TestCase):
         self.assertEqual(payload["checks"]["secrets"], "fail")
         self.assertEqual(payload["reason"]["code"], "SECRET_ACCESS_UNAVAILABLE")
 
+    def test_ready_payload_exposes_youtube_capability_without_degrading_public_runtime(self):
+        """Keep transport readiness separate from optional OAuth capability readiness."""
+        result = validate_runtime_config({"MCP_ENVIRONMENT": "dev"})
+        payload = readiness_payload(
+            result,
+            youtube_capability={
+                "apiKeyRead": "available",
+                "oauthOwnerAndMutation": "not_configured",
+            },
+        )
+
+        self.assertEqual(payload["status"], "ready")
+        self.assertEqual(payload["checks"]["youtubeCapabilities"], "partial")
+        self.assertEqual(
+            payload["capabilities"]["youtube"],
+            {"apiKeyRead": "available", "oauthOwnerAndMutation": "not_configured"},
+        )
+
     def test_lifecycle_transitions_from_ready_to_stopping(self):
         result = validate_runtime_config({"MCP_ENVIRONMENT": "dev"})
         lifecycle = initialize_runtime_lifecycle(result)

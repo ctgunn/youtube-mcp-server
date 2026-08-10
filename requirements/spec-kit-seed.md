@@ -1559,7 +1559,12 @@ Description:
 Retrofit the existing discovery, subscription, video, and branding
 resource-family wrappers to the shared live runtime from `YT-157`. This makes
 the default execution path for video lookup, search, statistics, and related
-public workflows use real authenticated upstream data.
+public workflows use real authenticated upstream data. `YT-160` is also the
+release-completion owner for the shared transport gaps discovered while
+retrofitting `YT-158` through `YT-160`: completion means that every supported
+YouTube Data API-backed public tool can make a Google-conformant live call in
+its declared capability mode, not merely that it captures an injected executor
+or a controlled test opener.
 
 Resource families and endpoint methods:
 - `search.list`
@@ -1577,11 +1582,48 @@ Acceptance criteria:
 - Existing validation, metadata, quota documentation, auth behavior,
   request/response shapes, and normalized errors are preserved while the
   wrapper issues the correct real YouTube Data API request.
-- Thumbnail, video-upload, and watermark media requests use the shared upload
-  execution support; they do not add resource-specific HTTP clients.
-- Request-level tests cover every listed method's path, HTTP method,
+- The shared transport correctly classifies every supported operation as a
+  standard JSON/query request, raw-media upload, multipart upload, resumable
+  upload, or binary download, and emits the official YouTube request target,
+  upload path, query parameters, headers, body encoding, and response handling
+  for that class. This includes correcting shared transport behavior used by
+  the `YT-158` caption and channel-banner operations and the `YT-159`
+  playlist-image operations when applicable; resource-specific direct HTTP
+  clients are not permitted.
+- Thumbnail, channel-banner, caption, playlist-image, watermark, and video
+  media requests use the shared upload execution support. Their metadata and
+  request-conformance tests identify the official upload endpoint and upload
+  protocol rather than treating a normal resource path plus a media body as a
+  sufficient live implementation.
+- `videos_insert` either implements the official resumable-upload session
+  protocol, including initiation, upload-URL persistence for the invocation,
+  chunk transfer, recovery, and final response mapping, or removes
+  `uploadMode=resumable` from every public schema, example, and result. It MUST
+  NOT accept that mode while sending it as an unsupported ordinary query
+  parameter.
+- Large-media handling is bounded and streaming-safe. The tool contract and
+  shared transport MUST support a documented streamed or resumable source for
+  video-scale media and MUST NOT require whole video content to be held in an
+  in-memory MCP argument.
+- Hosted deployment configuration distinguishes API-key-only read capability
+  from OAuth capability. When OAuth-required tools are advertised as available,
+  the deployment provisions the required OAuth secret(s), scopes, renewal or
+  rotation mechanism, and safe readiness status; a short-lived opaque access
+  token by itself is not sufficient production lifecycle support.
+- Retry behavior uses bounded exponential backoff with full jitter, respects retry guidance
+  where supplied, and does not blindly replay non-idempotent mutations after an
+  ambiguous request outcome.
+- Request-level tests cover every listed method's official path, HTTP method,
   parameters, credential mode, body or upload form where applicable, success
-  mapping, and normalized upstream failure behavior.
+  mapping, and normalized upstream failure behavior. Tests MUST cover the
+  cross-cutting media operations inherited from `YT-158` and `YT-159` whenever
+  their correctness depends on the shared transport changed by this slice.
+- Credential-gated, opt-in real-API smoke tests verify at least an API-key read,
+  an OAuth-authorized operation, a media-upload protocol path, and normalized
+  upstream failures against a dedicated non-production YouTube account or
+  equivalent safe fixture. These tests MUST be excluded from ordinary CI unless
+  explicit secrets and the required opt-in are supplied, and MUST never expose
+  credentials or mutate production data.
 - Configured calls through the existing low-level video/search tools and the
   higher-level video-detail tool demonstrably reach the live-wrapper path.
 
@@ -1592,7 +1634,10 @@ Dependencies:
 
 The existing endpoint-wrapper slices established contracts and resource-family
 modules, but the `YT-157` through `YT-160` remediation slices are the release
-gate for real upstream execution. Public endpoint tools and higher-level tools
+gate for real upstream execution. `YT-160` closes the cross-cutting production
+conformance gaps in the shared transport, deployment credentials, upload
+protocols, retry policy, and real-API verification that prevent any prior
+slice from being called complete. Public endpoint tools and higher-level tools
 MUST use the live-wrapper path for their configured runtime and MUST NOT treat
 an injected fake executor or representative response as production behavior.
 

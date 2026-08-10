@@ -227,6 +227,21 @@ def test_watermarks_set_handler_maps_upstream_channel_failures():
     assert exc_info.value.details == {"channelId": "UC123"}
 
 
+def test_configured_watermark_descriptors_preserve_safe_public_metadata():
+    """Keep OAuth runtime injection out of watermark discovery metadata.
+
+    :return: ``None`` after validating configured watermark descriptors.
+    """
+    descriptors = (
+        build_watermarks_set_tool_descriptor(executor=object(), oauth_token="configured-oauth-token"),
+        build_watermarks_unset_tool_descriptor(executor=object(), oauth_token="configured-oauth-token"),
+    )
+
+    assert [descriptor["name"] for descriptor in descriptors] == ["watermarks_set", "watermarks_unset"]
+    assert all(descriptor["metadata"]["authMode"] == "oauth_required" for descriptor in descriptors)
+    assert "configured-oauth-token" not in str(descriptors)
+
+
 def test_watermarks_unset_public_symbols_are_exported():
     """Expose ``watermarks_unset`` symbols from the shared package."""
     from mcp_server.tools.youtube_common import watermarks

@@ -11,7 +11,7 @@ from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.thumbnails import build_thumbnails_set_wrapper
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, safe_upstream_error_message, sanitize_error_details
 
 
 THUMBNAILS_SET_ALLOWED_MIME_TYPES = ("image/jpeg", "image/png", "application/octet-stream")
@@ -309,7 +309,7 @@ def _map_thumbnails_set_upstream_error(error: NormalizedUpstreamError) -> Thumbn
         "deprecated": "deprecated_endpoint",
     }
     category = category_map.get(error.category, "upstream_failure")
-    return ThumbnailsSetToolError(str(error), category=category, details=error.details)
+    return ThumbnailsSetToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
 def _thumbnails_set_auth_context(oauth_token: str | None) -> AuthContext:

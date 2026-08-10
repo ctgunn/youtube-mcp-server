@@ -14,6 +14,17 @@ class ReadinessFlowTests(unittest.TestCase):
         payload = app.handle("/ready", {})
         self.assertEqual(payload["status"], "ready")
 
+    def test_ready_exposes_unconfigured_youtube_capabilities(self):
+        """Show that a dev runtime can be healthy while OAuth operations are unavailable."""
+        app = create_app(env={"MCP_ENVIRONMENT": "dev", "YOUTUBE_API_KEY": "configured-api-key"})
+
+        payload = app.handle("/ready", {})
+
+        self.assertEqual(payload["status"], "ready")
+        self.assertEqual(payload["checks"]["youtubeCapabilities"], "partial")
+        self.assertEqual(payload["capabilities"]["youtube"]["apiKeyRead"], "available")
+        self.assertEqual(payload["capabilities"]["youtube"]["oauthOwnerAndMutation"], "not_configured")
+
     def test_ready_reports_not_ready_for_invalid_state_when_startup_validation_skipped(self):
         app = create_app(env={"MCP_ENVIRONMENT": "staging"}, validate_startup=False)
         payload = app.handle("/ready", {})

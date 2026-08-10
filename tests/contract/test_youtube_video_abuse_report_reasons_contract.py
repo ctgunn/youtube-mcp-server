@@ -178,3 +178,15 @@ def test_video_abuse_report_reasons_list_metadata_text_constants_are_public_safe
     assert "report submission" in combined
     assert "moderation" in combined
     assert "apiKey" not in combined
+
+
+def test_video_abuse_report_reasons_configured_dependencies_preserve_public_contract():
+    """Keep public abuse-reason metadata credential-free after runtime injection."""
+    descriptor = build_video_abuse_report_reasons_list_tool_descriptor(
+        executor=object(),
+        api_key="configured-api-key",
+    )
+
+    assert descriptor["name"] == "videoAbuseReportReasons_list"
+    assert descriptor["metadata"]["authMode"] == "api_key"
+    assert "configured-api-key" not in str(descriptor)
