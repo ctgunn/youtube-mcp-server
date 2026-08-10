@@ -11,7 +11,7 @@ Represents the existing non-persistent YT-157 runtime passed from transport comp
 | `oauth_token_available` | Availability of the configured OAuth credential. | Required only for an OAuth-selected operation; the value is secret. |
 | `oauth_lifecycle` | OAuth lifecycle state: `not_configured`, `static`, or `refreshable`. | Safe readiness metadata only; it must not include credential values. |
 | `timeout_seconds` | Existing per-attempt timeout. | Preserved at the runtime default unless explicitly configured; no endpoint override is added. |
-| `retry_policy` | Shared method-safe retry policy. | Uses bounded exponential backoff only for idempotent methods; POST mutations are not replayed automatically. |
+| `retry_policy` | Shared method-safe retry policy. | Uses bounded full-jitter exponential backoff only for idempotent methods; POST mutations are not replayed automatically. |
 
 ## Discovery, Video, Subscription, and Branding Operation
 
@@ -98,7 +98,7 @@ configured transport runtime
        -> no: existing safe normalized configuration/authorization failure
        -> yes: shared executor builds live request
   -> existing transport sends controlled/live request and emits safe event
-       -> retryable idempotent failure: bounded exponential backoff and retry
+       -> retryable idempotent failure: bounded full-jitter exponential backoff and retry
        -> retryable POST mutation failure: terminal normalized failure; no replay
        -> terminal failure: existing normalized public failure
        -> success: existing response normalizer and public result mapper

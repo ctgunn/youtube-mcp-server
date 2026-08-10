@@ -145,6 +145,7 @@ class YouTubeTransportUnitTests(unittest.TestCase):
                 max_attempts=3,
                 initial_backoff_seconds=0.1,
                 max_backoff_seconds=1.0,
+                jitter=lambda _minimum, maximum: maximum,
             ),
             sleeper=delays.append,
         )
@@ -162,6 +163,25 @@ class YouTubeTransportUnitTests(unittest.TestCase):
         self.assertEqual(result, {"items": []})
         self.assertEqual(len(attempts), 3)
         self.assertEqual(delays, [0.1, 0.2])
+
+    def test_retry_policy_uses_full_jitter_within_the_exponential_bound(self):
+        """Sample full jitter only within the capped exponential retry window."""
+        requested_ranges = []
+
+        def jitter(minimum, maximum):
+            requested_ranges.append((minimum, maximum))
+            return maximum / 2
+
+        retry_policy = RetryPolicy(
+            initial_backoff_seconds=0.25,
+            max_backoff_seconds=2.0,
+            jitter=jitter,
+        )
+
+        self.assertEqual(retry_policy.backoff_seconds(1), 0.125)
+        self.assertEqual(retry_policy.backoff_seconds(2), 0.25)
+        self.assertEqual(retry_policy.backoff_seconds(5), 1.0)
+        self.assertEqual(requested_ranges, [(0.0, 0.25), (0.0, 0.5), (0.0, 2.0)])
 
     def test_retry_does_not_repeat_non_idempotent_post_mutations(self):
         attempts = []

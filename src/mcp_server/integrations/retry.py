@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from random import uniform
+from typing import Callable
 
 from mcp_server.integrations.errors import NormalizedUpstreamError
 
@@ -15,12 +17,14 @@ class RetryPolicy:
     :param retryable_statuses: Explicit statuses considered retryable.
     :param initial_backoff_seconds: Delay before the first retry.
     :param max_backoff_seconds: Maximum delay between attempts.
+    :param jitter: Random delay sampler used to apply full jitter.
     """
 
     max_attempts: int = 1
     retryable_statuses: tuple[int, ...] = (429, 500, 502, 503, 504)
     initial_backoff_seconds: float = 0.25
     max_backoff_seconds: float = 2.0
+    jitter: Callable[[float, float], float] = uniform
 
     def __post_init__(self) -> None:
         """Validate retry policy settings."""
@@ -30,6 +34,8 @@ class RetryPolicy:
             raise ValueError("retry backoff values must not be negative")
         if self.max_backoff_seconds < self.initial_backoff_seconds:
             raise ValueError("max_backoff_seconds must be at least initial_backoff_seconds")
+        if not callable(self.jitter):
+            raise ValueError("jitter must be callable")
 
     def should_retry(
         self,
@@ -54,14 +60,15 @@ class RetryPolicy:
         return error.retryable
 
     def backoff_seconds(self, attempt_number: int) -> float:
-        """Return the bounded exponential delay after a failed attempt.
+        """Return a bounded full-jitter exponential delay after a failed attempt.
 
         :param attempt_number: One-based attempt number that just failed.
-        :return: Delay in seconds before a permitted retry.
+        :return: Random delay in seconds before a permitted retry.
         """
         if attempt_number <= 0:
             raise ValueError("attempt_number must be greater than zero")
-        return min(
+        upper_bound = min(
             self.max_backoff_seconds,
             self.initial_backoff_seconds * (2 ** (attempt_number - 1)),
         )
+        return self.jitter(0.0, upper_bound)

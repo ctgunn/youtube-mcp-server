@@ -39,7 +39,7 @@ Define configured default execution for existing discovery, subscription, video,
 | JSON action or mutation | Preserve existing body validation and submit the validated body through the shared transport. |
 | Direct media operation | Preserve existing media and metadata validation and send raw media with `uploadType=media` or metadata-plus-media with `uploadType=multipart` to `/upload/youtube/v3/...` through the shared transport. |
 | Resumable video upload | For `videos.insert` with `uploadMode=resumable`, create a Google resumable session, send bounded chunks, and use the session's committed-range status to recover after an interrupted chunk. Session URLs are opaque and never exposed. |
-| Retry | Apply bounded exponential backoff only to idempotent request methods (`GET`, `HEAD`, `PUT`, and `DELETE`). Do not automatically replay non-idempotent POST mutations. |
+| Retry | Apply bounded full-jitter exponential backoff only to idempotent request methods (`GET`, `HEAD`, `PUT`, and `DELETE`). Do not automatically replay non-idempotent POST mutations. |
 | Capability readiness | Report API-key, OAuth, and OAuth lifecycle availability safely; a missing optional OAuth capability is reported as partial capability, not as a health-check secret leak. |
 
 ## Compatibility Guarantees

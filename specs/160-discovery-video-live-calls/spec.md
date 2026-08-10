@@ -90,7 +90,7 @@ As an agent developer, I can use the existing low-level search and video tools a
 - **FR-013**: OAuth-required operations MUST support either a configured static access token or a complete refresh-token credential set and MUST obtain refreshed access tokens only through Google's OAuth token endpoint.
 - **FR-014**: Media-bearing requests MUST use the Google upload endpoint and declared upload type appropriate to raw media, multipart metadata-plus-media, or resumable upload.
 - **FR-015**: `videos.insert` requests that advertise `uploadMode=resumable` MUST create a resumable session, transfer bounded chunks, and recover progress by querying the session's committed byte range after a failed chunk. Opaque session URLs MUST NOT appear in caller-visible output.
-- **FR-016**: Retries MUST use bounded exponential backoff and MUST be limited to idempotent request methods. The executor MUST NOT automatically replay non-idempotent POST mutations.
+- **FR-016**: Retries MUST use bounded exponential backoff with full jitter and MUST be limited to idempotent request methods. The executor MUST NOT automatically replay non-idempotent POST mutations.
 - **FR-017**: The repository MUST provide an explicit credential-gated, read-only real YouTube verification path. It MUST be disabled by default in deterministic tests and must not expose credentials or raw upstream response bodies.
 
 ### Key Entities
@@ -125,5 +125,5 @@ As an agent developer, I can use the existing low-level search and video tools a
 - **SC-005**: 100% of tested missing, invalid, expired, or insufficient authorization cases return a safe normalized failure with no representative successful result or credential value.
 - **SC-006**: Review of the automated test evidence finds zero configured-default paths among the 16 in-scope operations that use a resource-specific direct live-request path or a representative default result.
 - **SC-007**: Automated transport tests prove direct media uploads use `/upload/youtube/v3/...` and the expected `uploadType`, and prove resumable upload session creation, chunk progression, and committed-range recovery.
-- **SC-008**: Automated tests prove refresh-token OAuth caching/renewal, safe readiness reporting, exponential backoff for idempotent requests, and no automatic retry of POST mutations.
+- **SC-008**: Automated tests prove refresh-token OAuth caching/renewal, safe readiness reporting, full-jitter exponential backoff for idempotent requests, and no automatic retry of POST mutations.
 - **SC-009**: An operator can run one explicit, read-only API-key smoke command against a configured environment; the command is skipped unless the operator supplies both an enabling flag and a credential.

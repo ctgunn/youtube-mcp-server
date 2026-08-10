@@ -1610,7 +1610,7 @@ Acceptance criteria:
   the deployment provisions the required OAuth secret(s), scopes, renewal or
   rotation mechanism, and safe readiness status; a short-lived opaque access
   token by itself is not sufficient production lifecycle support.
-- Retry behavior uses bounded exponential backoff, respects retry guidance
+- Retry behavior uses bounded exponential backoff with full jitter, respects retry guidance
   where supplied, and does not blindly replay non-idempotent mutations after an
   ambiguous request outcome.
 - Request-level tests cover every listed method's official path, HTTP method,

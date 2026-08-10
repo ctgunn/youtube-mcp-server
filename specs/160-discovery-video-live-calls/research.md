@@ -85,9 +85,9 @@
 
 ## Decision 8: Limit automatic retries to idempotent requests
 
-**Decision**: Use bounded exponential backoff only for `GET`, `HEAD`, `PUT`, and `DELETE`; do not retry POST mutations automatically.
+**Decision**: Use bounded full-jitter exponential backoff only for `GET`, `HEAD`, `PUT`, and `DELETE`; do not retry POST mutations automatically.
 
-**Rationale**: A transport error after a POST can occur after YouTube has already applied a mutation. Conservatively avoiding replay prevents duplicate user-visible side effects.
+**Rationale**: Full jitter prevents synchronized retry bursts after shared rate limits or outages, while a transport error after a POST can occur after YouTube has already applied a mutation. Conservatively avoiding replay prevents duplicate user-visible side effects.
 
 ## Decision 9: Retain explicit test and local overrides only
 

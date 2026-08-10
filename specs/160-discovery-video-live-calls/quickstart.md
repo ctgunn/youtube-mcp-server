@@ -65,7 +65,7 @@ Use controlled openers in integration tests to verify all of the following witho
 3. A configured `videos_getVideo` request captures the same live video-list request and returns the existing normalized detail fields.
 4. An OAuth mutation captures a bearer credential without a `key` query parameter and uses the expected JSON, raw-media, multipart, or resumable form.
 5. A missing selected credential makes no opener call and returns the established safe failure.
-6. HTTP, malformed-response, and timeout failures are normalized; only idempotent requests receive bounded backoff retries; no diagnostic exposes credentials or representative data.
+6. HTTP, malformed-response, and timeout failures are normalized; only idempotent requests receive bounded full-jitter exponential-backoff retries; no diagnostic exposes credentials or representative data.
 
 ## 5. Run the opt-in real API smoke check
 
