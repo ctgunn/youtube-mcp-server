@@ -149,3 +149,101 @@ def test_concrete_video_details_descriptor_returns_safe_failure_categories():
 
     assert exc_info.value.category == "quota_exhaustion"
     assert exc_info.value.details == {"reason": "quota exceeded"}
+
+
+def test_concrete_video_search_descriptor_registers_and_executes_query_only_search():
+    """Register and invoke the concrete query-only video-search descriptor."""
+    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_tool_descriptor
+
+    class SearchLookup:
+        """Return one video-search item and record public arguments."""
+
+        def __init__(self):
+            """Initialize the call history."""
+            self.calls = []
+
+        def __call__(self, arguments):
+            """Record base-search arguments and return one source item.
+
+            :param arguments: Public Layer 2 search arguments.
+            :return: One video-search source result.
+            """
+            self.calls.append(arguments)
+            return {"items": [{"id": {"videoId": "abc123"}, "snippet": {"title": "Example video", "channelId": "UC123"}}]}
+
+    search = SearchLookup()
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_search_videos_tool_descriptor(search=search)])
+
+    result = dispatcher.call_tool("videos_searchVideos", {"query": "example"})
+
+    assert search.calls == [{"part": "snippet", "q": "example", "type": "video", "maxResults": 10, "order": "relevance"}]
+    assert result["items"] == [{"videoId": "abc123", "title": "Example video", "channelId": "UC123"}]
+    assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
+
+
+def test_concrete_video_search_descriptor_composes_channel_filtering():
+    """Register channel-aware search composition with injected dependencies."""
+    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_tool_descriptor
+
+    def search(arguments):
+        """Return one base candidate for the configured search request.
+
+        :param arguments: Public Layer 2 search arguments.
+        :return: One video-search result.
+        """
+        assert arguments["type"] == "video"
+        return {"items": [{"id": {"videoId": "abc123"}, "snippet": {"title": "Example", "channelId": "UC123"}}]}
+
+    def channels(arguments):
+        """Return one public channel matching the batched selector.
+
+        :param arguments: Public Layer 2 channel arguments.
+        :return: One channel metadata result.
+        """
+        assert arguments == {"part": "snippet,statistics,contentDetails", "id": "UC123"}
+        return {"items": [{"id": "UC123", "snippet": {"title": "Creator Sam"}, "statistics": {"subscriberCount": "12"}}]}
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_search_videos_tool_descriptor(search=search, channels=channels)])
+
+    result = dispatcher.call_tool("videos_searchVideos", {"query": "example", "channelMinSubscribers": 10})
+
+    assert result["items"][0]["channel"]["subscriberCount"] == "12"
+
+
+def test_concrete_video_search_descriptor_ranks_before_unique_channel_selection():
+    """Expose ranked, one-per-channel output through the executable descriptor."""
+    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_tool_descriptor
+
+    def search(_arguments):
+        """Return candidates whose base order differs from subscriber ranking.
+
+        :param _arguments: Ignored Layer 2 search request.
+        :return: Three candidates including a repeated channel.
+        """
+        return {
+            "items": [
+                {"id": {"videoId": "high-first"}, "snippet": {"title": "High", "channelId": "UCH"}},
+                {"id": {"videoId": "low"}, "snippet": {"title": "Low", "channelId": "UCL"}},
+                {"id": {"videoId": "high-second"}, "snippet": {"title": "High again", "channelId": "UCH"}},
+            ]
+        }
+
+    def channels(_arguments):
+        """Return ranking metadata for both distinct candidate channels.
+
+        :param _arguments: Ignored Layer 2 channel request.
+        :return: Subscriber counts ordered opposite to base search.
+        """
+        return {
+            "items": [
+                {"id": "UCH", "statistics": {"subscriberCount": "100"}},
+                {"id": "UCL", "statistics": {"subscriberCount": "1"}},
+            ]
+        }
+
+    descriptor = build_videos_search_videos_tool_descriptor(search=search, channels=channels)
+    result = InMemoryToolDispatcher(tools=[descriptor]).call_tool(
+        "videos_searchVideos", {"query": "example", "sortBy": "subscribers_asc", "uniqueChannels": True}
+    )
+
+    assert [item["videoId"] for item in result["items"]] == ["low", "high-first"]

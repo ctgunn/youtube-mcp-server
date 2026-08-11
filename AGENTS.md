@@ -199,6 +199,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - No feature-specific persistent storage; runtime configuration and credentials are environment/secret-backed and request state remains in memory (157-live-execution-runtime)
 - No feature-specific persistent storage; runtime settings and credentials are environment/secret-backed, and request/observability state is in memory (158-channel-community-live-calls)
 - No feature-specific persistent storage; runtime settings and credentials are environment/secret-backed, while request and observability state are in memory (160-discovery-video-live-calls)
+- Python 3.11 + Existing FastAPI/Pydantic/Uvicorn runtime; in-repository MCP dispatcher, Layer 2 `search_list` and `channels_list` handlers, Layer 3 contract conventions, and Python standard library date/time utilities (303-videos-search)
+- N/A; request, candidate, enrichment, and ranking state are in-memory for one invocation (303-videos-search)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -219,9 +221,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 303-videos-search: Added Python 3.11 + Existing FastAPI/Pydantic/Uvicorn runtime; in-repository MCP dispatcher, Layer 2 `search_list` and `channels_list` handlers, Layer 3 contract conventions, and Python standard library date/time utilities
 - 160-discovery-video-live-calls: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff
 - 159-catalog-playlist-live-calls: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff
-- 158-channel-community-live-calls: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff
 
 
 <!-- MANUAL ADDITIONS START -->
