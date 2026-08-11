@@ -241,3 +241,166 @@ def test_channel_details_preserves_profile_on_safe_partial_enrichment_failure(lo
     }
     assert "latestVideoPublishedAt" not in result
     assert "secret" not in str(result)
+
+
+def test_batch_channel_details_validate_trimmed_bounded_request_arguments():
+    """Require one through fifty distinct batch identifiers and valid options."""
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsGetChannelsToolError,
+        validate_channels_get_channels_arguments,
+    )
+
+    assert validate_channels_get_channels_arguments({"channelIds": [" UC123 ", "UC456"]}) == {
+        "channelIds": ["UC123", "UC456"],
+        "parts": ["snippet"],
+        "includeLatestUpload": True,
+    }
+    invalid_arguments = (
+        ({}, "channelIds"),
+        ({"channelIds": []}, "channelIds"),
+        ({"channelIds": [" "]}, "channelIds"),
+        ({"channelIds": ["UC123", " UC123 "]}, "channelIds"),
+        ({"channelIds": ["UC123"] * 51}, "channelIds"),
+        ({"channelIds": ["UC123"], "parts": []}, "parts"),
+        ({"channelIds": ["UC123"], "parts": ["unknown"]}, "parts"),
+        ({"channelIds": ["UC123"], "includeLatestUpload": "yes"}, "includeLatestUpload"),
+        ({"channelIds": ["UC123"], "unexpected": True}, "unexpected"),
+    )
+    for arguments, field in invalid_arguments:
+        with pytest.raises(ChannelsGetChannelsToolError) as exc_info:
+            validate_channels_get_channels_arguments(arguments)
+        assert exc_info.value.category == "invalid_parameters"
+        assert exc_info.value.details["field"] == field
+
+
+def test_batch_channel_details_uses_one_core_lookup_and_preserves_request_order():
+    """Return normalized available items in caller order from one bulk lookup."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_handler
+
+    calls = []
+
+    def channels(arguments):
+        """Return bulk source items in a different order than requested.
+
+        :param arguments: Lower-level bulk lookup arguments.
+        :return: Two public source channel records.
+        """
+        calls.append(arguments)
+        return {
+            "items": [
+                {"id": "UC456", "snippet": {"title": "Second"}, "contentDetails": {}},
+                {"id": "UC123", "snippet": {"title": "First"}, "contentDetails": {}},
+            ]
+        }
+
+    result = build_channels_get_channels_handler(channels=channels, playlist_items=lambda _arguments: {"items": []})(
+        {"channelIds": ["UC123", "UC456"]}
+    )
+
+    assert calls == [{"part": "snippet,contentDetails", "id": "UC123,UC456"}]
+    assert [item["channelId"] for item in result["results"]] == ["UC123", "UC456"]
+    assert [item["outcome"] for item in result["results"]] == [{"status": "success"}, {"status": "success"}]
+    assert result["results"][0]["title"] == "First"
+    assert result["results"][0]["normalizedMetadata"] == {"emailsFound": [], "contactLinks": []}
+    assert result["results"][0]["fieldProvenance"]["title"] == "raw_upstream"
+    assert result["summary"] == {"requested": 2, "successful": 2, "unavailable": 0, "partiallyEnriched": 0}
+
+
+def test_batch_channel_details_applies_parts_and_latest_upload_controls():
+    """Select public groups and perform latest enrichment only when enabled."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_handler
+
+    payload = {
+        "items": [
+            {
+                "id": "UC123",
+                "snippet": {"title": "Example"},
+                "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}},
+            }
+        ]
+    }
+    playlist_calls = []
+
+    def playlist_items(arguments):
+        """Record a bounded latest-upload lookup and return a timestamp.
+
+        :param arguments: Lower-level playlist-items arguments.
+        :return: One timestamped uploads-playlist item.
+        """
+        playlist_calls.append(arguments)
+        return {"items": [{"contentDetails": {"videoPublishedAt": "2026-03-01T12:00:00Z"}}]}
+
+    handler = build_channels_get_channels_handler(channels=lambda _arguments: payload, playlist_items=playlist_items)
+    default_result = handler({"channelIds": ["UC123"]})
+    assert playlist_calls == [{"part": "contentDetails", "playlistId": "UU123", "maxResults": 1}]
+    assert default_result["results"][0]["latestVideoPublishedAt"] == "2026-03-01T12:00:00Z"
+    assert default_result["results"][0]["enrichment"] == {"status": "complete"}
+
+    playlist_calls.clear()
+    selected_result = handler({"channelIds": ["UC123"], "parts": ["contentDetails"], "includeLatestUpload": False})
+    item = selected_result["results"][0]
+    assert playlist_calls == []
+    assert item["contentDetails"] == {"uploadsPlaylistId": "UU123"}
+    assert "title" not in item
+    assert "normalizedMetadata" not in item
+    assert item["enrichment"] == {"status": "not_requested"}
+    assert "latestVideoPublishedAt" not in item
+    assert "contentDetails.uploadsPlaylistId" in item["fieldProvenance"]
+
+
+def test_batch_channel_details_preserves_available_items_for_unavailable_and_partial_outcomes():
+    """Keep ordered usable items when one ID is absent or enrichment fails."""
+    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_handler
+
+    payload = {
+        "items": [
+            {
+                "id": "UC123",
+                "snippet": {"title": "Available"},
+                "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}},
+            }
+        ]
+    }
+
+    def playlist_items(_arguments):
+        """Raise a sanitized capacity failure for the available item.
+
+        :param _arguments: Ignored lower-level playlist request.
+        :raises PlaylistItemsListToolError: Always raised for partial-outcome coverage.
+        """
+        raise PlaylistItemsListToolError("hidden", category="quota_exhausted", details={"api_key": "secret", "raw_body": "hidden"})
+
+    result = build_channels_get_channels_handler(channels=lambda _arguments: payload, playlist_items=playlist_items)(
+        {"channelIds": ["UC123", "UC404"]}
+    )
+
+    assert [item["channelId"] for item in result["results"]] == ["UC123", "UC404"]
+    assert result["results"][0]["outcome"] == {
+        "status": "partial",
+        "category": "partial_enrichment_failure",
+        "causeCategory": "quota_exhaustion",
+    }
+    assert result["results"][1]["outcome"] == {"status": "unavailable", "category": "unavailable_resource"}
+    assert result["summary"] == {"requested": 2, "successful": 0, "unavailable": 1, "partiallyEnriched": 1}
+    assert "secret" not in str(result)
+
+
+def test_batch_channel_details_maps_bulk_core_errors_without_source_diagnostics():
+    """Expose safe request-wide failures when the shared core lookup fails."""
+    from mcp_server.tools.youtube_common.channels import ChannelsListToolError
+    from mcp_server.tools.youtube_composed.channels import ChannelsGetChannelsToolError, build_channels_get_channels_handler
+
+    def failing_channels(_arguments):
+        """Raise a lower-level failure containing unsafe diagnostics.
+
+        :param _arguments: Ignored lower-level bulk request.
+        :raises ChannelsListToolError: Always raised for safe mapping coverage.
+        """
+        raise ChannelsListToolError("hidden", category="quota_exhausted", details={"api_key": "secret", "raw_body": "hidden"})
+
+    with pytest.raises(ChannelsGetChannelsToolError) as exc_info:
+        build_channels_get_channels_handler(channels=failing_channels)({"channelIds": ["UC123"]})
+    assert exc_info.value.category == "quota_exhaustion"
+    assert "secret" not in str(exc_info.value.details)
+    assert "hidden" not in str(exc_info.value.details)

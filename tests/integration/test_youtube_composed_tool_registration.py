@@ -153,6 +153,72 @@ def test_concrete_channel_details_descriptor_returns_partial_profile_after_enric
     assert result["enrichment"]["causeCategory"] == "quota_exhaustion"
 
 
+def test_concrete_batch_channel_details_descriptor_registers_and_executes():
+    """Register and invoke the concrete batch channel descriptor."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_tool_descriptor
+
+    def channels(arguments):
+        """Return two source records for one controlled batch lookup.
+
+        :param arguments: Lower-level bulk lookup arguments.
+        :return: Two available public channels.
+        """
+        assert arguments == {"part": "snippet,contentDetails", "id": "UC123,UC456"}
+        return {
+            "items": [
+                {"id": "UC123", "snippet": {"title": "First"}, "contentDetails": {}},
+                {"id": "UC456", "snippet": {"title": "Second"}, "contentDetails": {}},
+            ]
+        }
+
+    dispatcher = InMemoryToolDispatcher(
+        tools=[build_channels_get_channels_tool_descriptor(channels=channels, playlist_items=lambda _arguments: {"items": []})]
+    )
+    result = dispatcher.call_tool("channels_getChannels", {"channelIds": ["UC123", "UC456"]})
+
+    assert [item["channelId"] for item in result["results"]] == ["UC123", "UC456"]
+    assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
+
+
+def test_concrete_batch_channel_details_descriptor_returns_mixed_safe_outcomes():
+    """Keep registered batch results usable across unavailable and partial items."""
+    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_tool_descriptor
+
+    def channels(_arguments):
+        """Return only one available source item from the requested batch.
+
+        :param _arguments: Ignored lower-level bulk request.
+        :return: One available source channel.
+        """
+        return {
+            "items": [
+                {
+                    "id": "UC123",
+                    "snippet": {"title": "Available"},
+                    "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}},
+                }
+            ]
+        }
+
+    def playlist_items(_arguments):
+        """Raise a safe source failure after core item success.
+
+        :param _arguments: Ignored lower-level playlist request.
+        :raises PlaylistItemsListToolError: Always raised for partial-outcome coverage.
+        """
+        raise PlaylistItemsListToolError("hidden", category="upstream_failure", details={"api_key": "secret"})
+
+    dispatcher = InMemoryToolDispatcher(
+        tools=[build_channels_get_channels_tool_descriptor(channels=channels, playlist_items=playlist_items)]
+    )
+    result = dispatcher.call_tool("channels_getChannels", {"channelIds": ["UC123", "UC404"]})
+
+    assert [item["outcome"]["status"] for item in result["results"]] == ["partial", "unavailable"]
+    assert result["summary"] == {"requested": 2, "successful": 0, "unavailable": 1, "partiallyEnriched": 1}
+    assert "secret" not in str(result)
+
+
 def test_concrete_video_details_registration_preserves_lower_layer_provenance():
     """Keep concrete video details tied to the public ``videos.list`` boundary.
 
