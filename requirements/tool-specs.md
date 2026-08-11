@@ -957,7 +957,7 @@ Purpose:
 
 Primary upstream dependencies:
 - `channels.list`
-- optional latest-upload enrichment via `search.list` or uploads-playlist path
+- optional latest-upload enrichment via the channel uploads-playlist path and one `playlistItems.list` result
 
 Input schema:
 ```json
@@ -978,6 +978,9 @@ Logical payload:
   "title": "Channel name",
   "description": "...",
   "latestVideoPublishedAt": "2026-03-01T12:00:00Z",
+  "enrichment": {
+    "status": "complete"
+  },
   "normalizedMetadata": {
     "country": "US",
     "defaultLanguage": "en",
@@ -988,19 +991,28 @@ Logical payload:
   },
   "heuristics": {
     "creatorClassification": "creator",
-    "creatorSignals": ["has-face-forward-branding", "recent-upload-activity"]
+    "creatorSignals": ["public_creator_term"]
   },
   "thumbnails": {
     "default": "https://...",
     "high": "https://..."
+  },
+  "fieldProvenance": {
+    "channelId": "raw_upstream",
+    "latestVideoPublishedAt": "normalized",
+    "normalizedMetadata.emailsFound": "heuristic_inferred",
+    "heuristics.creatorClassification": "heuristic_inferred"
   }
 }
 ```
 
 Behavior notes:
-- `normalizedMetadata` contains public normalized fields.
-- `heuristics` contains inferred fields and must not be treated as canonical
-  upstream truth.
+- `channels_getChannel` is a composed higher-level tool: it performs one channel lookup and at most one uploads-playlist item lookup.
+- `normalizedMetadata` contains stable public fields. `emailsFound` and `contactLinks` are extracted only from returned public channel material, are de-duplicated and validated, and are neither verified contact data nor canonical source truth.
+- `heuristics` contains inferred public-context fields. `creatorClassification` is `creator`, `brand`, or `unknown`; it uses only positive, non-conflicting public signals and must not be treated as canonical upstream truth or verified identity.
+- `fieldProvenance` labels each returned path as `raw_upstream`, `normalized`, or `heuristic_inferred`.
+- If no public latest-video timestamp is available, the successful result sets `enrichment.status` to `unavailable` and omits `latestVideoPublishedAt`.
+- If latest-video enrichment fails after the channel profile succeeds, the successful result sets `enrichment.status` to `partial`, `enrichment.category` to `partial_enrichment_failure`, and includes only a safe cause category. Core unavailable, authorization, quota, and source failures remain distinct safe error outcomes.
 
 #### 8.3.2 `channels_getChannels`
 Purpose:

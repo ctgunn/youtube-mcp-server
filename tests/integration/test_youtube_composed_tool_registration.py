@@ -100,6 +100,59 @@ def test_concrete_video_details_descriptor_registers_and_executes():
     assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
 
 
+def test_concrete_channel_details_descriptor_registers_with_injected_dependencies():
+    """Register the concrete channel descriptor with controlled dependencies."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_tool_descriptor
+
+    def channels(arguments):
+        """Return one public channel for the requested identifier.
+
+        :param arguments: Lower-level channel-list arguments.
+        :return: One available public channel result.
+        """
+        assert arguments == {"part": "snippet,contentDetails", "id": "UC123"}
+        return {"items": [{"id": "UC123", "snippet": {"title": "Example"}, "contentDetails": {}}]}
+
+    descriptor = build_channels_get_channel_tool_descriptor(channels=channels, playlist_items=lambda _arguments: {"items": []})
+    dispatcher = InMemoryToolDispatcher(tools=[descriptor])
+
+    result = dispatcher.call_tool("channels_getChannel", {"channelId": "UC123"})
+
+    assert result["channelId"] == "UC123"
+    assert result["enrichment"] == {"status": "unavailable"}
+    assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
+
+
+def test_concrete_channel_details_descriptor_returns_partial_profile_after_enrichment_failure():
+    """Keep an injected core profile available when latest enrichment fails."""
+    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_tool_descriptor
+
+    def channels(_arguments):
+        """Return one channel with a public uploads playlist.
+
+        :param _arguments: Ignored lower-level channel request.
+        :return: One available channel result.
+        """
+        return {"items": [{"id": "UC123", "snippet": {"title": "Example"}, "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}}}]}
+
+    def playlist_items(_arguments):
+        """Raise a safe capacity error after core lookup success.
+
+        :param _arguments: Ignored lower-level playlist request.
+        :raises PlaylistItemsListToolError: Always raised for partial-profile coverage.
+        """
+        raise PlaylistItemsListToolError("quota", category="quota_exhausted", details={"api_key": "hidden"})
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_channels_get_channel_tool_descriptor(channels=channels, playlist_items=playlist_items)])
+
+    result = dispatcher.call_tool("channels_getChannel", {"channelId": "UC123"})
+
+    assert result["channelId"] == "UC123"
+    assert result["enrichment"]["category"] == "partial_enrichment_failure"
+    assert result["enrichment"]["causeCategory"] == "quota_exhaustion"
+
+
 def test_concrete_video_details_registration_preserves_lower_layer_provenance():
     """Keep concrete video details tied to the public ``videos.list`` boundary.
 

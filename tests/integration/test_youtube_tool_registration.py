@@ -82,6 +82,16 @@ def test_default_registry_includes_and_executes_video_details_tool():
     assert result == {"videoId": "abc123", "title": "Example video"}
 
 
+def test_default_registry_includes_channel_details_tool():
+    """Discover the default concrete channel-details descriptor."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channels_getChannel" in listed
+    assert listed["channels_getChannel"]["metadata"]["compositionBoundary"]["kind"] == "normalized_enrichment"
+    assert "representativeOnly" not in listed["channels_getChannel"]["metadata"]
+
+
 def test_default_registry_includes_and_executes_video_search_tool():
     """Discover and invoke the default concrete video-search tool."""
     dispatcher = InMemoryToolDispatcher()
