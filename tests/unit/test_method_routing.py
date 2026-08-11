@@ -9,6 +9,22 @@ from mcp_server.protocol.methods import initialize_succeeded, route_mcp_request
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 
 
+class Layer3ToolError(ValueError):
+    """Represent one YT-303 public tool failure for routing tests.
+
+    :param category: Stable public Layer 3 failure category.
+    """
+
+    def __init__(self, category):
+        """Initialize the configured routing-test failure.
+
+        :param category: Stable public Layer 3 failure category.
+        """
+        super().__init__("safe public failure")
+        self.category = category
+        self.details = {"api_key": "hidden", "reason": "safe reason"}
+
+
 class MethodRoutingTests(unittest.TestCase):
     """Unit coverage for MCP method routing behavior."""
 
@@ -52,6 +68,52 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertEqual(response["jsonrpc"], "2.0")
         payload = json.loads(response["result"]["content"][0]["text"])
         self.assertEqual(payload["value"], "ok")
+
+    def test_layer3_tool_categories_return_numeric_safe_mcp_errors(self):
+        """Serialize every YT-303 Layer 3 category without leaking secrets."""
+        expected_protocol_categories = {
+            "invalid_parameters": "invalid_argument",
+            "unavailable_resource": "resource_missing",
+            "authorization_sensitive_data": "authorization_denied",
+            "quota_exhaustion": "transport_not_supported",
+            "upstream_failure": "internal_execution_failure",
+            "partial_enrichment_failure": "unavailable_source",
+            "unsupported_filter_or_sort": "invalid_argument",
+        }
+        for category, protocol_category in expected_protocol_categories.items():
+            with self.subTest(category=category):
+                dispatcher = InMemoryToolDispatcher(tools=[])
+
+                def handler(_arguments, error_category=category):
+                    """Raise the configured public Layer 3 test error.
+
+                    :param _arguments: Ignored tool arguments.
+                    :param error_category: Category exposed by the test error.
+                    :raises Layer3ToolError: Always raised to exercise routing.
+                    """
+                    raise Layer3ToolError(error_category)
+
+                dispatcher.register_tool(
+                    name="videos_searchVideos",
+                    description="Test Layer 3 category routing.",
+                    input_schema={"type": "object", "properties": {}, "additionalProperties": False},
+                    handler=handler,
+                )
+                response = route_mcp_request(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": f"req-layer3-{category}",
+                        "method": "tools/call",
+                        "params": {"name": "videos_searchVideos", "arguments": {}},
+                    },
+                    dispatcher,
+                )
+
+                self.assertIsInstance(response["error"]["code"], int)
+                self.assertEqual(response["error"]["data"]["category"], category)
+                self.assertNotIn("api_key", str(response["error"]))
+                self.assertEqual(response["error"]["data"]["toolName"], "videos_searchVideos")
+                self.assertEqual(protocol_category, response["error"]["data"]["protocolCategory"])
 
     def test_baseline_tools_are_discoverable(self):
         """List the built-in baseline tools through tools/list."""

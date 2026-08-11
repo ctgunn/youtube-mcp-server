@@ -7,7 +7,7 @@ from typing import Any, Callable
 
 from mcp_server.integrations.runtime import ConfiguredYouTubeRuntime
 from mcp_server.tools.retrieval import FETCH_TOOL_SCHEMA, SEARCH_TOOL_SCHEMA, fetch_tool, search_tool
-from mcp_server.tools.youtube_composed import build_videos_get_video_tool_descriptor
+from mcp_server.tools.youtube_composed import build_videos_get_video_tool_descriptor, build_videos_search_videos_tool_descriptor
 from mcp_server.tools.youtube_common import (
     build_activities_list_tool_descriptor,
     build_captions_delete_tool_descriptor,
@@ -20,6 +20,7 @@ from mcp_server.tools.youtube_common import (
     build_channel_sections_insert_tool_descriptor,
     build_channel_sections_list_tool_descriptor,
     build_channel_sections_update_tool_descriptor,
+    build_channels_list_handler,
     build_channels_list_tool_descriptor,
     build_channels_update_tool_descriptor,
     build_comments_delete_tool_descriptor,
@@ -40,12 +41,14 @@ from mcp_server.tools.youtube_common import (
     build_playlist_images_update_tool_descriptor,
     build_playlist_items_delete_tool_descriptor,
     build_playlist_items_insert_tool_descriptor,
+    build_playlist_items_list_handler,
     build_playlist_items_list_tool_descriptor,
     build_playlist_items_update_tool_descriptor,
     build_playlists_delete_tool_descriptor,
     build_playlists_insert_tool_descriptor,
     build_playlists_list_tool_descriptor,
     build_playlists_update_tool_descriptor,
+    build_search_list_handler,
     build_search_list_tool_descriptor,
     build_subscriptions_delete_tool_descriptor,
     build_subscriptions_insert_tool_descriptor,
@@ -325,6 +328,11 @@ class InMemoryToolDispatcher:
             build_videos_list_tool_descriptor(**conditional_dependencies),
             build_videos_get_video_tool_descriptor(
                 lookup=build_videos_list_handler(**conditional_dependencies)
+            ),
+            build_videos_search_videos_tool_descriptor(
+                search=build_search_list_handler(**conditional_dependencies),
+                channels=build_channels_list_handler(**conditional_dependencies),
+                playlist_items=build_playlist_items_list_handler(**api_key_dependencies),
             ),
             build_videos_insert_tool_descriptor(**oauth_dependencies),
             build_videos_update_tool_descriptor(**oauth_dependencies),

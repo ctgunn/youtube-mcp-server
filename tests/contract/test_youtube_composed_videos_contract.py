@@ -78,3 +78,50 @@ def test_video_details_contract_retains_videos_list_dependency_without_represent
 
     assert metadata["lowerLayerDependencies"] == ["videos.list"]
     assert "representativeOnly" not in metadata
+
+
+def test_video_search_contract_exposes_concrete_schema_and_safe_metadata():
+    """Require concrete discovery metadata for the public video-search tool."""
+    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_tool_descriptor
+
+    descriptor = build_videos_search_videos_tool_descriptor()
+    schema = descriptor["inputSchema"]
+    metadata = descriptor["metadata"]
+
+    assert descriptor["name"] == "videos_searchVideos"
+    assert schema["required"] == ["query"]
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["maxResults"] == {"type": "integer", "minimum": 1, "maximum": 50, "default": 10}
+    assert schema["properties"]["order"]["enum"] == ["date", "rating", "relevance", "title", "viewCount"]
+    assert metadata["compositionBoundary"]["kind"] == "ranked_enrichment"
+    assert metadata["lowerLayerDependencies"] == ["search.list", "channels.list", "playlistItems.list"]
+    assert {field["fieldName"] for field in metadata["responseFields"]} >= {"videoId", "title", "channel.subscriberCount"}
+    assert "invalid_parameters" in metadata["errorCategories"]
+    assert "representativeOnly" not in metadata
+    assert "token" not in str(metadata).lower()
+
+
+def test_video_search_contract_discloses_enrichment_limits_and_partial_behavior():
+    """Require channel-aware metadata to make bounds and uncertainty explicit."""
+    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_metadata
+
+    metadata = build_videos_search_videos_metadata()
+
+    assert "uniqueChannels" in metadata["rankingAndFiltering"]
+    assert "creatorOnly" in metadata["rankingAndFiltering"]
+    assert "partial_enrichment_failure" in metadata["errorCategories"]
+    assert "maxResults" in metadata["compositionBoundary"]["boundedness"]
+    assert metadata["heuristics"][0]["name"] == "creatorClassification"
+    assert "incomplete" in metadata["heuristics"][0]["limitations"]
+
+
+def test_video_search_contract_discloses_deterministic_ranking_and_exclusion_rules():
+    """Require public metadata for ranking provenance and unavailable data behavior."""
+    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_metadata
+
+    metadata = build_videos_search_videos_metadata()
+
+    assert metadata["rankingSemantics"]["sortBy"] == ["relevance", "subscribers_asc", "subscribers_desc", "indie_priority", "recent_activity"]
+    assert "base-search position" in metadata["rankingSemantics"]["ties"]
+    assert metadata["rankingSemantics"]["deduplication"] == "Apply uniqueChannels after final ranking."
+    assert "excluded" in metadata["rankingSemantics"]["unavailableData"]

@@ -7,9 +7,26 @@ import json
 from mcp_server.protocol.envelope import error_response_for_category, success_response
 from mcp_server.transport.streaming import SUPPORTED_MCP_PROTOCOL_VERSIONS
 from mcp_server.tools.retrieval import RetrievalError
+from mcp_server.tools.youtube_common.conventions import sanitize_error_details
 
 
 UNKNOWN_TOOL_MESSAGE = "Tool not found."
+TOOL_ERROR_PROTOCOL_CATEGORIES = {
+    "invalid_request": "invalid_argument",
+    "invalid_parameters": "invalid_argument",
+    "unsupported_filter_or_sort": "invalid_argument",
+    "authentication_failed": "unauthenticated",
+    "authorization_failed": "authorization_denied",
+    "authorization_sensitive_data": "authorization_denied",
+    "quota_exhausted": "transport_not_supported",
+    "quota_exhaustion": "transport_not_supported",
+    "resource_not_found": "resource_missing",
+    "unavailable_resource": "resource_missing",
+    "deprecated_endpoint": "transport_not_supported",
+    "endpoint_unavailable": "unavailable_source",
+    "partial_enrichment_failure": "unavailable_source",
+    "upstream_failure": "internal_execution_failure",
+}
 
 
 def _validate_payload(payload):
@@ -134,6 +151,8 @@ def _handle_call(request_id, params, dispatcher):
     :param params: Tool call parameters.
     :param dispatcher: Tool dispatcher used for invocation.
     :return: JSON-RPC response payload.
+    :raises ValueError: Does not propagate tool validation errors; serializes them
+        into safe MCP error responses instead.
     """
     tool_name, arguments, validation_error = _parse_call_params(request_id, params)
     if validation_error:
@@ -154,19 +173,11 @@ def _handle_call(request_id, params, dispatcher):
         details = {"toolName": tool_name}
         extra_details = getattr(exc, "details", None)
         if isinstance(extra_details, dict):
-            details.update(extra_details)
+            details.update(sanitize_error_details(extra_details))
         category = getattr(exc, "category", "invalid_argument")
-        protocol_category = {
-            "invalid_request": "invalid_argument",
-            "authentication_failed": "unauthenticated",
-            "authorization_failed": "authorization_denied",
-            "quota_exhausted": "transport_not_supported",
-            "resource_not_found": "resource_missing",
-            "deprecated_endpoint": "transport_not_supported",
-            "endpoint_unavailable": "unavailable_source",
-            "upstream_failure": "internal_execution_failure",
-        }.get(category, category)
+        protocol_category = TOOL_ERROR_PROTOCOL_CATEGORIES.get(category, category)
         details.setdefault("category", category)
+        details.setdefault("protocolCategory", protocol_category)
         return error_response_for_category(
             protocol_category,
             str(exc),

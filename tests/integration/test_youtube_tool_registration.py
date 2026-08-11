@@ -82,6 +82,18 @@ def test_default_registry_includes_and_executes_video_details_tool():
     assert result == {"videoId": "abc123", "title": "Example video"}
 
 
+def test_default_registry_includes_and_executes_video_search_tool():
+    """Discover and invoke the default concrete video-search tool."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    result = dispatcher.call_tool("videos_searchVideos", {"query": "mcp server"})
+
+    assert "videos_searchVideos" in listed
+    assert listed["videos_searchVideos"]["metadata"]["compositionBoundary"]["kind"] == "ranked_enrichment"
+    assert result["items"][0]["videoId"] == "abc123"
+
+
 def test_default_registry_includes_executable_captions_insert_tool():
     """Register ``captions_insert`` by default with safe metadata."""
     dispatcher = InMemoryToolDispatcher()
