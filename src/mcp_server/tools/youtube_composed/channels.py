@@ -15,10 +15,35 @@ from mcp_server.tools.youtube_composed.families import get_family
 FAMILY_SCAFFOLDING = get_family("channels")
 PLANNED_TOOLS = FAMILY_SCAFFOLDING.planned_tools
 CHANNELS_GET_CHANNEL_TOOL_NAME = "channels_getChannel"
+CHANNELS_GET_CHANNELS_TOOL_NAME = "channels_getChannels"
 CHANNELS_GET_CHANNEL_INPUT_SCHEMA = {
     "type": "object",
     "required": ["channelId"],
     "properties": {"channelId": {"type": "string", "minLength": 1}},
+    "additionalProperties": False,
+}
+CHANNELS_GET_CHANNELS_SUPPORTED_PARTS = ("snippet", "contentDetails")
+CHANNELS_GET_CHANNELS_MAX_IDS = 50
+CHANNELS_GET_CHANNELS_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["channelIds"],
+    "properties": {
+        "channelIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": CHANNELS_GET_CHANNELS_MAX_IDS,
+            "uniqueItems": True,
+            "items": {"type": "string", "minLength": 1},
+        },
+        "parts": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": True,
+            "items": {"type": "string", "enum": list(CHANNELS_GET_CHANNELS_SUPPORTED_PARTS)},
+            "default": ["snippet"],
+        },
+        "includeLatestUpload": {"type": "boolean", "default": True},
+    },
     "additionalProperties": False,
 }
 _EMAIL_PATTERN = re.compile(r"(?<![\w@])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,63}(?![\w@])", re.IGNORECASE)
@@ -45,6 +70,10 @@ class ChannelsGetChannelToolError(ValueError):
         super().__init__(message)
         self.category = category
         self.details = sanitize_error_details(details or {})
+
+
+class ChannelsGetChannelsToolError(ChannelsGetChannelToolError):
+    """Represent a safe caller-facing batch channel-detail failure."""
 
 
 def build_channels_get_channel_metadata() -> dict[str, Any]:
@@ -143,6 +172,74 @@ def validate_channels_get_channel_arguments(arguments: dict[str, Any]) -> dict[s
             details={"field": "channelId"},
         )
     return {"channelId": channel_id.strip()}
+
+
+def validate_channels_get_channels_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize the public batch channel-detail request.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Normalized identifiers, selected parts, and enrichment preference.
+    :raises ChannelsGetChannelsToolError: If public input is missing or invalid.
+    """
+    if not isinstance(arguments, dict):
+        raise ChannelsGetChannelsToolError(
+            "channels_getChannels arguments must be an object",
+            category="invalid_parameters",
+            details={"field": "arguments"},
+        )
+    unexpected_fields = set(arguments) - {"channelIds", "parts", "includeLatestUpload"}
+    if unexpected_fields:
+        raise ChannelsGetChannelsToolError(
+            "channels_getChannels received an unsupported field",
+            category="invalid_parameters",
+            details={"field": sorted(unexpected_fields)[0]},
+        )
+    channel_ids = arguments.get("channelIds")
+    if not isinstance(channel_ids, list) or not 1 <= len(channel_ids) <= CHANNELS_GET_CHANNELS_MAX_IDS:
+        raise ChannelsGetChannelsToolError(
+            "channels_getChannels requires one through fifty channelIds",
+            category="invalid_parameters",
+            details={"field": "channelIds"},
+        )
+    normalized_ids: list[str] = []
+    for channel_id in channel_ids:
+        if not isinstance(channel_id, str) or not channel_id.strip():
+            raise ChannelsGetChannelsToolError(
+                "channels_getChannels requires non-empty channelIds",
+                category="invalid_parameters",
+                details={"field": "channelIds"},
+            )
+        normalized_ids.append(channel_id.strip())
+    if len(set(normalized_ids)) != len(normalized_ids):
+        raise ChannelsGetChannelsToolError(
+            "channels_getChannels requires distinct channelIds",
+            category="invalid_parameters",
+            details={"field": "channelIds"},
+        )
+    parts = arguments.get("parts", ["snippet"])
+    if (
+        not isinstance(parts, list)
+        or not parts
+        or any(not isinstance(part, str) or part not in CHANNELS_GET_CHANNELS_SUPPORTED_PARTS for part in parts)
+        or len(set(parts)) != len(parts)
+    ):
+        raise ChannelsGetChannelsToolError(
+            "channels_getChannels parts must be a distinct supported selection",
+            category="invalid_parameters",
+            details={"field": "parts"},
+        )
+    include_latest_upload = arguments.get("includeLatestUpload", True)
+    if not isinstance(include_latest_upload, bool):
+        raise ChannelsGetChannelsToolError(
+            "channels_getChannels includeLatestUpload must be a boolean",
+            category="invalid_parameters",
+            details={"field": "includeLatestUpload"},
+        )
+    return {
+        "channelIds": normalized_ids,
+        "parts": list(parts),
+        "includeLatestUpload": include_latest_upload,
+    }
 
 
 def _copy_if_present(result: dict[str, Any], source: dict[str, Any], field: str) -> None:
@@ -434,4 +531,255 @@ def build_channels_get_channel_tool_descriptor(*, channels=None, playlist_items=
         "inputSchema": CHANNELS_GET_CHANNEL_INPUT_SCHEMA,
         "handler": build_channels_get_channel_handler(channels=channels, playlist_items=playlist_items),
         "metadata": build_channels_get_channel_metadata(),
+    }
+
+
+def build_channels_get_channels_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for the batch channel-detail tool.
+
+    :return: JSON-compatible executable metadata for bounded ordered batch retrieval.
+    """
+    return {
+        "name": CHANNELS_GET_CHANNELS_TOOL_NAME,
+        "family": "channels",
+        "parameters": ["channelIds", "parts", "includeLatestUpload"],
+        "inputContract": CHANNELS_GET_CHANNELS_INPUT_SCHEMA,
+        "compositionBoundary": {
+            "kind": "normalized_batch_enrichment",
+            "lowerLayerDependencies": ["channels.list", "playlistItems.list"],
+            "boundedness": "one channel collection and at most one playlist item per available channel",
+            "partialResultPolicy": "Preserve independent items when an identifier is unavailable or optional enrichment is partial.",
+        },
+        "lowerLayerDependencies": ["channels.list", "playlistItems.list"],
+        "responseConvention": {
+            "resultKind": "ordered_batch",
+            "resultOrdering": "Results preserve channelIds request order.",
+            "summaryFields": ["requested", "successful", "unavailable", "partiallyEnriched"],
+        },
+        "detailSelection": {
+            "supported": list(CHANNELS_GET_CHANNELS_SUPPORTED_PARTS),
+            "default": ["snippet"],
+        },
+        "latestUploadEnrichment": {
+            "default": True,
+            "states": ["complete", "unavailable", "partial", "not_requested"],
+        },
+        "individualOutcomePolicy": {
+            "unavailable": "unavailable_resource",
+            "partial": "partial_enrichment_failure",
+        },
+        "responseFields": [
+            {"fieldName": "results.channelId", "category": "raw_upstream", "source": "id"},
+            {"fieldName": "results.title", "category": "raw_upstream", "source": "snippet.title"},
+            {"fieldName": "results.normalizedMetadata", "category": "normalized", "source": "public profile mappings"},
+            {"fieldName": "results.enrichment", "category": "normalized", "source": "bounded latest-upload enrichment"},
+            {"fieldName": "results.heuristics", "category": "heuristic_inferred", "source": "public channel material"},
+        ],
+        "errorCategories": [
+            "invalid_parameters",
+            "unavailable_resource",
+            "authorization_sensitive_data",
+            "quota_exhaustion",
+            "upstream_failure",
+            "partial_enrichment_failure",
+        ],
+        "errorGuidance": {
+            "invalid_parameters": "Correct the identified request field and retry.",
+            "unavailable_resource": "Use a different accessible channel identifier.",
+            "authorization_sensitive_data": "Obtain appropriate authorization if applicable.",
+            "quota_exhaustion": "Retry after capacity is available.",
+            "upstream_failure": "Retry when the source service is available.",
+            "partial_enrichment_failure": "Use the returned item and retry enrichment later when appropriate.",
+        },
+    }
+
+
+def _batch_field_provenance(result: dict[str, Any]) -> dict[str, str]:
+    """Build provenance labels only for currently returned batch-item fields.
+
+    :param result: Public batch item before its provenance mapping is attached.
+    :return: Field-path-to-provenance mapping for returned public source values.
+    """
+    provenance: dict[str, str] = {"channelId": "raw_upstream", "enrichment": "normalized"}
+    for field in ("title", "description", "thumbnails"):
+        if field in result:
+            provenance[field] = "raw_upstream"
+    metadata = result.get("normalizedMetadata") if isinstance(result.get("normalizedMetadata"), dict) else {}
+    for field in ("country", "defaultLanguage", "joinedAt", "customUrl"):
+        if field in metadata:
+            provenance[f"normalizedMetadata.{field}"] = "normalized"
+    if metadata:
+        provenance["normalizedMetadata.emailsFound"] = "heuristic_inferred"
+        provenance["normalizedMetadata.contactLinks"] = "heuristic_inferred"
+    if "heuristics" in result:
+        provenance["heuristics.creatorClassification"] = "heuristic_inferred"
+        provenance["heuristics.creatorSignals"] = "heuristic_inferred"
+    if "latestVideoPublishedAt" in result:
+        provenance["latestVideoPublishedAt"] = "normalized"
+    content_details = result.get("contentDetails") if isinstance(result.get("contentDetails"), dict) else {}
+    if "uploadsPlaylistId" in content_details:
+        provenance["contentDetails.uploadsPlaylistId"] = "raw_upstream"
+    return provenance
+
+
+def _normalize_batch_channel_item(item: dict[str, Any], parts: list[str]) -> dict[str, Any] | None:
+    """Normalize one available source channel item for its selected public groups.
+
+    :param item: Lower-level channel record with an identifier and public profile fields.
+    :param parts: Valid public source-detail groups selected by the caller.
+    :return: Successful normalized batch item, or ``None`` for an unusable source record.
+    """
+    channel_id = item.get("id")
+    if not isinstance(channel_id, str) or not channel_id.strip():
+        return None
+    result: dict[str, Any] = {"channelId": channel_id.strip(), "outcome": {"status": "success"}}
+    if "snippet" in parts:
+        snippet = item.get("snippet") if isinstance(item.get("snippet"), dict) else {}
+        for field in ("title", "description", "thumbnails"):
+            _copy_if_present(result, snippet, field)
+        result["normalizedMetadata"] = _normalized_metadata(snippet)
+        classification, signals = _creator_classification(snippet)
+        result["heuristics"] = {"creatorClassification": classification, "creatorSignals": signals}
+    if "contentDetails" in parts:
+        uploads_playlist_id = _uploads_playlist_id(item)
+        if uploads_playlist_id:
+            result["contentDetails"] = {"uploadsPlaylistId": uploads_playlist_id}
+    return result
+
+
+def _enrich_batch_channel_item(
+    result: dict[str, Any],
+    item: dict[str, Any],
+    playlist_items,
+    include_latest_upload: bool,
+) -> None:
+    """Attach one bounded latest-upload state to a successful batch item.
+
+    :param result: Successful normalized batch item to enrich in place.
+    :param item: Source channel record containing an optional uploads playlist.
+    :param playlist_items: Lower-level playlist-item lookup callable.
+    :param include_latest_upload: Whether the caller requested latest-upload enrichment.
+    :return: ``None`` after adding complete, unavailable, or not-requested enrichment state.
+    """
+    if not include_latest_upload:
+        result["enrichment"] = {"status": "not_requested"}
+        result["fieldProvenance"] = _batch_field_provenance(result)
+        return
+    uploads_playlist_id = _uploads_playlist_id(item)
+    if not uploads_playlist_id:
+        result["enrichment"] = {"status": "unavailable"}
+        result["fieldProvenance"] = _batch_field_provenance(result)
+        return
+    try:
+        latest_payload = playlist_items({"part": "contentDetails", "playlistId": uploads_playlist_id, "maxResults": 1})
+    except PlaylistItemsListToolError as exc:
+        partial_state = _partial_enrichment_state(exc)
+        result["outcome"] = {
+            "status": "partial",
+            "category": partial_state["category"],
+            "causeCategory": partial_state["causeCategory"],
+        }
+        result["enrichment"] = partial_state
+        result["fieldProvenance"] = _batch_field_provenance(result)
+        return
+    latest_timestamp = _latest_video_published_at(latest_payload)
+    if latest_timestamp:
+        result["latestVideoPublishedAt"] = latest_timestamp
+        result["enrichment"] = {"status": "complete"}
+    else:
+        result["enrichment"] = {"status": "unavailable"}
+    result["fieldProvenance"] = _batch_field_provenance(result)
+
+
+def _batch_summary(results: list[dict[str, Any]], requested_count: int) -> dict[str, int]:
+    """Build the documented partition summary for currently successful batch items.
+
+    :param results: Ordered public batch items.
+    :param requested_count: Number of validated identifiers in the request.
+    :return: Summary counts for requested, successful, unavailable, and partial items.
+    """
+    return {
+        "requested": requested_count,
+        "successful": sum(item.get("outcome", {}).get("status") == "success" for item in results),
+        "unavailable": sum(item.get("outcome", {}).get("status") == "unavailable" for item in results),
+        "partiallyEnriched": sum(item.get("outcome", {}).get("status") == "partial" for item in results),
+    }
+
+
+def _map_batch_channels_list_error(error: ChannelsListToolError) -> ChannelsGetChannelsToolError:
+    """Translate a bulk core lookup error to the batch public taxonomy.
+
+    :param error: Safe lower-level channel-list failure.
+    :return: Sanitized public batch channel-detail error.
+    """
+    mapped = _map_channels_list_error(error)
+    return ChannelsGetChannelsToolError(str(mapped), category=mapped.category, details=mapped.details)
+
+
+def build_channels_get_channels_handler(*, channels=None, playlist_items=None):
+    """Build a callable handler for bounded ordered public channel batches.
+
+    :param channels: Optional lower-level channel-list handler override for tests.
+    :param playlist_items: Optional lower-level playlist-items handler override for bounded enrichment tests.
+    :return: Callable batch channel-detail handler.
+    """
+    selected_channels = channels or build_channels_list_handler()
+    selected_playlist_items = playlist_items or build_playlist_items_list_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated public batch channel-detail request.
+
+        :param arguments: Caller-provided public batch arguments.
+        :return: Ordered normalized channel items and their batch summary.
+        :raises ChannelsGetChannelsToolError: If validation or the bulk core lookup fails.
+        """
+        request = validate_channels_get_channels_arguments(arguments)
+        try:
+            payload = selected_channels({"part": "snippet,contentDetails", "id": ",".join(request["channelIds"])})
+        except ChannelsListToolError as exc:
+            raise _map_batch_channels_list_error(exc) from exc
+        source_items = payload.get("items") if isinstance(payload, dict) and isinstance(payload.get("items"), list) else []
+        by_channel_id = {
+            item["id"].strip(): item
+            for item in source_items
+            if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip()
+        }
+        results = []
+        for channel_id in request["channelIds"]:
+            item = by_channel_id.get(channel_id)
+            if item is None:
+                results.append(
+                    {
+                        "channelId": channel_id,
+                        "outcome": {"status": "unavailable", "category": "unavailable_resource"},
+                    }
+                )
+                continue
+            normalized = _normalize_batch_channel_item(item, request["parts"])
+            if normalized is None:
+                continue
+            _enrich_batch_channel_item(normalized, item, selected_playlist_items, request["includeLatestUpload"])
+            results.append(normalized)
+        return {
+            "requestedChannelIds": request["channelIds"],
+            "results": results,
+            "summary": _batch_summary(results, len(request["channelIds"])),
+        }
+
+    return handler
+
+
+def build_channels_get_channels_tool_descriptor(*, channels=None, playlist_items=None) -> dict[str, Any]:
+    """Build the executable MCP descriptor for ``channels_getChannels``.
+
+    :param channels: Optional lower-level channel-list handler override for tests.
+    :param playlist_items: Optional lower-level playlist-items handler override for tests.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {
+        "name": CHANNELS_GET_CHANNELS_TOOL_NAME,
+        "description": "Return normalized details for multiple YouTube channels in request order.",
+        "inputSchema": CHANNELS_GET_CHANNELS_INPUT_SCHEMA,
+        "handler": build_channels_get_channels_handler(channels=channels, playlist_items=playlist_items),
+        "metadata": build_channels_get_channels_metadata(),
     }

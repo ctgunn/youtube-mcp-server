@@ -67,3 +67,45 @@ def test_channel_details_contract_discloses_safe_partial_enrichment_behavior():
     assert "unavailable" in metadata["compositionBoundary"]["partialResultPolicy"].lower()
     assert "partial" in metadata["compositionBoundary"]["partialResultPolicy"].lower()
     assert metadata["errorGuidance"]["partial_enrichment_failure"].startswith("Use the returned profile")
+
+
+def test_batch_channel_details_contract_exposes_bounded_ordered_schema():
+    """Require the public batch schema, defaults, and bounded discovery facts."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_tool_descriptor
+
+    descriptor = build_channels_get_channels_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["name"] == "channels_getChannels"
+    assert descriptor["inputSchema"]["required"] == ["channelIds"]
+    assert descriptor["inputSchema"]["properties"]["channelIds"]["maxItems"] == 50
+    assert descriptor["inputSchema"]["properties"]["parts"]["default"] == ["snippet"]
+    assert descriptor["inputSchema"]["properties"]["includeLatestUpload"]["default"] is True
+    assert metadata["compositionBoundary"]["kind"] == "normalized_batch_enrichment"
+    assert "order" in metadata["responseConvention"]["resultOrdering"].lower()
+    assert "representativeOnly" not in metadata
+
+
+def test_batch_channel_details_contract_discloses_selection_and_enrichment_states():
+    """Require explicit detail selection and default-on enrichment guidance."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_metadata
+
+    metadata = build_channels_get_channels_metadata()
+
+    assert metadata["detailSelection"]["supported"] == ["snippet", "contentDetails"]
+    assert metadata["detailSelection"]["default"] == ["snippet"]
+    assert metadata["latestUploadEnrichment"]["default"] is True
+    assert metadata["latestUploadEnrichment"]["states"] == ["complete", "unavailable", "partial", "not_requested"]
+    assert "one playlist item per available channel" in metadata["compositionBoundary"]["boundedness"]
+
+
+def test_batch_channel_details_contract_discloses_independent_safe_outcomes():
+    """Require item-local unavailable and partial-outcome guidance."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_metadata
+
+    metadata = build_channels_get_channels_metadata()
+
+    assert metadata["individualOutcomePolicy"]["unavailable"] == "unavailable_resource"
+    assert metadata["individualOutcomePolicy"]["partial"] == "partial_enrichment_failure"
+    assert metadata["errorGuidance"]["unavailable_resource"].startswith("Use a different")
+    assert metadata["errorGuidance"]["partial_enrichment_failure"].startswith("Use the returned item")
