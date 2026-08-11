@@ -126,6 +126,8 @@ def test_unimplemented_family_modules_remain_scaffolding_only():
 
     assert callable(videos.build_videos_get_video_handler)
 
-    for module in (channels, playlists, transcripts):
+    for module in (channels, playlists):
         assert module.FAMILY_SCAFFOLDING.family_name in {"videos", "channels", "playlists", "transcripts"}
         assert not any(name.startswith("build_") and name.endswith("_handler") for name in dir(module))
+
+    assert callable(transcripts.build_transcripts_get_transcript_handler)

@@ -2,11 +2,39 @@
 
 import pytest
 
+
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_composed import (
     REPRESENTATIVE_TOOL_CONTRACTS,
     build_representative_tool_descriptor,
 )
+
+
+def test_concrete_transcript_descriptor_registers_and_executes():
+    """Register and invoke the concrete transcript descriptor."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_transcript_tool_descriptor
+
+    calls = []
+    def caption_list(arguments):
+        """Return one accessible caption track.
+
+        :param arguments: Caption-list arguments.
+        :return: Controlled list result.
+        """
+        calls.append(("list", arguments))
+        return {"items": [{"id": "caption-1", "snippet": {"language": "en", "status": "serving"}}]}
+    def caption_download(arguments):
+        """Return one VTT download.
+
+        :param arguments: Caption-download arguments.
+        :return: Controlled download result.
+        """
+        calls.append(("download", arguments))
+        return {"content": "WEBVTT\n\n00:00.000 --> 00:01.000\nHello"}
+    descriptor = build_transcripts_get_transcript_tool_descriptor(caption_list=caption_list, caption_download=caption_download)
+    result = InMemoryToolDispatcher(tools=[descriptor]).call_tool("transcripts_getTranscript", {"videoId": "abc"})
+    assert result["text"] == "Hello"
+    assert calls == [("list", {"part": "snippet", "videoId": "abc"}), ("download", {"id": "caption-1", "tfmt": "vtt"})]
 
 
 class SuccessfulVideoLookup:
