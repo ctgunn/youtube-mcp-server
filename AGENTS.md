@@ -203,6 +203,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - N/A; request, candidate, enrichment, and ranking state are in-memory for one invocation (303-videos-search)
 - Python 3.11 + Existing FastAPI/Pydantic/Uvicorn MCP runtime; in-repository dispatcher, Layer 2 `captions_list` and `captions_download` handlers, Layer 3 conventions, and Python standard-library parsing utilities (304-transcripts-get-transcript)
 - N/A; request, resolved-language, caption metadata, and downloaded text exist only for one invocation (304-transcripts-get-transcript)
+- Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `channels_list` and `playlist_items_list` handlers; Python standard-library dataclasses and JSON-compatible dictionaries; pytest; Ruff (305-channels-get-channel)
+- N/A; request handling, normalization, and enrichment state are in-memory only (305-channels-get-channel)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -223,9 +225,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 305-channels-get-channel: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `channels_list` and `playlist_items_list` handlers; Python standard-library dataclasses and JSON-compatible dictionaries; pytest; Ruff
 - 304-transcripts-get-transcript: Added Python 3.11 + Existing FastAPI/Pydantic/Uvicorn MCP runtime; in-repository dispatcher, Layer 2 `captions_list` and `captions_download` handlers, Layer 3 conventions, and Python standard-library parsing utilities
 - 303-videos-search: Added Python 3.11 + Existing FastAPI/Pydantic/Uvicorn runtime; in-repository MCP dispatcher, Layer 2 `search_list` and `channels_list` handlers, Layer 3 contract conventions, and Python standard library date/time utilities
-- 160-discovery-video-live-calls: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Python standard-library `urllib`/JSON/dataclasses, existing Layer 1 integration modules, pytest, and Ruff
 
 
 <!-- MANUAL ADDITIONS START -->

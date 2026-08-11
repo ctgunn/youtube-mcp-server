@@ -115,6 +115,38 @@ class MethodRoutingTests(unittest.TestCase):
                 self.assertEqual(response["error"]["data"]["toolName"], "videos_searchVideos")
                 self.assertEqual(protocol_category, response["error"]["data"]["protocolCategory"])
 
+    def test_channel_detail_error_categories_route_safely(self):
+        """Serialize channel-detail failures without exposing unsafe details."""
+        from mcp_server.tools.youtube_composed.channels import ChannelsGetChannelToolError, build_channels_get_channel_tool_descriptor
+
+        def channels(_arguments):
+            """Raise a lower-level quota failure with unsafe diagnostic values.
+
+            :param _arguments: Ignored lower-level request arguments.
+            :raises Exception: Always raised to exercise safe public mapping.
+            """
+            from mcp_server.tools.youtube_common.channels import ChannelsListToolError
+
+            raise ChannelsListToolError("quota", category="quota_exhausted", details={"api_key": "hidden", "raw_body": "hidden"})
+
+        dispatcher = InMemoryToolDispatcher(
+            tools=[build_channels_get_channel_tool_descriptor(channels=channels, playlist_items=lambda _arguments: {"items": []})]
+        )
+        response = route_mcp_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "req-channel-detail-error",
+                "method": "tools/call",
+                "params": {"name": "channels_getChannel", "arguments": {"channelId": "UC123"}},
+            },
+            dispatcher,
+        )
+
+        assert response["error"]["data"]["category"] == "quota_exhaustion"
+        assert response["error"]["data"]["protocolCategory"] == "transport_not_supported"
+        assert "hidden" not in str(response["error"])
+        assert ChannelsGetChannelToolError is not None
+
     def test_baseline_tools_are_discoverable(self):
         """List the built-in baseline tools through tools/list."""
         payload = {"jsonrpc": "2.0", "id": "req-4", "method": "tools/list", "params": {}}
