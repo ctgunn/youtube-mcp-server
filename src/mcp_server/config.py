@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import re
 from typing import Mapping
 
 from mcp_server.security import HostedSecuritySettings, parse_allowed_origins
@@ -75,6 +76,8 @@ class YouTubeLiveRuntimeSettings:
     oauth_refresh_token: str | None = None
     oauth_client_id: str | None = None
     oauth_client_secret: str | None = None
+    transcript_language: str | None = None
+    transcript_language_error: str | None = None
     timeout_seconds: float = 10.0
     max_attempts: int = 3
 
@@ -107,13 +110,16 @@ class YouTubeLiveRuntimeSettings:
 
         :return: Safe diagnostics containing configuration state but no secrets.
         """
-        return {
+        details = {
             "apiKeyConfigured": self.has_api_key,
             "oauthTokenConfigured": self.has_oauth_token,
             "oauthLifecycle": "refreshable" if self.has_oauth_refresh_configuration else ("static" if self.oauth_token else "notConfigured"),
             "timeoutSeconds": self.timeout_seconds,
             "maxAttempts": self.max_attempts,
         }
+        if self.transcript_language is not None or self.transcript_language_error is not None:
+            details["transcriptLanguage"] = self.transcript_language or "invalid"
+        return details
 
 
 def load_youtube_live_runtime_settings(env: Mapping[str, str]) -> YouTubeLiveRuntimeSettings:
@@ -125,12 +131,15 @@ def load_youtube_live_runtime_settings(env: Mapping[str, str]) -> YouTubeLiveRun
     :param env: Environment mapping to read without mutating process state.
     :return: Normalized settings with default timeout and retry-attempt values.
     """
+    transcript_language, transcript_language_error = _transcript_language_setting(env.get("YOUTUBE_TRANSCRIPT_LANG"))
     return YouTubeLiveRuntimeSettings(
         api_key=_optional_secret(env.get("YOUTUBE_API_KEY")),
         oauth_token=_optional_secret(env.get("YOUTUBE_OAUTH_TOKEN")),
         oauth_refresh_token=_optional_secret(env.get("YOUTUBE_OAUTH_REFRESH_TOKEN")),
         oauth_client_id=_optional_secret(env.get("YOUTUBE_OAUTH_CLIENT_ID")),
         oauth_client_secret=_optional_secret(env.get("YOUTUBE_OAUTH_CLIENT_SECRET")),
+        transcript_language=transcript_language,
+        transcript_language_error=transcript_language_error,
     )
 
 
@@ -159,6 +168,24 @@ def _optional_secret(value: str | None) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _transcript_language_setting(value: str | None) -> tuple[str | None, str | None]:
+    """Normalize a non-secret configured transcript language.
+
+    :param value: Candidate ``YOUTUBE_TRANSCRIPT_LANG`` value.
+    :return: Normalized BCP-47 language tag and an optional safe error category.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None, None
+    normalized = value.strip()
+    if not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*", normalized):
+        return None, "invalid_language"
+    pieces = normalized.split("-")
+    canonical = [pieces[0].lower()]
+    for piece in pieces[1:]:
+        canonical.append(piece.upper() if len(piece) == 2 else piece.title() if len(piece) == 4 else piece.lower())
+    return "-".join(canonical), None
 
 
 @dataclass(frozen=True)

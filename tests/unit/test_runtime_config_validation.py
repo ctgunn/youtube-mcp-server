@@ -94,6 +94,27 @@ class RuntimeConfigValidationTests(unittest.TestCase):
         self.assertEqual(settings.safe_details()["apiKeyConfigured"], False)
         self.assertEqual(settings.safe_details()["oauthTokenConfigured"], False)
 
+    def test_transcript_language_default_is_optional_and_blank_is_ignored(self):
+        """Treat absent or blank transcript-language configuration as unset."""
+        self.assertIsNone(load_youtube_live_runtime_settings({}).transcript_language)
+        self.assertIsNone(load_youtube_live_runtime_settings({"YOUTUBE_TRANSCRIPT_LANG": "  \t"}).transcript_language)
+
+    def test_transcript_language_default_is_normalized_without_being_secret(self):
+        """Normalize the configured transcript language in shared settings."""
+        settings = load_youtube_live_runtime_settings({"YOUTUBE_TRANSCRIPT_LANG": " EN-us "})
+
+        self.assertEqual(settings.transcript_language, "en-US")
+        self.assertIsNone(settings.transcript_language_error)
+        self.assertEqual(settings.safe_details()["transcriptLanguage"], "en-US")
+
+    def test_malformed_transcript_language_is_retained_as_safe_configuration_error(self):
+        """Keep malformed transcript defaults out of the selected language path."""
+        settings = load_youtube_live_runtime_settings({"YOUTUBE_TRANSCRIPT_LANG": "en_US"})
+
+        self.assertIsNone(settings.transcript_language)
+        self.assertEqual(settings.transcript_language_error, "invalid_language")
+        self.assertEqual(settings.safe_details()["transcriptLanguage"], "invalid")
+
     def test_youtube_capability_readiness_distinguishes_public_and_oauth_access(self):
         """Report API-key and OAuth capability independently without exposing secrets."""
         api_key_only = youtube_capability_readiness(

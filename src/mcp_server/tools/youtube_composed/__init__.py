@@ -46,6 +46,15 @@ from .videos import (
     validate_videos_get_video_arguments,
     validate_videos_search_videos_arguments,
 )
+from .transcripts import (
+    TRANSCRIPTS_GET_TRANSCRIPT_INPUT_SCHEMA,
+    TRANSCRIPTS_GET_TRANSCRIPT_TOOL_NAME,
+    TranscriptsGetTranscriptToolError,
+    build_transcripts_get_transcript_handler,
+    build_transcripts_get_transcript_metadata,
+    build_transcripts_get_transcript_tool_descriptor,
+    validate_transcripts_get_transcript_arguments,
+)
 
 __all__ = [
     "CONCRETE_TOOL_EXECUTION_ENABLED",
@@ -63,6 +72,9 @@ __all__ = [
     "VIDEOS_GET_VIDEO_TOOL_NAME",
     "VIDEOS_SEARCH_VIDEOS_INPUT_SCHEMA",
     "VIDEOS_SEARCH_VIDEOS_TOOL_NAME",
+    "TRANSCRIPTS_GET_TRANSCRIPT_INPUT_SCHEMA",
+    "TRANSCRIPTS_GET_TRANSCRIPT_TOOL_NAME",
+    "TranscriptsGetTranscriptToolError",
     "VideosGetVideoToolError",
     "VideosSearchVideosToolError",
     "build_representative_tool_descriptor",
@@ -72,6 +84,9 @@ __all__ = [
     "build_videos_search_videos_handler",
     "build_videos_search_videos_metadata",
     "build_videos_search_videos_tool_descriptor",
+    "build_transcripts_get_transcript_handler",
+    "build_transcripts_get_transcript_metadata",
+    "build_transcripts_get_transcript_tool_descriptor",
     "channels",
     "get_family",
     "get_family_for_tool_name",
@@ -83,5 +98,6 @@ __all__ = [
     "validate_safe_public_metadata",
     "validate_videos_get_video_arguments",
     "validate_videos_search_videos_arguments",
+    "validate_transcripts_get_transcript_arguments",
     "videos",
 ]

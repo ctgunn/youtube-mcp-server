@@ -7,13 +7,15 @@ from typing import Any, Callable
 
 from mcp_server.integrations.runtime import ConfiguredYouTubeRuntime
 from mcp_server.tools.retrieval import FETCH_TOOL_SCHEMA, SEARCH_TOOL_SCHEMA, fetch_tool, search_tool
-from mcp_server.tools.youtube_composed import build_videos_get_video_tool_descriptor, build_videos_search_videos_tool_descriptor
+from mcp_server.tools.youtube_composed import build_transcripts_get_transcript_tool_descriptor, build_videos_get_video_tool_descriptor, build_videos_search_videos_tool_descriptor
 from mcp_server.tools.youtube_common import (
     build_activities_list_tool_descriptor,
     build_captions_delete_tool_descriptor,
     build_captions_download_tool_descriptor,
+    build_captions_download_handler,
     build_captions_insert_tool_descriptor,
     build_captions_list_tool_descriptor,
+    build_captions_list_handler,
     build_captions_update_tool_descriptor,
     build_channel_banners_insert_tool_descriptor,
     build_channel_sections_delete_tool_descriptor,
@@ -333,6 +335,12 @@ class InMemoryToolDispatcher:
                 search=build_search_list_handler(**conditional_dependencies),
                 channels=build_channels_list_handler(**conditional_dependencies),
                 playlist_items=build_playlist_items_list_handler(**api_key_dependencies),
+            ),
+            build_transcripts_get_transcript_tool_descriptor(
+                caption_list=build_captions_list_handler(**oauth_dependencies),
+                caption_download=build_captions_download_handler(**oauth_dependencies),
+                default_language=(self._youtube_runtime.settings.transcript_language if self._youtube_runtime is not None else None),
+                default_language_error=(self._youtube_runtime.settings.transcript_language_error if self._youtube_runtime is not None else None),
             ),
             build_videos_insert_tool_descriptor(**oauth_dependencies),
             build_videos_update_tool_descriptor(**oauth_dependencies),
