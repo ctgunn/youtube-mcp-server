@@ -136,6 +136,16 @@ def test_default_registry_includes_creator_discovery_tool():
     assert "representativeOnly" not in listed["channels_findCreators"]["metadata"]
 
 
+def test_default_registry_includes_channel_video_listing_tool():
+    """Discover the default concrete channel video-listing descriptor."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channels_listVideos" in listed
+    assert listed["channels_listVideos"]["metadata"]["compositionBoundary"]["kind"] == "source_ordered_collection"
+    assert "representativeOnly" not in listed["channels_listVideos"]["metadata"]
+
+
 def test_default_registry_includes_executable_captions_insert_tool():
     """Register ``captions_insert`` by default with safe metadata."""
     dispatcher = InMemoryToolDispatcher()

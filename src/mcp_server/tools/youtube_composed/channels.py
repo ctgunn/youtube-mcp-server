@@ -17,6 +17,8 @@ FAMILY_SCAFFOLDING = get_family("channels")
 PLANNED_TOOLS = FAMILY_SCAFFOLDING.planned_tools
 CHANNELS_GET_CHANNEL_TOOL_NAME = "channels_getChannel"
 CHANNELS_GET_CHANNELS_TOOL_NAME = "channels_getChannels"
+CHANNELS_LIST_VIDEOS_TOOL_NAME = "channels_listVideos"
+CHANNELS_LIST_VIDEOS_MAX_RESULTS = 50
 CHANNELS_SEARCH_CHANNELS_TOOL_NAME = "channels_searchChannels"
 CHANNELS_SEARCH_CHANNELS_MAX_RESULTS = 50
 CHANNELS_SEARCH_CHANNELS_ORDERS = ("date", "relevance", "title", "videoCount")
@@ -43,6 +45,15 @@ CHANNELS_GET_CHANNEL_INPUT_SCHEMA = {
     "type": "object",
     "required": ["channelId"],
     "properties": {"channelId": {"type": "string", "minLength": 1}},
+    "additionalProperties": False,
+}
+CHANNELS_LIST_VIDEOS_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["channelId"],
+    "properties": {
+        "channelId": {"type": "string", "minLength": 1},
+        "maxResults": {"type": "integer", "minimum": 1, "maximum": CHANNELS_LIST_VIDEOS_MAX_RESULTS, "default": 10},
+    },
     "additionalProperties": False,
 }
 CHANNELS_GET_CHANNELS_SUPPORTED_PARTS = ("snippet", "contentDetails")
@@ -97,6 +108,10 @@ class ChannelsGetChannelToolError(ValueError):
 
 class ChannelsGetChannelsToolError(ChannelsGetChannelToolError):
     """Represent a safe caller-facing batch channel-detail failure."""
+
+
+class ChannelsListVideosToolError(ChannelsGetChannelToolError):
+    """Represent a safe caller-facing channel video-listing failure."""
 
 
 class ChannelsSearchChannelsToolError(ChannelsGetChannelToolError):
@@ -199,6 +214,43 @@ def validate_channels_get_channel_arguments(arguments: dict[str, Any]) -> dict[s
             details={"field": "channelId"},
         )
     return {"channelId": channel_id.strip()}
+
+
+def validate_channels_list_videos_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize one public channel video-listing request.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Stripped channel identifier and a bounded whole-number result limit.
+    :raises ChannelsListVideosToolError: If a public input is missing, invalid, or unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise ChannelsListVideosToolError(
+            "channels_listVideos arguments must be an object",
+            category="invalid_parameters",
+            details={"field": "arguments"},
+        )
+    unexpected_fields = set(arguments) - {"channelId", "maxResults"}
+    if unexpected_fields:
+        raise ChannelsListVideosToolError(
+            "channels_listVideos received an unsupported field",
+            category="invalid_parameters",
+            details={"field": sorted(unexpected_fields)[0]},
+        )
+    channel_id = arguments.get("channelId")
+    if not isinstance(channel_id, str) or not channel_id.strip():
+        raise ChannelsListVideosToolError(
+            "channels_listVideos requires a non-empty channelId",
+            category="invalid_parameters",
+            details={"field": "channelId"},
+        )
+    max_results = arguments.get("maxResults", 10)
+    if isinstance(max_results, bool) or not isinstance(max_results, int) or not 1 <= max_results <= CHANNELS_LIST_VIDEOS_MAX_RESULTS:
+        raise ChannelsListVideosToolError(
+            f"maxResults must be an integer from 1 through {CHANNELS_LIST_VIDEOS_MAX_RESULTS}",
+            category="invalid_parameters",
+            details={"field": "maxResults"},
+        )
+    return {"channelId": channel_id.strip(), "maxResults": max_results}
 
 
 def validate_channels_get_channels_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -481,6 +533,165 @@ def _map_channels_list_error(error: ChannelsListToolError) -> ChannelsGetChannel
     return ChannelsGetChannelToolError(safe_upstream_error_message(), category=category, details=error.details)
 
 
+def _channels_list_videos_core_error(error: ChannelsListToolError) -> ChannelsListVideosToolError:
+    """Translate one lower-level channel failure for public video listing.
+
+    :param error: Safe lower-level channel-list failure.
+    :return: Sanitized channel video-listing error using the public taxonomy.
+    """
+    mapped = _map_channels_list_error(error)
+    return ChannelsListVideosToolError(str(mapped), category=mapped.category, details=mapped.details)
+
+
+def _channels_list_videos_playlist_error(error: PlaylistItemsListToolError) -> ChannelsListVideosToolError:
+    """Translate a required uploads-collection read failure for public listing.
+
+    :param error: Safe lower-level playlist-items failure.
+    :return: Sanitized whole-request channel video-listing error.
+    """
+    if error.category in {"resource_not_found", "removed"}:
+        return ChannelsListVideosToolError(
+            "The requested channel videos are unavailable",
+            category="unavailable_resource",
+            details={"resource": "channel"},
+        )
+    category = {
+        "invalid_request": "invalid_parameters",
+        "authentication_failed": "authorization_sensitive_data",
+        "authorization_failed": "authorization_sensitive_data",
+        "quota_exhausted": "quota_exhaustion",
+    }.get(error.category, "upstream_failure")
+    return ChannelsListVideosToolError(safe_upstream_error_message(), category=category, details=error.details)
+
+
+def _channel_video_list_result(
+    channel_id: str,
+    max_results: int,
+    items: list[dict[str, Any]],
+    *,
+    omitted_item_count: int = 0,
+) -> dict[str, Any]:
+    """Build one stable public channel video-listing result.
+
+    :param channel_id: Normalized requested public channel identifier.
+    :param max_results: Validated final result cap.
+    :param items: Distinct normalized items in source collection order.
+    :param omitted_item_count: Number of unusable source items safely omitted.
+    :return: Public result with normalized context and field provenance.
+    """
+    result: dict[str, Any] = {
+        "channelId": channel_id,
+        "items": items,
+        "returnedCount": len(items),
+        "maxResults": max_results,
+        "appliedInputs": {"channelId": channel_id, "maxResults": max_results},
+        "collectionContext": {
+            "source": "channel_uploads_collection",
+            "ordering": "source_order_at_request_time",
+            "rankingApplied": False,
+            "publicContentOnly": True,
+            "requestTimeVariability": "collection_can_change",
+        },
+        "fieldProvenance": _channel_video_list_provenance(items, include_partial_availability=bool(omitted_item_count)),
+    }
+    if omitted_item_count:
+        result["partialAvailability"] = {
+            "status": "partial",
+            "omittedItemCount": omitted_item_count,
+            "reasons": ["unusable_source_item"],
+        }
+    return result
+
+
+def _channel_video_list_provenance(
+    items: list[dict[str, Any]], *, include_partial_availability: bool = False
+) -> dict[str, str]:
+    """Build provenance labels for a public channel video-listing result.
+
+    :param items: Normalized public video items in the returned collection.
+    :param include_partial_availability: Whether a safe partial-availability value is returned.
+    :return: Field-path-to-provenance mapping for source and normalized values.
+    """
+    provenance = {
+        "items.videoId": "raw_upstream",
+        "channelId": "normalized",
+        "returnedCount": "normalized",
+        "maxResults": "normalized",
+        "appliedInputs": "normalized",
+        "collectionContext": "normalized",
+    }
+    for field in ("title", "description", "publishedAt", "thumbnails"):
+        if any(field in item for item in items):
+            provenance[f"items.{field}"] = "raw_upstream"
+    if include_partial_availability:
+        provenance["partialAvailability"] = "normalized"
+    return provenance
+
+
+def _normalize_channel_video_items(payload: dict[str, Any], max_results: int) -> tuple[list[dict[str, Any]], int]:
+    """Normalize, de-duplicate, and cap one uploads-collection response.
+
+    :param payload: Lower-level playlist-items result in source collection order.
+    :param max_results: Validated cap applied after first-occurrence de-duplication.
+    :return: Distinct public video items and the number of unusable omitted source items.
+    """
+    source_items = payload.get("items") if isinstance(payload, dict) and isinstance(payload.get("items"), list) else []
+    items: list[dict[str, Any]] = []
+    seen_video_ids: set[str] = set()
+    omitted_item_count = 0
+    for source_item in source_items:
+        if not isinstance(source_item, dict):
+            omitted_item_count += 1
+            continue
+        snippet = source_item.get("snippet") if isinstance(source_item.get("snippet"), dict) else {}
+        content_details = source_item.get("contentDetails") if isinstance(source_item.get("contentDetails"), dict) else {}
+        resource_id = snippet.get("resourceId") if isinstance(snippet.get("resourceId"), dict) else {}
+        candidate_video_id = resource_id.get("videoId")
+        if not isinstance(candidate_video_id, str) or not candidate_video_id.strip():
+            candidate_video_id = content_details.get("videoId")
+        if not isinstance(candidate_video_id, str) or not candidate_video_id.strip():
+            omitted_item_count += 1
+            continue
+        video_id = candidate_video_id.strip()
+        if video_id in seen_video_ids:
+            continue
+        seen_video_ids.add(video_id)
+        item: dict[str, Any] = {"videoId": video_id}
+        for field in ("title", "description", "thumbnails"):
+            _copy_if_present(item, snippet, field)
+        published_at = content_details.get("videoPublishedAt")
+        if isinstance(published_at, str) and published_at.strip():
+            item["publishedAt"] = published_at.strip()
+        items.append(item)
+        if len(items) == max_results:
+            break
+    return items, omitted_item_count
+
+
+def _channel_uploads_reference(payload: dict[str, Any]) -> str | None:
+    """Return the public uploads collection reference from one available channel.
+
+    :param payload: Lower-level channel-list result expected to contain one source channel.
+    :return: Nonblank uploads collection reference, or ``None`` when the channel has none.
+    :raises ChannelsListVideosToolError: If the requested channel cannot be returned.
+    """
+    source_items = payload.get("items") if isinstance(payload, dict) and isinstance(payload.get("items"), list) else []
+    if not source_items or not isinstance(source_items[0], dict):
+        raise ChannelsListVideosToolError(
+            "The requested channel is unavailable",
+            category="unavailable_resource",
+            details={"resource": "channel"},
+        )
+    channel_id = source_items[0].get("id")
+    if not isinstance(channel_id, str) or not channel_id.strip():
+        raise ChannelsListVideosToolError(
+            "The requested channel is unavailable",
+            category="unavailable_resource",
+            details={"resource": "channel"},
+        )
+    return _uploads_playlist_id(source_items[0])
+
+
 def _partial_enrichment_state(error: PlaylistItemsListToolError) -> dict[str, str]:
     """Build a safe partial state from a post-profile playlist lookup failure.
 
@@ -558,6 +769,124 @@ def build_channels_get_channel_tool_descriptor(*, channels=None, playlist_items=
         "inputSchema": CHANNELS_GET_CHANNEL_INPUT_SCHEMA,
         "handler": build_channels_get_channel_handler(channels=channels, playlist_items=playlist_items),
         "metadata": build_channels_get_channel_metadata(),
+    }
+
+
+def build_channels_list_videos_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for source-ordered channel video listing.
+
+    :return: JSON-compatible executable tool metadata without a representative marker.
+    """
+    return {
+        "name": CHANNELS_LIST_VIDEOS_TOOL_NAME,
+        "family": "channels",
+        "parameters": ["channelId", "maxResults"],
+        "inputContract": CHANNELS_LIST_VIDEOS_INPUT_SCHEMA,
+        "compositionBoundary": {
+            "kind": "source_ordered_collection",
+            "lowerLayerDependencies": ["channels.list", "playlistItems.list"],
+            "boundedness": "one channel lookup and at most one uploads-collection listing; 1-50 returned distinct items",
+            "partialResultPolicy": "A missing uploads reference or successful empty collection returns an empty result; a required collection-read failure is a whole-request error.",
+        },
+        "lowerLayerDependencies": ["channels.list", "playlistItems.list"],
+        "orderingSemantics": {
+            "ordering": "Preserves usable uploads-collection source order observed at request time after first-occurrence de-duplication and final cap.",
+            "rankingApplied": False,
+            "requestTimeVariability": "Later requests can differ when public channel uploads change.",
+        },
+        "publicContentPolicy": "Only publicly available videos are returned; inaccessible content is omitted.",
+        "searchGuidance": "Use a search-oriented tool when keyword matching or relevance-ranked discovery is required.",
+        "partialAvailabilityPolicy": {
+            "status": "partial",
+            "safeAggregateOnly": True,
+            "requiredLookupFailure": "whole_request_error",
+        },
+        "authAndQuotaNotes": [
+            "Uses configured public-read capability and does not request owner-scoped data.",
+            "The bounded channel and uploads-collection reads consume quota and can fail when capacity is exhausted.",
+        ],
+        "responseFields": [
+            {"fieldName": "items.videoId", "category": "raw_upstream", "source": "snippet.resourceId.videoId or contentDetails.videoId"},
+            {"fieldName": "items.title", "category": "raw_upstream", "source": "snippet.title"},
+            {"fieldName": "items.description", "category": "raw_upstream", "source": "snippet.description"},
+            {"fieldName": "items.publishedAt", "category": "raw_upstream", "source": "contentDetails.videoPublishedAt"},
+            {"fieldName": "items.thumbnails", "category": "raw_upstream", "source": "snippet.thumbnails"},
+            {"fieldName": "channelId", "category": "normalized", "source": "validated caller input"},
+            {"fieldName": "returnedCount", "category": "normalized", "source": "returned distinct item count"},
+            {"fieldName": "maxResults", "category": "normalized", "source": "validated caller input"},
+            {"fieldName": "appliedInputs", "category": "normalized", "source": "validated caller input"},
+            {"fieldName": "collectionContext", "category": "normalized", "source": "source-order contract"},
+            {"fieldName": "partialAvailability", "category": "normalized", "source": "safe aggregate known source omissions"},
+        ],
+        "errorCategories": [
+            "invalid_parameters",
+            "unavailable_resource",
+            "authorization_sensitive_data",
+            "quota_exhaustion",
+            "upstream_failure",
+        ],
+        "errorGuidance": {
+            "invalid_parameters": "Correct the identified request field and retry.",
+            "unavailable_resource": "Use a different accessible channel identifier.",
+            "authorization_sensitive_data": "Obtain appropriate public-read capability if applicable.",
+            "quota_exhaustion": "Retry after capacity is available.",
+            "upstream_failure": "Retry when the source service is available.",
+        },
+    }
+
+
+def build_channels_list_videos_handler(*, channels=None, playlist_items=None):
+    """Build a callable handler for one bounded source-ordered video listing.
+
+    :param channels: Optional lower-level channel-list handler override for tests.
+    :param playlist_items: Optional lower-level playlist-items handler override for tests.
+    :return: Callable public channel video-listing handler.
+    """
+    selected_channels = channels or build_channels_list_handler()
+    selected_playlist_items = playlist_items or build_playlist_items_list_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated public channel video-listing request.
+
+        :param arguments: Caller-provided public arguments.
+        :return: Bounded source-ordered public videos and safe collection context.
+        :raises ChannelsListVideosToolError: If validation or a required lookup fails.
+        """
+        request = validate_channels_list_videos_arguments(arguments)
+        try:
+            channel_payload = selected_channels({"part": "contentDetails", "id": request["channelId"]})
+        except ChannelsListToolError as exc:
+            raise _channels_list_videos_core_error(exc) from exc
+        uploads_playlist_id = _channel_uploads_reference(channel_payload)
+        if uploads_playlist_id is None:
+            return _channel_video_list_result(request["channelId"], request["maxResults"], [])
+        try:
+            playlist_payload = selected_playlist_items(
+                {"part": "snippet,contentDetails", "playlistId": uploads_playlist_id, "maxResults": request["maxResults"]}
+            )
+        except PlaylistItemsListToolError as exc:
+            raise _channels_list_videos_playlist_error(exc) from exc
+        items, omitted_item_count = _normalize_channel_video_items(playlist_payload, request["maxResults"])
+        return _channel_video_list_result(
+            request["channelId"], request["maxResults"], items, omitted_item_count=omitted_item_count
+        )
+
+    return handler
+
+
+def build_channels_list_videos_tool_descriptor(*, channels=None, playlist_items=None) -> dict[str, Any]:
+    """Build the executable MCP descriptor for ``channels_listVideos``.
+
+    :param channels: Optional lower-level channel-list handler override for tests.
+    :param playlist_items: Optional lower-level playlist-items handler override for tests.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {
+        "name": CHANNELS_LIST_VIDEOS_TOOL_NAME,
+        "description": "List publicly available videos for one YouTube channel in uploads-collection source order.",
+        "inputSchema": CHANNELS_LIST_VIDEOS_INPUT_SCHEMA,
+        "handler": build_channels_list_videos_handler(channels=channels, playlist_items=playlist_items),
+        "metadata": build_channels_list_videos_metadata(),
     }
 
 
