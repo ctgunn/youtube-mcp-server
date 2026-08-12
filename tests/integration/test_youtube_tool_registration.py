@@ -1428,6 +1428,21 @@ def test_default_registry_includes_executable_playlists_delete_tool_with_delete_
     assert result["target"] == {"playlistId": "PL123"}
 
 
+def test_default_registry_includes_concrete_playlist_detail_tool():
+    """Discover the default executable playlist-detail descriptor.
+
+    :return: ``None`` after validating additive default registration.
+    """
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlists_getPlaylist" in listed
+    metadata = listed["playlists_getPlaylist"]["metadata"]
+    assert metadata["compositionBoundary"]["kind"] == "normalized_retrieval"
+    assert metadata["lowerLayerDependencies"] == ["playlists.list"]
+    assert "representativeOnly" not in metadata
+
+
 def test_default_registry_includes_executable_playlist_items_insert_tool_with_insert_metadata():
     """Register ``playlistItems_insert`` by default with insert metadata."""
     dispatcher = InMemoryToolDispatcher()

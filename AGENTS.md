@@ -213,6 +213,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - N/A; request, matched-video, candidate, enrichment, sample, and ranking state exist only for one invocation (308-creator-discovery)
 - Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `channels_list` and `playlist_items_list` handlers; Python standard-library JSON-compatible dictionaries; pytest; Ruff (309-channels-list-videos)
 - N/A; request normalization and collection shaping are in-memory only (309-channels-list-videos)
+- Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `playlists_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff (310-playlist-details)
+- N/A; request normalization and response shaping are in-memory only (310-playlist-details)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -233,9 +235,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 310-playlist-details: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `playlists_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff
 - 309-channels-list-videos: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `channels_list` and `playlist_items_list` handlers; Python standard-library JSON-compatible dictionaries; pytest; Ruff
 - 308-creator-discovery: Added Python 3.11 + Existing FastAPI/Pydantic/Uvicorn service runtime; in-repository MCP dispatcher; Layer 2 `search_list`, `channels_list`, and `playlist_items_list` handlers; Layer 3 composed-tool conventions; Python standard-library date/time utilities
-- 307-channel-search: Added Python 3.11 + Existing FastAPI/Pydantic/Uvicorn service runtime; in-repository MCP dispatcher; Layer 1 search request contract; Layer 2 `search_list`, `channels_list`, and `playlist_items_list` handlers; Layer 3 composed-tool conventions; Python standard-library date/time utilities
 
 
 <!-- MANUAL ADDITIONS START -->

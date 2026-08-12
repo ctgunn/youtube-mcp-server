@@ -189,6 +189,41 @@ class MethodRoutingTests(unittest.TestCase):
         assert "hidden" not in str(response["error"])
         assert ChannelsListVideosToolError is not None
 
+    def test_playlist_detail_error_categories_route_safely(self):
+        """Serialize playlist-detail capacity failures without unsafe details.
+
+        :return: ``None`` after validating safe protocol error serialization.
+        """
+        from mcp_server.tools.youtube_common.playlists import PlaylistsListToolError
+        from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_tool_descriptor
+
+        def lookup(_arguments):
+            """Raise a capacity failure containing unsafe lower-layer details.
+
+            :param _arguments: Ignored lower-layer playlist request.
+            :raises PlaylistsListToolError: Always raised for routing coverage.
+            """
+            raise PlaylistsListToolError(
+                "quota",
+                category="quota_exhausted",
+                details={"api_key": "hidden", "raw_body": "hidden"},
+            )
+
+        dispatcher = InMemoryToolDispatcher(tools=[build_playlists_get_playlist_tool_descriptor(lookup=lookup)])
+        response = route_mcp_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "req-playlist-detail-error",
+                "method": "tools/call",
+                "params": {"name": "playlists_getPlaylist", "arguments": {"playlistId": "PL123"}},
+            },
+            dispatcher,
+        )
+
+        assert response["error"]["data"]["category"] == "quota_exhaustion"
+        assert response["error"]["data"]["protocolCategory"] == "transport_not_supported"
+        assert "hidden" not in str(response["error"])
+
     def test_baseline_tools_are_discoverable(self):
         """List the built-in baseline tools through tools/list."""
         payload = {"jsonrpc": "2.0", "id": "req-4", "method": "tools/list", "params": {}}

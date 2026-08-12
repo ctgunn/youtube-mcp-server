@@ -54,6 +54,39 @@ class SuccessfulVideoLookup:
         return {"items": [{"id": "abc123", "snippet": {"title": "Example video"}, "contentDetails": {}}]}
 
 
+def test_concrete_playlist_details_descriptor_registers_and_exposes_scope():
+    """Register and execute the concrete playlist detail descriptor.
+
+    :return: ``None`` after validating registration, provenance, and scope.
+    """
+    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_tool_descriptor
+
+    calls = []
+
+    def lookup(arguments):
+        """Return one public playlist and record its direct request.
+
+        :param arguments: Lower-level playlist-list arguments.
+        :return: One available public playlist result.
+        """
+        calls.append(arguments)
+        return {"items": [{"id": "PL123", "snippet": {"title": "Example"}, "contentDetails": {}, "status": {}}]}
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_playlists_get_playlist_tool_descriptor(lookup=lookup)])
+    result = dispatcher.call_tool("playlists_getPlaylist", {"playlistId": "PL123"})
+
+    assert calls == [{"part": "snippet,contentDetails,status", "id": "PL123"}]
+    assert result["playlistId"] == "PL123"
+    assert result["fieldProvenance"]["playlistId"] == "raw_upstream"
+    assert result["contentScope"] == {
+        "playlistItemsIncluded": False,
+        "playlistItemsTool": "playlists_getPlaylistItems",
+        "stateObservedAtRequest": True,
+    }
+    assert "items" not in result
+    assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
+
+
 def test_representative_youtube_composed_descriptor_registers_without_tool_execution():
     """Register representative Layer 3 metadata while keeping the handler inert."""
     descriptor = build_representative_tool_descriptor(REPRESENTATIVE_TOOL_CONTRACTS[0])
