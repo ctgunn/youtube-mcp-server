@@ -109,3 +109,52 @@ def test_batch_channel_details_contract_discloses_independent_safe_outcomes():
     assert metadata["individualOutcomePolicy"]["partial"] == "partial_enrichment_failure"
     assert metadata["errorGuidance"]["unavailable_resource"].startswith("Use a different")
     assert metadata["errorGuidance"]["partial_enrichment_failure"].startswith("Use the returned item")
+
+
+def test_channel_search_contract_exposes_concrete_query_only_schema_and_boundary():
+    """Require executable discovery metadata for public channel search."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_tool_descriptor
+
+    descriptor = build_channels_search_channels_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["name"] == "channels_searchChannels"
+    assert descriptor["inputSchema"]["required"] == ["query"]
+    assert descriptor["inputSchema"]["properties"]["maxResults"]["default"] == 10
+    assert descriptor["inputSchema"]["properties"]["channelType"]["enum"] == ["any", "show"]
+    assert metadata["compositionBoundary"]["kind"] == "ranked_enrichment"
+    assert metadata["lowerLayerDependencies"] == ["search.list", "channels.list", "playlistItems.list"]
+    assert "base-search" in metadata["continuationPolicy"].lower()
+    assert "representativeOnly" not in metadata
+    assert "token" not in str(metadata).lower()
+
+
+def test_channel_search_contract_discloses_conditional_public_enrichment_and_heuristics():
+    """Require public disclosure of refinement dependencies and limits."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_metadata
+
+    metadata = build_channels_search_channels_metadata()
+    fields = {field["fieldName"]: field for field in metadata["responseFields"]}
+
+    assert fields["statistics.subscriberCount"]["category"] == "raw_upstream"
+    assert fields["latestVideoPublishedAt"]["category"] == "normalized"
+    assert fields["heuristics.creatorClassification"]["category"] == "heuristic_inferred"
+    assert "conditional" in metadata["compositionBoundary"]["partialResultPolicy"].lower()
+    assert "quota" in " ".join(metadata["authAndQuotaNotes"]).lower()
+
+
+def test_channel_search_contract_discloses_all_ranking_and_tie_semantics():
+    """Require caller-visible deterministic ranking semantics."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_metadata
+
+    metadata = build_channels_search_channels_metadata()
+
+    assert metadata["rankingSemantics"]["sortBy"] == [
+        "relevance",
+        "subscribers_asc",
+        "subscribers_desc",
+        "indie_priority",
+        "recent_activity",
+    ]
+    assert "base-search position" in metadata["rankingSemantics"]["ties"]
+    assert metadata["rankingSemantics"]["filterOrder"] == "Apply filters before final ranking and result cap."

@@ -394,3 +394,80 @@ def test_concrete_video_search_descriptor_ranks_before_unique_channel_selection(
     )
 
     assert [item["videoId"] for item in result["items"]] == ["low", "high-first"]
+
+
+def test_concrete_channel_search_descriptor_registers_and_executes_query_only_search():
+    """Register and execute the concrete query-only channel search descriptor."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_tool_descriptor
+
+    def search(arguments):
+        """Return one base channel candidate for the configured query.
+
+        :param arguments: Lower-level search request.
+        :return: One public channel reference.
+        """
+        assert arguments == {"part": "snippet", "q": "creator", "type": "channel", "maxResults": 10, "order": "relevance"}
+        return {"items": [{"id": {"channelId": "UC123"}, "snippet": {"title": "Creator"}}]}
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_channels_search_channels_tool_descriptor(search=search)])
+
+    result = dispatcher.call_tool("channels_searchChannels", {"query": "creator"})
+
+    assert result["items"][0]["channelId"] == "UC123"
+    assert result["items"][0]["title"] == "Creator"
+    assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
+
+
+def test_concrete_channel_search_descriptor_composes_public_refinement():
+    """Execute bounded channel enrichment through the registered descriptor."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_tool_descriptor
+
+    def search(_arguments):
+        """Return one public base channel.
+
+        :param _arguments: Ignored base-search request.
+        :return: One channel reference.
+        """
+        return {"items": [{"id": {"channelId": "UC123"}, "snippet": {"title": "Creator Sam"}}]}
+
+    def channels(arguments):
+        """Return public metadata required for the filter.
+
+        :param arguments: Lower-level batched channels-list arguments.
+        :return: One channel record with public statistics.
+        """
+        assert arguments == {"part": "snippet,statistics,contentDetails", "id": "UC123"}
+        return {"items": [{"id": "UC123", "snippet": {"title": "Creator Sam"}, "statistics": {"subscriberCount": "12"}}]}
+
+    result = InMemoryToolDispatcher(tools=[build_channels_search_channels_tool_descriptor(search=search, channels=channels)]).call_tool(
+        "channels_searchChannels", {"query": "creator", "minSubscribers": 10}
+    )
+
+    assert result["items"][0]["statistics"] == {"subscriberCount": "12"}
+
+
+def test_concrete_channel_search_descriptor_applies_subscriber_ranking():
+    """Execute deterministic public subscriber ranking through the descriptor."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_tool_descriptor
+
+    def search(_arguments):
+        """Return two base channels in reverse subscriber order.
+
+        :param _arguments: Ignored base-search request.
+        :return: Two public channel references.
+        """
+        return {"items": [{"id": {"channelId": "UCH"}, "snippet": {"title": "High"}}, {"id": {"channelId": "UCL"}, "snippet": {"title": "Low"}}]}
+
+    def channels(_arguments):
+        """Return public subscriber counts for both candidates.
+
+        :param _arguments: Ignored batched channel request.
+        :return: Two public channel records.
+        """
+        return {"items": [{"id": "UCH", "statistics": {"subscriberCount": "100"}}, {"id": "UCL", "statistics": {"subscriberCount": "1"}}]}
+
+    result = InMemoryToolDispatcher(tools=[build_channels_search_channels_tool_descriptor(search=search, channels=channels)]).call_tool(
+        "channels_searchChannels", {"query": "creator", "sortBy": "subscribers_asc"}
+    )
+
+    assert [item["channelId"] for item in result["items"]] == ["UCL", "UCH"]

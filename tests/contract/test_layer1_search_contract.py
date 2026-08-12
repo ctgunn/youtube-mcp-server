@@ -44,6 +44,20 @@ class Layer1SearchContractTests(unittest.TestCase):
         self.assertIn("empty-result success", auth_refinement_contract)
         self.assertIn("normalized upstream search failure", auth_refinement_contract)
 
+    def test_search_list_wrapper_supports_channel_type_only_for_channel_search(self):
+        """Expose and validate the bounded ``channelType`` refinement."""
+        from mcp_server.integrations.resources.search import build_search_list_wrapper
+        from mcp_server.integrations.resources.validators.search import _require_search_list_arguments
+
+        wrapper = build_search_list_wrapper()
+
+        self.assertIn("channelType", wrapper.metadata.request_shape.optional_fields)
+        _require_search_list_arguments({"part": "snippet", "q": "creator", "type": "channel", "channelType": "show"})
+        with self.assertRaisesRegex(ValueError, "channelType"):
+            _require_search_list_arguments({"part": "snippet", "q": "creator", "type": "channel", "channelType": "invalid"})
+        with self.assertRaisesRegex(ValueError, "type=channel"):
+            _require_search_list_arguments({"part": "snippet", "q": "creator", "type": "video", "channelType": "show"})
+
 
 if __name__ == "__main__":
     unittest.main()

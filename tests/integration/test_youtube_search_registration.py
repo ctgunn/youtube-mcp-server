@@ -51,6 +51,39 @@ def test_search_list_descriptor_executes_restricted_request():
     assert result["queryContext"]["forMine"] is True
 
 
+def test_search_list_descriptor_executes_channel_type_filtered_request():
+    """Preserve one safe channel-type refinement through dispatcher execution."""
+
+    class RecordingWrapper:
+        """Record one channel search request passed through the descriptor."""
+
+        def __init__(self):
+            """Initialize the request capture list."""
+            self.calls = []
+
+        def call(self, executor, *, arguments, auth_context):
+            """Capture one request and return a public channel search result.
+
+            :param executor: Shared search executor.
+            :param arguments: Normalized lower-layer request arguments.
+            :param auth_context: Selected public authentication context.
+            :return: Representative channel search payload.
+            """
+            self.calls.append(arguments)
+            return {"items": [{"id": {"channelId": "UC123"}, "snippet": {"title": "Creator"}}]}
+
+    wrapper = RecordingWrapper()
+    dispatcher = _register_search_list(wrapper=wrapper)
+
+    result = dispatcher.call_tool(
+        "search_list",
+        {"part": "snippet", "q": "creator", "type": "channel", "channelType": "show"},
+    )
+
+    assert wrapper.calls == [{"part": "snippet", "q": "creator", "type": "channel", "channelType": "show"}]
+    assert result["queryContext"]["channelType"] == "show"
+
+
 def test_search_list_dispatcher_rejects_invalid_request_safely():
     """Reject incompatible filters through the registered dispatcher handler."""
     dispatcher = _register_search_list()

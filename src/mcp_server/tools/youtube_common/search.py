@@ -32,6 +32,7 @@ SEARCH_LIST_VIDEO_ONLY_FILTERS = (
 SEARCH_LIST_OPTIONAL_FIELDS = (
     "type",
     "channelId",
+    "channelType",
     "publishedAfter",
     "publishedBefore",
     "regionCode",
@@ -53,6 +54,7 @@ SEARCH_LIST_INPUT_SCHEMA = {
         "q": {"type": "string", "minLength": 1},
         "type": {"type": "string", "minLength": 1},
         "channelId": {"type": "string", "minLength": 1},
+        "channelType": {"type": "string", "enum": ["any", "show"]},
         "publishedAfter": {"type": "string", "minLength": 1},
         "publishedBefore": {"type": "string", "minLength": 1},
         "regionCode": {"type": "string", "minLength": 1},
@@ -85,6 +87,7 @@ SEARCH_LIST_USAGE_NOTES = (
     "Quota cost: 100. Use part and q for baseline public search with API-key access.",
     "Quota cost: 100. Use forContentOwner, forDeveloper, or forMine only with eligible OAuth authorization.",
     "Quota cost: 100. Use pageToken and maxResults only to continue a compatible search result set.",
+    "Quota cost: 100. Use channelType any or show only with type=channel.",
     "Quota cost: 100. Valid accessible requests that match no search results return a successful empty item collection.",
 )
 
@@ -93,6 +96,7 @@ SEARCH_LIST_CAVEATS = (
     "part and q are required by the supported Layer 2 search_list contract.",
     "Restricted filters forContentOwner, forDeveloper, and forMine are mutually exclusive and require OAuth authorization.",
     "Video-specific refinements require type=video.",
+    "channelType accepts any or show and requires type=channel.",
     "This tool returns search result references and does not hydrate videos, channels, playlists, transcripts, analytics, "
     "rankings, summaries, recommendations, research syntheses, or cross-endpoint enrichments.",
 )
@@ -110,6 +114,13 @@ SEARCH_LIST_CALLER_EXAMPLES = (
         "description": "Quota cost: 100. Restrict public results to videos.",
         "arguments": {"part": "snippet", "q": "mcp server", "type": "video"},
         "result": {"endpoint": "search.list", "queryContext": {"type": "video"}},
+        "quotaCost": 100,
+    },
+    {
+        "name": "channel_type_filtered_search",
+        "description": "Quota cost: 100. Restrict channel search results to the selected channel type.",
+        "arguments": {"part": "snippet", "q": "creator", "type": "channel", "channelType": "show"},
+        "result": {"endpoint": "search.list", "queryContext": {"type": "channel", "channelType": "show"}},
         "quotaCost": 100,
     },
     {
@@ -325,6 +336,19 @@ def validate_search_list_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
             details={"field": "type", "required": "video"},
         )
 
+    channel_type = normalized.get("channelType")
+    if channel_type is not None:
+        if channel_type not in {"any", "show"}:
+            raise SearchListToolError(
+                "channelType must be any or show",
+                details={"field": "channelType", "allowed": ["any", "show"]},
+            )
+        if normalized.get("type") != "channel":
+            raise SearchListToolError(
+                "channelType requires type=channel",
+                details={"field": "type", "required": "channel"},
+            )
+
     page_token = normalized.get("pageToken")
     if page_token is not None and (not isinstance(page_token, str) or not page_token.strip()):
         raise SearchListToolError("pageToken must be a non-empty string", details={"field": "pageToken"})
@@ -402,6 +426,7 @@ def _safe_query_context(arguments: dict[str, Any]) -> dict[str, Any]:
             "q",
             "type",
             "channelId",
+            "channelType",
             "publishedAfter",
             "publishedBefore",
             "regionCode",
@@ -591,7 +616,11 @@ def _default_search_list_executor() -> IntegrationExecutor:
                 {
                     "kind": "youtube#searchResult",
                     "etag": "etag-search-result",
-                    "id": {"kind": "youtube#video", "videoId": "abc123"},
+                    "id": (
+                        {"kind": "youtube#channel", "channelId": "UC123"}
+                        if execution.arguments.get("type") == "channel"
+                        else {"kind": "youtube#video", "videoId": "abc123"}
+                    ),
                     "snippet": {
                         "title": f"Representative result for {query}",
                         "channelId": execution.arguments.get("channelId", "UC123"),

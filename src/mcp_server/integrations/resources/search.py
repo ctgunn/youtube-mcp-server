@@ -67,6 +67,7 @@ def build_search_list_wrapper() -> RepresentativeEndpointWrapper:
             required_fields=("part", "q"),
             optional_fields=(
                 "channelId",
+                "channelType",
                 "forContentOwner",
                 "forDeveloper",
                 "forMine",

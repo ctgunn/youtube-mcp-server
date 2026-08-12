@@ -207,6 +207,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - N/A; request handling, normalization, and enrichment state are in-memory only (305-channels-get-channel)
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn, existing in-repository MCP dispatcher, Layer 2 channel and playlist-item tool handlers, and Python standard-library dataclasses/JSON utilities (306-batch-channel-details)
 - N/A; request, normalization, and enrichment state exist only for the invocation (306-batch-channel-details)
+- Python 3.11 + Existing FastAPI/Pydantic/Uvicorn service runtime; in-repository MCP dispatcher; Layer 1 search request contract; Layer 2 `search_list`, `channels_list`, and `playlist_items_list` handlers; Layer 3 composed-tool conventions; Python standard-library date/time utilities (307-channel-search)
+- N/A; request, candidate, enrichment, and ranking state exist only for one invocation (307-channel-search)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -227,9 +229,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 307-channel-search: Added Python 3.11 + Existing FastAPI/Pydantic/Uvicorn service runtime; in-repository MCP dispatcher; Layer 1 search request contract; Layer 2 `search_list`, `channels_list`, and `playlist_items_list` handlers; Layer 3 composed-tool conventions; Python standard-library date/time utilities
 - 306-batch-channel-details: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, existing in-repository MCP dispatcher, Layer 2 channel and playlist-item tool handlers, and Python standard-library dataclasses/JSON utilities
 - 305-channels-get-channel: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `channels_list` and `playlist_items_list` handlers; Python standard-library dataclasses and JSON-compatible dictionaries; pytest; Ruff
-- 304-transcripts-get-transcript: Added Python 3.11 + Existing FastAPI/Pydantic/Uvicorn MCP runtime; in-repository dispatcher, Layer 2 `captions_list` and `captions_download` handlers, Layer 3 conventions, and Python standard-library parsing utilities
 
 
 <!-- MANUAL ADDITIONS START -->
