@@ -42,6 +42,7 @@ def test_search_list_schema_preserves_supported_search_inputs():
     assert properties["pageToken"] == {"type": "string", "minLength": 1}
     assert properties["maxResults"] == {"type": "integer", "minimum": 0, "maximum": SEARCH_LIST_MAX_RESULTS}
     assert properties["forMine"] == {"type": "boolean"}
+    assert properties["channelType"] == {"type": "string", "enum": ["any", "show"]}
     assert properties["videoDuration"] == {"type": "string", "minLength": 1}
     assert SEARCH_LIST_INPUT_SCHEMA["additionalProperties"] is False
 
@@ -93,6 +94,7 @@ def test_search_list_metadata_describes_quota_access_filters_and_boundaries():
     assert "maxResults" in metadata_text
     assert "empty" in metadata_text.lower()
     assert "Video-specific" in metadata_text
+    assert "channelType" in metadata_text
     assert "hydrate" in metadata_text or "hydration" in metadata_text
     assert "transcript" in metadata_text
     assert "ranking" in metadata_text
@@ -109,6 +111,12 @@ def test_search_list_examples_cover_success_and_safe_failure_boundaries():
 
     assert examples["public_keyword_search"]["quotaCost"] == 100
     assert examples["type_filtered_video_search"]["arguments"]["type"] == "video"
+    assert examples["channel_type_filtered_search"]["arguments"] == {
+        "part": "snippet",
+        "q": "creator",
+        "type": "channel",
+        "channelType": "show",
+    }
     assert examples["channel_scoped_search"]["arguments"]["channelId"] == "UC123"
     assert examples["date_and_locale_refinement"]["arguments"]["regionCode"] == "US"
     assert examples["restricted_oauth_search"]["arguments"]["forMine"] is True

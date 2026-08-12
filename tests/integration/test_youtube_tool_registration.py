@@ -114,6 +114,18 @@ def test_default_registry_includes_and_executes_video_search_tool():
     assert result["items"][0]["videoId"] == "abc123"
 
 
+def test_default_registry_includes_and_executes_channel_search_tool():
+    """Discover and invoke the default concrete channel-search tool."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    result = dispatcher.call_tool("channels_searchChannels", {"query": "mcp server"})
+
+    assert "channels_searchChannels" in listed
+    assert listed["channels_searchChannels"]["metadata"]["compositionBoundary"]["kind"] == "ranked_enrichment"
+    assert result["items"][0]["channelId"] == "UC123"
+
+
 def test_default_registry_includes_executable_captions_insert_tool():
     """Register ``captions_insert`` by default with safe metadata."""
     dispatcher = InMemoryToolDispatcher()

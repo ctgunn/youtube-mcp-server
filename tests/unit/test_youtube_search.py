@@ -36,6 +36,16 @@ def test_validate_search_list_accepts_restricted_request():
     assert normalized["forMine"] is True
 
 
+@pytest.mark.parametrize("channel_type", ["any", "show"])
+def test_validate_search_list_accepts_channel_type_for_channel_search(channel_type):
+    """Accept documented channel types only for a channel result search."""
+    normalized = validate_search_list_arguments(
+        {"part": "snippet", "q": "creator", "type": "channel", "channelType": channel_type}
+    )
+
+    assert normalized["channelType"] == channel_type
+
+
 @pytest.mark.parametrize(
     ("arguments", "field"),
     [
@@ -47,6 +57,8 @@ def test_validate_search_list_accepts_restricted_request():
         ({"part": "snippet", "q": "mcp server", "pageToken": ""}, "pageToken"),
         ({"part": "snippet", "q": "mcp server", "maxResults": 51}, "maxResults"),
         ({"part": "snippet", "q": "mcp server", "maxResults": "25"}, "maxResults"),
+        ({"part": "snippet", "q": "creator", "type": "channel", "channelType": "invalid"}, "channelType"),
+        ({"part": "snippet", "q": "creator", "type": "video", "channelType": "show"}, "type"),
     ],
 )
 def test_validate_search_list_rejects_invalid_request_shapes(arguments, field):

@@ -7,7 +7,14 @@ from typing import Any, Callable
 
 from mcp_server.integrations.runtime import ConfiguredYouTubeRuntime
 from mcp_server.tools.retrieval import FETCH_TOOL_SCHEMA, SEARCH_TOOL_SCHEMA, fetch_tool, search_tool
-from mcp_server.tools.youtube_composed import build_channels_get_channel_tool_descriptor, build_channels_get_channels_tool_descriptor, build_transcripts_get_transcript_tool_descriptor, build_videos_get_video_tool_descriptor, build_videos_search_videos_tool_descriptor
+from mcp_server.tools.youtube_composed import (
+    build_channels_get_channel_tool_descriptor,
+    build_channels_get_channels_tool_descriptor,
+    build_channels_search_channels_tool_descriptor,
+    build_transcripts_get_transcript_tool_descriptor,
+    build_videos_get_video_tool_descriptor,
+    build_videos_search_videos_tool_descriptor,
+)
 from mcp_server.tools.youtube_common import (
     build_activities_list_tool_descriptor,
     build_captions_delete_tool_descriptor,
@@ -341,6 +348,11 @@ class InMemoryToolDispatcher:
                 playlist_items=build_playlist_items_list_handler(**api_key_dependencies),
             ),
             build_channels_get_channels_tool_descriptor(
+                channels=build_channels_list_handler(**conditional_dependencies),
+                playlist_items=build_playlist_items_list_handler(**api_key_dependencies),
+            ),
+            build_channels_search_channels_tool_descriptor(
+                search=build_search_list_handler(**conditional_dependencies),
                 channels=build_channels_list_handler(**conditional_dependencies),
                 playlist_items=build_playlist_items_list_handler(**api_key_dependencies),
             ),

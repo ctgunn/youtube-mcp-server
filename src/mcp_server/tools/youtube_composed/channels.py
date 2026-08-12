@@ -10,12 +10,35 @@ from urllib.parse import urlparse
 from mcp_server.tools.youtube_common.channels import ChannelsListToolError, build_channels_list_handler
 from mcp_server.tools.youtube_common.conventions import safe_upstream_error_message, sanitize_error_details
 from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError, build_playlist_items_list_handler
+from mcp_server.tools.youtube_common.search import SearchListToolError, build_search_list_handler
 from mcp_server.tools.youtube_composed.families import get_family
 
 FAMILY_SCAFFOLDING = get_family("channels")
 PLANNED_TOOLS = FAMILY_SCAFFOLDING.planned_tools
 CHANNELS_GET_CHANNEL_TOOL_NAME = "channels_getChannel"
 CHANNELS_GET_CHANNELS_TOOL_NAME = "channels_getChannels"
+CHANNELS_SEARCH_CHANNELS_TOOL_NAME = "channels_searchChannels"
+CHANNELS_SEARCH_CHANNELS_MAX_RESULTS = 50
+CHANNELS_SEARCH_CHANNELS_ORDERS = ("date", "relevance", "title", "videoCount")
+CHANNELS_SEARCH_CHANNELS_TYPES = ("any", "show")
+CHANNELS_SEARCH_CHANNELS_SORTS = ("relevance", "subscribers_asc", "subscribers_desc", "indie_priority", "recent_activity")
+CHANNELS_SEARCH_CHANNELS_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["query"],
+    "properties": {
+        "query": {"type": "string", "minLength": 1},
+        "maxResults": {"type": "integer", "minimum": 1, "maximum": CHANNELS_SEARCH_CHANNELS_MAX_RESULTS, "default": 10},
+        "order": {"type": "string", "enum": list(CHANNELS_SEARCH_CHANNELS_ORDERS)},
+        "channelType": {"type": "string", "enum": list(CHANNELS_SEARCH_CHANNELS_TYPES)},
+        "minSubscribers": {"type": "integer", "minimum": 0},
+        "maxSubscribers": {"type": "integer", "minimum": 0},
+        "lastUploadAfter": {"type": "string", "format": "date-time"},
+        "lastUploadBefore": {"type": "string", "format": "date-time"},
+        "creatorOnly": {"type": "boolean", "default": False},
+        "sortBy": {"type": "string", "enum": list(CHANNELS_SEARCH_CHANNELS_SORTS), "default": "relevance"},
+    },
+    "additionalProperties": False,
+}
 CHANNELS_GET_CHANNEL_INPUT_SCHEMA = {
     "type": "object",
     "required": ["channelId"],
@@ -74,6 +97,10 @@ class ChannelsGetChannelToolError(ValueError):
 
 class ChannelsGetChannelsToolError(ChannelsGetChannelToolError):
     """Represent a safe caller-facing batch channel-detail failure."""
+
+
+class ChannelsSearchChannelsToolError(ChannelsGetChannelToolError):
+    """Represent a safe caller-facing public channel-search failure."""
 
 
 def build_channels_get_channel_metadata() -> dict[str, Any]:
@@ -782,4 +809,524 @@ def build_channels_get_channels_tool_descriptor(*, channels=None, playlist_items
         "inputSchema": CHANNELS_GET_CHANNELS_INPUT_SCHEMA,
         "handler": build_channels_get_channels_handler(channels=channels, playlist_items=playlist_items),
         "metadata": build_channels_get_channels_metadata(),
+    }
+
+
+def _channel_search_timestamp(value: Any, field: str) -> str:
+    """Validate one timezone-aware public channel-search timestamp.
+
+    :param value: Candidate timestamp supplied by a caller.
+    :param field: Public field name used in a safe validation error.
+    :return: Stripped ISO 8601 timestamp with an explicit timezone.
+    :raises ChannelsSearchChannelsToolError: If the timestamp is missing, malformed, or timezone-naive.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise ChannelsSearchChannelsToolError(
+            f"{field} must be a non-empty ISO 8601 timestamp",
+            category="invalid_parameters",
+            details={"field": field},
+        )
+    normalized = value.strip()
+    try:
+        parsed = datetime.fromisoformat(normalized[:-1] + "+00:00" if normalized.endswith("Z") else normalized)
+    except ValueError as exc:
+        raise ChannelsSearchChannelsToolError(
+            f"{field} must be an ISO 8601 timestamp with timezone",
+            category="invalid_parameters",
+            details={"field": field},
+        ) from exc
+    if parsed.tzinfo is None:
+        raise ChannelsSearchChannelsToolError(
+            f"{field} must include a timezone",
+            category="invalid_parameters",
+            details={"field": field},
+        )
+    return normalized
+
+
+def validate_channels_search_channels_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize one public channel-search request.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Normalized request with public defaults and only supplied optional filters.
+    :raises ChannelsSearchChannelsToolError: If any public field is invalid or unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise ChannelsSearchChannelsToolError(
+            "channels_searchChannels arguments must be an object",
+            category="invalid_parameters",
+            details={"field": "arguments"},
+        )
+    unexpected = set(arguments) - set(CHANNELS_SEARCH_CHANNELS_INPUT_SCHEMA["properties"])
+    if unexpected:
+        raise ChannelsSearchChannelsToolError(
+            "channels_searchChannels received an unsupported field",
+            category="invalid_parameters",
+            details={"field": sorted(unexpected)[0]},
+        )
+    query = arguments.get("query")
+    if not isinstance(query, str) or not query.strip():
+        raise ChannelsSearchChannelsToolError(
+            "channels_searchChannels requires a non-empty query",
+            category="invalid_parameters",
+            details={"field": "query"},
+        )
+    normalized: dict[str, Any] = {
+        "query": query.strip(),
+        "maxResults": arguments.get("maxResults", 10),
+        "creatorOnly": arguments.get("creatorOnly", False),
+        "sortBy": arguments.get("sortBy", "relevance"),
+    }
+    max_results = normalized["maxResults"]
+    if isinstance(max_results, bool) or not isinstance(max_results, int) or not 1 <= max_results <= CHANNELS_SEARCH_CHANNELS_MAX_RESULTS:
+        raise ChannelsSearchChannelsToolError(
+            "maxResults must be an integer from 1 through 50",
+            category="invalid_parameters",
+            details={"field": "maxResults"},
+        )
+    if not isinstance(normalized["creatorOnly"], bool):
+        raise ChannelsSearchChannelsToolError(
+            "creatorOnly must be a boolean",
+            category="invalid_parameters",
+            details={"field": "creatorOnly"},
+        )
+    if normalized["sortBy"] not in CHANNELS_SEARCH_CHANNELS_SORTS:
+        raise ChannelsSearchChannelsToolError(
+            "sortBy must use a supported ranking value",
+            category="invalid_parameters",
+            details={"field": "sortBy"},
+        )
+    for field, allowed in (("order", CHANNELS_SEARCH_CHANNELS_ORDERS), ("channelType", CHANNELS_SEARCH_CHANNELS_TYPES)):
+        if field in arguments:
+            value = arguments[field]
+            if not isinstance(value, str) or value not in allowed:
+                raise ChannelsSearchChannelsToolError(
+                    f"{field} must use a supported value",
+                    category="invalid_parameters",
+                    details={"field": field},
+                )
+            normalized[field] = value
+    for field in ("minSubscribers", "maxSubscribers"):
+        if field in arguments:
+            value = arguments[field]
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ChannelsSearchChannelsToolError(
+                    f"{field} must be a non-negative integer",
+                    category="invalid_parameters",
+                    details={"field": field},
+                )
+            normalized[field] = value
+    if normalized.get("minSubscribers") is not None and normalized.get("maxSubscribers") is not None and normalized["minSubscribers"] > normalized["maxSubscribers"]:
+        raise ChannelsSearchChannelsToolError(
+            "minSubscribers cannot exceed maxSubscribers",
+            category="invalid_parameters",
+            details={"field": "minSubscribers"},
+        )
+    for field in ("lastUploadAfter", "lastUploadBefore"):
+        if field in arguments:
+            normalized[field] = _channel_search_timestamp(arguments[field], field)
+    if "lastUploadAfter" in normalized and "lastUploadBefore" in normalized:
+        after = datetime.fromisoformat(normalized["lastUploadAfter"].replace("Z", "+00:00"))
+        before = datetime.fromisoformat(normalized["lastUploadBefore"].replace("Z", "+00:00"))
+        if after > before:
+            raise ChannelsSearchChannelsToolError(
+                "lastUploadAfter cannot be later than lastUploadBefore",
+                category="invalid_parameters",
+                details={"field": "lastUploadAfter"},
+            )
+    return normalized
+
+
+def _channel_search_base_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Build the bounded lower-level base request for channel search.
+
+    :param arguments: Validated public channel-search request.
+    :return: Lower-level public search arguments restricted to channels.
+    """
+    result = {
+        "part": "snippet",
+        "q": arguments["query"],
+        "type": "channel",
+        "maxResults": arguments["maxResults"],
+        "order": arguments.get("order", "relevance"),
+    }
+    if "channelType" in arguments:
+        result["channelType"] = arguments["channelType"]
+    return result
+
+
+def _normalize_channel_search_candidates(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Normalize and de-duplicate base channel-search candidates.
+
+    :param payload: Lower-level search result with public channel references.
+    :return: Distinct normalized candidates in earliest base-search order.
+    """
+    source_items = payload.get("items") if isinstance(payload, dict) and isinstance(payload.get("items"), list) else []
+    candidates: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for position, item in enumerate(source_items):
+        if not isinstance(item, dict):
+            continue
+        identifier = item.get("id") if isinstance(item.get("id"), dict) else {}
+        channel_id = identifier.get("channelId")
+        if not isinstance(channel_id, str) or not channel_id.strip() or channel_id.strip() in seen:
+            continue
+        normalized_id = channel_id.strip()
+        seen.add(normalized_id)
+        snippet = item.get("snippet") if isinstance(item.get("snippet"), dict) else {}
+        candidate: dict[str, Any] = {"channelId": normalized_id, "_baseSearchPosition": position}
+        for field in ("title", "description", "thumbnails"):
+            _copy_if_present(candidate, snippet, field)
+        candidates.append(candidate)
+    return candidates
+
+
+def _channel_search_field_provenance(candidates: list[dict[str, Any]]) -> dict[str, str]:
+    """Build provenance for public fields returned by channel search.
+
+    :param candidates: Final public candidate collection.
+    :return: Public field-path-to-provenance mapping.
+    """
+    provenance = {"channelId": "raw_upstream"}
+    for field in ("title", "description", "thumbnails"):
+        if any(field in candidate for candidate in candidates):
+            provenance[field] = "raw_upstream"
+    if any("normalizedMetadata" in candidate for candidate in candidates):
+        provenance["normalizedMetadata"] = "normalized"
+    if any("statistics" in candidate for candidate in candidates):
+        provenance["statistics.subscriberCount"] = "raw_upstream"
+    if any("latestVideoPublishedAt" in candidate for candidate in candidates):
+        provenance["latestVideoPublishedAt"] = "normalized"
+    if any("heuristics" in candidate for candidate in candidates):
+        provenance["heuristics.creatorClassification"] = "heuristic_inferred"
+        provenance["heuristics.creatorSignals"] = "heuristic_inferred"
+    return provenance
+
+
+def _map_channel_search_error(error: SearchListToolError) -> ChannelsSearchChannelsToolError:
+    """Map a lower-level base-search failure to the Layer 3 public taxonomy.
+
+    :param error: Safe lower-level search failure.
+    :return: Sanitized public channel-search error.
+    """
+    category = {
+        "invalid_request": "invalid_parameters",
+        "authentication_failed": "authorization_sensitive_data",
+        "authorization_failed": "authorization_sensitive_data",
+        "quota_exhausted": "quota_exhaustion",
+        "resource_not_found": "unavailable_resource",
+    }.get(error.category, "upstream_failure")
+    return ChannelsSearchChannelsToolError(safe_upstream_error_message(), category=category, details=error.details)
+
+
+def _channel_search_required_rules(arguments: dict[str, Any]) -> list[str]:
+    """Return active rules that require conditional public enrichment.
+
+    :param arguments: Validated public channel-search request.
+    :return: Ordered caller-visible names of active enrichment-dependent rules.
+    """
+    rules = [field for field in ("minSubscribers", "maxSubscribers", "lastUploadAfter", "lastUploadBefore") if field in arguments]
+    if arguments["creatorOnly"]:
+        rules.append("creatorOnly")
+    if arguments["sortBy"] != "relevance":
+        rules.append(arguments["sortBy"])
+    return rules
+
+
+def _channel_search_requires_activity(arguments: dict[str, Any]) -> bool:
+    """Return whether active rules require a public latest-upload lookup.
+
+    :param arguments: Validated public channel-search request.
+    :return: ``True`` when an activity filter or recent-activity rank is active.
+    """
+    return "lastUploadAfter" in arguments or "lastUploadBefore" in arguments or arguments["sortBy"] == "recent_activity"
+
+
+def _channel_search_subscriber_count(item: dict[str, Any]) -> tuple[str, int] | None:
+    """Return an available public subscriber count in raw and numeric forms.
+
+    :param item: Public lower-level channel item.
+    :return: Raw public count and parsed non-negative integer, or ``None`` when unavailable.
+    """
+    statistics = item.get("statistics") if isinstance(item.get("statistics"), dict) else {}
+    raw_count = statistics.get("subscriberCount")
+    if not isinstance(raw_count, str) or not raw_count.isdigit():
+        return None
+    return raw_count, int(raw_count)
+
+
+def _channel_search_timestamp_matches(timestamp: str, arguments: dict[str, Any]) -> bool:
+    """Return whether one activity timestamp satisfies inclusive request bounds.
+
+    :param timestamp: Available timezone-aware public latest-upload timestamp.
+    :param arguments: Validated public channel-search request.
+    :return: ``True`` when the timestamp is within all supplied inclusive bounds.
+    """
+    value = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    if "lastUploadAfter" in arguments and value < datetime.fromisoformat(arguments["lastUploadAfter"].replace("Z", "+00:00")):
+        return False
+    return "lastUploadBefore" not in arguments or value <= datetime.fromisoformat(arguments["lastUploadBefore"].replace("Z", "+00:00"))
+
+
+def _channel_search_partial_error(excluded_count: int, reasons: list[str], required_for: list[str]) -> ChannelsSearchChannelsToolError:
+    """Build the documented safe all-candidates-unavailable enrichment error.
+
+    :param excluded_count: Number of candidates excluded for unavailable required data.
+    :param reasons: Safe aggregate unavailable-data categories.
+    :param required_for: Active enrichment-dependent filter or ranking names.
+    :return: Public partial-enrichment failure without lower-layer diagnostics.
+    """
+    return ChannelsSearchChannelsToolError(
+        "Required public channel enrichment is unavailable",
+        category="partial_enrichment_failure",
+        details={"excludedCandidateCount": excluded_count, "reasons": reasons, "requiredFor": required_for},
+    )
+
+
+def _rank_channel_search_candidates(candidates: list[dict[str, Any]], arguments: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return eligible candidates in the documented deterministic final order.
+
+    :param candidates: Filtered candidates with enrichment required by the selected ranking.
+    :param arguments: Validated public channel-search request.
+    :return: Candidates sorted by the selected ranking and base-search tie position.
+    """
+    sort_by = arguments["sortBy"]
+    if sort_by == "relevance":
+        return sorted(candidates, key=lambda candidate: candidate["_baseSearchPosition"])
+    if sort_by == "subscribers_asc":
+        return sorted(candidates, key=lambda candidate: (candidate["_subscriberCount"], candidate["_baseSearchPosition"]))
+    if sort_by == "subscribers_desc":
+        return sorted(candidates, key=lambda candidate: (-candidate["_subscriberCount"], candidate["_baseSearchPosition"]))
+    if sort_by == "indie_priority":
+        return sorted(
+            candidates,
+            key=lambda candidate: (
+                0 if candidate["heuristics"]["creatorClassification"] == "creator" else 1,
+                candidate["_subscriberCount"],
+                candidate["_baseSearchPosition"],
+            ),
+        )
+    return sorted(
+        candidates,
+        key=lambda candidate: (
+            -datetime.fromisoformat(candidate["latestVideoPublishedAt"].replace("Z", "+00:00")).timestamp(),
+            candidate["_baseSearchPosition"],
+        ),
+    )
+
+
+def _enrich_and_filter_channel_search_candidates(candidates: list[dict[str, Any]], arguments: dict[str, Any], channels, playlist_items) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Conditionally enrich and filter base candidates using public channel data.
+
+    :param candidates: Distinct normalized base channel candidates.
+    :param arguments: Validated public channel-search request.
+    :param channels: Lower-level batched public channel lookup callable.
+    :param playlist_items: Lower-level public uploads-playlist lookup callable.
+    :return: Eligible enriched candidates and optional safe partial-enrichment summary.
+    :raises ChannelsSearchChannelsToolError: If required enrichment is unavailable for every candidate.
+    """
+    required_for = _channel_search_required_rules(arguments)
+    if not required_for:
+        return candidates, None
+    try:
+        payload = channels({"part": "snippet,statistics,contentDetails", "id": ",".join(candidate["channelId"] for candidate in candidates)})
+    except ChannelsListToolError as exc:
+        mapped = _map_channels_list_error(exc)
+        raise ChannelsSearchChannelsToolError(str(mapped), category=mapped.category, details=mapped.details) from exc
+    source_items = payload.get("items") if isinstance(payload, dict) and isinstance(payload.get("items"), list) else []
+    by_id = {
+        item["id"].strip(): item
+        for item in source_items
+        if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip()
+    }
+    eligible: list[dict[str, Any]] = []
+    reasons: list[str] = []
+    excluded_count = 0
+    evaluated_count = 0
+    needs_subscriber = "minSubscribers" in arguments or "maxSubscribers" in arguments or arguments["sortBy"] in {"subscribers_asc", "subscribers_desc", "indie_priority"}
+    needs_activity = _channel_search_requires_activity(arguments)
+    for candidate in candidates:
+        source = by_id.get(candidate["channelId"])
+        if source is None:
+            excluded_count += 1
+            if "channel_metadata_unavailable" not in reasons:
+                reasons.append("channel_metadata_unavailable")
+            continue
+        enriched = dict(candidate)
+        snippet = source.get("snippet") if isinstance(source.get("snippet"), dict) else {}
+        enriched["normalizedMetadata"] = _normalized_metadata(snippet)
+        classification, signals = _creator_classification(snippet)
+        enriched["heuristics"] = {"creatorClassification": classification, "creatorSignals": signals}
+        subscriber = _channel_search_subscriber_count(source)
+        if needs_subscriber:
+            if subscriber is None:
+                excluded_count += 1
+                if "subscriber_count_unavailable" not in reasons:
+                    reasons.append("subscriber_count_unavailable")
+                continue
+            raw_count, count = subscriber
+            enriched["statistics"] = {"subscriberCount": raw_count}
+            enriched["_subscriberCount"] = count
+        elif subscriber is not None:
+            enriched["statistics"] = {"subscriberCount": subscriber[0]}
+        if needs_activity:
+            uploads_playlist_id = _uploads_playlist_id(source)
+            if uploads_playlist_id is None:
+                excluded_count += 1
+                if "latest_activity_unavailable" not in reasons:
+                    reasons.append("latest_activity_unavailable")
+                continue
+            try:
+                latest_payload = playlist_items({"part": "contentDetails", "playlistId": uploads_playlist_id, "maxResults": 1})
+            except PlaylistItemsListToolError:
+                excluded_count += 1
+                if "latest_activity_unavailable" not in reasons:
+                    reasons.append("latest_activity_unavailable")
+                continue
+            latest_timestamp = _latest_video_published_at(latest_payload)
+            if latest_timestamp is None:
+                excluded_count += 1
+                if "latest_activity_unavailable" not in reasons:
+                    reasons.append("latest_activity_unavailable")
+                continue
+            enriched["latestVideoPublishedAt"] = latest_timestamp
+        evaluated_count += 1
+        if "minSubscribers" in arguments and enriched["_subscriberCount"] < arguments["minSubscribers"]:
+            continue
+        if "maxSubscribers" in arguments and enriched["_subscriberCount"] > arguments["maxSubscribers"]:
+            continue
+        if needs_activity and not _channel_search_timestamp_matches(enriched["latestVideoPublishedAt"], arguments):
+            continue
+        if arguments["creatorOnly"] and classification != "creator":
+            continue
+        eligible.append(enriched)
+    if candidates and evaluated_count == 0 and excluded_count:
+        raise _channel_search_partial_error(excluded_count, reasons, required_for)
+    partial = None
+    if excluded_count:
+        partial = {"status": "partial", "excludedCandidateCount": excluded_count, "reasons": reasons, "requiredFor": required_for}
+    return eligible, partial
+
+
+def build_channels_search_channels_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for concrete public channel search.
+
+    :return: JSON-compatible metadata describing bounded composite search behavior.
+    """
+    return {
+        "name": CHANNELS_SEARCH_CHANNELS_TOOL_NAME,
+        "family": "channels",
+        "parameters": list(CHANNELS_SEARCH_CHANNELS_INPUT_SCHEMA["properties"]),
+        "inputContract": CHANNELS_SEARCH_CHANNELS_INPUT_SCHEMA,
+        "compositionBoundary": {
+            "kind": "ranked_enrichment",
+            "boundedness": "one base search of at most 50 candidates; enrichment is conditional and bounded per distinct candidate",
+            "partialResultPolicy": "Conditional public enrichment excludes candidates whose required data is unavailable and discloses them safely.",
+        },
+        "lowerLayerDependencies": ["search.list", "channels.list", "playlistItems.list"],
+        "continuationPolicy": "Any continuation context belongs to the base-search result and does not paginate the final filtered or ranked collection.",
+        "rankingSemantics": {
+            "sortBy": list(CHANNELS_SEARCH_CHANNELS_SORTS),
+            "filterOrder": "Apply filters before final ranking and result cap.",
+            "ties": "Preserve earliest base-search position for every ranking tie.",
+        },
+        "responseFields": [
+            {"fieldName": "channelId", "category": "raw_upstream", "source": "id.channelId"},
+            {"fieldName": "title", "category": "raw_upstream", "source": "snippet.title"},
+            {"fieldName": "description", "category": "raw_upstream", "source": "snippet.description"},
+            {"fieldName": "thumbnails", "category": "raw_upstream", "source": "snippet.thumbnails"},
+            {"fieldName": "normalizedMetadata", "category": "normalized", "source": "public channel profile"},
+            {"fieldName": "statistics.subscriberCount", "category": "raw_upstream", "source": "statistics.subscriberCount"},
+            {"fieldName": "latestVideoPublishedAt", "category": "normalized", "source": "public uploads playlist"},
+            {"fieldName": "heuristics.creatorClassification", "category": "heuristic_inferred", "source": "public channel material"},
+            {"fieldName": "appliedInputs", "category": "normalized", "source": "validated request"},
+            {"fieldName": "partialEnrichment", "category": "normalized", "source": "aggregate enrichment status"},
+        ],
+        "authAndQuotaNotes": [
+            "Uses public configured search capability and does not request owner-scoped data.",
+            "Search and conditional public enrichment consume bounded lower-layer quota.",
+        ],
+        "errorCategories": [
+            "invalid_parameters",
+            "unavailable_resource",
+            "authorization_sensitive_data",
+            "quota_exhaustion",
+            "upstream_failure",
+            "partial_enrichment_failure",
+        ],
+        "errorGuidance": {
+            "invalid_parameters": "Correct the identified request field and retry.",
+            "unavailable_resource": "Use a different accessible query or relax the affected refinement.",
+            "authorization_sensitive_data": "Use permitted public data or obtain the necessary capability.",
+            "quota_exhaustion": "Retry after capacity is available.",
+            "upstream_failure": "Retry when the source service is available.",
+            "partial_enrichment_failure": "Relax the enrichment-dependent rule or retry when public metadata is available.",
+        },
+    }
+
+
+def build_channels_search_channels_handler(*, search=None, channels=None, playlist_items=None):
+    """Build the callable public channel-search handler.
+
+    :param search: Optional lower-level search handler override for tests.
+    :param channels: Reserved lower-level channel handler for conditional enrichment.
+    :param playlist_items: Reserved lower-level playlist handler for conditional activity enrichment.
+    :return: Callable that validates, searches, normalizes, and returns public channels.
+    """
+    selected_search = search or build_search_list_handler()
+    selected_channels = channels or build_channels_list_handler()
+    selected_playlist_items = playlist_items or build_playlist_items_list_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated public channel-search request.
+
+        :param arguments: Caller-provided public channel-search arguments.
+        :return: Bounded normalized base-search collection with safe context.
+        :raises ChannelsSearchChannelsToolError: If validation or base search fails.
+        """
+        normalized = validate_channels_search_channels_arguments(arguments)
+        try:
+            payload = selected_search(_channel_search_base_arguments(normalized))
+        except SearchListToolError as exc:
+            raise _map_channel_search_error(exc) from exc
+        candidates = _normalize_channel_search_candidates(payload)
+        eligible, partial_enrichment = _enrich_and_filter_channel_search_candidates(
+            candidates,
+            normalized,
+            selected_channels,
+            selected_playlist_items,
+        )
+        ranked = _rank_channel_search_candidates(eligible, normalized)
+        public_items = [{key: value for key, value in candidate.items() if not key.startswith("_")} for candidate in ranked]
+        result: dict[str, Any] = {
+            "items": public_items[: normalized["maxResults"]],
+            "appliedInputs": normalized,
+            "returnedCount": min(len(public_items), normalized["maxResults"]),
+            "maxResults": normalized["maxResults"],
+            "fieldProvenance": _channel_search_field_provenance(public_items),
+        }
+        if partial_enrichment is not None:
+            result["partialEnrichment"] = partial_enrichment
+        next_page_token = payload.get("nextPageToken") if isinstance(payload, dict) else None
+        if isinstance(next_page_token, str) and next_page_token:
+            result["nextPageToken"] = next_page_token
+        return result
+
+    return handler
+
+
+def build_channels_search_channels_tool_descriptor(*, search=None, channels=None, playlist_items=None) -> dict[str, Any]:
+    """Build the executable MCP descriptor for ``channels_searchChannels``.
+
+    :param search: Optional lower-level search handler override for tests.
+    :param channels: Optional lower-level channel handler override for conditional enrichment tests.
+    :param playlist_items: Optional lower-level playlist handler override for conditional activity tests.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {
+        "name": CHANNELS_SEARCH_CHANNELS_TOOL_NAME,
+        "description": "Search public YouTube channels with optional public-metadata refinement and ranking.",
+        "inputSchema": CHANNELS_SEARCH_CHANNELS_INPUT_SCHEMA,
+        "handler": build_channels_search_channels_handler(search=search, channels=channels, playlist_items=playlist_items),
+        "metadata": build_channels_search_channels_metadata(),
     }

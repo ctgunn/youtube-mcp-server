@@ -404,3 +404,212 @@ def test_batch_channel_details_maps_bulk_core_errors_without_source_diagnostics(
     assert exc_info.value.category == "quota_exhaustion"
     assert "secret" not in str(exc_info.value.details)
     assert "hidden" not in str(exc_info.value.details)
+
+
+def test_channel_search_validates_query_and_query_only_options():
+    """Normalize the public query-only channel-search request safely."""
+    from mcp_server.tools.youtube_composed.channels import ChannelsSearchChannelsToolError, validate_channels_search_channels_arguments
+
+    assert validate_channels_search_channels_arguments({"query": " creator "}) == {
+        "query": "creator",
+        "maxResults": 10,
+        "creatorOnly": False,
+        "sortBy": "relevance",
+    }
+    for arguments, field in (({}, "query"), ({"query": " "}, "query"), ({"query": "creator", "unknown": True}, "unknown")):
+        with pytest.raises(ChannelsSearchChannelsToolError) as exc_info:
+            validate_channels_search_channels_arguments(arguments)
+        assert exc_info.value.category == "invalid_parameters"
+        assert exc_info.value.details["field"] == field
+
+
+def test_channel_search_query_only_normalizes_distinct_candidates_and_preserves_base_context():
+    """Return query-only normalized channel candidates without enrichment calls."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_handler
+
+    calls = []
+
+    def search(arguments):
+        """Record the base request and return one duplicate public channel.
+
+        :param arguments: Lower-level search arguments.
+        :return: Base channel candidates with a continuation token.
+        """
+        calls.append(arguments)
+        return {
+            "items": [
+                {"id": {"channelId": "UC1"}, "snippet": {"title": "First", "description": "Public"}},
+                {"id": {"channelId": "UC1"}, "snippet": {"title": "Duplicate"}},
+                {"id": {"channelId": "UC2"}, "snippet": {"title": "Second"}},
+            ],
+            "nextPageToken": "NEXT",
+        }
+
+    result = build_channels_search_channels_handler(search=search, channels=lambda _arguments: pytest.fail("unexpected enrichment"))(
+        {"query": " creator ", "maxResults": 2, "channelType": "show"}
+    )
+
+    assert calls == [{"part": "snippet", "q": "creator", "type": "channel", "maxResults": 2, "order": "relevance", "channelType": "show"}]
+    assert [item["channelId"] for item in result["items"]] == ["UC1", "UC2"]
+    assert result["items"][0]["title"] == "First"
+    assert result["appliedInputs"] == {"query": "creator", "maxResults": 2, "channelType": "show", "creatorOnly": False, "sortBy": "relevance"}
+    assert result["nextPageToken"] == "NEXT"
+    assert result["fieldProvenance"]["channelId"] == "raw_upstream"
+
+
+def test_channel_search_maps_base_search_failure_without_lower_layer_details():
+    """Translate a lower-level base-search failure to the public safe taxonomy."""
+    from mcp_server.tools.youtube_common.search import SearchListToolError
+    from mcp_server.tools.youtube_composed.channels import ChannelsSearchChannelsToolError, build_channels_search_channels_handler
+
+    def failing_search(_arguments):
+        """Raise a lower-level failure containing unsafe details.
+
+        :param _arguments: Ignored base-search request.
+        :raises SearchListToolError: Always raised for mapping coverage.
+        """
+        raise SearchListToolError("hidden", category="quota_exhausted", details={"api_key": "secret"})
+
+    with pytest.raises(ChannelsSearchChannelsToolError) as exc_info:
+        build_channels_search_channels_handler(search=failing_search)({"query": "creator"})
+    assert exc_info.value.category == "quota_exhaustion"
+    assert "secret" not in str(exc_info.value.details)
+
+
+def test_channel_search_refines_with_bounded_public_channel_and_activity_enrichment():
+    """Apply subscriber, activity, and creator filters using public enrichment."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_handler
+
+    channel_calls = []
+    playlist_calls = []
+
+    def search(_arguments):
+        """Return three public base candidates.
+
+        :param _arguments: Ignored base-search request.
+        :return: Public channel references.
+        """
+        return {
+            "items": [
+                {"id": {"channelId": "UC1"}, "snippet": {"title": "Creator Sam"}},
+                {"id": {"channelId": "UC2"}, "snippet": {"title": "Small Brand"}},
+                {"id": {"channelId": "UC3"}, "snippet": {"title": "Creator Old"}},
+            ]
+        }
+
+    def channels(arguments):
+        """Return public channel metadata for the batched selector.
+
+        :param arguments: Lower-level channels-list request.
+        :return: Public channel profile/statistics records.
+        """
+        channel_calls.append(arguments)
+        return {
+            "items": [
+                {"id": "UC1", "snippet": {"title": "Creator Sam"}, "statistics": {"subscriberCount": "25"}, "contentDetails": {"relatedPlaylists": {"uploads": "UU1"}}},
+                {"id": "UC2", "snippet": {"title": "Small Brand"}, "statistics": {"subscriberCount": "10"}, "contentDetails": {"relatedPlaylists": {"uploads": "UU2"}}},
+                {"id": "UC3", "snippet": {"title": "Creator Old"}, "statistics": {"subscriberCount": "40"}, "contentDetails": {"relatedPlaylists": {"uploads": "UU3"}}},
+            ]
+        }
+
+    def playlist_items(arguments):
+        """Return per-channel public latest-upload activity.
+
+        :param arguments: Lower-level uploads-playlist request.
+        :return: One public publication timestamp.
+        """
+        playlist_calls.append(arguments)
+        timestamp = {"UU1": "2026-02-01T00:00:00Z", "UU2": "2026-02-02T00:00:00Z", "UU3": "2025-01-01T00:00:00Z"}[arguments["playlistId"]]
+        return {"items": [{"contentDetails": {"videoPublishedAt": timestamp}}]}
+
+    result = build_channels_search_channels_handler(search=search, channels=channels, playlist_items=playlist_items)(
+        {
+            "query": "creator",
+            "minSubscribers": 20,
+            "lastUploadAfter": "2026-01-01T00:00:00Z",
+            "creatorOnly": True,
+        }
+    )
+
+    assert channel_calls == [{"part": "snippet,statistics,contentDetails", "id": "UC1,UC2,UC3"}]
+    assert playlist_calls == [
+        {"part": "contentDetails", "playlistId": "UU1", "maxResults": 1},
+        {"part": "contentDetails", "playlistId": "UU2", "maxResults": 1},
+        {"part": "contentDetails", "playlistId": "UU3", "maxResults": 1},
+    ]
+    assert [item["channelId"] for item in result["items"]] == ["UC1"]
+    assert result["items"][0]["statistics"] == {"subscriberCount": "25"}
+    assert result["items"][0]["latestVideoPublishedAt"] == "2026-02-01T00:00:00Z"
+    assert result["items"][0]["heuristics"]["creatorClassification"] == "creator"
+
+
+def test_channel_search_fails_safely_when_required_enrichment_is_unavailable_for_every_candidate():
+    """Reject an unverified filtered collection instead of returning base candidates."""
+    from mcp_server.tools.youtube_composed.channels import ChannelsSearchChannelsToolError, build_channels_search_channels_handler
+
+    with pytest.raises(ChannelsSearchChannelsToolError) as exc_info:
+        build_channels_search_channels_handler(
+            search=lambda _arguments: {"items": [{"id": {"channelId": "UC1"}, "snippet": {"title": "Creator"}}]},
+            channels=lambda _arguments: {"items": []},
+        )({"query": "creator", "minSubscribers": 1})
+
+    assert exc_info.value.category == "partial_enrichment_failure"
+    assert exc_info.value.details == {"excludedCandidateCount": 1, "reasons": ["channel_metadata_unavailable"], "requiredFor": ["minSubscribers"]}
+
+
+def test_channel_search_applies_documented_rankings_after_filters_with_stable_ties():
+    """Rank enriched public channels deterministically after filtering."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_handler
+
+    def search(_arguments):
+        """Return candidates in deterministic base-search order.
+
+        :param _arguments: Ignored base-search request.
+        :return: Three public channel references.
+        """
+        return {
+            "items": [
+                {"id": {"channelId": "UCH"}, "snippet": {"title": "Large Brand"}},
+                {"id": {"channelId": "UCL"}, "snippet": {"title": "Creator Small"}},
+                {"id": {"channelId": "UCM"}, "snippet": {"title": "Creator Medium"}},
+            ]
+        }
+
+    def channels(_arguments):
+        """Return ranking metadata for every base candidate.
+
+        :param _arguments: Ignored batched channel request.
+        :return: Public profile, statistics, and uploads-playlist data.
+        """
+        return {
+            "items": [
+                {"id": "UCH", "snippet": {"title": "Large Brand"}, "statistics": {"subscriberCount": "100"}, "contentDetails": {"relatedPlaylists": {"uploads": "UUH"}}},
+                {"id": "UCL", "snippet": {"title": "Creator Small"}, "statistics": {"subscriberCount": "10"}, "contentDetails": {"relatedPlaylists": {"uploads": "UUL"}}},
+                {"id": "UCM", "snippet": {"title": "Creator Medium"}, "statistics": {"subscriberCount": "50"}, "contentDetails": {"relatedPlaylists": {"uploads": "UUM"}}},
+            ]
+        }
+
+    def playlist_items(arguments):
+        """Return latest public activity for one uploads playlist.
+
+        :param arguments: Lower-level activity request.
+        :return: One activity timestamp.
+        """
+        timestamp = {"UUH": "2026-01-01T00:00:00Z", "UUL": "2026-03-01T00:00:00Z", "UUM": "2026-02-01T00:00:00Z"}[arguments["playlistId"]]
+        return {"items": [{"contentDetails": {"videoPublishedAt": timestamp}}]}
+
+    handler = build_channels_search_channels_handler(search=search, channels=channels, playlist_items=playlist_items)
+
+    expected_orders = {
+        "relevance": ["UCH", "UCL", "UCM"],
+        "subscribers_asc": ["UCL", "UCM", "UCH"],
+        "subscribers_desc": ["UCH", "UCM", "UCL"],
+        "indie_priority": ["UCL", "UCM", "UCH"],
+        "recent_activity": ["UCL", "UCM", "UCH"],
+    }
+    for sort_by, expected in expected_orders.items():
+        result = handler({"query": "creator", "sortBy": sort_by})
+        assert [item["channelId"] for item in result["items"]] == expected
+
+    capped = handler({"query": "creator", "minSubscribers": 20, "sortBy": "subscribers_asc", "maxResults": 1})
+    assert [item["channelId"] for item in capped["items"]] == ["UCM"]
