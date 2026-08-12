@@ -1330,3 +1330,401 @@ def build_channels_search_channels_tool_descriptor(*, search=None, channels=None
         "handler": build_channels_search_channels_handler(search=search, channels=channels, playlist_items=playlist_items),
         "metadata": build_channels_search_channels_metadata(),
     }
+
+
+CHANNELS_FIND_CREATORS_TOOL_NAME = "channels_findCreators"
+CHANNELS_FIND_CREATORS_MAX_RESULTS = 50
+CHANNELS_FIND_CREATORS_BASE_VIDEO_LIMIT = 50
+CHANNELS_FIND_CREATORS_MAX_SAMPLES = 10
+CHANNELS_FIND_CREATORS_ORDERS = ("date", "rating", "relevance", "title", "viewCount")
+CHANNELS_FIND_CREATORS_SORTS = CHANNELS_SEARCH_CHANNELS_SORTS
+CHANNELS_FIND_CREATORS_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["query"],
+    "properties": {
+        "query": {"type": "string", "minLength": 1},
+        "maxResults": {"type": "integer", "minimum": 1, "maximum": CHANNELS_FIND_CREATORS_MAX_RESULTS, "default": 10},
+        "order": {"type": "string", "enum": list(CHANNELS_FIND_CREATORS_ORDERS)},
+        "videoPublishedAfter": {"type": "string", "format": "date-time"},
+        "videoPublishedBefore": {"type": "string", "format": "date-time"},
+        "channelMinSubscribers": {"type": "integer", "minimum": 0},
+        "channelMaxSubscribers": {"type": "integer", "minimum": 0},
+        "channelLastUploadAfter": {"type": "string", "format": "date-time"},
+        "channelLastUploadBefore": {"type": "string", "format": "date-time"},
+        "creatorOnly": {"type": "boolean", "default": False},
+        "sortBy": {"type": "string", "enum": list(CHANNELS_FIND_CREATORS_SORTS), "default": "relevance"},
+        "sampleVideosPerChannel": {"type": "integer", "minimum": 0, "maximum": CHANNELS_FIND_CREATORS_MAX_SAMPLES, "default": 0},
+    },
+    "additionalProperties": False,
+}
+
+
+class ChannelsFindCreatorsToolError(ChannelsGetChannelToolError):
+    """Represent a safe caller-facing creator-discovery failure."""
+
+
+def _creator_timestamp(value: Any, field: str) -> str:
+    """Validate a timezone-aware creator-discovery timestamp.
+
+    :param value: Candidate caller-provided timestamp.
+    :param field: Public request field name.
+    :return: Stripped ISO 8601 timestamp with an explicit timezone.
+    :raises ChannelsFindCreatorsToolError: If the value is absent, malformed, or timezone-naive.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise ChannelsFindCreatorsToolError(f"{field} must be a non-empty ISO 8601 timestamp", category="invalid_parameters", details={"field": field})
+    normalized = value.strip()
+    try:
+        parsed = datetime.fromisoformat(normalized[:-1] + "+00:00" if normalized.endswith("Z") else normalized)
+    except ValueError as exc:
+        raise ChannelsFindCreatorsToolError(f"{field} must be an ISO 8601 timestamp with timezone", category="invalid_parameters", details={"field": field}) from exc
+    if parsed.tzinfo is None:
+        raise ChannelsFindCreatorsToolError(f"{field} must include a timezone", category="invalid_parameters", details={"field": field})
+    return normalized
+
+
+def _creator_pair_is_ordered(arguments: dict[str, Any], after_field: str, before_field: str) -> None:
+    """Reject a creator-discovery date window with an inverted order.
+
+    :param arguments: Normalized creator-discovery request.
+    :param after_field: Inclusive lower-bound field name.
+    :param before_field: Inclusive upper-bound field name.
+    :return: ``None`` after validating the optional pair.
+    :raises ChannelsFindCreatorsToolError: If both values exist and the lower bound is later.
+    """
+    if after_field in arguments and before_field in arguments:
+        after = datetime.fromisoformat(arguments[after_field].replace("Z", "+00:00"))
+        before = datetime.fromisoformat(arguments[before_field].replace("Z", "+00:00"))
+        if after > before:
+            raise ChannelsFindCreatorsToolError(f"{after_field} cannot be later than {before_field}", category="invalid_parameters", details={"field": after_field})
+
+
+def validate_channels_find_creators_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize one public creator-discovery request.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Normalized request with defaults and validated optional filters.
+    :raises ChannelsFindCreatorsToolError: If a public field is invalid or unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise ChannelsFindCreatorsToolError("channels_findCreators arguments must be an object", category="invalid_parameters", details={"field": "arguments"})
+    unexpected = set(arguments) - set(CHANNELS_FIND_CREATORS_INPUT_SCHEMA["properties"])
+    if unexpected:
+        raise ChannelsFindCreatorsToolError("channels_findCreators received an unsupported field", category="invalid_parameters", details={"field": sorted(unexpected)[0]})
+    query = arguments.get("query")
+    if not isinstance(query, str) or not query.strip():
+        raise ChannelsFindCreatorsToolError("channels_findCreators requires a non-empty query", category="invalid_parameters", details={"field": "query"})
+    normalized: dict[str, Any] = {
+        "query": query.strip(),
+        "maxResults": arguments.get("maxResults", 10),
+        "creatorOnly": arguments.get("creatorOnly", False),
+        "sortBy": arguments.get("sortBy", "relevance"),
+        "sampleVideosPerChannel": arguments.get("sampleVideosPerChannel", 0),
+    }
+    for field, maximum in (("maxResults", CHANNELS_FIND_CREATORS_MAX_RESULTS), ("sampleVideosPerChannel", CHANNELS_FIND_CREATORS_MAX_SAMPLES)):
+        value = normalized[field]
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= maximum or (field == "maxResults" and value == 0):
+            minimum = 1 if field == "maxResults" else 0
+            raise ChannelsFindCreatorsToolError(f"{field} must be an integer from {minimum} through {maximum}", category="invalid_parameters", details={"field": field})
+    if not isinstance(normalized["creatorOnly"], bool):
+        raise ChannelsFindCreatorsToolError("creatorOnly must be a boolean", category="invalid_parameters", details={"field": "creatorOnly"})
+    if normalized["sortBy"] not in CHANNELS_FIND_CREATORS_SORTS:
+        raise ChannelsFindCreatorsToolError("sortBy must use a supported ranking value", category="invalid_parameters", details={"field": "sortBy"})
+    if "order" in arguments:
+        if not isinstance(arguments["order"], str) or arguments["order"] not in CHANNELS_FIND_CREATORS_ORDERS:
+            raise ChannelsFindCreatorsToolError("order must use a supported value", category="invalid_parameters", details={"field": "order"})
+        normalized["order"] = arguments["order"]
+    for field in ("channelMinSubscribers", "channelMaxSubscribers"):
+        if field in arguments:
+            value = arguments[field]
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ChannelsFindCreatorsToolError(f"{field} must be a non-negative integer", category="invalid_parameters", details={"field": field})
+            normalized[field] = value
+    if normalized.get("channelMinSubscribers") is not None and normalized.get("channelMaxSubscribers") is not None and normalized["channelMinSubscribers"] > normalized["channelMaxSubscribers"]:
+        raise ChannelsFindCreatorsToolError("channelMinSubscribers cannot exceed channelMaxSubscribers", category="invalid_parameters", details={"field": "channelMinSubscribers"})
+    for field in ("videoPublishedAfter", "videoPublishedBefore", "channelLastUploadAfter", "channelLastUploadBefore"):
+        if field in arguments:
+            normalized[field] = _creator_timestamp(arguments[field], field)
+    _creator_pair_is_ordered(normalized, "videoPublishedAfter", "videoPublishedBefore")
+    _creator_pair_is_ordered(normalized, "channelLastUploadAfter", "channelLastUploadBefore")
+    return normalized
+
+
+def _creator_base_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Build the bounded public video-search request for creator discovery.
+
+    :param arguments: Validated creator-discovery request.
+    :return: Lower-layer public video-search arguments bounded independently of final results.
+    """
+    result = {"part": "snippet", "q": arguments["query"], "type": "video", "maxResults": CHANNELS_FIND_CREATORS_BASE_VIDEO_LIMIT, "order": arguments.get("order", "relevance")}
+    for public_name, lower_name in (("videoPublishedAfter", "publishedAfter"), ("videoPublishedBefore", "publishedBefore")):
+        if public_name in arguments:
+            result[lower_name] = arguments[public_name]
+    return result
+
+
+def _creator_candidates(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Normalize and group public matching videos into distinct channel candidates.
+
+    :param payload: Lower-level public video-search result.
+    :return: Candidates ordered by each channel's earliest matched-video position.
+    """
+    source_items = payload.get("items") if isinstance(payload, dict) and isinstance(payload.get("items"), list) else []
+    candidates: list[dict[str, Any]] = []
+    by_channel: dict[str, dict[str, Any]] = {}
+    for position, item in enumerate(source_items):
+        if not isinstance(item, dict):
+            continue
+        identifier = item.get("id") if isinstance(item.get("id"), dict) else {}
+        snippet = item.get("snippet") if isinstance(item.get("snippet"), dict) else {}
+        video_id, channel_id = identifier.get("videoId"), snippet.get("channelId")
+        if not isinstance(video_id, str) or not video_id.strip() or not isinstance(channel_id, str) or not channel_id.strip():
+            continue
+        sample: dict[str, Any] = {"videoId": video_id.strip(), "channelId": channel_id.strip()}
+        for field in ("title", "publishedAt", "thumbnails"):
+            _copy_if_present(sample, snippet, field)
+        candidate = by_channel.get(channel_id.strip())
+        if candidate is None:
+            candidate = {"channelId": channel_id.strip(), "_baseSearchPosition": position, "_matchingVideos": []}
+            title = snippet.get("channelTitle") if isinstance(snippet.get("channelTitle"), str) else snippet.get("title")
+            if isinstance(title, str):
+                candidate["title"] = title
+            thumbnails = snippet.get("thumbnails")
+            if isinstance(thumbnails, dict):
+                candidate["thumbnails"] = thumbnails
+            by_channel[channel_id.strip()] = candidate
+            candidates.append(candidate)
+        candidate["_matchingVideos"].append(sample)
+    return candidates
+
+
+def _creator_required_rules(arguments: dict[str, Any]) -> list[str]:
+    """Return active creator rules requiring conditional public enrichment.
+
+    :param arguments: Validated creator-discovery request.
+    :return: Ordered active filter and ranking names.
+    """
+    rules = [field for field in ("channelMinSubscribers", "channelMaxSubscribers", "channelLastUploadAfter", "channelLastUploadBefore") if field in arguments]
+    if arguments["creatorOnly"]:
+        rules.append("creatorOnly")
+    if arguments["sortBy"] != "relevance":
+        rules.append(arguments["sortBy"])
+    return rules
+
+
+def _creator_needs_activity(arguments: dict[str, Any]) -> bool:
+    """Return whether creator discovery needs latest public upload activity.
+
+    :param arguments: Validated creator-discovery request.
+    :return: ``True`` for active activity filters or recent-activity ranking.
+    """
+    return any(field in arguments for field in ("channelLastUploadAfter", "channelLastUploadBefore")) or arguments["sortBy"] == "recent_activity"
+
+
+def _creator_activity_matches(timestamp: str, arguments: dict[str, Any]) -> bool:
+    """Return whether latest public activity satisfies inclusive request bounds.
+
+    :param timestamp: Available timezone-aware latest-upload timestamp.
+    :param arguments: Validated creator-discovery request.
+    :return: ``True`` when all selected activity bounds are satisfied.
+    """
+    value = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    if "channelLastUploadAfter" in arguments and value < datetime.fromisoformat(arguments["channelLastUploadAfter"].replace("Z", "+00:00")):
+        return False
+    return "channelLastUploadBefore" not in arguments or value <= datetime.fromisoformat(arguments["channelLastUploadBefore"].replace("Z", "+00:00"))
+
+
+def _creator_enrich_and_filter(candidates: list[dict[str, Any]], arguments: dict[str, Any], channels, playlist_items) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Conditionally enrich and filter video-derived candidates using public channel data.
+
+    :param candidates: Distinct candidates grouped from matching videos.
+    :param arguments: Validated creator-discovery request.
+    :param channels: Lower-level batched public channel lookup callable.
+    :param playlist_items: Lower-level public uploads-playlist lookup callable.
+    :return: Eligible candidates and an optional safe partial-enrichment summary.
+    :raises ChannelsFindCreatorsToolError: If every candidate cannot be evaluated for an active rule.
+    """
+    required_for = _creator_required_rules(arguments)
+    if not required_for:
+        return candidates, None
+    try:
+        payload = channels({"part": "snippet,statistics,contentDetails", "id": ",".join(candidate["channelId"] for candidate in candidates)})
+    except ChannelsListToolError as exc:
+        mapped = _map_channels_list_error(exc)
+        raise ChannelsFindCreatorsToolError(str(mapped), category=mapped.category, details=mapped.details) from exc
+    source_items = payload.get("items") if isinstance(payload, dict) and isinstance(payload.get("items"), list) else []
+    by_id = {item["id"].strip(): item for item in source_items if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].strip()}
+    needs_subscriber = any(field in arguments for field in ("channelMinSubscribers", "channelMaxSubscribers")) or arguments["sortBy"] in {"subscribers_asc", "subscribers_desc", "indie_priority"}
+    needs_activity = _creator_needs_activity(arguments)
+    eligible: list[dict[str, Any]] = []
+    reasons: list[str] = []
+    excluded = 0
+    evaluated = 0
+    for candidate in candidates:
+        source = by_id.get(candidate["channelId"])
+        if source is None:
+            excluded += 1
+            if "channel_metadata_unavailable" not in reasons:
+                reasons.append("channel_metadata_unavailable")
+            continue
+        enriched = dict(candidate)
+        snippet = source.get("snippet") if isinstance(source.get("snippet"), dict) else {}
+        enriched["normalizedMetadata"] = _normalized_metadata(snippet)
+        classification, signals = _creator_classification(snippet)
+        enriched["heuristics"] = {"creatorClassification": classification, "creatorSignals": signals}
+        subscriber = _channel_search_subscriber_count(source)
+        if needs_subscriber:
+            if subscriber is None:
+                excluded += 1
+                if "subscriber_count_unavailable" not in reasons:
+                    reasons.append("subscriber_count_unavailable")
+                continue
+            enriched["statistics"] = {"subscriberCount": subscriber[0]}
+            enriched["_subscriberCount"] = subscriber[1]
+        if needs_activity:
+            uploads = _uploads_playlist_id(source)
+            if uploads is None:
+                excluded += 1
+                if "latest_activity_unavailable" not in reasons:
+                    reasons.append("latest_activity_unavailable")
+                continue
+            try:
+                latest = playlist_items({"part": "contentDetails", "playlistId": uploads, "maxResults": 1})
+            except PlaylistItemsListToolError:
+                excluded += 1
+                if "latest_activity_unavailable" not in reasons:
+                    reasons.append("latest_activity_unavailable")
+                continue
+            timestamp = _latest_video_published_at(latest)
+            if timestamp is None:
+                excluded += 1
+                if "latest_activity_unavailable" not in reasons:
+                    reasons.append("latest_activity_unavailable")
+                continue
+            enriched["latestVideoPublishedAt"] = timestamp
+        evaluated += 1
+        if "channelMinSubscribers" in arguments and enriched["_subscriberCount"] < arguments["channelMinSubscribers"]:
+            continue
+        if "channelMaxSubscribers" in arguments and enriched["_subscriberCount"] > arguments["channelMaxSubscribers"]:
+            continue
+        if needs_activity and not _creator_activity_matches(enriched["latestVideoPublishedAt"], arguments):
+            continue
+        if arguments["creatorOnly"] and classification != "creator":
+            continue
+        eligible.append(enriched)
+    if candidates and evaluated == 0 and excluded:
+        raise ChannelsFindCreatorsToolError("Required public channel enrichment is unavailable", category="partial_enrichment_failure", details={"excludedCandidateCount": excluded, "reasons": reasons, "requiredFor": required_for})
+    return eligible, ({"status": "partial", "excludedCandidateCount": excluded, "reasons": reasons, "requiredFor": required_for} if excluded else None)
+
+
+def _creator_public_item(candidate: dict[str, Any], sample_limit: int) -> dict[str, Any]:
+    """Shape one ranked candidate and its bounded matched-video samples.
+
+    :param candidate: Internal ranked candidate with matching video evidence.
+    :param sample_limit: Requested per-channel sample cap.
+    :return: Public candidate without internal sorting or grouping fields.
+    """
+    result = {key: value for key, value in candidate.items() if not key.startswith("_")}
+    videos = candidate["_matchingVideos"]
+    result["matchedVideoBasis"] = {"count": len(videos), "firstVideoId": videos[0]["videoId"]}
+    if sample_limit:
+        result["sampleVideos"] = videos[:sample_limit]
+    return result
+
+
+def _creator_field_provenance(items: list[dict[str, Any]]) -> dict[str, str]:
+    """Build public provenance metadata for creator-discovery results.
+
+    :param items: Final public candidate collection.
+    :return: Field-path-to-provenance mapping for returned fields.
+    """
+    provenance = {"channelId": "raw_upstream", "matchedVideoBasis": "normalized"}
+    if any("sampleVideos" in item for item in items):
+        provenance["sampleVideos"] = "normalized"
+    if any("statistics" in item for item in items):
+        provenance["statistics.subscriberCount"] = "raw_upstream"
+    if any("latestVideoPublishedAt" in item for item in items):
+        provenance["latestVideoPublishedAt"] = "normalized"
+    if any("heuristics" in item for item in items):
+        provenance["heuristics.creatorClassification"] = "heuristic_inferred"
+        provenance["heuristics.creatorSignals"] = "heuristic_inferred"
+    return provenance
+
+
+def build_channels_find_creators_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for concrete creator discovery.
+
+    :return: JSON-compatible metadata for bounded video-derived creator discovery.
+    """
+    return {
+        "name": CHANNELS_FIND_CREATORS_TOOL_NAME,
+        "family": "channels",
+        "parameters": list(CHANNELS_FIND_CREATORS_INPUT_SCHEMA["properties"]),
+        "inputContract": CHANNELS_FIND_CREATORS_INPUT_SCHEMA,
+        "compositionBoundary": {"kind": "ranked_enrichment", "boundedness": "one base video search of at most 50 videos; at most 50 distinct channels, one activity lookup per candidate, and 0 through 10 samples per final channel", "partialResultPolicy": "Conditional public enrichment excludes candidates whose required data is unavailable and discloses them safely."},
+        "lowerLayerDependencies": ["search.list", "channels.list", "playlistItems.list"],
+        "continuationPolicy": "Any continuation context belongs to the bounded base video search and does not paginate the final filtered or ranked creator collection.",
+        "rankingSemantics": {"sortBy": list(CHANNELS_FIND_CREATORS_SORTS), "filterOrder": "Apply filters before final ranking and result cap.", "ties": "Preserve earliest base-video position for every ranking tie."},
+        "responseFields": [
+            {"fieldName": "channelId", "category": "raw_upstream", "source": "matched video snippet.channelId"},
+            {"fieldName": "matchedVideoBasis", "category": "normalized", "source": "grouped matching videos"},
+            {"fieldName": "sampleVideos", "category": "normalized", "source": "bounded base-video-order samples"},
+            {"fieldName": "statistics.subscriberCount", "category": "raw_upstream", "source": "public channel statistics"},
+            {"fieldName": "latestVideoPublishedAt", "category": "normalized", "source": "public uploads playlist"},
+            {"fieldName": "heuristics.creatorClassification", "category": "heuristic_inferred", "source": "public channel material"},
+        ],
+        "heuristics": [{"name": "creatorClassification", "basis": "Positive public channel metadata signals.", "limitations": "Classification is inferred, can be incomplete or incorrect, and is not a verified identity, ownership, or independence claim."}],
+        "authAndQuotaNotes": ["Uses configured public read capability and no owner-scoped data.", "Base video search and conditional public enrichment have bounded quota impact."],
+        "errorCategories": ["invalid_parameters", "unavailable_resource", "authorization_sensitive_data", "quota_exhaustion", "upstream_failure", "partial_enrichment_failure"],
+        "errorGuidance": {"invalid_parameters": "Correct the identified request field and retry.", "unavailable_resource": "Use a different accessible query or relax the affected refinement.", "authorization_sensitive_data": "Use permitted public data or obtain the necessary capability.", "quota_exhaustion": "Retry after capacity is available.", "upstream_failure": "Retry when the source service is available.", "partial_enrichment_failure": "Relax the enrichment-dependent rule or retry when public metadata is available."},
+    }
+
+
+def build_channels_find_creators_handler(*, search=None, channels=None, playlist_items=None):
+    """Build the callable public creator-discovery handler.
+
+    :param search: Optional lower-level video-search handler override for tests.
+    :param channels: Optional lower-level channel handler override for enrichment tests.
+    :param playlist_items: Optional lower-level playlist handler override for activity tests.
+    :return: Callable that discovers, enriches, ranks, and samples public creator candidates.
+    """
+    selected_search = search or build_search_list_handler()
+    selected_channels = channels or build_channels_list_handler()
+    selected_playlist_items = playlist_items or build_playlist_items_list_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated creator-discovery request.
+
+        :param arguments: Caller-provided public creator-discovery arguments.
+        :return: Bounded public creator collection with provenance and safe partial state.
+        :raises ChannelsFindCreatorsToolError: If validation, search, or required enrichment fails safely.
+        """
+        normalized = validate_channels_find_creators_arguments(arguments)
+        try:
+            payload = selected_search(_creator_base_arguments(normalized))
+        except SearchListToolError as exc:
+            mapped = _map_channel_search_error(exc)
+            raise ChannelsFindCreatorsToolError(str(mapped), category=mapped.category, details=mapped.details) from exc
+        eligible, partial = _creator_enrich_and_filter(_creator_candidates(payload), normalized, selected_channels, selected_playlist_items)
+        ranked = _rank_channel_search_candidates(eligible, normalized)
+        items = [_creator_public_item(candidate, normalized["sampleVideosPerChannel"]) for candidate in ranked[: normalized["maxResults"]]]
+        result: dict[str, Any] = {"items": items, "appliedInputs": normalized, "returnedCount": len(items), "maxResults": normalized["maxResults"], "fieldProvenance": _creator_field_provenance(items)}
+        if partial is not None:
+            result["partialEnrichment"] = partial
+        token = payload.get("nextPageToken") if isinstance(payload, dict) else None
+        if isinstance(token, str) and token:
+            result["nextPageToken"] = token
+        return result
+
+    return handler
+
+
+def build_channels_find_creators_tool_descriptor(*, search=None, channels=None, playlist_items=None) -> dict[str, Any]:
+    """Build the executable MCP descriptor for ``channels_findCreators``.
+
+    :param search: Optional lower-level video-search handler override for tests.
+    :param channels: Optional lower-level channel handler override for enrichment tests.
+    :param playlist_items: Optional lower-level playlist handler override for activity tests.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {"name": CHANNELS_FIND_CREATORS_TOOL_NAME, "description": "Discover public creator channels from matching videos with optional enrichment, ranking, and samples.", "inputSchema": CHANNELS_FIND_CREATORS_INPUT_SCHEMA, "handler": build_channels_find_creators_handler(search=search, channels=channels, playlist_items=playlist_items), "metadata": build_channels_find_creators_metadata()}

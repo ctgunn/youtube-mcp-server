@@ -158,3 +158,40 @@ def test_channel_search_contract_discloses_all_ranking_and_tie_semantics():
     ]
     assert "base-search position" in metadata["rankingSemantics"]["ties"]
     assert metadata["rankingSemantics"]["filterOrder"] == "Apply filters before final ranking and result cap."
+
+
+def test_creator_discovery_contract_exposes_bounded_composite_schema():
+    """Require executable public metadata for creator discovery."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_find_creators_tool_descriptor
+
+    descriptor = build_channels_find_creators_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["name"] == "channels_findCreators"
+    assert descriptor["inputSchema"]["required"] == ["query"]
+    assert descriptor["inputSchema"]["properties"]["maxResults"]["default"] == 10
+    assert descriptor["inputSchema"]["properties"]["sampleVideosPerChannel"] == {
+        "type": "integer", "minimum": 0, "maximum": 10, "default": 0
+    }
+    assert metadata["compositionBoundary"]["kind"] == "ranked_enrichment"
+    assert metadata["lowerLayerDependencies"] == ["search.list", "channels.list", "playlistItems.list"]
+    assert "50" in metadata["compositionBoundary"]["boundedness"]
+    assert "base" in metadata["continuationPolicy"].lower()
+    assert "representativeOnly" not in metadata
+    assert "token" not in str(metadata).lower()
+
+
+def test_creator_discovery_contract_discloses_provenance_heuristics_and_ranking():
+    """Require provenance, heuristic limitations, and deterministic ranking metadata."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_find_creators_metadata
+
+    metadata = build_channels_find_creators_metadata()
+    fields = {field["fieldName"]: field for field in metadata["responseFields"]}
+
+    assert fields["matchedVideoBasis"]["category"] == "normalized"
+    assert fields["sampleVideos"]["category"] == "normalized"
+    assert fields["heuristics.creatorClassification"]["category"] == "heuristic_inferred"
+    assert metadata["rankingSemantics"]["sortBy"] == [
+        "relevance", "subscribers_asc", "subscribers_desc", "indie_priority", "recent_activity"
+    ]
+    assert "incomplete" in metadata["heuristics"][0]["limitations"].lower()

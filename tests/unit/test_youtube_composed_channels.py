@@ -613,3 +613,73 @@ def test_channel_search_applies_documented_rankings_after_filters_with_stable_ti
 
     capped = handler({"query": "creator", "minSubscribers": 20, "sortBy": "subscribers_asc", "maxResults": 1})
     assert [item["channelId"] for item in capped["items"]] == ["UCM"]
+
+
+def test_creator_discovery_validates_groups_and_samples_matched_videos():
+    """Group matching videos by earliest public channel occurrence."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_find_creators_handler, validate_channels_find_creators_arguments
+
+    assert validate_channels_find_creators_arguments({"query": " creator "}) == {
+        "query": "creator", "maxResults": 10, "creatorOnly": False, "sortBy": "relevance", "sampleVideosPerChannel": 0
+    }
+    calls = []
+
+    def search(arguments):
+        """Record the bounded base request and return duplicate channel videos.
+
+        :param arguments: Lower-level public search request.
+        :return: Ordered public video search results.
+        """
+        calls.append(arguments)
+        return {"items": [
+            {"id": {"videoId": "v1"}, "snippet": {"channelId": "UC1", "channelTitle": "First", "title": "One", "publishedAt": "2026-01-01T00:00:00Z"}},
+            {"id": {"videoId": "v2"}, "snippet": {"channelId": "UC1", "channelTitle": "First", "title": "Two"}},
+            {"id": {"videoId": "v3"}, "snippet": {"channelId": "UC2", "channelTitle": "Second", "title": "Three"}},
+        ], "nextPageToken": "NEXT"}
+
+    result = build_channels_find_creators_handler(search=search)({"query": "creator", "maxResults": 2, "sampleVideosPerChannel": 2})
+
+    assert calls == [{"part": "snippet", "q": "creator", "type": "video", "maxResults": 50, "order": "relevance"}]
+    assert [item["channelId"] for item in result["items"]] == ["UC1", "UC2"]
+    assert result["items"][0]["matchedVideoBasis"] == {"count": 2, "firstVideoId": "v1"}
+    assert [sample["videoId"] for sample in result["items"][0]["sampleVideos"]] == ["v1", "v2"]
+    assert result["nextPageToken"] == "NEXT"
+
+
+def test_creator_discovery_filters_ranks_and_handles_unavailable_enrichment():
+    """Apply public refinement before ranking and sample final candidates."""
+    from mcp_server.tools.youtube_composed.channels import ChannelsFindCreatorsToolError, build_channels_find_creators_handler
+
+    def search(_arguments):
+        """Return ordered topic-matching video candidates.
+
+        :param _arguments: Ignored lower-layer search request.
+        :return: Ordered public video search results.
+        """
+        return {"items": [
+            {"id": {"videoId": "high"}, "snippet": {"channelId": "UCH", "channelTitle": "Brand", "title": "High"}},
+            {"id": {"videoId": "low1"}, "snippet": {"channelId": "UCL", "channelTitle": "Creator", "title": "Low one"}},
+            {"id": {"videoId": "low2"}, "snippet": {"channelId": "UCL", "channelTitle": "Creator", "title": "Low two"}},
+        ]}
+
+    def channels(arguments):
+        """Return subscriber and public-profile metadata.
+
+        :param arguments: Batched lower-layer channel request.
+        :return: Public channel records.
+        """
+        assert arguments == {"part": "snippet,statistics,contentDetails", "id": "UCH,UCL"}
+        return {"items": [
+            {"id": "UCH", "snippet": {"title": "Brand"}, "statistics": {"subscriberCount": "100"}},
+            {"id": "UCL", "snippet": {"title": "Creator Sam"}, "statistics": {"subscriberCount": "10"}},
+        ]}
+
+    result = build_channels_find_creators_handler(search=search, channels=channels)({
+        "query": "creator", "sortBy": "subscribers_asc", "sampleVideosPerChannel": 2
+    })
+    assert [item["channelId"] for item in result["items"]] == ["UCL", "UCH"]
+    assert [sample["videoId"] for sample in result["items"][0]["sampleVideos"]] == ["low1", "low2"]
+
+    with pytest.raises(ChannelsFindCreatorsToolError) as exc_info:
+        build_channels_find_creators_handler(search=search, channels=lambda _arguments: {"items": []})({"query": "creator", "channelMinSubscribers": 1})
+    assert exc_info.value.category == "partial_enrichment_failure"

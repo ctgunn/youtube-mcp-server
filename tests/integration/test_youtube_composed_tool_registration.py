@@ -471,3 +471,23 @@ def test_concrete_channel_search_descriptor_applies_subscriber_ranking():
     )
 
     assert [item["channelId"] for item in result["items"]] == ["UCL", "UCH"]
+
+
+def test_creator_discovery_descriptor_executes_query_only_video_grouping():
+    """Execute creator discovery through an injected public video search."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_find_creators_tool_descriptor
+
+    def search(arguments):
+        """Return one video-derived public channel.
+
+        :param arguments: Lower-layer public video-search arguments.
+        :return: One public video search result.
+        """
+        assert arguments["type"] == "video"
+        return {"items": [{"id": {"videoId": "v1"}, "snippet": {"channelId": "UC1", "channelTitle": "Creator", "title": "Topic"}}]}
+
+    result = InMemoryToolDispatcher(tools=[build_channels_find_creators_tool_descriptor(search=search)]).call_tool(
+        "channels_findCreators", {"query": "creator"}
+    )
+
+    assert result["items"][0]["channelId"] == "UC1"
