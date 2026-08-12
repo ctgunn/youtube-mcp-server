@@ -13,6 +13,7 @@ from mcp_server.tools.youtube_composed import (
     build_channels_get_channels_tool_descriptor,
     build_channels_list_videos_tool_descriptor,
     build_channels_search_channels_tool_descriptor,
+    build_playlists_get_playlist_tool_descriptor,
     build_transcripts_get_transcript_tool_descriptor,
     build_videos_get_video_tool_descriptor,
     build_videos_search_videos_tool_descriptor,
@@ -58,6 +59,7 @@ from mcp_server.tools.youtube_common import (
     build_playlists_delete_tool_descriptor,
     build_playlists_insert_tool_descriptor,
     build_playlists_list_tool_descriptor,
+    build_playlists_list_handler,
     build_playlists_update_tool_descriptor,
     build_search_list_handler,
     build_search_list_tool_descriptor,
@@ -339,6 +341,9 @@ class InMemoryToolDispatcher:
             build_videos_list_tool_descriptor(**conditional_dependencies),
             build_videos_get_video_tool_descriptor(
                 lookup=build_videos_list_handler(**conditional_dependencies)
+            ),
+            build_playlists_get_playlist_tool_descriptor(
+                lookup=build_playlists_list_handler(**conditional_dependencies)
             ),
             build_videos_search_videos_tool_descriptor(
                 search=build_search_list_handler(**conditional_dependencies),
