@@ -491,3 +491,47 @@ def test_creator_discovery_descriptor_executes_query_only_video_grouping():
     )
 
     assert result["items"][0]["channelId"] == "UC1"
+
+
+def test_channels_list_videos_descriptor_registers_and_executes_bounded_listing():
+    """Register and execute the source-ordered channel video descriptor."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_tool_descriptor
+
+    def channels(arguments):
+        """Return an uploads reference for the requested public channel.
+
+        :param arguments: Lower-level channel-list request.
+        :return: One public channel record with an uploads collection reference.
+        """
+        assert arguments == {"part": "contentDetails", "id": "UC123"}
+        return {"items": [{"id": "UC123", "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}}}]}
+
+    def playlist_items(arguments):
+        """Return two public videos in uploads-collection order.
+
+        :param arguments: Lower-level playlist-item list request.
+        :return: Ordered public uploads-collection items.
+        """
+        assert arguments == {"part": "snippet,contentDetails", "playlistId": "UU123", "maxResults": 10}
+        return {"items": [{"snippet": {"resourceId": {"videoId": "v1"}, "title": "First"}}, {"snippet": {"resourceId": {"videoId": "v2"}, "title": "Second"}}]}
+
+    descriptor = build_channels_list_videos_tool_descriptor(channels=channels, playlist_items=playlist_items)
+    dispatcher = InMemoryToolDispatcher(tools=[descriptor])
+
+    result = dispatcher.call_tool("channels_listVideos", {"channelId": "UC123"})
+
+    assert [item["videoId"] for item in result["items"]] == ["v1", "v2"]
+    assert result["returnedCount"] == 2
+    assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
+
+
+def test_channels_list_videos_descriptor_discloses_non_search_behavior_to_clients():
+    """Keep the registered descriptor distinguishable from relevance-ranked search."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_tool_descriptor
+
+    descriptor = build_channels_list_videos_tool_descriptor()
+    metadata = InMemoryToolDispatcher(tools=[descriptor]).list_tools()[0]["metadata"]
+
+    assert metadata["orderingSemantics"]["rankingApplied"] is False
+    assert metadata["publicContentPolicy"].startswith("Only publicly available")
+    assert "search-oriented" in metadata["searchGuidance"].lower()

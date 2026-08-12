@@ -195,3 +195,51 @@ def test_creator_discovery_contract_discloses_provenance_heuristics_and_ranking(
         "relevance", "subscribers_asc", "subscribers_desc", "indie_priority", "recent_activity"
     ]
     assert "incomplete" in metadata["heuristics"][0]["limitations"].lower()
+
+
+def test_channels_list_videos_contract_exposes_bounded_source_ordered_public_listing():
+    """Require concrete discovery metadata for public uploads-collection listing."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_tool_descriptor
+
+    descriptor = build_channels_list_videos_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["name"] == "channels_listVideos"
+    assert descriptor["inputSchema"] == {
+        "type": "object",
+        "required": ["channelId"],
+        "properties": {
+            "channelId": {"type": "string", "minLength": 1},
+            "maxResults": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10},
+        },
+        "additionalProperties": False,
+    }
+    assert metadata["compositionBoundary"]["kind"] == "source_ordered_collection"
+    assert metadata["lowerLayerDependencies"] == ["channels.list", "playlistItems.list"]
+    assert "1-50" in metadata["compositionBoundary"]["boundedness"]
+    assert "representativeOnly" not in metadata
+    assert "token" not in str(metadata).lower()
+
+
+def test_channels_list_videos_contract_discloses_provenance_ordering_and_safe_empty_policy():
+    """Require caller-visible source order, provenance, and empty-result guidance."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_metadata
+
+    metadata = build_channels_list_videos_metadata()
+    fields = {field["fieldName"]: field for field in metadata["responseFields"]}
+
+    assert fields["items.videoId"]["category"] == "raw_upstream"
+    assert fields["items.publishedAt"]["category"] == "raw_upstream"
+    assert fields["channelId"]["category"] == "normalized"
+    assert fields["collectionContext"]["category"] == "normalized"
+    assert metadata["orderingSemantics"]["rankingApplied"] is False
+    assert "request time" in metadata["orderingSemantics"]["ordering"].lower()
+    assert "empty" in metadata["compositionBoundary"]["partialResultPolicy"].lower()
+    assert "quota" in " ".join(metadata["authAndQuotaNotes"]).lower()
+    assert metadata["publicContentPolicy"] == "Only publicly available videos are returned; inaccessible content is omitted."
+    assert "search-oriented" in metadata["searchGuidance"].lower()
+    assert metadata["partialAvailabilityPolicy"] == {
+        "status": "partial",
+        "safeAggregateOnly": True,
+        "requiredLookupFailure": "whole_request_error",
+    }

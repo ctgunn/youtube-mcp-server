@@ -147,6 +147,48 @@ class MethodRoutingTests(unittest.TestCase):
         assert "hidden" not in str(response["error"])
         assert ChannelsGetChannelToolError is not None
 
+    def test_channel_video_listing_error_categories_route_safely(self):
+        """Serialize required collection failures without unsafe diagnostics."""
+        from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
+        from mcp_server.tools.youtube_composed.channels import (
+            ChannelsListVideosToolError,
+            build_channels_list_videos_tool_descriptor,
+        )
+
+        def channels(_arguments):
+            """Return a channel with a public uploads collection reference.
+
+            :param _arguments: Ignored lower-level channel request.
+            :return: One channel record for protocol error coverage.
+            """
+            return {"items": [{"id": "UC123", "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}}}]}
+
+        def playlist_items(_arguments):
+            """Raise a safe capacity failure containing unsafe details.
+
+            :param _arguments: Ignored lower-level playlist-item request.
+            :raises PlaylistItemsListToolError: Always raised for routing coverage.
+            """
+            raise PlaylistItemsListToolError("quota", category="quota_exhausted", details={"api_key": "hidden", "raw_body": "hidden"})
+
+        dispatcher = InMemoryToolDispatcher(
+            tools=[build_channels_list_videos_tool_descriptor(channels=channels, playlist_items=playlist_items)]
+        )
+        response = route_mcp_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "req-channel-videos-error",
+                "method": "tools/call",
+                "params": {"name": "channels_listVideos", "arguments": {"channelId": "UC123"}},
+            },
+            dispatcher,
+        )
+
+        assert response["error"]["data"]["category"] == "quota_exhaustion"
+        assert response["error"]["data"]["protocolCategory"] == "transport_not_supported"
+        assert "hidden" not in str(response["error"])
+        assert ChannelsListVideosToolError is not None
+
     def test_baseline_tools_are_discoverable(self):
         """List the built-in baseline tools through tools/list."""
         payload = {"jsonrpc": "2.0", "id": "req-4", "method": "tools/list", "params": {}}

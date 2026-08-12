@@ -683,3 +683,177 @@ def test_creator_discovery_filters_ranks_and_handles_unavailable_enrichment():
     with pytest.raises(ChannelsFindCreatorsToolError) as exc_info:
         build_channels_find_creators_handler(search=search, channels=lambda _arguments: {"items": []})({"query": "creator", "channelMinSubscribers": 1})
     assert exc_info.value.category == "partial_enrichment_failure"
+
+
+def test_channels_list_videos_validates_public_request_and_lists_distinct_uploads_in_source_order():
+    """Validate and execute one bounded source-ordered channel video listing."""
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsListVideosToolError,
+        build_channels_list_videos_handler,
+        validate_channels_list_videos_arguments,
+    )
+
+    assert validate_channels_list_videos_arguments({"channelId": " UC123 "}) == {"channelId": "UC123", "maxResults": 10}
+    assert validate_channels_list_videos_arguments({"channelId": "UC123", "maxResults": 3}) == {"channelId": "UC123", "maxResults": 3}
+    for arguments, field in (
+        ({}, "channelId"),
+        ({"channelId": " "}, "channelId"),
+        ({"channelId": "UC123", "maxResults": True}, "maxResults"),
+        ({"channelId": "UC123", "maxResults": 1.5}, "maxResults"),
+        ({"channelId": "UC123", "maxResults": 0}, "maxResults"),
+        ({"channelId": "UC123", "maxResults": 51}, "maxResults"),
+        ({"channelId": "UC123", "unexpected": "value"}, "unexpected"),
+    ):
+        with pytest.raises(ChannelsListVideosToolError) as exc_info:
+            validate_channels_list_videos_arguments(arguments)
+        assert exc_info.value.category == "invalid_parameters"
+        assert exc_info.value.details == {"field": field}
+
+    channel_calls = []
+    playlist_calls = []
+
+    def channels(arguments):
+        """Record one channel lookup and return its public uploads reference.
+
+        :param arguments: Lower-level public channel-list request.
+        :return: One source channel with an uploads collection reference.
+        """
+        channel_calls.append(arguments)
+        return {"items": [{"id": "UC123", "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}}}]}
+
+    def playlist_items(arguments):
+        """Record one bounded collection read with duplicate and unusable items.
+
+        :param arguments: Lower-level public playlist-item request.
+        :return: Source items in public uploads-collection order.
+        """
+        playlist_calls.append(arguments)
+        return {
+            "items": [
+                {
+                    "snippet": {
+                        "resourceId": {"videoId": "v1"},
+                        "title": "First",
+                        "description": "First description",
+                        "thumbnails": {"medium": "https://example.invalid/first"},
+                    },
+                    "contentDetails": {"videoPublishedAt": "2026-03-01T00:00:00Z"},
+                },
+                {"snippet": {"resourceId": {"videoId": "v1"}, "title": "Duplicate"}},
+                {"snippet": {"title": "Unusable"}},
+                {"snippet": {"resourceId": {"videoId": "v2"}, "title": "Second"}},
+                {"snippet": {"resourceId": {"videoId": "v3"}, "title": "Third"}},
+            ]
+        }
+
+    result = build_channels_list_videos_handler(channels=channels, playlist_items=playlist_items)(
+        {"channelId": " UC123 ", "maxResults": 3}
+    )
+
+    assert channel_calls == [{"part": "contentDetails", "id": "UC123"}]
+    assert playlist_calls == [{"part": "snippet,contentDetails", "playlistId": "UU123", "maxResults": 3}]
+    assert result["channelId"] == "UC123"
+    assert [item["videoId"] for item in result["items"]] == ["v1", "v2", "v3"]
+    assert result["items"][0] == {
+        "videoId": "v1",
+        "title": "First",
+        "description": "First description",
+        "thumbnails": {"medium": "https://example.invalid/first"},
+        "publishedAt": "2026-03-01T00:00:00Z",
+    }
+    assert result["returnedCount"] == 3
+    assert result["maxResults"] == 3
+
+
+def test_channels_list_videos_returns_successful_empty_collections_without_extra_reads():
+    """Keep absent uploads references and empty public collections successful."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_handler
+
+    playlist_calls = []
+    no_uploads = build_channels_list_videos_handler(
+        channels=lambda _arguments: {"items": [{"id": "UC123", "contentDetails": {}}]},
+        playlist_items=lambda arguments: playlist_calls.append(arguments),
+    )({"channelId": "UC123"})
+    assert no_uploads["items"] == []
+    assert no_uploads["returnedCount"] == 0
+    assert playlist_calls == []
+
+    empty_collection = build_channels_list_videos_handler(
+        channels=lambda _arguments: {"items": [{"id": "UC123", "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}}}]},
+        playlist_items=lambda _arguments: {"items": []},
+    )({"channelId": "UC123", "maxResults": 1})
+    assert empty_collection["items"] == []
+    assert empty_collection["returnedCount"] == 0
+
+
+def test_channels_list_videos_result_context_discloses_public_source_order_without_ranking():
+    """Expose caller-visible ordering and public-content context on results."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_handler
+
+    result = build_channels_list_videos_handler(
+        channels=lambda _arguments: {"items": [{"id": "UC123", "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}}}]},
+        playlist_items=lambda _arguments: {"items": [{"snippet": {"resourceId": {"videoId": "v1"}, "title": "First"}}]},
+    )({"channelId": "UC123"})
+
+    assert result["appliedInputs"] == {"channelId": "UC123", "maxResults": 10}
+    assert result["collectionContext"] == {
+        "source": "channel_uploads_collection",
+        "ordering": "source_order_at_request_time",
+        "rankingApplied": False,
+        "publicContentOnly": True,
+        "requestTimeVariability": "collection_can_change",
+    }
+    assert result["fieldProvenance"]["items.videoId"] == "raw_upstream"
+    assert result["fieldProvenance"]["collectionContext"] == "normalized"
+
+
+def test_channels_list_videos_maps_required_lookup_failures_and_discloses_safe_source_omissions():
+    """Keep unavailable, source failures, and malformed items safe to callers."""
+    from mcp_server.tools.youtube_common.channels import ChannelsListToolError
+    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
+    from mcp_server.tools.youtube_composed.channels import ChannelsListVideosToolError, build_channels_list_videos_handler
+
+    with pytest.raises(ChannelsListVideosToolError) as core_error:
+        build_channels_list_videos_handler(
+            channels=lambda _arguments: {"items": []}, playlist_items=lambda _arguments: {"items": []}
+        )({"channelId": "UC404"})
+    assert core_error.value.category == "unavailable_resource"
+    assert core_error.value.details == {"resource": "channel"}
+
+    def quota_limited_channels(_arguments):
+        """Raise a lower-level capacity error with unsafe diagnostic content.
+
+        :param _arguments: Ignored lower-level channel-list request.
+        :raises ChannelsListToolError: Always raised for safe mapping coverage.
+        """
+        raise ChannelsListToolError("quota", category="quota_exhausted", details={"api_key": "hidden", "raw_body": "hidden"})
+
+    with pytest.raises(ChannelsListVideosToolError) as quota_error:
+        build_channels_list_videos_handler(channels=quota_limited_channels, playlist_items=lambda _arguments: {"items": []})({"channelId": "UC123"})
+    assert quota_error.value.category == "quota_exhaustion"
+    assert quota_error.value.details == {}
+
+    def unavailable_playlist(_arguments):
+        """Raise a required uploads-collection access failure with unsafe details.
+
+        :param _arguments: Ignored lower-level playlist-item request.
+        :raises PlaylistItemsListToolError: Always raised for safe mapping coverage.
+        """
+        raise PlaylistItemsListToolError("denied", category="authentication_failed", details={"api_key": "hidden", "raw_body": "hidden"})
+
+    with pytest.raises(ChannelsListVideosToolError) as playlist_error:
+        build_channels_list_videos_handler(
+            channels=lambda _arguments: {"items": [{"id": "UC123", "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}}}]},
+            playlist_items=unavailable_playlist,
+        )({"channelId": "UC123"})
+    assert playlist_error.value.category == "authorization_sensitive_data"
+    assert playlist_error.value.details == {}
+
+    partial = build_channels_list_videos_handler(
+        channels=lambda _arguments: {"items": [{"id": "UC123", "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}}}]},
+        playlist_items=lambda _arguments: {"items": [{"snippet": {"title": "Hidden", "api_key": "hidden"}}, {"snippet": {"resourceId": {"videoId": "v1"}, "title": "Visible"}}]},
+    )({"channelId": "UC123"})
+    assert partial["items"] == [{"videoId": "v1", "title": "Visible"}]
+    assert partial["partialAvailability"] == {"status": "partial", "omittedItemCount": 1, "reasons": ["unusable_source_item"]}
+    assert partial["fieldProvenance"]["partialAvailability"] == "normalized"
+    assert "hidden" not in str(partial)
