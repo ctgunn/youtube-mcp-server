@@ -126,6 +126,16 @@ def test_default_registry_includes_and_executes_channel_search_tool():
     assert result["items"][0]["channelId"] == "UC123"
 
 
+def test_default_registry_includes_creator_discovery_tool():
+    """Discover the default executable creator-discovery descriptor."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channels_findCreators" in listed
+    assert listed["channels_findCreators"]["metadata"]["compositionBoundary"]["kind"] == "ranked_enrichment"
+    assert "representativeOnly" not in listed["channels_findCreators"]["metadata"]
+
+
 def test_default_registry_includes_executable_captions_insert_tool():
     """Register ``captions_insert`` by default with safe metadata."""
     dispatcher = InMemoryToolDispatcher()
