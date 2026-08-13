@@ -73,6 +73,7 @@ class MethodRoutingTests(unittest.TestCase):
         """Serialize every YT-303 Layer 3 category without leaking secrets."""
         expected_protocol_categories = {
             "invalid_parameters": "invalid_argument",
+            "language_unavailable": "resource_missing",
             "unavailable_resource": "resource_missing",
             "authorization_sensitive_data": "authorization_denied",
             "quota_exhaustion": "transport_not_supported",

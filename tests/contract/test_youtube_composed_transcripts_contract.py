@@ -52,3 +52,47 @@ def test_transcript_language_discovery_descriptor_exposes_the_executable_contrac
     }
     assert metadata["emptyResultPolicy"] == "no_accessible_languages"
     assert "representativeOnly" not in metadata
+
+
+def test_timestamped_caption_descriptor_exposes_concrete_timing_contract():
+    """Require the bounded timestamped-caption public contract."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_timestamped_captions_tool_descriptor
+
+    descriptor = build_transcripts_get_timestamped_captions_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["name"] == "transcripts_getTimestampedCaptions"
+    assert descriptor["inputSchema"] == {
+        "type": "object",
+        "required": ["videoId"],
+        "properties": {
+            "videoId": {"type": "string", "minLength": 1},
+            "language": {"type": "string", "minLength": 1},
+        },
+        "additionalProperties": False,
+    }
+    assert metadata["compositionBoundary"]["lowerLayerDependencies"] == ["captions.list", "captions.download"]
+    assert metadata["compositionBoundary"]["boundedness"] == "one video; one caption discovery; at most one caption download"
+    assert metadata["segmentTiming"] == {"unit": "seconds", "granularity": "one source VTT cue per segment"}
+    assert metadata["authAndQuotaNotes"] == [
+        "Official captions require eligible OAuth-authorized access.",
+        "Successful retrieval uses captions.list and captions.download quota.",
+    ]
+    assert "representativeOnly" not in metadata
+    assert metadata["languageSelection"] == ["explicit_language", "source_default", "source_order_fallback"]
+    assert metadata["errorGuidance"]["language_unavailable"] == "Request an accessible language or a different video."
+    assert {field["fieldName"] for field in metadata["responseFields"]} >= {
+        "language",
+        "languageSelectionSource",
+        "segments.startTimeSeconds",
+        "segments.endTimeSeconds",
+    }
+    assert metadata["emptyResultPolicy"] == "no_accessible_captions"
+    assert set(metadata["errorCategories"]) == {
+        "invalid_parameters",
+        "language_unavailable",
+        "authorization_sensitive_data",
+        "quota_exhaustion",
+        "source_unavailable",
+        "upstream_failure",
+    }
