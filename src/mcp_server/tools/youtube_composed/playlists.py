@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from mcp_server.tools.youtube_common.conventions import safe_upstream_error_message, sanitize_error_details
+from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError, build_playlist_items_list_handler
 from mcp_server.tools.youtube_common.playlists import PlaylistsListToolError, build_playlists_list_handler
 from mcp_server.tools.youtube_composed.families import get_family
 
@@ -16,10 +17,28 @@ PLANNED_TOOLS = FAMILY_SCAFFOLDING.planned_tools
 
 PLAYLISTS_GET_PLAYLIST_TOOL_NAME = "playlists_getPlaylist"
 PLAYLISTS_GET_PLAYLIST_PARTS = "snippet,contentDetails,status"
+PLAYLISTS_GET_PLAYLIST_ITEMS_TOOL_NAME = "playlists_getPlaylistItems"
+PLAYLISTS_GET_PLAYLIST_ITEMS_PARTS = "snippet,contentDetails,status"
+PLAYLISTS_GET_PLAYLIST_ITEMS_DEFAULT_MAX_RESULTS = 25
+PLAYLISTS_GET_PLAYLIST_ITEMS_MAX_RESULTS = 50
 PLAYLISTS_GET_PLAYLIST_INPUT_SCHEMA = {
     "type": "object",
     "required": ["playlistId"],
     "properties": {"playlistId": {"type": "string", "minLength": 1}},
+    "additionalProperties": False,
+}
+PLAYLISTS_GET_PLAYLIST_ITEMS_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["playlistId"],
+    "properties": {
+        "playlistId": {"type": "string", "minLength": 1},
+        "maxResults": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": PLAYLISTS_GET_PLAYLIST_ITEMS_MAX_RESULTS,
+            "default": PLAYLISTS_GET_PLAYLIST_ITEMS_DEFAULT_MAX_RESULTS,
+        },
+    },
     "additionalProperties": False,
 }
 
@@ -34,6 +53,26 @@ class PlaylistsGetPlaylistToolError(ValueError):
 
     def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
         """Initialize the normalized public playlist-detail error.
+
+        :param message: Caller-facing explanation of the failure.
+        :param category: Stable public failure category.
+        :param details: Candidate diagnostic details to sanitize.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = sanitize_error_details(details or {})
+
+
+class PlaylistsGetPlaylistItemsToolError(ValueError):
+    """Represent a safe caller-facing playlist-item retrieval failure.
+
+    :param message: Caller-facing explanation of the failure.
+    :param category: Stable public failure category.
+    :param details: Optional caller-safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the normalized public playlist-item error.
 
         :param message: Caller-facing explanation of the failure.
         :param category: Stable public failure category.
@@ -98,6 +137,69 @@ def build_playlists_get_playlist_metadata() -> dict[str, Any]:
     }
 
 
+def build_playlists_get_playlist_items_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for playlist-item retrieval.
+
+    :return: JSON-compatible executable metadata without a representative marker.
+    """
+    return {
+        "name": PLAYLISTS_GET_PLAYLIST_ITEMS_TOOL_NAME,
+        "family": "playlists",
+        "parameters": ["playlistId", "maxResults"],
+        "inputContract": PLAYLISTS_GET_PLAYLIST_ITEMS_INPUT_SCHEMA,
+        "compositionBoundary": {
+            "kind": "source_ordered_collection",
+            "lowerLayerDependencies": ["playlistItems.list"],
+            "boundedness": "one playlist; one listing; 1-50 items",
+            "partialResultPolicy": "Retain exposed unavailable entries in source order without fabricating details.",
+        },
+        "lowerLayerDependencies": ["playlistItems.list"],
+        "authAndQuotaNotes": ["Uses one public playlistItems.list request and its one-unit quota behavior."],
+        "limitPolicy": {
+            "default": PLAYLISTS_GET_PLAYLIST_ITEMS_DEFAULT_MAX_RESULTS,
+            "minimum": 1,
+            "maximum": PLAYLISTS_GET_PLAYLIST_ITEMS_MAX_RESULTS,
+            "continuationInputAccepted": False,
+        },
+        "collectionPolicy": {
+            "ordering": "source_playlist_order_at_request_time",
+            "rankingApplied": False,
+            "paginationTraversed": False,
+            "emptyResult": "successful_empty_collection",
+            "unavailableEntry": "retain_and_mark_unavailable",
+        },
+        "responseFields": [
+            {"fieldName": "items.position", "category": "raw_upstream", "source": "snippet.position"},
+            {"fieldName": "items.playlistItemId", "category": "raw_upstream", "source": "id"},
+            {"fieldName": "items.videoId", "category": "raw_upstream", "source": "contentDetails.videoId"},
+            {"fieldName": "items.title", "category": "raw_upstream", "source": "snippet.title"},
+            {"fieldName": "items.channelId", "category": "raw_upstream", "source": "snippet.channelId"},
+            {"fieldName": "items.channelTitle", "category": "raw_upstream", "source": "snippet.channelTitle"},
+            {"fieldName": "items.publishedAt", "category": "raw_upstream", "source": "snippet.publishedAt"},
+            {"fieldName": "items.availabilityState", "category": "normalized", "source": "public contract"},
+            {"fieldName": "playlistId", "category": "normalized", "source": "validated request"},
+            {"fieldName": "returnedCount", "category": "normalized", "source": "public contract"},
+            {"fieldName": "appliedLimit", "category": "normalized", "source": "validated request"},
+            {"fieldName": "isLimited", "category": "normalized", "source": "source continuation signal"},
+            {"fieldName": "collectionContext", "category": "normalized", "source": "public contract"},
+        ],
+        "errorCategories": [
+            "invalid_parameters",
+            "unavailable_resource",
+            "authorization_sensitive_data",
+            "quota_exhaustion",
+            "upstream_failure",
+        ],
+        "errorGuidance": {
+            "invalid_parameters": "Correct the identified request field and retry.",
+            "unavailable_resource": "Use a different accessible playlist identifier.",
+            "authorization_sensitive_data": "Obtain appropriate authorization if applicable.",
+            "quota_exhaustion": "Retry after capacity is available.",
+            "upstream_failure": "Retry when the source service is available.",
+        },
+    }
+
+
 def validate_playlists_get_playlist_arguments(arguments: dict[str, Any]) -> dict[str, str]:
     """Validate and normalize one public playlist-detail request.
 
@@ -128,6 +230,49 @@ def validate_playlists_get_playlist_arguments(arguments: dict[str, Any]) -> dict
     return {"playlistId": playlist_id.strip()}
 
 
+def validate_playlists_get_playlist_items_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize one public playlist-item retrieval request.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Normalized request with a stripped identifier and applied limit.
+    :raises PlaylistsGetPlaylistItemsToolError: If the request is invalid or unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise PlaylistsGetPlaylistItemsToolError(
+            "playlists_getPlaylistItems arguments must be an object",
+            category="invalid_parameters",
+            details={"field": "arguments"},
+        )
+    unexpected_fields = set(arguments) - {"playlistId", "maxResults"}
+    if unexpected_fields:
+        raise PlaylistsGetPlaylistItemsToolError(
+            "playlists_getPlaylistItems received an unsupported field",
+            category="invalid_parameters",
+            details={"field": sorted(unexpected_fields)[0]},
+        )
+    playlist_id = arguments.get("playlistId")
+    if not isinstance(playlist_id, str) or not playlist_id.strip():
+        raise PlaylistsGetPlaylistItemsToolError(
+            "playlists_getPlaylistItems requires a non-empty playlistId",
+            category="invalid_parameters",
+            details={"field": "playlistId"},
+        )
+    max_results = arguments.get("maxResults", PLAYLISTS_GET_PLAYLIST_ITEMS_DEFAULT_MAX_RESULTS)
+    if isinstance(max_results, bool) or not isinstance(max_results, int):
+        raise PlaylistsGetPlaylistItemsToolError(
+            "maxResults must be an integer",
+            category="invalid_parameters",
+            details={"field": "maxResults"},
+        )
+    if not 1 <= max_results <= PLAYLISTS_GET_PLAYLIST_ITEMS_MAX_RESULTS:
+        raise PlaylistsGetPlaylistItemsToolError(
+            f"maxResults must be between 1 and {PLAYLISTS_GET_PLAYLIST_ITEMS_MAX_RESULTS}",
+            category="invalid_parameters",
+            details={"field": "maxResults"},
+        )
+    return {"playlistId": playlist_id.strip(), "maxResults": max_results}
+
+
 def _playlist_lookup_arguments(playlist_id: str) -> dict[str, str]:
     """Build the one direct lower-layer request for playlist details.
 
@@ -135,6 +280,115 @@ def _playlist_lookup_arguments(playlist_id: str) -> dict[str, str]:
     :return: Direct playlists-list arguments for required public detail groups.
     """
     return {"part": PLAYLISTS_GET_PLAYLIST_PARTS, "id": playlist_id}
+
+
+def _playlist_items_lookup_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Build the one playlist-scoped lower-layer item listing request.
+
+    :param arguments: Validated public playlist-item request.
+    :return: Direct playlist-item listing arguments with the applied limit.
+    """
+    return {
+        "part": PLAYLISTS_GET_PLAYLIST_ITEMS_PARTS,
+        "playlistId": arguments["playlistId"],
+        "maxResults": arguments["maxResults"],
+    }
+
+
+def _source_text(source: dict[str, Any], field: str) -> str | None:
+    """Return one usable source text value when present.
+
+    :param source: Candidate source mapping.
+    :param field: Source field name.
+    :return: Nonblank text value or ``None`` when unavailable.
+    """
+    value = source.get(field)
+    return value if isinstance(value, str) and value else None
+
+
+def _playlist_item_availability(item: dict[str, Any], video_id: str | None) -> str:
+    """Classify an exposed playlist entry using safe source availability signals.
+
+    :param item: Source playlist-item mapping.
+    :param video_id: Usable public video identity when available.
+    :return: ``available`` or ``unavailable`` public availability state.
+    """
+    status = item.get("status") if isinstance(item.get("status"), dict) else {}
+    privacy_status = _source_text(status, "privacyStatus")
+    if not video_id or privacy_status in {"private", "deleted"}:
+        return "unavailable"
+    return "available"
+
+
+def _normalize_playlist_item(item: Any) -> dict[str, Any]:
+    """Normalize one exposed source playlist item without changing its order.
+
+    :param item: Candidate source playlist-item value.
+    :return: Stable public item with available source fields and availability state.
+    """
+    source = item if isinstance(item, dict) else {}
+    snippet = source.get("snippet") if isinstance(source.get("snippet"), dict) else {}
+    content_details = source.get("contentDetails") if isinstance(source.get("contentDetails"), dict) else {}
+    resource_id = snippet.get("resourceId") if isinstance(snippet.get("resourceId"), dict) else {}
+    video_id = _source_text(content_details, "videoId") or _source_text(resource_id, "videoId")
+    availability_state = _playlist_item_availability(source, video_id)
+    result: dict[str, Any] = {}
+    position = snippet.get("position")
+    if isinstance(position, int) and not isinstance(position, bool):
+        result["position"] = position
+    playlist_item_id = _source_text(source, "id")
+    if playlist_item_id:
+        result["playlistItemId"] = playlist_item_id
+    if availability_state == "available":
+        result["videoId"] = video_id
+        for field in ("title", "channelId", "channelTitle", "publishedAt"):
+            value = _source_text(snippet, field)
+            if value:
+                result[field] = value
+    result["availabilityState"] = availability_state
+    return result
+
+
+def normalize_playlists_get_playlist_items_result(payload: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Normalize one successful bounded lower-layer playlist-item response.
+
+    :param payload: Lower-layer result containing source playlist items.
+    :param arguments: Validated public request used for the listing.
+    :return: Source-ordered public collection with counts and provenance.
+    """
+    source_items = payload.get("items") if isinstance(payload, dict) else []
+    items = [_normalize_playlist_item(item) for item in source_items] if isinstance(source_items, list) else []
+    is_limited = isinstance(payload, dict) and isinstance(payload.get("nextPageToken"), str) and bool(payload["nextPageToken"])
+    return {
+        "playlistId": arguments["playlistId"],
+        "items": items,
+        "returnedCount": len(items),
+        "appliedLimit": arguments["maxResults"],
+        "isLimited": is_limited,
+        "collectionContext": {
+            "source": "playlist_items",
+            "ordering": "source_playlist_order_at_request_time",
+            "rankingApplied": False,
+            "paginationTraversed": False,
+            "publicContentOnly": True,
+            "requestTimeVariability": "playlist_can_change",
+        },
+        "fieldProvenance": {
+            "items.position": "raw_upstream",
+            "items.playlistItemId": "raw_upstream",
+            "items.videoId": "raw_upstream",
+            "items.title": "raw_upstream",
+            "items.channelId": "raw_upstream",
+            "items.channelTitle": "raw_upstream",
+            "items.publishedAt": "raw_upstream",
+            "items.availabilityState": "normalized",
+            "playlistId": "normalized",
+            "returnedCount": "normalized",
+            "appliedLimit": "normalized",
+            "isLimited": "normalized",
+            "collectionContext": "normalized",
+        },
+    }
 
 
 def _copy_if_present(
@@ -223,6 +477,31 @@ def _map_playlists_list_error(error: PlaylistsListToolError) -> PlaylistsGetPlay
     )
 
 
+def _map_playlist_items_list_error(error: PlaylistItemsListToolError) -> PlaylistsGetPlaylistItemsToolError:
+    """Translate one lower-layer item-list error to a safe public error.
+
+    :param error: Safe lower-layer playlist-item listing error.
+    :return: Public error with documented category and sanitized details.
+    """
+    if error.category in {"resource_not_found", "removed"}:
+        return PlaylistsGetPlaylistItemsToolError(
+            "The requested playlist is unavailable",
+            category="unavailable_resource",
+            details={"resource": "playlist"},
+        )
+    public_category = {
+        "invalid_request": "invalid_parameters",
+        "authentication_failed": "authorization_sensitive_data",
+        "authorization_failed": "authorization_sensitive_data",
+        "quota_exhausted": "quota_exhaustion",
+    }.get(error.category, "upstream_failure")
+    return PlaylistsGetPlaylistItemsToolError(
+        safe_upstream_error_message(),
+        category=public_category,
+        details=error.details,
+    )
+
+
 def build_playlists_get_playlist_handler(*, lookup=None):
     """Build a callable handler for one normalized public playlist lookup.
 
@@ -260,4 +539,44 @@ def build_playlists_get_playlist_tool_descriptor(*, lookup=None) -> dict[str, An
         "inputSchema": PLAYLISTS_GET_PLAYLIST_INPUT_SCHEMA,
         "handler": build_playlists_get_playlist_handler(lookup=lookup),
         "metadata": build_playlists_get_playlist_metadata(),
+    }
+
+
+def build_playlists_get_playlist_items_handler(*, playlist_items=None):
+    """Build a callable handler for one normalized playlist-item retrieval.
+
+    :param playlist_items: Optional lower-layer playlist-item listing override for tests.
+    :return: Callable that validates, lists, and normalizes playlist entries.
+    """
+    selected_playlist_items = playlist_items or build_playlist_items_list_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated bounded playlist-item retrieval request.
+
+        :param arguments: Caller-provided public arguments.
+        :return: Normalized source-ordered playlist-item collection.
+        :raises PlaylistsGetPlaylistItemsToolError: If validation or listing fails.
+        """
+        normalized = validate_playlists_get_playlist_items_arguments(arguments)
+        try:
+            payload = selected_playlist_items(_playlist_items_lookup_arguments(normalized))
+        except PlaylistItemsListToolError as exc:
+            raise _map_playlist_items_list_error(exc) from exc
+        return normalize_playlists_get_playlist_items_result(payload, normalized)
+
+    return handler
+
+
+def build_playlists_get_playlist_items_tool_descriptor(*, playlist_items=None) -> dict[str, Any]:
+    """Build the executable MCP descriptor for playlist-item retrieval.
+
+    :param playlist_items: Optional lower-layer playlist-item listing override for tests.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {
+        "name": PLAYLISTS_GET_PLAYLIST_ITEMS_TOOL_NAME,
+        "description": "Return normalized source-ordered videos contained in one YouTube playlist.",
+        "inputSchema": PLAYLISTS_GET_PLAYLIST_ITEMS_INPUT_SCHEMA,
+        "handler": build_playlists_get_playlist_items_handler(playlist_items=playlist_items),
+        "metadata": build_playlists_get_playlist_items_metadata(),
     }
