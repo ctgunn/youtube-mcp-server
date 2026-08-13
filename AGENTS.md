@@ -220,6 +220,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - N/A; request validation and result normalization are in-memory only (312-video-statistics)
 - Python 3.11 + Existing FastAPI/Pydantic/Uvicorn MCP runtime; in-repository dispatcher; Layer 3 transcript-family and convention modules; Layer 2 `captions_list` handler; Python standard-library mappings; pytest; Ruff (313-transcript-languages)
 - N/A; the request, source caption records, and normalized language options exist only for one invocation (313-transcript-languages)
+- Python 3.11 + Existing FastAPI/Pydantic/Uvicorn MCP runtime; in-repository dispatcher; Layer 3 transcript-family and convention modules; Layer 2 `captions_list` and `captions_download` handlers; Python standard-library text/HTML/regular-expression utilities; pytest; Ruff (314-timestamped-captions)
+- N/A; request, caption-track data, downloaded content, and normalized segments exist only for one invocation (314-timestamped-captions)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -240,9 +242,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 314-timestamped-captions: Added Python 3.11 + Existing FastAPI/Pydantic/Uvicorn MCP runtime; in-repository dispatcher; Layer 3 transcript-family and convention modules; Layer 2 `captions_list` and `captions_download` handlers; Python standard-library text/HTML/regular-expression utilities; pytest; Ruff
 - 313-transcript-languages: Added Python 3.11 + Existing FastAPI/Pydantic/Uvicorn MCP runtime; in-repository dispatcher; Layer 3 transcript-family and convention modules; Layer 2 `captions_list` handler; Python standard-library mappings; pytest; Ruff
 - 312-video-statistics: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `videos_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff
-- 311-playlist-items: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `playlistItems_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff
 
 
 <!-- MANUAL ADDITIONS START -->

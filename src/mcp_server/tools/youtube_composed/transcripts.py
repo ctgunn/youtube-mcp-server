@@ -31,7 +31,18 @@ TRANSCRIPTS_LIST_LANGUAGES_INPUT_SCHEMA = {
     "properties": {"videoId": {"type": "string", "minLength": 1}},
     "additionalProperties": False,
 }
+TRANSCRIPTS_GET_TIMESTAMPED_CAPTIONS_TOOL_NAME = "transcripts_getTimestampedCaptions"
+TRANSCRIPTS_GET_TIMESTAMPED_CAPTIONS_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["videoId"],
+    "properties": {
+        "videoId": {"type": "string", "minLength": 1},
+        "language": {"type": "string", "minLength": 1},
+    },
+    "additionalProperties": False,
+}
 _LANGUAGE_PATTERN = re.compile(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*")
+_VTT_TIMESTAMP_PATTERN = re.compile(r"(?:(?P<hours>\d+):)?(?P<minutes>[0-5]\d):(?P<seconds>[0-5]\d\.\d{3})")
 
 
 class TranscriptsGetTranscriptToolError(ValueError):
@@ -64,6 +75,26 @@ class TranscriptsListLanguagesToolError(ValueError):
 
     def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
         """Initialize the safe transcript language-discovery error.
+
+        :param message: Caller-safe explanation.
+        :param category: Stable public error category.
+        :param details: Candidate safe diagnostic details.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = sanitize_error_details(details or {})
+
+
+class TranscriptsGetTimestampedCaptionsToolError(ValueError):
+    """Represent a safe timestamped-caption retrieval failure.
+
+    :param message: Caller-safe explanation.
+    :param category: Stable public error category.
+    :param details: Candidate safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the safe timestamped-caption retrieval error.
 
         :param message: Caller-safe explanation.
         :param category: Stable public error category.
@@ -138,6 +169,269 @@ def validate_transcripts_list_languages_arguments(arguments: dict[str, Any]) -> 
             details={"field": "videoId"},
         )
     return {"videoId": video_id.strip()}
+
+
+def validate_transcripts_get_timestamped_captions_arguments(arguments: dict[str, Any]) -> dict[str, str | None]:
+    """Validate one public timestamped-caption request.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Normalized video identifier and optional explicit language.
+    :raises TranscriptsGetTimestampedCaptionsToolError: If public input is invalid.
+    """
+    if not isinstance(arguments, dict):
+        raise TranscriptsGetTimestampedCaptionsToolError(
+            "transcripts_getTimestampedCaptions arguments must be an object",
+            category="invalid_parameters",
+            details={"field": "arguments"},
+        )
+    unexpected = set(arguments) - {"videoId", "language"}
+    if unexpected:
+        raise TranscriptsGetTimestampedCaptionsToolError(
+            "transcripts_getTimestampedCaptions received an unsupported field",
+            category="invalid_parameters",
+            details={"field": sorted(unexpected)[0]},
+        )
+    video_id = arguments.get("videoId")
+    if not isinstance(video_id, str) or not video_id.strip():
+        raise TranscriptsGetTimestampedCaptionsToolError(
+            "transcripts_getTimestampedCaptions requires a non-empty videoId",
+            category="invalid_parameters",
+            details={"field": "videoId"},
+        )
+    language = arguments.get("language")
+    if language is not None and not isinstance(language, str):
+        raise TranscriptsGetTimestampedCaptionsToolError(
+            "language must be a valid non-empty language tag",
+            category="invalid_parameters",
+            details={"field": "language"},
+        )
+    return {
+        "videoId": video_id.strip(),
+        "language": _normalize_timestamped_caption_language(language) if language is not None else None,
+    }
+
+
+def _normalize_timestamped_caption_language(value: str) -> str:
+    """Validate and canonicalize one timestamped-caption language tag.
+
+    :param value: Candidate caller-requested language text.
+    :return: Canonicalized BCP-47 language tag.
+    :raises TranscriptsGetTimestampedCaptionsToolError: If the language is malformed.
+    """
+    text = value.strip()
+    if not text or not _LANGUAGE_PATTERN.fullmatch(text):
+        raise TranscriptsGetTimestampedCaptionsToolError(
+            "language must be a valid non-empty language tag",
+            category="invalid_parameters",
+            details={"field": "language"},
+        )
+    parts = text.split("-")
+    return "-".join(
+        [
+            parts[0].lower(),
+            *[
+                part.upper() if len(part) == 2 else part.title() if len(part) == 4 else part.lower()
+                for part in parts[1:]
+            ],
+        ]
+    )
+
+
+def _usable_timestamped_caption_tracks(payload: Any) -> list[dict[str, Any]]:
+    """Return usable caption tracks in completed source order.
+
+    :param payload: Lower-layer ``captions.list`` result.
+    :return: Usable source caption records in source order.
+    :raises TranscriptsGetTimestampedCaptionsToolError: If the source result is malformed.
+    """
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        raise TranscriptsGetTimestampedCaptionsToolError(safe_upstream_error_message(), category="upstream_failure")
+    tracks = []
+    for item in items:
+        snippet = item.get("snippet") if isinstance(item, dict) and isinstance(item.get("snippet"), dict) else {}
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not isinstance(snippet.get("language"), str):
+            continue
+        if snippet.get("status") == "failed":
+            continue
+        tracks.append(item)
+    return tracks
+
+
+def _select_timestamped_caption_track(payload: Any, language: str | None) -> tuple[dict[str, Any], str] | None:
+    """Choose one usable caption track for timestamped retrieval.
+
+    :param payload: Lower-layer ``captions.list`` result.
+    :param language: Optional normalized caller-requested language.
+    :return: Selected source track and selection-source label, or ``None`` when unavailable.
+    :raises TranscriptsGetTimestampedCaptionsToolError: If the source result is malformed.
+    """
+    tracks = _usable_timestamped_caption_tracks(payload)
+    if language is not None:
+        for track in tracks:
+            source_language = track["snippet"]["language"]
+            if source_language.strip().lower() == language.lower():
+                return track, "explicit_language"
+        return None
+    for track in tracks:
+        if track["snippet"].get("isDefault") is True:
+            return track, "source_default"
+    return (tracks[0], "source_order_fallback") if tracks else None
+
+
+def _parse_vtt_timestamp(value: str) -> float:
+    """Convert one VTT timestamp to elapsed seconds.
+
+    :param value: Candidate VTT timestamp.
+    :return: Non-negative elapsed seconds.
+    :raises TranscriptsGetTimestampedCaptionsToolError: If the timestamp is malformed.
+    """
+    match = _VTT_TIMESTAMP_PATTERN.fullmatch(value.strip())
+    if match is None:
+        raise TranscriptsGetTimestampedCaptionsToolError(safe_upstream_error_message(), category="upstream_failure")
+    return float(match.group("hours") or 0) * 3600 + float(match.group("minutes")) * 60 + float(match.group("seconds"))
+
+
+def _parse_vtt_segments(content: Any) -> list[dict[str, Any]]:
+    """Parse downloaded VTT content into ordered timestamped caption segments.
+
+    :param content: Downloaded VTT text or UTF-8 bytes.
+    :return: One normalized segment per source VTT cue.
+    :raises TranscriptsGetTimestampedCaptionsToolError: If content or cue timing is malformed.
+    """
+    try:
+        text = content.decode("utf-8") if isinstance(content, bytes) else content if isinstance(content, str) else None
+    except UnicodeDecodeError as exc:
+        raise TranscriptsGetTimestampedCaptionsToolError(safe_upstream_error_message(), category="upstream_failure") from exc
+    if text is None:
+        raise TranscriptsGetTimestampedCaptionsToolError(safe_upstream_error_message(), category="upstream_failure")
+    lines = text.lstrip("\ufeff").splitlines()
+    index = 0
+    if lines and lines[0].strip().startswith("WEBVTT"):
+        index = 1
+        while index < len(lines) and lines[index].strip():
+            index += 1
+    segments = []
+    while index < len(lines):
+        while index < len(lines) and not lines[index].strip():
+            index += 1
+        if index >= len(lines):
+            break
+        if lines[index].strip().startswith(("NOTE", "STYLE", "REGION")):
+            while index < len(lines) and lines[index].strip():
+                index += 1
+            continue
+        timing = lines[index].strip()
+        if "-->" not in timing:
+            index += 1
+            if index >= len(lines) or "-->" not in lines[index]:
+                raise TranscriptsGetTimestampedCaptionsToolError(safe_upstream_error_message(), category="upstream_failure")
+            timing = lines[index].strip()
+        index += 1
+        start_text, end_text = timing.split("-->", 1)
+        start_time = _parse_vtt_timestamp(start_text)
+        end_time = _parse_vtt_timestamp(end_text.strip().split(maxsplit=1)[0])
+        if end_time < start_time:
+            raise TranscriptsGetTimestampedCaptionsToolError(safe_upstream_error_message(), category="upstream_failure")
+        cue_lines = []
+        while index < len(lines) and lines[index].strip():
+            cue_lines.append(re.sub(r"<[^>]+>", "", html.unescape(lines[index].strip())))
+            index += 1
+        segments.append(
+            {
+                "text": " ".join(" ".join(cue_lines).split()),
+                "startTimeSeconds": start_time,
+                "endTimeSeconds": end_time,
+            }
+        )
+    return segments
+
+
+def _map_timestamped_caption_error(error: ValueError) -> TranscriptsGetTimestampedCaptionsToolError:
+    """Translate one lower-layer caption failure to the public timed-caption contract.
+
+    :param error: Lower-layer caption-list or caption-download error.
+    :return: Safe public timestamped-caption error.
+    """
+    category = getattr(error, "category", "upstream_failure")
+    public_category = {
+        "invalid_request": "invalid_parameters",
+        "authentication_failed": "authorization_sensitive_data",
+        "authorization_failed": "authorization_sensitive_data",
+        "quota_exhausted": "quota_exhaustion",
+        "endpoint_unavailable": "source_unavailable",
+    }.get(category, "upstream_failure")
+    return TranscriptsGetTimestampedCaptionsToolError(
+        safe_upstream_error_message(),
+        category=public_category,
+        details=getattr(error, "details", {}),
+    )
+
+
+def build_transcripts_get_timestamped_captions_handler(*, caption_list=None, caption_download=None):
+    """Build a callable handler for one timestamped-caption retrieval.
+
+    :param caption_list: Optional injected caption-list handler.
+    :param caption_download: Optional injected caption-download handler.
+    :return: Callable timestamped-caption handler.
+    """
+    selected_list = caption_list or build_captions_list_handler()
+    selected_download = caption_download or build_captions_download_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Validate, retrieve, and normalize one selected track's VTT cues.
+
+        :param arguments: Caller-provided public arguments.
+        :return: Normalized timestamped-caption result.
+        :raises TranscriptsGetTimestampedCaptionsToolError: If retrieval cannot complete safely.
+        """
+        request = validate_transcripts_get_timestamped_captions_arguments(arguments)
+        try:
+            track_selection = _select_timestamped_caption_track(
+                selected_list({"part": "snippet", "videoId": request["videoId"]}),
+                request["language"],
+            )
+        except CaptionsListToolError as exc:
+            raise _map_timestamped_caption_error(exc) from exc
+        if track_selection is None:
+            if request["language"] is not None:
+                raise TranscriptsGetTimestampedCaptionsToolError(
+                    "The requested caption language is unavailable",
+                    category="language_unavailable",
+                    details={"language": request["language"]},
+                )
+            return {
+                "videoId": request["videoId"],
+                "availability": "no_accessible_captions",
+                "segments": [],
+                "fieldProvenance": {"videoId": "normalized", "availability": "normalized", "segments": "normalized"},
+            }
+        track, selection_source = track_selection
+        try:
+            download = selected_download({"id": track["id"], "tfmt": "vtt"})
+        except CaptionsDownloadToolError as exc:
+            raise _map_timestamped_caption_error(exc) from exc
+        segments = _parse_vtt_segments(download.get("content") if isinstance(download, dict) else None)
+        return {
+            "videoId": request["videoId"],
+            "language": track["snippet"]["language"],
+            "languageSelectionSource": selection_source,
+            "captionTrackId": track["id"],
+            "availability": "available",
+            "segments": segments,
+            "fieldProvenance": {
+                "videoId": "normalized",
+                "language": "raw_upstream",
+                "languageSelectionSource": "normalized",
+                "captionTrackId": "raw_upstream",
+                "availability": "normalized",
+                "segments.text": "normalized",
+                "segments.startTimeSeconds": "normalized",
+                "segments.endTimeSeconds": "normalized",
+            },
+        }
+
+    return handler
 
 
 def _language_option(item: Any) -> dict[str, Any]:
@@ -403,6 +697,62 @@ def build_transcripts_list_languages_metadata() -> dict[str, Any]:
     }
 
 
+def build_transcripts_get_timestamped_captions_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for timestamped caption retrieval.
+
+    :return: JSON-compatible public metadata.
+    """
+    return {
+        "name": TRANSCRIPTS_GET_TIMESTAMPED_CAPTIONS_TOOL_NAME,
+        "family": "transcripts",
+        "parameters": ["videoId", "language"],
+        "inputContract": TRANSCRIPTS_GET_TIMESTAMPED_CAPTIONS_INPUT_SCHEMA,
+        "compositionBoundary": {
+            "kind": "timestamped_caption_retrieval",
+            "lowerLayerDependencies": ["captions.list", "captions.download"],
+            "boundedness": "one video; one caption discovery; at most one caption download",
+            "partialResultPolicy": "Return no partial segments when caption content is malformed or inaccessible.",
+        },
+        "lowerLayerDependencies": ["captions.list", "captions.download"],
+        "emptyResultPolicy": "no_accessible_captions",
+        "languageSelection": ["explicit_language", "source_default", "source_order_fallback"],
+        "segmentTiming": {"unit": "seconds", "granularity": "one source VTT cue per segment"},
+        "responseFields": [
+            {"fieldName": "videoId", "category": "normalized", "source": "request"},
+            {"fieldName": "language", "category": "raw_upstream", "source": "captions.list"},
+            {"fieldName": "languageSelectionSource", "category": "normalized", "source": "selection policy"},
+            {"fieldName": "captionTrackId", "category": "raw_upstream", "source": "captions.list"},
+            {"fieldName": "segments.text", "category": "normalized", "source": "captions.download VTT cue"},
+            {"fieldName": "segments.startTimeSeconds", "category": "normalized", "source": "captions.download VTT cue timing"},
+            {"fieldName": "segments.endTimeSeconds", "category": "normalized", "source": "captions.download VTT cue timing"},
+        ],
+        "authAndQuotaNotes": [
+            "Official captions require eligible OAuth-authorized access.",
+            "Successful retrieval uses captions.list and captions.download quota.",
+        ],
+        "caveats": [
+            "Explicit language matching is exact; no translation or other-language fallback occurs.",
+            "Segments preserve source VTT cue order and timing boundaries without merging or splitting.",
+        ],
+        "errorCategories": [
+            "invalid_parameters",
+            "language_unavailable",
+            "authorization_sensitive_data",
+            "quota_exhaustion",
+            "source_unavailable",
+            "upstream_failure",
+        ],
+        "errorGuidance": {
+            "invalid_parameters": "Correct the named request field and retry.",
+            "language_unavailable": "Request an accessible language or a different video.",
+            "authorization_sensitive_data": "Obtain eligible caption authorization.",
+            "quota_exhaustion": "Retry after capacity is available.",
+            "source_unavailable": "Retry when the caption source is available.",
+            "upstream_failure": "Retry when the source service is available.",
+        },
+    }
+
+
 def build_transcripts_get_transcript_tool_descriptor(**dependencies: Any) -> dict[str, Any]:
     """Build the executable MCP descriptor for transcript retrieval.
 
@@ -424,4 +774,19 @@ def build_transcripts_list_languages_tool_descriptor(**dependencies: Any) -> dic
         "inputSchema": TRANSCRIPTS_LIST_LANGUAGES_INPUT_SCHEMA,
         "handler": build_transcripts_list_languages_handler(**dependencies),
         "metadata": build_transcripts_list_languages_metadata(),
+    }
+
+
+def build_transcripts_get_timestamped_captions_tool_descriptor(**dependencies: Any) -> dict[str, Any]:
+    """Build the executable MCP descriptor for timestamped caption retrieval.
+
+    :param dependencies: Optional injected caption-list and caption-download dependencies.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {
+        "name": TRANSCRIPTS_GET_TIMESTAMPED_CAPTIONS_TOOL_NAME,
+        "description": "Retrieve timestamped caption segments for one video in a requested or selected language.",
+        "inputSchema": TRANSCRIPTS_GET_TIMESTAMPED_CAPTIONS_INPUT_SCHEMA,
+        "handler": build_transcripts_get_timestamped_captions_handler(**dependencies),
+        "metadata": build_transcripts_get_timestamped_captions_metadata(),
     }

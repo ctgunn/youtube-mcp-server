@@ -61,6 +61,73 @@ def test_concrete_transcript_language_descriptor_registers_and_executes_one_list
     assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
 
 
+def test_timestamped_caption_descriptor_registers_and_dispatches_one_vtt_download():
+    """Register and invoke the timed-caption descriptor through the dispatcher."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_timestamped_captions_tool_descriptor
+
+    calls = []
+
+    def caption_list(arguments):
+        """Return one usable caption track.
+
+        :param arguments: Lower-layer caption-list arguments.
+        :return: One caption track payload.
+        """
+        calls.append(("list", arguments))
+        return {"items": [{"id": "caption-1", "snippet": {"language": "en", "status": "serving"}}]}
+
+    def caption_download(arguments):
+        """Return one timed VTT cue.
+
+        :param arguments: Lower-layer caption-download arguments.
+        :return: Timed caption content.
+        """
+        calls.append(("download", arguments))
+        return {"content": "WEBVTT\n\n00:00.000 --> 00:01.000\nHello"}
+
+    dispatcher = InMemoryToolDispatcher(
+        tools=[
+            build_transcripts_get_timestamped_captions_tool_descriptor(
+                caption_list=caption_list,
+                caption_download=caption_download,
+            )
+        ]
+    )
+
+    result = dispatcher.call_tool("transcripts_getTimestampedCaptions", {"videoId": "abc"})
+
+    assert calls == [
+        ("list", {"part": "snippet", "videoId": "abc"}),
+        ("download", {"id": "caption-1", "tfmt": "vtt"}),
+    ]
+    assert result["segments"] == [{"text": "Hello", "startTimeSeconds": 0.0, "endTimeSeconds": 1.0}]
+
+
+def test_timestamped_caption_descriptor_returns_safe_source_failure():
+    """Render lower-layer failures through the descriptor without raw details."""
+    from mcp_server.tools.youtube_common.captions import CaptionsListToolError
+    from mcp_server.tools.youtube_composed.transcripts import (
+        TranscriptsGetTimestampedCaptionsToolError,
+        build_transcripts_get_timestamped_captions_tool_descriptor,
+    )
+
+    dispatcher = InMemoryToolDispatcher(
+        tools=[
+            build_transcripts_get_timestamped_captions_tool_descriptor(
+                caption_list=lambda _arguments: (_ for _ in ()).throw(
+                    CaptionsListToolError("secret", category="authorization_failed", details={"token": "secret"})
+                )
+            )
+        ]
+    )
+
+    with pytest.raises(TranscriptsGetTimestampedCaptionsToolError) as error:
+        dispatcher.call_tool("transcripts_getTimestampedCaptions", {"videoId": "abc"})
+
+    assert error.value.category == "authorization_sensitive_data"
+    assert "secret" not in str(error.value.details)
+
+
 class SuccessfulVideoLookup:
     """Return one source video for concrete registration tests."""
 

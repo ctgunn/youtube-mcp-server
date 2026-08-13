@@ -20,6 +20,7 @@ TOOL_ERROR_PROTOCOL_CATEGORIES = {
     "authorization_sensitive_data": "authorization_denied",
     "quota_exhausted": "transport_not_supported",
     "quota_exhaustion": "transport_not_supported",
+    "language_unavailable": "resource_missing",
     "resource_not_found": "resource_missing",
     "unavailable_resource": "resource_missing",
     "deprecated_endpoint": "transport_not_supported",
