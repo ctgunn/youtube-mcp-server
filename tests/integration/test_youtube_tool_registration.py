@@ -82,6 +82,16 @@ def test_default_registry_includes_and_executes_video_details_tool():
     assert result == {"videoId": "abc123", "title": "Example video"}
 
 
+def test_default_registry_includes_concrete_transcript_language_discovery_tool():
+    """Discover the default concrete transcript language descriptor."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "transcripts_listLanguages" in listed
+    assert listed["transcripts_listLanguages"]["metadata"]["compositionBoundary"]["kind"] == "transcript_language_discovery"
+    assert "representativeOnly" not in listed["transcripts_listLanguages"]["metadata"]
+
+
 def test_default_registry_includes_and_executes_video_statistics_tool():
     """Discover and invoke the default concrete video-statistics tool."""
     dispatcher = InMemoryToolDispatcher()
