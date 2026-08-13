@@ -87,6 +87,42 @@ def test_concrete_playlist_details_descriptor_registers_and_exposes_scope():
     assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
 
 
+def test_concrete_playlist_items_descriptor_registers_and_executes_one_listing():
+    """Register and invoke the composed playlist-items descriptor once.
+
+    :return: ``None`` after asserting one bounded injected lower-layer listing.
+    """
+    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_items_tool_descriptor
+
+    calls = []
+
+    def playlist_items(arguments):
+        """Return one public playlist item and record its request.
+
+        :param arguments: Lower-layer playlist-item listing arguments.
+        :return: One available public playlist-item result.
+        """
+        calls.append(arguments)
+        return {
+            "items": [
+                {
+                    "id": "playlist-item-1",
+                    "snippet": {"position": 0, "resourceId": {"videoId": "video-1"}, "title": "Example"},
+                    "contentDetails": {"videoId": "video-1"},
+                    "status": {"privacyStatus": "public"},
+                }
+            ]
+        }
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_playlists_get_playlist_items_tool_descriptor(playlist_items=playlist_items)])
+    result = dispatcher.call_tool("playlists_getPlaylistItems", {"playlistId": "PL123", "maxResults": 1})
+
+    assert calls == [{"part": "snippet,contentDetails,status", "playlistId": "PL123", "maxResults": 1}]
+    assert result["items"][0]["videoId"] == "video-1"
+    assert result["items"][0]["availabilityState"] == "available"
+    assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
+
+
 def test_representative_youtube_composed_descriptor_registers_without_tool_execution():
     """Register representative Layer 3 metadata while keeping the handler inert."""
     descriptor = build_representative_tool_descriptor(REPRESENTATIVE_TOOL_CONTRACTS[0])

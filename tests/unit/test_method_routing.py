@@ -224,6 +224,43 @@ class MethodRoutingTests(unittest.TestCase):
         assert response["error"]["data"]["protocolCategory"] == "transport_not_supported"
         assert "hidden" not in str(response["error"])
 
+    def test_playlist_item_retrieval_error_categories_route_safely(self):
+        """Serialize playlist-item capacity failures without unsafe details.
+
+        :return: ``None`` after validating safe protocol error serialization.
+        """
+        from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
+        from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_items_tool_descriptor
+
+        def playlist_items(_arguments):
+            """Raise a capacity failure containing unsafe lower-layer details.
+
+            :param _arguments: Ignored lower-layer playlist-item request.
+            :raises PlaylistItemsListToolError: Always raised for routing coverage.
+            """
+            raise PlaylistItemsListToolError(
+                "quota",
+                category="quota_exhausted",
+                details={"api_key": "hidden", "raw_body": "hidden"},
+            )
+
+        dispatcher = InMemoryToolDispatcher(
+            tools=[build_playlists_get_playlist_items_tool_descriptor(playlist_items=playlist_items)]
+        )
+        response = route_mcp_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "req-playlist-items-error",
+                "method": "tools/call",
+                "params": {"name": "playlists_getPlaylistItems", "arguments": {"playlistId": "PL123"}},
+            },
+            dispatcher,
+        )
+
+        assert response["error"]["data"]["category"] == "quota_exhaustion"
+        assert response["error"]["data"]["protocolCategory"] == "transport_not_supported"
+        assert "hidden" not in str(response["error"])
+
     def test_baseline_tools_are_discoverable(self):
         """List the built-in baseline tools through tools/list."""
         payload = {"jsonrpc": "2.0", "id": "req-4", "method": "tools/list", "params": {}}
