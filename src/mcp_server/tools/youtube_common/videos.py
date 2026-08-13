@@ -3161,6 +3161,12 @@ def _default_videos_executor() -> IntegrationExecutor:
                     "kind": "youtube#video",
                     "id": "abc123",
                     "snippet": {"title": "Example video"},
+                    "statistics": {
+                        "viewCount": "1000",
+                        "likeCount": "45",
+                        "commentCount": "8",
+                        "favoriteCount": "0",
+                    },
                 }
             ],
         }

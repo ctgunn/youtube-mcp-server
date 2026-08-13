@@ -125,3 +125,49 @@ def test_video_search_contract_discloses_deterministic_ranking_and_exclusion_rul
     assert "base-search position" in metadata["rankingSemantics"]["ties"]
     assert metadata["rankingSemantics"]["deduplication"] == "Apply uniqueChannels after final ranking."
     assert "excluded" in metadata["rankingSemantics"]["unavailableData"]
+
+
+def test_video_statistics_contract_exposes_a_concrete_single_video_schema_and_boundary():
+    """Require concrete discovery metadata for public video statistics."""
+    from mcp_server.tools.youtube_composed.videos import build_videos_get_statistics_tool_descriptor
+
+    descriptor = build_videos_get_statistics_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["name"] == "videos_getStatistics"
+    assert descriptor["inputSchema"] == {
+        "type": "object",
+        "required": ["videoId"],
+        "properties": {"videoId": {"type": "string", "minLength": 1}},
+        "additionalProperties": False,
+    }
+    assert metadata["compositionBoundary"]["kind"] == "normalized_retrieval"
+    assert metadata["lowerLayerDependencies"] == ["videos.list"]
+    assert "one-unit" in metadata["authAndQuotaNotes"][0]
+    assert "representativeOnly" not in metadata
+
+
+def test_video_statistics_contract_documents_metric_availability_and_safe_caveats():
+    """Require metric provenance, unavailable states, and source caveats."""
+    from mcp_server.tools.youtube_composed.videos import build_videos_get_statistics_metadata
+
+    metadata = build_videos_get_statistics_metadata()
+    fields = {field["fieldName"]: field for field in metadata["responseFields"]}
+
+    assert set(metadata["expectedMetrics"]) == {"viewCount", "likeCount", "commentCount", "favoriteCount"}
+    assert fields["statistics.*.value"]["category"] == "raw_upstream"
+    assert fields["statistics.*.state"]["category"] == "normalized"
+    assert metadata["metricAvailability"] == {
+        "available": "A source-provided count, including zero.",
+        "unavailable": "The expected source metric was not provided; no numeric value is returned.",
+    }
+    assert "deprecated" in metadata["sourceCaveats"]["favoriteCount"].lower()
+    assert "dislikeCount" not in metadata["expectedMetrics"]
+    assert "owner-sensitive" in metadata["sourceCaveats"]["dislikeCount"]
+    assert metadata["errorCategories"] == [
+        "invalid_parameters",
+        "unavailable_resource",
+        "authorization_sensitive_data",
+        "quota_exhaustion",
+        "upstream_failure",
+    ]

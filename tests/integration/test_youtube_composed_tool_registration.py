@@ -465,6 +465,54 @@ def test_concrete_video_search_descriptor_ranks_before_unique_channel_selection(
     assert [item["videoId"] for item in result["items"]] == ["low", "high-first"]
 
 
+def test_concrete_video_statistics_descriptor_registers_and_executes_one_lookup():
+    """Register and invoke the public statistics descriptor with injected data."""
+    from mcp_server.tools.youtube_composed.videos import build_videos_get_statistics_tool_descriptor
+
+    calls = []
+
+    def lookup(arguments):
+        """Return controlled statistics for one expected direct lookup.
+
+        :param arguments: Lower-level video-list request.
+        :return: One source video with public statistics.
+        """
+        calls.append(arguments)
+        return {"items": [{"id": "abc123", "statistics": {"viewCount": "1000", "likeCount": "45"}}]}
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_statistics_tool_descriptor(lookup=lookup)])
+    result = dispatcher.call_tool("videos_getStatistics", {"videoId": "abc123"})
+
+    assert calls == [{"id": "abc123", "part": "statistics"}]
+    assert result["statistics"]["viewCount"]["value"] == "1000"
+    assert result["statistics"]["commentCount"]["state"] == "unavailable"
+    assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
+
+
+def test_concrete_video_statistics_descriptor_returns_safe_lookup_failures():
+    """Expose translated errors without unsafe lower-layer diagnostic details."""
+    from mcp_server.tools.youtube_common.videos import VideosListToolError
+    from mcp_server.tools.youtube_composed.videos import VideosGetStatisticsToolError, build_videos_get_statistics_tool_descriptor
+
+    def lookup(_arguments):
+        """Raise a controlled quota failure with unsafe source details.
+
+        :param _arguments: Ignored lower-level video request.
+        :raises VideosListToolError: Always raised for safe error coverage.
+        """
+        raise VideosListToolError("quota", category="quota_exhausted", details={"api_key": "hidden", "stack_trace": "hidden"})
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_statistics_tool_descriptor(lookup=lookup)])
+
+    try:
+        dispatcher.call_tool("videos_getStatistics", {"videoId": "abc123"})
+    except VideosGetStatisticsToolError as error:
+        assert error.category == "quota_exhaustion"
+        assert "hidden" not in str(error.details)
+    else:
+        raise AssertionError("expected a translated statistics lookup failure")
+
+
 def test_concrete_channel_search_descriptor_registers_and_executes_query_only_search():
     """Register and execute the concrete query-only channel search descriptor."""
     from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_tool_descriptor
