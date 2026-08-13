@@ -49,6 +49,15 @@ VIDEOS_GET_VIDEO_INPUT_SCHEMA = {
     "additionalProperties": False,
 }
 
+VIDEOS_GET_STATISTICS_TOOL_NAME = "videos_getStatistics"
+VIDEOS_GET_STATISTICS_EXPECTED_METRICS = ("viewCount", "likeCount", "commentCount", "favoriteCount")
+VIDEOS_GET_STATISTICS_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["videoId"],
+    "properties": {"videoId": {"type": "string", "minLength": 1}},
+    "additionalProperties": False,
+}
+
 VIDEOS_SEARCH_VIDEOS_TOOL_NAME = "videos_searchVideos"
 VIDEOS_SEARCH_VIDEOS_MAX_RESULTS = 50
 VIDEOS_SEARCH_VIDEOS_ORDERS = ("date", "rating", "relevance", "title", "viewCount")
@@ -91,6 +100,26 @@ class VideosGetVideoToolError(ValueError):
 
     def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
         """Initialize the normalized public-tool error.
+
+        :param message: Caller-facing explanation of the failure.
+        :param category: Stable public failure category.
+        :param details: Candidate diagnostic details to sanitize.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = sanitize_error_details(details or {})
+
+
+class VideosGetStatisticsToolError(ValueError):
+    """Represent a safe caller-facing ``videos_getStatistics`` failure.
+
+    :param message: Caller-facing explanation of the failure.
+    :param category: Stable public failure category.
+    :param details: Optional caller-safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the normalized public statistics-tool error.
 
         :param message: Caller-facing explanation of the failure.
         :param category: Stable public failure category.
@@ -171,6 +200,56 @@ def build_videos_get_video_metadata() -> dict[str, Any]:
     }
 
 
+def build_videos_get_statistics_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for the video-statistics tool.
+
+    :return: JSON-compatible public metadata for normalized video statistics.
+    """
+    return {
+        "name": VIDEOS_GET_STATISTICS_TOOL_NAME,
+        "family": "videos",
+        "parameters": ["videoId"],
+        "inputContract": VIDEOS_GET_STATISTICS_INPUT_SCHEMA,
+        "compositionBoundary": {
+            "kind": "normalized_retrieval",
+            "lowerLayerDependencies": ["videos.list"],
+            "boundedness": "one video",
+            "partialResultPolicy": "Represent each absent expected metric as unavailable without a numeric value.",
+        },
+        "lowerLayerDependencies": ["videos.list"],
+        "authAndQuotaNotes": ["Uses the videos.list direct lookup path and its one-unit quota behavior."],
+        "responseFields": [
+            {"fieldName": "videoId", "category": "normalized", "source": "requested videoId"},
+            {"fieldName": "statistics.*.value", "category": "raw_upstream", "source": "statistics counts"},
+            {"fieldName": "statistics.*.state", "category": "normalized", "source": "source-field availability"},
+            {"fieldName": "statistics.*.provenance", "category": "normalized", "source": "result normalization"},
+        ],
+        "expectedMetrics": list(VIDEOS_GET_STATISTICS_EXPECTED_METRICS),
+        "metricAvailability": {
+            "available": "A source-provided count, including zero.",
+            "unavailable": "The expected source metric was not provided; no numeric value is returned.",
+        },
+        "sourceCaveats": {
+            "favoriteCount": "The source marks this deprecated count as zero when supplied.",
+            "dislikeCount": "Excluded because it is owner-sensitive and is not part of this public contract.",
+        },
+        "errorCategories": [
+            "invalid_parameters",
+            "unavailable_resource",
+            "authorization_sensitive_data",
+            "quota_exhaustion",
+            "upstream_failure",
+        ],
+        "errorGuidance": {
+            "invalid_parameters": "Correct the identified request field and retry.",
+            "unavailable_resource": "Use a different accessible video identifier.",
+            "authorization_sensitive_data": "Obtain appropriate authorization if applicable.",
+            "quota_exhaustion": "Retry after capacity is available.",
+            "upstream_failure": "Retry when the source service is available.",
+        },
+    }
+
+
 def validate_videos_get_video_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     """Validate the required core video-details request input.
 
@@ -212,6 +291,36 @@ def validate_videos_get_video_arguments(arguments: dict[str, Any]) -> dict[str, 
             details={"field": "parts"},
         )
     return {"videoId": video_id.strip(), "parts": tuple(parts)}
+
+
+def validate_videos_get_statistics_arguments(arguments: dict[str, Any]) -> dict[str, str]:
+    """Validate the required single-video statistics request input.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Normalized request containing one trimmed video identifier.
+    :raises VideosGetStatisticsToolError: If the request is missing or invalid.
+    """
+    if not isinstance(arguments, dict):
+        raise VideosGetStatisticsToolError(
+            "videos_getStatistics arguments must be an object",
+            category="invalid_parameters",
+            details={"field": "arguments"},
+        )
+    unexpected_fields = set(arguments) - {"videoId"}
+    if unexpected_fields:
+        raise VideosGetStatisticsToolError(
+            "videos_getStatistics received an unsupported field",
+            category="invalid_parameters",
+            details={"field": sorted(unexpected_fields)[0]},
+        )
+    video_id = arguments.get("videoId")
+    if not isinstance(video_id, str) or not video_id.strip():
+        raise VideosGetStatisticsToolError(
+            "videos_getStatistics requires a non-empty videoId",
+            category="invalid_parameters",
+            details={"field": "videoId"},
+        )
+    return {"videoId": video_id.strip()}
 
 
 def _lookup_arguments(video_id: str, requested_parts: tuple[str, ...]) -> dict[str, str]:
@@ -283,26 +392,31 @@ def normalize_videos_get_video_result(
     return result
 
 
+def _public_videos_list_error_parts(error: VideosListToolError) -> tuple[str, str, dict[str, Any]]:
+    """Return safe public error fields for one lower-level video-list failure.
+
+    :param error: Safe lower-level video lookup error.
+    :return: Public category, message, and diagnostic details for one failure.
+    """
+    if error.category in {"resource_not_found", "removed"}:
+        return "unavailable_resource", "The requested video is unavailable", {"resource": "video"}
+    public_category = {
+        "invalid_request": "invalid_parameters",
+        "authentication_failed": "authorization_sensitive_data",
+        "authorization_failed": "authorization_sensitive_data",
+        "quota_exhausted": "quota_exhaustion",
+    }.get(error.category, "upstream_failure")
+    return public_category, safe_upstream_error_message(), error.details
+
+
 def _map_videos_list_error(error: VideosListToolError) -> VideosGetVideoToolError:
     """Translate one lower-level error to a safe public video-detail error.
 
     :param error: Safe lower-level video lookup error.
     :return: Public error with the documented category and safe details.
     """
-    category = error.category
-    if category in {"resource_not_found", "removed"}:
-        return VideosGetVideoToolError(
-            "The requested video is unavailable",
-            category="unavailable_resource",
-            details={"resource": "video"},
-        )
-    public_category = {
-        "invalid_request": "invalid_parameters",
-        "authentication_failed": "authorization_sensitive_data",
-        "authorization_failed": "authorization_sensitive_data",
-        "quota_exhausted": "quota_exhaustion",
-    }.get(category, "upstream_failure")
-    return VideosGetVideoToolError(safe_upstream_error_message(), category=public_category, details=error.details)
+    category, message, details = _public_videos_list_error_parts(error)
+    return VideosGetVideoToolError(message, category=category, details=details)
 
 
 def build_videos_get_video_handler(*, lookup=None):
@@ -342,6 +456,115 @@ def build_videos_get_video_tool_descriptor(*, lookup=None) -> dict[str, Any]:
         "inputSchema": VIDEOS_GET_VIDEO_INPUT_SCHEMA,
         "handler": build_videos_get_video_handler(lookup=lookup),
         "metadata": build_videos_get_video_metadata(),
+    }
+
+
+def _videos_get_statistics_lookup_arguments(video_id: str) -> dict[str, str]:
+    """Build the one lower-level lookup for public video statistics.
+
+    :param video_id: Validated public video identifier.
+    :return: Direct ``videos.list`` arguments requesting only statistics.
+    """
+    return {"id": video_id, "part": "statistics"}
+
+
+def _source_statistic_value(value: Any) -> str | None:
+    """Return a valid non-negative source statistic without float conversion.
+
+    :param value: Candidate source statistic value.
+    :return: Preserved decimal text for a valid source count, otherwise ``None``.
+    """
+    if isinstance(value, str) and value.isdecimal():
+        return value
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return str(value)
+    return None
+
+
+def normalize_videos_get_statistics_result(payload: dict[str, Any], *, video_id: str) -> dict[str, Any]:
+    """Normalize expected source counts for one requested video.
+
+    :param payload: Lower-level result containing one statistics source item.
+    :param video_id: Validated request identifier associated with the result.
+    :return: Stable statistics and availability data for the requested video.
+    :raises VideosGetStatisticsToolError: If no source video item is available.
+    """
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, list) or not items or not isinstance(items[0], dict):
+        raise VideosGetStatisticsToolError(
+            "The requested video is unavailable",
+            category="unavailable_resource",
+            details={"resource": "video"},
+        )
+    item = items[0]
+    source_statistics = item.get("statistics") if isinstance(item.get("statistics"), dict) else {}
+    statistics: dict[str, dict[str, str]] = {}
+    for metric in VIDEOS_GET_STATISTICS_EXPECTED_METRICS:
+        value = _source_statistic_value(source_statistics.get(metric))
+        if value is None:
+            statistics[metric] = {"state": "unavailable", "provenance": "normalized"}
+        else:
+            statistics[metric] = {"state": "available", "value": value, "provenance": "source_provided"}
+    return {
+        "videoId": video_id,
+        "statistics": statistics,
+        "fieldProvenance": {
+            "statistics.*.value": "source_provided",
+            "statistics.*.state": "normalized",
+        },
+        "sourceCaveats": {
+            "favoriteCount": "The source marks this deprecated count as zero when supplied.",
+        },
+    }
+
+
+def _map_videos_list_statistics_error(error: VideosListToolError) -> VideosGetStatisticsToolError:
+    """Translate a lower-level error to a safe public statistics error.
+
+    :param error: Safe lower-level video lookup error.
+    :return: Documented caller-safe statistics-tool error.
+    """
+    category, message, details = _public_videos_list_error_parts(error)
+    return VideosGetStatisticsToolError(message, category=category, details=details)
+
+
+def build_videos_get_statistics_handler(*, lookup=None):
+    """Build a callable handler for one normalized video-statistics lookup.
+
+    :param lookup: Optional lower-level lookup override for tests.
+    :return: Callable that validates, retrieves, and normalizes one video.
+    """
+    selected_lookup = lookup or build_videos_list_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated public video-statistics request.
+
+        :param arguments: Caller-provided public arguments.
+        :return: Normalized statistics for the requested available video.
+        :raises VideosGetStatisticsToolError: If validation or lookup fails.
+        """
+        normalized = validate_videos_get_statistics_arguments(arguments)
+        try:
+            payload = selected_lookup(_videos_get_statistics_lookup_arguments(normalized["videoId"]))
+        except VideosListToolError as exc:
+            raise _map_videos_list_statistics_error(exc) from exc
+        return normalize_videos_get_statistics_result(payload, video_id=normalized["videoId"])
+
+    return handler
+
+
+def build_videos_get_statistics_tool_descriptor(*, lookup=None) -> dict[str, Any]:
+    """Build the executable MCP descriptor for ``videos_getStatistics``.
+
+    :param lookup: Optional lower-level lookup override for tests.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {
+        "name": VIDEOS_GET_STATISTICS_TOOL_NAME,
+        "description": "Return normalized public statistics for one YouTube video.",
+        "inputSchema": VIDEOS_GET_STATISTICS_INPUT_SCHEMA,
+        "handler": build_videos_get_statistics_handler(lookup=lookup),
+        "metadata": build_videos_get_statistics_metadata(),
     }
 
 

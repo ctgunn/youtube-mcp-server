@@ -511,3 +511,116 @@ def test_video_search_excludes_unavailable_ranking_values_with_partial_disclosur
 
     assert [item["videoId"] for item in result["items"]] == ["known"]
     assert result["partialEnrichment"]["reasons"] == ["subscriber_count_unavailable"]
+
+
+def test_video_statistics_validates_one_identifier_and_normalizes_available_source_counts():
+    """Require one statistics lookup and preserve reported source counts.
+
+    This test also proves that a reported source zero remains available rather
+    than being treated as an absent count.
+    """
+    from mcp_server.tools.youtube_composed.videos import (
+        VideosGetStatisticsToolError,
+        build_videos_get_statistics_handler,
+        validate_videos_get_statistics_arguments,
+    )
+
+    for arguments in ({}, {"videoId": " "}, {"videoId": 123}, {"videoId": "abc123", "parts": []}):
+        with pytest.raises(VideosGetStatisticsToolError) as exc_info:
+            validate_videos_get_statistics_arguments(arguments)
+
+        assert exc_info.value.category == "invalid_parameters"
+
+    lookup = RecordingLookup(
+        {
+            "items": [
+                {
+                    "id": "abc123",
+                    "statistics": {
+                        "viewCount": "1000",
+                        "likeCount": "45",
+                        "commentCount": "8",
+                        "favoriteCount": "0",
+                    },
+                }
+            ]
+        }
+    )
+
+    result = build_videos_get_statistics_handler(lookup=lookup)({"videoId": " abc123 "})
+
+    assert lookup.calls == [{"id": "abc123", "part": "statistics"}]
+    assert result["videoId"] == "abc123"
+    assert result["statistics"] == {
+        "viewCount": {"state": "available", "value": "1000", "provenance": "source_provided"},
+        "likeCount": {"state": "available", "value": "45", "provenance": "source_provided"},
+        "commentCount": {"state": "available", "value": "8", "provenance": "source_provided"},
+        "favoriteCount": {"state": "available", "value": "0", "provenance": "source_provided"},
+    }
+
+
+def test_video_statistics_marks_absent_expected_metrics_unavailable_without_values():
+    """Keep absent expected source statistics distinct from reported zero."""
+    from mcp_server.tools.youtube_composed.videos import build_videos_get_statistics_handler
+
+    result = build_videos_get_statistics_handler(
+        lookup=RecordingLookup({"items": [{"id": "abc123", "statistics": {"viewCount": "0"}}]})
+    )({"videoId": "abc123"})
+
+    assert result["statistics"]["viewCount"] == {"state": "available", "value": "0", "provenance": "source_provided"}
+    for metric in ("likeCount", "commentCount", "favoriteCount"):
+        assert result["statistics"][metric] == {"state": "unavailable", "provenance": "normalized"}
+        assert "value" not in result["statistics"][metric]
+    assert "dislikeCount" not in str(result)
+
+
+@pytest.mark.parametrize("payload", [{"items": []}, {"items": [None]}, {"items": "not-a-list"}])
+def test_video_statistics_rejects_empty_or_malformed_source_items(payload):
+    """Map unusable lower-level item collections to one unavailable outcome.
+
+    :param payload: Controlled lower-level response lacking one usable video item.
+    """
+    from mcp_server.tools.youtube_composed.videos import VideosGetStatisticsToolError, build_videos_get_statistics_handler
+
+    with pytest.raises(VideosGetStatisticsToolError) as exc_info:
+        build_videos_get_statistics_handler(lookup=RecordingLookup(payload))({"videoId": "abc123"})
+
+    assert exc_info.value.category == "unavailable_resource"
+    assert exc_info.value.details == {"resource": "video"}
+
+
+@pytest.mark.parametrize(
+    ("lower_category", "expected_category"),
+    [
+        ("resource_not_found", "unavailable_resource"),
+        ("authorization_failed", "authorization_sensitive_data"),
+        ("quota_exhausted", "quota_exhaustion"),
+        ("endpoint_unavailable", "upstream_failure"),
+    ],
+)
+def test_video_statistics_maps_empty_and_lower_lookup_failures_safely(lower_category, expected_category):
+    """Translate source lookup failures without retaining unsafe diagnostics.
+
+    :param lower_category: Lower-layer category emitted by the controlled lookup.
+    :param expected_category: Required safe public category.
+    """
+    from mcp_server.tools.youtube_common.videos import VideosListToolError
+    from mcp_server.tools.youtube_composed.videos import VideosGetStatisticsToolError, build_videos_get_statistics_handler
+
+    def failing_lookup(_arguments):
+        """Raise one controlled lower-layer failure with unsafe diagnostics.
+
+        :param _arguments: Ignored lower-layer request arguments.
+        :raises VideosListToolError: Always raised to test error translation.
+        """
+        raise VideosListToolError(
+            "source failure",
+            category=lower_category,
+            details={"reason": "source failure", "api_key": "hidden", "stack_trace": "hidden"},
+        )
+
+    with pytest.raises(VideosGetStatisticsToolError) as exc_info:
+        build_videos_get_statistics_handler(lookup=failing_lookup)({"videoId": "abc123"})
+
+    assert exc_info.value.category == expected_category
+    assert "hidden" not in str(exc_info.value.details)

@@ -16,6 +16,7 @@ from mcp_server.tools.youtube_composed import (
     build_playlists_get_playlist_tool_descriptor,
     build_playlists_get_playlist_items_tool_descriptor,
     build_transcripts_get_transcript_tool_descriptor,
+    build_videos_get_statistics_tool_descriptor,
     build_videos_get_video_tool_descriptor,
     build_videos_search_videos_tool_descriptor,
 )
@@ -341,6 +342,9 @@ class InMemoryToolDispatcher:
             build_video_categories_list_tool_descriptor(**api_key_dependencies),
             build_videos_list_tool_descriptor(**conditional_dependencies),
             build_videos_get_video_tool_descriptor(
+                lookup=build_videos_list_handler(**conditional_dependencies)
+            ),
+            build_videos_get_statistics_tool_descriptor(
                 lookup=build_videos_list_handler(**conditional_dependencies)
             ),
             build_playlists_get_playlist_tool_descriptor(

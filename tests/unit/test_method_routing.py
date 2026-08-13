@@ -635,6 +635,38 @@ class MethodRoutingTests(unittest.TestCase):
         )
         self.assertFalse(initialize_succeeded(response))
 
+    def test_video_statistics_lookup_failure_routes_without_sensitive_details(self):
+        """Serialize a statistics lookup failure as a safe MCP error."""
+        from mcp_server.tools.youtube_common.videos import VideosListToolError
+        from mcp_server.tools.youtube_composed.videos import build_videos_get_statistics_tool_descriptor
+
+        def lookup(_arguments):
+            """Raise a controlled capacity failure with unsafe detail fields.
+
+            :param _arguments: Ignored lower-layer request arguments.
+            :raises VideosListToolError: Always raised to verify protocol mapping.
+            """
+            raise VideosListToolError(
+                "quota",
+                category="quota_exhausted",
+                details={"api_key": "hidden", "stack_trace": "hidden"},
+            )
+
+        dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_statistics_tool_descriptor(lookup=lookup)])
+        response = route_mcp_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "req-video-statistics-error",
+                "method": "tools/call",
+                "params": {"name": "videos_getStatistics", "arguments": {"videoId": "abc123"}},
+            },
+            dispatcher,
+        )
+
+        self.assertEqual(response["error"]["data"]["category"], "quota_exhaustion")
+        self.assertEqual(response["error"]["data"]["protocolCategory"], "transport_not_supported")
+        self.assertNotIn("hidden", str(response["error"]))
+
 
 if __name__ == "__main__":
     unittest.main()

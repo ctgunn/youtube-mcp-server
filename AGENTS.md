@@ -216,6 +216,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `playlists_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff (310-playlist-details)
 - N/A; request normalization and response shaping are in-memory only (310-playlist-details)
 - Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `playlistItems_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff (311-playlist-items)
+- Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `videos_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff (312-video-statistics)
+- N/A; request validation and result normalization are in-memory only (312-video-statistics)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -236,9 +238,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 312-video-statistics: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `videos_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff
 - 311-playlist-items: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `playlistItems_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff
 - 310-playlist-details: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `playlists_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff
-- 309-channels-list-videos: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `channels_list` and `playlist_items_list` handlers; Python standard-library JSON-compatible dictionaries; pytest; Ruff
 
 
 <!-- MANUAL ADDITIONS START -->
