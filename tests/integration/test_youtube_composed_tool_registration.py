@@ -37,6 +37,30 @@ def test_concrete_transcript_descriptor_registers_and_executes():
     assert calls == [("list", {"part": "snippet", "videoId": "abc"}), ("download", {"id": "caption-1", "tfmt": "vtt"})]
 
 
+def test_concrete_transcript_language_descriptor_registers_and_executes_one_listing():
+    """Register and invoke one bounded language-discovery descriptor."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_list_languages_tool_descriptor
+
+    calls = []
+
+    def caption_list(arguments):
+        """Return caption options and record the one discovery request.
+
+        :param arguments: Lower-layer caption-list arguments.
+        :return: Controlled caption-list result.
+        """
+        calls.append(arguments)
+        return {"items": [{"id": "caption-1", "snippet": {"language": "en", "trackKind": "standard"}}]}
+
+    descriptor = build_transcripts_list_languages_tool_descriptor(caption_list=caption_list)
+    dispatcher = InMemoryToolDispatcher(tools=[descriptor])
+    result = dispatcher.call_tool("transcripts_listLanguages", {"videoId": "abc"})
+
+    assert calls == [{"part": "snippet", "videoId": "abc"}]
+    assert result["languageOptions"][0]["captionTrackId"] == "caption-1"
+    assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
+
+
 class SuccessfulVideoLookup:
     """Return one source video for concrete registration tests."""
 

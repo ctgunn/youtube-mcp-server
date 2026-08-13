@@ -24,6 +24,7 @@ TOOL_ERROR_PROTOCOL_CATEGORIES = {
     "unavailable_resource": "resource_missing",
     "deprecated_endpoint": "transport_not_supported",
     "endpoint_unavailable": "unavailable_source",
+    "source_unavailable": "unavailable_source",
     "partial_enrichment_failure": "unavailable_source",
     "upstream_failure": "internal_execution_failure",
 }

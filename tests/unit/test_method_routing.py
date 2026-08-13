@@ -76,6 +76,7 @@ class MethodRoutingTests(unittest.TestCase):
             "unavailable_resource": "resource_missing",
             "authorization_sensitive_data": "authorization_denied",
             "quota_exhaustion": "transport_not_supported",
+            "source_unavailable": "unavailable_source",
             "upstream_failure": "internal_execution_failure",
             "partial_enrichment_failure": "unavailable_source",
             "unsupported_filter_or_sort": "invalid_argument",
