@@ -705,6 +705,51 @@ def test_concrete_channel_search_descriptor_registers_and_executes_query_only_se
     assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
 
 
+def test_concrete_channel_statistics_descriptor_registers_and_executes_one_lookup():
+    """Register and invoke the public channel-statistics descriptor."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_tool_descriptor
+
+    calls = []
+
+    def channels(arguments):
+        """Return controlled public channel statistics for one lookup.
+
+        :param arguments: Lower-level channel-list request.
+        :return: One source channel containing public statistics.
+        """
+        calls.append(arguments)
+        return {"items": [{"id": "UC123", "statistics": {"subscriberCount": "12", "videoCount": "3", "viewCount": "100"}}]}
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_channels_get_statistics_tool_descriptor(channels=channels)])
+    result = dispatcher.call_tool("channels_getStatistics", {"channelId": "UC123"})
+
+    assert calls == [{"id": "UC123", "part": "statistics"}]
+    assert result["statistics"]["subscriberCount"]["value"] == "12"
+    assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
+
+
+def test_concrete_channel_statistics_descriptor_returns_safe_lookup_failures():
+    """Expose translated channel-statistics errors without unsafe details."""
+    from mcp_server.tools.youtube_common.channels import ChannelsListToolError
+    from mcp_server.tools.youtube_composed.channels import ChannelsGetStatisticsToolError, build_channels_get_statistics_tool_descriptor
+
+    def channels(_arguments):
+        """Raise a controlled quota failure with unsafe source details.
+
+        :param _arguments: Ignored lower-level channel request.
+        :raises ChannelsListToolError: Always raised for safe error coverage.
+        """
+        raise ChannelsListToolError("quota", category="quota_exhausted", details={"api_key": "hidden", "stack_trace": "hidden"})
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_channels_get_statistics_tool_descriptor(channels=channels)])
+
+    with pytest.raises(ChannelsGetStatisticsToolError) as exc_info:
+        dispatcher.call_tool("channels_getStatistics", {"channelId": "UC123"})
+
+    assert exc_info.value.category == "quota_exhaustion"
+    assert "hidden" not in str(exc_info.value.details)
+
+
 def test_concrete_channel_search_descriptor_composes_public_refinement():
     """Execute bounded channel enrichment through the registered descriptor."""
     from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_tool_descriptor

@@ -18,6 +18,8 @@ FAMILY_SCAFFOLDING = get_family("channels")
 PLANNED_TOOLS = FAMILY_SCAFFOLDING.planned_tools
 CHANNELS_GET_CHANNEL_TOOL_NAME = "channels_getChannel"
 CHANNELS_GET_CHANNELS_TOOL_NAME = "channels_getChannels"
+CHANNELS_GET_STATISTICS_TOOL_NAME = "channels_getStatistics"
+CHANNELS_GET_STATISTICS_EXPECTED_METRICS = ("subscriberCount", "videoCount", "viewCount")
 CHANNELS_LIST_VIDEOS_TOOL_NAME = "channels_listVideos"
 CHANNELS_LIST_VIDEOS_MAX_RESULTS = 50
 CHANNELS_LIST_PLAYLISTS_TOOL_NAME = "channels_listPlaylists"
@@ -45,6 +47,12 @@ CHANNELS_SEARCH_CHANNELS_INPUT_SCHEMA = {
     "additionalProperties": False,
 }
 CHANNELS_GET_CHANNEL_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["channelId"],
+    "properties": {"channelId": {"type": "string", "minLength": 1}},
+    "additionalProperties": False,
+}
+CHANNELS_GET_STATISTICS_INPUT_SCHEMA = {
     "type": "object",
     "required": ["channelId"],
     "properties": {"channelId": {"type": "string", "minLength": 1}},
@@ -120,6 +128,10 @@ class ChannelsGetChannelToolError(ValueError):
 
 class ChannelsGetChannelsToolError(ChannelsGetChannelToolError):
     """Represent a safe caller-facing batch channel-detail failure."""
+
+
+class ChannelsGetStatisticsToolError(ChannelsGetChannelToolError):
+    """Represent a safe caller-facing channel-statistics failure."""
 
 
 class ChannelsListVideosToolError(ChannelsGetChannelToolError):
@@ -202,6 +214,58 @@ def build_channels_get_channel_metadata() -> dict[str, Any]:
     }
 
 
+def build_channels_get_statistics_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for the channel-statistics tool.
+
+    :return: JSON-compatible public metadata for normalized channel statistics.
+    """
+    return {
+        "name": CHANNELS_GET_STATISTICS_TOOL_NAME,
+        "family": "channels",
+        "parameters": ["channelId"],
+        "inputContract": CHANNELS_GET_STATISTICS_INPUT_SCHEMA,
+        "compositionBoundary": {
+            "kind": "normalized_retrieval",
+            "lowerLayerDependencies": ["channels.list"],
+            "boundedness": "one channel",
+            "partialResultPolicy": "Represent a source-flagged hidden subscriber count and unavailable expected metrics without numeric values.",
+        },
+        "lowerLayerDependencies": ["channels.list"],
+        "authAndQuotaNotes": ["Uses the channels.list direct lookup path and its one-unit quota behavior."],
+        "responseFields": [
+            {"fieldName": "channelId", "category": "normalized", "source": "requested channelId"},
+            {"fieldName": "statistics.*.value", "category": "raw_upstream", "source": "statistics counts"},
+            {"fieldName": "statistics.*.state", "category": "normalized", "source": "source count availability and visibility signal"},
+            {"fieldName": "statistics.*.provenance", "category": "normalized", "source": "result normalization"},
+        ],
+        "expectedMetrics": list(CHANNELS_GET_STATISTICS_EXPECTED_METRICS),
+        "metricAvailability": {
+            "available": "A source-provided count, including zero.",
+            "hidden": "A subscriber count marked not publicly visible by the source; no numeric value is returned.",
+            "unavailable": "The expected source metric was not provided or was invalid; no numeric value is returned.",
+        },
+        "sourceCaveats": {
+            "subscriberCount": "The source rounds public subscriber counts down to three significant figures.",
+            "videoCount": "The source reports public videos only.",
+            "viewCount": "The source's current definition includes Shorts starts and replays.",
+        },
+        "errorCategories": [
+            "invalid_parameters",
+            "unavailable_resource",
+            "authorization_sensitive_data",
+            "quota_exhaustion",
+            "upstream_failure",
+        ],
+        "errorGuidance": {
+            "invalid_parameters": "Correct the identified request field and retry.",
+            "unavailable_resource": "Use a different accessible channel identifier.",
+            "authorization_sensitive_data": "Obtain appropriate authorization if applicable.",
+            "quota_exhaustion": "Retry after capacity is available.",
+            "upstream_failure": "Retry when the source service is available.",
+        },
+    }
+
+
 def validate_channels_get_channel_arguments(arguments: dict[str, Any]) -> dict[str, str]:
     """Validate and normalize the public single-channel request.
 
@@ -226,6 +290,36 @@ def validate_channels_get_channel_arguments(arguments: dict[str, Any]) -> dict[s
     if not isinstance(channel_id, str) or not channel_id.strip():
         raise ChannelsGetChannelToolError(
             "channels_getChannel requires a non-empty channelId",
+            category="invalid_parameters",
+            details={"field": "channelId"},
+        )
+    return {"channelId": channel_id.strip()}
+
+
+def validate_channels_get_statistics_arguments(arguments: dict[str, Any]) -> dict[str, str]:
+    """Validate the required single-channel statistics request input.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Normalized request containing one trimmed channel identifier.
+    :raises ChannelsGetStatisticsToolError: If the request is missing or invalid.
+    """
+    if not isinstance(arguments, dict):
+        raise ChannelsGetStatisticsToolError(
+            "channels_getStatistics arguments must be an object",
+            category="invalid_parameters",
+            details={"field": "arguments"},
+        )
+    unexpected_fields = set(arguments) - {"channelId"}
+    if unexpected_fields:
+        raise ChannelsGetStatisticsToolError(
+            "channels_getStatistics received an unsupported field",
+            category="invalid_parameters",
+            details={"field": sorted(unexpected_fields)[0]},
+        )
+    channel_id = arguments.get("channelId")
+    if not isinstance(channel_id, str) or not channel_id.strip():
+        raise ChannelsGetStatisticsToolError(
+            "channels_getStatistics requires a non-empty channelId",
             category="invalid_parameters",
             details={"field": "channelId"},
         )
@@ -568,6 +662,129 @@ def _map_channels_list_error(error: ChannelsListToolError) -> ChannelsGetChannel
         "quota_exhausted": "quota_exhaustion",
     }.get(error.category, "upstream_failure")
     return ChannelsGetChannelToolError(safe_upstream_error_message(), category=category, details=error.details)
+
+
+def _channels_get_statistics_lookup_arguments(channel_id: str) -> dict[str, str]:
+    """Build the one lower-level lookup for public channel statistics.
+
+    :param channel_id: Validated public channel identifier.
+    :return: Direct ``channels.list`` arguments requesting only statistics.
+    """
+    return {"id": channel_id, "part": "statistics"}
+
+
+def _source_channel_statistic_value(value: Any) -> str | None:
+    """Return a valid non-negative source channel statistic without float conversion.
+
+    :param value: Candidate source statistic value.
+    :return: Preserved decimal text for a valid source count, otherwise ``None``.
+    """
+    if isinstance(value, str) and value.isdecimal():
+        return value
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return str(value)
+    return None
+
+
+def _channel_statistic_result(metric: str, source_statistics: dict[str, Any]) -> dict[str, str]:
+    """Normalize one expected channel statistic to its public state.
+
+    :param metric: Expected public metric name.
+    :param source_statistics: Source statistics mapping for one channel.
+    :return: Available, hidden, or unavailable public metric representation.
+    """
+    if metric == "subscriberCount" and source_statistics.get("hiddenSubscriberCount") is True:
+        return {"state": "hidden", "provenance": "normalized"}
+    value = _source_channel_statistic_value(source_statistics.get(metric))
+    if value is None:
+        return {"state": "unavailable", "provenance": "normalized"}
+    return {"state": "available", "value": value, "provenance": "source_provided"}
+
+
+def normalize_channels_get_statistics_result(payload: dict[str, Any], *, channel_id: str) -> dict[str, Any]:
+    """Normalize expected source counts for one requested channel.
+
+    :param payload: Lower-level result containing one statistics source item.
+    :param channel_id: Validated request identifier associated with the result.
+    :return: Stable statistics and availability data for the requested channel.
+    :raises ChannelsGetStatisticsToolError: If no source channel item is available.
+    """
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, list) or not items or not isinstance(items[0], dict):
+        raise ChannelsGetStatisticsToolError(
+            "The requested channel is unavailable",
+            category="unavailable_resource",
+            details={"resource": "channel"},
+        )
+    item = items[0]
+    source_statistics = item.get("statistics") if isinstance(item.get("statistics"), dict) else {}
+    statistics = {
+        metric: _channel_statistic_result(metric, source_statistics)
+        for metric in CHANNELS_GET_STATISTICS_EXPECTED_METRICS
+    }
+    return {
+        "channelId": channel_id,
+        "statistics": statistics,
+        "fieldProvenance": {
+            "statistics.*.value": "source_provided",
+            "statistics.*.state": "normalized",
+        },
+        "sourceCaveats": {
+            "subscriberCount": "The source rounds public subscriber counts down to three significant figures.",
+            "videoCount": "The source reports public videos only.",
+            "viewCount": "The source's current definition includes Shorts starts and replays.",
+        },
+    }
+
+
+def _map_channels_list_statistics_error(error: ChannelsListToolError) -> ChannelsGetStatisticsToolError:
+    """Translate a lower-level error to a safe public statistics error.
+
+    :param error: Safe lower-level channel lookup error.
+    :return: Documented caller-safe channel-statistics error.
+    """
+    mapped = _map_channels_list_error(error)
+    return ChannelsGetStatisticsToolError(str(mapped), category=mapped.category, details=mapped.details)
+
+
+def build_channels_get_statistics_handler(*, channels=None):
+    """Build a callable handler for one normalized channel-statistics lookup.
+
+    :param channels: Optional lower-level channel-list handler override for tests.
+    :return: Callable that validates, retrieves, and normalizes one channel.
+    """
+    selected_channels = channels or build_channels_list_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated public channel-statistics request.
+
+        :param arguments: Caller-provided public arguments.
+        :return: Normalized statistics for the requested available channel.
+        :raises ChannelsGetStatisticsToolError: If validation or lookup fails.
+        """
+        normalized = validate_channels_get_statistics_arguments(arguments)
+        try:
+            payload = selected_channels(_channels_get_statistics_lookup_arguments(normalized["channelId"]))
+        except ChannelsListToolError as exc:
+            raise _map_channels_list_statistics_error(exc) from exc
+        return normalize_channels_get_statistics_result(payload, channel_id=normalized["channelId"])
+
+    return handler
+
+
+def build_channels_get_statistics_tool_descriptor(*, channels=None) -> dict[str, Any]:
+    """Build the executable MCP descriptor for ``channels_getStatistics``.
+
+    :param channels: Optional lower-level channel-list handler override for tests.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {
+        "name": CHANNELS_GET_STATISTICS_TOOL_NAME,
+        "description": "Return normalized public statistics for one YouTube channel.",
+        "inputSchema": CHANNELS_GET_STATISTICS_INPUT_SCHEMA,
+        "handler": build_channels_get_statistics_handler(channels=channels),
+        "metadata": build_channels_get_statistics_metadata(),
+    }
 
 
 def _channels_list_videos_core_error(error: ChannelsListToolError) -> ChannelsListVideosToolError:
