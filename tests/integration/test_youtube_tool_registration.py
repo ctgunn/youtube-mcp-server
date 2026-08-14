@@ -104,6 +104,18 @@ def test_default_registry_includes_concrete_timestamped_caption_tool():
     assert "representativeOnly" not in metadata
 
 
+def test_default_registry_includes_concrete_transcript_search_tool():
+    """Discover the default concrete transcript-search descriptor."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "transcripts_searchTranscript" in listed
+    metadata = listed["transcripts_searchTranscript"]["metadata"]
+    assert metadata["compositionBoundary"]["kind"] == "transcript_text_search"
+    assert metadata["emptyResultPolicy"] == "no_matches"
+    assert "representativeOnly" not in metadata
+
+
 def test_default_registry_includes_and_executes_video_statistics_tool():
     """Discover and invoke the default concrete video-statistics tool."""
     dispatcher = InMemoryToolDispatcher()

@@ -128,6 +128,85 @@ def test_timestamped_caption_descriptor_returns_safe_source_failure():
     assert "secret" not in str(error.value.details)
 
 
+def test_transcript_search_descriptor_registers_and_dispatches_the_timed_dependency_once():
+    """Register the concrete search descriptor with an injected timed dependency."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_tool_descriptor
+
+    calls = []
+
+    def timestamped_captions(arguments):
+        """Record the search dependency request and return one matching cue.
+
+        :param arguments: Timed-caption retrieval arguments.
+        :return: One selected transcript segment.
+        """
+        calls.append(arguments)
+        return {
+            "videoId": "abc",
+            "language": "en",
+            "languageSelectionSource": "source_default",
+            "captionTrackId": "caption-1",
+            "availability": "available",
+            "segments": [{"text": "Find this phrase", "startTimeSeconds": 1.0, "endTimeSeconds": 2.0}],
+        }
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_transcripts_search_transcript_tool_descriptor(timestamped_captions=timestamped_captions)])
+    result = dispatcher.call_tool("transcripts_searchTranscript", {"videoId": "abc", "query": "this phrase"})
+
+    assert calls == [{"videoId": "abc", "language": None}]
+    assert result["matches"][0]["startTimeSeconds"] == 1.0
+    assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
+
+
+def test_transcript_search_descriptor_forwards_normalized_explicit_language():
+    """Dispatch one canonical explicit language through the descriptor."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_tool_descriptor
+
+    calls = []
+    descriptor = build_transcripts_search_transcript_tool_descriptor(
+        timestamped_captions=lambda arguments: calls.append(arguments) or {
+            "videoId": "abc",
+            "language": "fr",
+            "languageSelectionSource": "explicit_language",
+            "captionTrackId": "caption-fr",
+            "availability": "available",
+            "segments": [{"text": "Bonjour plan", "startTimeSeconds": 0.0, "endTimeSeconds": 1.0}],
+        }
+    )
+
+    result = InMemoryToolDispatcher(tools=[descriptor]).call_tool(
+        "transcripts_searchTranscript", {"videoId": "abc", "query": "plan", "language": " FR "}
+    )
+
+    assert calls == [{"videoId": "abc", "language": "fr"}]
+    assert result["language"] == "fr"
+
+
+def test_transcript_search_descriptor_returns_a_bounded_chronological_match_collection():
+    """Apply a caller match cap after timed-segment ordering."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_tool_descriptor
+
+    result = InMemoryToolDispatcher(
+        tools=[
+            build_transcripts_search_transcript_tool_descriptor(
+                timestamped_captions=lambda _arguments: {
+                    "videoId": "abc",
+                    "language": "en",
+                    "languageSelectionSource": "source_default",
+                    "captionTrackId": "caption-1",
+                    "availability": "available",
+                    "segments": [
+                        {"text": "needle later", "startTimeSeconds": 4.0, "endTimeSeconds": 5.0},
+                        {"text": "needle earlier", "startTimeSeconds": 1.0, "endTimeSeconds": 2.0},
+                    ],
+                }
+            )
+        ]
+    ).call_tool("transcripts_searchTranscript", {"videoId": "abc", "query": "needle", "maxMatches": 1})
+
+    assert [match["startTimeSeconds"] for match in result["matches"]] == [1.0]
+
+
 class SuccessfulVideoLookup:
     """Return one source video for concrete registration tests."""
 

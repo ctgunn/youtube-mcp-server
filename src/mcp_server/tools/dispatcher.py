@@ -16,8 +16,10 @@ from mcp_server.tools.youtube_composed import (
     build_playlists_get_playlist_tool_descriptor,
     build_playlists_get_playlist_items_tool_descriptor,
     build_transcripts_get_transcript_tool_descriptor,
+    build_transcripts_get_timestamped_captions_handler,
     build_transcripts_get_timestamped_captions_tool_descriptor,
     build_transcripts_list_languages_tool_descriptor,
+    build_transcripts_search_transcript_tool_descriptor,
     build_videos_get_statistics_tool_descriptor,
     build_videos_get_video_tool_descriptor,
     build_videos_search_videos_tool_descriptor,
@@ -391,6 +393,12 @@ class InMemoryToolDispatcher:
             build_transcripts_get_timestamped_captions_tool_descriptor(
                 caption_list=build_captions_list_handler(**oauth_dependencies),
                 caption_download=build_captions_download_handler(**oauth_dependencies),
+            ),
+            build_transcripts_search_transcript_tool_descriptor(
+                timestamped_captions=build_transcripts_get_timestamped_captions_handler(
+                    caption_list=build_captions_list_handler(**oauth_dependencies),
+                    caption_download=build_captions_download_handler(**oauth_dependencies),
+                ),
             ),
             build_transcripts_list_languages_tool_descriptor(
                 caption_list=build_captions_list_handler(**oauth_dependencies),
