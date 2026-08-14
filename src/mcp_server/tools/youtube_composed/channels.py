@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from mcp_server.tools.youtube_common.channels import ChannelsListToolError, build_channels_list_handler
 from mcp_server.tools.youtube_common.conventions import safe_upstream_error_message, sanitize_error_details
 from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError, build_playlist_items_list_handler
+from mcp_server.tools.youtube_common.playlists import PlaylistsListToolError, build_playlists_list_handler
 from mcp_server.tools.youtube_common.search import SearchListToolError, build_search_list_handler
 from mcp_server.tools.youtube_composed.families import get_family
 
@@ -19,6 +20,8 @@ CHANNELS_GET_CHANNEL_TOOL_NAME = "channels_getChannel"
 CHANNELS_GET_CHANNELS_TOOL_NAME = "channels_getChannels"
 CHANNELS_LIST_VIDEOS_TOOL_NAME = "channels_listVideos"
 CHANNELS_LIST_VIDEOS_MAX_RESULTS = 50
+CHANNELS_LIST_PLAYLISTS_TOOL_NAME = "channels_listPlaylists"
+CHANNELS_LIST_PLAYLISTS_MAX_RESULTS = 50
 CHANNELS_SEARCH_CHANNELS_TOOL_NAME = "channels_searchChannels"
 CHANNELS_SEARCH_CHANNELS_MAX_RESULTS = 50
 CHANNELS_SEARCH_CHANNELS_ORDERS = ("date", "relevance", "title", "videoCount")
@@ -53,6 +56,15 @@ CHANNELS_LIST_VIDEOS_INPUT_SCHEMA = {
     "properties": {
         "channelId": {"type": "string", "minLength": 1},
         "maxResults": {"type": "integer", "minimum": 1, "maximum": CHANNELS_LIST_VIDEOS_MAX_RESULTS, "default": 10},
+    },
+    "additionalProperties": False,
+}
+CHANNELS_LIST_PLAYLISTS_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["channelId"],
+    "properties": {
+        "channelId": {"type": "string", "minLength": 1},
+        "maxResults": {"type": "integer", "minimum": 1, "maximum": CHANNELS_LIST_PLAYLISTS_MAX_RESULTS, "default": 25},
     },
     "additionalProperties": False,
 }
@@ -112,6 +124,10 @@ class ChannelsGetChannelsToolError(ChannelsGetChannelToolError):
 
 class ChannelsListVideosToolError(ChannelsGetChannelToolError):
     """Represent a safe caller-facing channel video-listing failure."""
+
+
+class ChannelsListPlaylistsToolError(ChannelsGetChannelToolError):
+    """Represent a safe caller-facing channel playlist-listing failure."""
 
 
 class ChannelsSearchChannelsToolError(ChannelsGetChannelToolError):
@@ -250,6 +266,27 @@ def validate_channels_list_videos_arguments(arguments: dict[str, Any]) -> dict[s
             category="invalid_parameters",
             details={"field": "maxResults"},
         )
+    return {"channelId": channel_id.strip(), "maxResults": max_results}
+
+
+def validate_channels_list_playlists_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize one public channel playlist-listing request.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Stripped channel identifier and bounded whole-number result limit.
+    :raises ChannelsListPlaylistsToolError: If a public input is invalid or unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise ChannelsListPlaylistsToolError("channels_listPlaylists arguments must be an object", category="invalid_parameters", details={"field": "arguments"})
+    unexpected_fields = set(arguments) - {"channelId", "maxResults"}
+    if unexpected_fields:
+        raise ChannelsListPlaylistsToolError("channels_listPlaylists received an unsupported field", category="invalid_parameters", details={"field": sorted(unexpected_fields)[0]})
+    channel_id = arguments.get("channelId")
+    if not isinstance(channel_id, str) or not channel_id.strip():
+        raise ChannelsListPlaylistsToolError("channels_listPlaylists requires a non-empty channelId", category="invalid_parameters", details={"field": "channelId"})
+    max_results = arguments.get("maxResults", 25)
+    if isinstance(max_results, bool) or not isinstance(max_results, int) or not 1 <= max_results <= CHANNELS_LIST_PLAYLISTS_MAX_RESULTS:
+        raise ChannelsListPlaylistsToolError(f"maxResults must be an integer from 1 through {CHANNELS_LIST_PLAYLISTS_MAX_RESULTS}", category="invalid_parameters", details={"field": "maxResults"})
     return {"channelId": channel_id.strip(), "maxResults": max_results}
 
 
@@ -888,6 +925,142 @@ def build_channels_list_videos_tool_descriptor(*, channels=None, playlist_items=
         "handler": build_channels_list_videos_handler(channels=channels, playlist_items=playlist_items),
         "metadata": build_channels_list_videos_metadata(),
     }
+
+
+def build_channels_list_playlists_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for source-ordered channel playlist listing.
+
+    :return: JSON-compatible executable tool metadata without a representative marker.
+    """
+    return {
+        "name": CHANNELS_LIST_PLAYLISTS_TOOL_NAME,
+        "family": "channels",
+        "parameters": ["channelId", "maxResults"],
+        "inputContract": CHANNELS_LIST_PLAYLISTS_INPUT_SCHEMA,
+        "compositionBoundary": {
+            "kind": "source_ordered_collection",
+            "lowerLayerDependencies": ["channels.list", "playlists.list"],
+            "boundedness": "one channel verification and one channel-scoped playlist listing; 1-50 records",
+            "partialResultPolicy": "A verified channel with an empty playlist collection returns an empty result; an unavailable channel is a whole-request error.",
+        },
+        "lowerLayerDependencies": ["channels.list", "playlists.list"],
+        "orderingSemantics": {"ordering": "Preserves usable source playlist order observed at request time.", "rankingApplied": False, "requestTimeVariability": "Later requests can differ when public channel playlists change."},
+        "authAndQuotaNotes": ["Uses configured public-read capability and does not request owner-scoped data.", "The bounded channel verification and playlist listing consume quota and can fail when capacity is exhausted."],
+        "responseFields": [
+            {"fieldName": "items.playlistId", "category": "raw_upstream", "source": "id"},
+            {"fieldName": "items.title", "category": "normalized", "source": "snippet.title"},
+            {"fieldName": "items.description", "category": "raw_upstream", "source": "snippet.description"},
+            {"fieldName": "items.channelId", "category": "raw_upstream", "source": "snippet.channelId"},
+            {"fieldName": "items.channelTitle", "category": "raw_upstream", "source": "snippet.channelTitle"},
+            {"fieldName": "items.publishedAt", "category": "raw_upstream", "source": "snippet.publishedAt"},
+            {"fieldName": "items.thumbnails", "category": "raw_upstream", "source": "snippet.thumbnails"},
+            {"fieldName": "items.itemCount", "category": "raw_upstream", "source": "contentDetails.itemCount"},
+            {"fieldName": "items.privacyStatus", "category": "raw_upstream", "source": "status.privacyStatus"},
+            {"fieldName": "channelId", "category": "normalized", "source": "validated caller input"},
+            {"fieldName": "returnedCount", "category": "normalized", "source": "returned record count"},
+            {"fieldName": "appliedLimit", "category": "normalized", "source": "validated caller input"},
+            {"fieldName": "appliedInputs", "category": "normalized", "source": "validated caller input"},
+            {"fieldName": "collectionContext", "category": "normalized", "source": "source-order contract"},
+        ],
+        "errorCategories": ["invalid_parameters", "unavailable_resource", "authorization_sensitive_data", "quota_exhaustion", "upstream_failure"],
+        "errorGuidance": {"invalid_parameters": "Correct the identified request field and retry.", "unavailable_resource": "Use a different accessible channel identifier.", "authorization_sensitive_data": "Obtain appropriate public-read capability if applicable.", "quota_exhaustion": "Retry after capacity is available.", "upstream_failure": "Retry when the source service is available."},
+    }
+
+
+def _channels_list_playlists_error(error: ChannelsListToolError | PlaylistsListToolError) -> ChannelsListPlaylistsToolError:
+    """Translate one required lower-layer listing failure to the public taxonomy.
+
+    :param error: Safe lower-layer channel or playlist-listing error.
+    :return: Sanitized public channel playlist-listing error.
+    """
+    if error.category in {"resource_not_found", "removed"}:
+        return ChannelsListPlaylistsToolError("The requested channel is unavailable", category="unavailable_resource", details={"resource": "channel"})
+    category = {"invalid_request": "invalid_parameters", "authentication_failed": "authorization_sensitive_data", "authorization_failed": "authorization_sensitive_data", "quota_exhausted": "quota_exhaustion"}.get(error.category, "upstream_failure")
+    return ChannelsListPlaylistsToolError(safe_upstream_error_message(), category=category, details=error.details)
+
+
+def _channel_playlist_record(source_item: Any) -> dict[str, Any] | None:
+    """Normalize one source playlist record when it has stable identity and title.
+
+    :param source_item: Candidate lower-layer playlist record.
+    :return: Normalized public record, or ``None`` when required source values are unusable.
+    """
+    if not isinstance(source_item, dict):
+        return None
+    playlist_id = source_item.get("id")
+    snippet = source_item.get("snippet") if isinstance(source_item.get("snippet"), dict) else {}
+    title = snippet.get("title")
+    if not isinstance(playlist_id, str) or not playlist_id.strip() or not isinstance(title, str):
+        return None
+    result: dict[str, Any] = {"playlistId": playlist_id.strip(), "title": title}
+    for field in ("description", "channelId", "channelTitle", "publishedAt", "thumbnails"):
+        _copy_if_present(result, snippet, field)
+    content_details = source_item.get("contentDetails") if isinstance(source_item.get("contentDetails"), dict) else {}
+    status = source_item.get("status") if isinstance(source_item.get("status"), dict) else {}
+    _copy_if_present(result, content_details, "itemCount")
+    _copy_if_present(result, status, "privacyStatus")
+    return result
+
+
+def _channel_playlist_result(channel_id: str, max_results: int, items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build one stable public channel playlist-listing result.
+
+    :param channel_id: Normalized requested channel identifier.
+    :param max_results: Validated source listing limit.
+    :param items: Normalized playlist records in source order.
+    :return: Public listing with normalized context and field provenance.
+    """
+    provenance = {"items.playlistId": "raw_upstream", "items.title": "normalized", "channelId": "normalized", "returnedCount": "normalized", "appliedLimit": "normalized", "appliedInputs": "normalized", "collectionContext": "normalized"}
+    for field in ("description", "channelId", "channelTitle", "publishedAt", "thumbnails", "itemCount", "privacyStatus"):
+        if any(field in item for item in items):
+            provenance[f"items.{field}"] = "raw_upstream"
+    return {"channelId": channel_id, "items": items, "returnedCount": len(items), "appliedLimit": max_results, "appliedInputs": {"channelId": channel_id, "maxResults": max_results}, "collectionContext": {"source": "channel_playlist_collection", "ordering": "source_order_at_request_time", "rankingApplied": False, "publicContentOnly": True, "stateObservedAtRequest": True}, "fieldProvenance": provenance}
+
+
+def build_channels_list_playlists_handler(*, channels=None, playlists=None):
+    """Build a callable handler for one bounded channel playlist listing.
+
+    :param channels: Optional lower-level channel-list handler override for tests.
+    :param playlists: Optional lower-level playlist-list handler override for tests.
+    :return: Callable public channel playlist-listing handler.
+    """
+    selected_channels = channels or build_channels_list_handler()
+    selected_playlists = playlists or build_playlists_list_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Verify one channel and return its normalized ordered playlists.
+
+        :param arguments: Caller-provided public arguments.
+        :return: Bounded source-ordered public playlist records.
+        :raises ChannelsListPlaylistsToolError: If validation or a required lookup fails.
+        """
+        request = validate_channels_list_playlists_arguments(arguments)
+        try:
+            verified = selected_channels({"part": "id", "id": request["channelId"]})
+        except ChannelsListToolError as exc:
+            raise _channels_list_playlists_error(exc) from exc
+        source_channels = verified.get("items") if isinstance(verified, dict) and isinstance(verified.get("items"), list) else []
+        if not source_channels or not isinstance(source_channels[0], dict):
+            raise ChannelsListPlaylistsToolError("The requested channel is unavailable", category="unavailable_resource", details={"resource": "channel"})
+        try:
+            payload = selected_playlists({"part": "snippet,contentDetails,status", "channelId": request["channelId"], "maxResults": request["maxResults"]})
+        except PlaylistsListToolError as exc:
+            raise _channels_list_playlists_error(exc) from exc
+        source_items = payload.get("items") if isinstance(payload, dict) and isinstance(payload.get("items"), list) else []
+        items = [record for source_item in source_items if (record := _channel_playlist_record(source_item)) is not None]
+        return _channel_playlist_result(request["channelId"], request["maxResults"], items)
+
+    return handler
+
+
+def build_channels_list_playlists_tool_descriptor(*, channels=None, playlists=None) -> dict[str, Any]:
+    """Build the executable MCP descriptor for ``channels_listPlaylists``.
+
+    :param channels: Optional lower-level channel-list handler override for tests.
+    :param playlists: Optional lower-level playlist-list handler override for tests.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {"name": CHANNELS_LIST_PLAYLISTS_TOOL_NAME, "description": "List publicly accessible playlists for one YouTube channel in source order.", "inputSchema": CHANNELS_LIST_PLAYLISTS_INPUT_SCHEMA, "handler": build_channels_list_playlists_handler(channels=channels, playlists=playlists), "metadata": build_channels_list_playlists_metadata()}
 
 
 def build_channels_get_channels_metadata() -> dict[str, Any]:

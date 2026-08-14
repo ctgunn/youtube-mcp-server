@@ -192,6 +192,18 @@ def test_default_registry_includes_channel_video_listing_tool():
     assert "representativeOnly" not in listed["channels_listVideos"]["metadata"]
 
 
+def test_default_registry_includes_channel_playlist_listing_tool():
+    """Discover the concrete channel playlist-listing descriptor by default.
+
+    :return: ``None`` after validating additive registration.
+    """
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channels_listPlaylists" in listed
+    assert listed["channels_listPlaylists"]["metadata"]["compositionBoundary"]["kind"] == "source_ordered_collection"
+
+
 def test_default_registry_includes_playlist_item_retrieval_tool():
     """Discover the default concrete playlist item retrieval descriptor.
 
