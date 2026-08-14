@@ -138,6 +138,16 @@ def test_default_registry_includes_channel_details_tool():
     assert "representativeOnly" not in listed["channels_getChannel"]["metadata"]
 
 
+def test_default_registry_includes_channel_statistics_tool():
+    """Discover the default concrete channel-statistics descriptor."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channels_getStatistics" in listed
+    assert listed["channels_getStatistics"]["metadata"]["compositionBoundary"]["kind"] == "normalized_retrieval"
+    assert "representativeOnly" not in listed["channels_getStatistics"]["metadata"]
+
+
 def test_default_registry_includes_batch_channel_details_tool():
     """Discover the default concrete batch channel-details descriptor."""
     dispatcher = InMemoryToolDispatcher()

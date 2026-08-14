@@ -698,5 +698,40 @@ def test_channel_playlist_listing_routes_sanitized_source_errors():
     assert "hidden" not in str(response["error"])
 
 
+def test_channel_statistics_lookup_failure_routes_without_sensitive_details():
+    """Serialize a channel-statistics failure as a safe MCP error.
+
+    :return: ``None`` after validating protocol-safe error serialization.
+    """
+    from mcp_server.tools.youtube_common.channels import ChannelsListToolError
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_tool_descriptor
+
+    def channels(_arguments):
+        """Raise a controlled capacity failure with unsafe detail fields.
+
+        :param _arguments: Ignored lower-level request arguments.
+        :raises ChannelsListToolError: Always raised to verify protocol mapping.
+        """
+        raise ChannelsListToolError(
+            "quota",
+            category="quota_exhausted",
+            details={"api_key": "hidden", "stack_trace": "hidden"},
+        )
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_channels_get_statistics_tool_descriptor(channels=channels)])
+    response = route_mcp_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "req-channel-statistics-error",
+            "method": "tools/call",
+            "params": {"name": "channels_getStatistics", "arguments": {"channelId": "UC123"}},
+        },
+        dispatcher,
+    )
+
+    assert response["error"]["data"]["category"] == "quota_exhaustion"
+    assert "hidden" not in str(response["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -69,6 +69,59 @@ def test_channel_details_contract_discloses_safe_partial_enrichment_behavior():
     assert metadata["errorGuidance"]["partial_enrichment_failure"].startswith("Use the returned profile")
 
 
+def test_channel_statistics_contract_exposes_concrete_single_channel_schema_and_boundary():
+    """Require executable discovery metadata for public channel statistics."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_tool_descriptor
+
+    descriptor = build_channels_get_statistics_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["name"] == "channels_getStatistics"
+    assert descriptor["inputSchema"] == {
+        "type": "object",
+        "required": ["channelId"],
+        "properties": {"channelId": {"type": "string", "minLength": 1}},
+        "additionalProperties": False,
+    }
+    assert metadata["compositionBoundary"]["kind"] == "normalized_retrieval"
+    assert metadata["lowerLayerDependencies"] == ["channels.list"]
+    assert "one-unit" in metadata["authAndQuotaNotes"][0]
+    assert "representativeOnly" not in metadata
+
+
+def test_channel_statistics_contract_documents_hidden_and_unavailable_metric_states():
+    """Require source-aware state and provenance disclosure for statistics."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_metadata
+
+    metadata = build_channels_get_statistics_metadata()
+    fields = {field["fieldName"]: field for field in metadata["responseFields"]}
+
+    assert set(metadata["expectedMetrics"]) == {"subscriberCount", "videoCount", "viewCount"}
+    assert fields["statistics.*.value"]["category"] == "raw_upstream"
+    assert fields["statistics.*.state"]["category"] == "normalized"
+    assert "hidden" in metadata["metricAvailability"]
+    assert "no numeric value" in metadata["metricAvailability"]["hidden"]
+    assert "hiddenSubscriberCount" not in str(metadata["responseFields"])
+    assert set(metadata["sourceCaveats"]) == {"subscriberCount", "videoCount", "viewCount"}
+
+
+def test_channel_statistics_contract_documents_the_safe_error_taxonomy():
+    """Require all caller-visible channel-statistics error categories."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_metadata
+
+    metadata = build_channels_get_statistics_metadata()
+
+    assert metadata["errorCategories"] == [
+        "invalid_parameters",
+        "unavailable_resource",
+        "authorization_sensitive_data",
+        "quota_exhaustion",
+        "upstream_failure",
+    ]
+    assert metadata["errorGuidance"]["unavailable_resource"].startswith("Use a different")
+    assert "token" not in str(metadata).lower()
+
+
 def test_batch_channel_details_contract_exposes_bounded_ordered_schema():
     """Require the public batch schema, defaults, and bounded discovery facts."""
     from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_tool_descriptor

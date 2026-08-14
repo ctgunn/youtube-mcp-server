@@ -103,6 +103,144 @@ def test_channel_details_preserves_sparse_public_fields_without_fabrication():
     assert "latestVideoPublishedAt" not in result
 
 
+def test_channel_statistics_validates_one_trimmed_identifier_and_normalizes_available_counts():
+    """Require one statistics lookup and preserve all reported source counts.
+
+    A reported source zero remains available rather than being mistaken for a
+    missing statistic.
+    """
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsGetStatisticsToolError,
+        build_channels_get_statistics_handler,
+        validate_channels_get_statistics_arguments,
+    )
+
+    for arguments in (None, {}, {"channelId": " "}, {"channelId": 123}, {"channelId": "UC123", "part": "statistics"}):
+        with pytest.raises(ChannelsGetStatisticsToolError) as exc_info:
+            validate_channels_get_statistics_arguments(arguments)
+        assert exc_info.value.category == "invalid_parameters"
+
+    calls = []
+
+    def channels(arguments):
+        """Record one public statistics lookup and return source counts.
+
+        :param arguments: Lower-level channel-list arguments.
+        :return: One available channel statistics record.
+        """
+        calls.append(arguments)
+        return {
+            "items": [
+                {
+                    "id": "UC123",
+                    "statistics": {"subscriberCount": "1200", "videoCount": "42", "viewCount": "0"},
+                }
+            ]
+        }
+
+    result = build_channels_get_statistics_handler(channels=channels)({"channelId": " UC123 "})
+
+    assert calls == [{"id": "UC123", "part": "statistics"}]
+    assert result["channelId"] == "UC123"
+    assert result["statistics"] == {
+        "subscriberCount": {"state": "available", "value": "1200", "provenance": "source_provided"},
+        "videoCount": {"state": "available", "value": "42", "provenance": "source_provided"},
+        "viewCount": {"state": "available", "value": "0", "provenance": "source_provided"},
+    }
+
+
+def test_channel_statistics_distinguishes_hidden_and_unavailable_metrics_without_values():
+    """Give source hiddenness precedence and preserve unavailable states."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_handler
+
+    result = build_channels_get_statistics_handler(
+        channels=lambda _arguments: {
+            "items": [
+                {
+                    "id": "UC123",
+                    "statistics": {"hiddenSubscriberCount": True, "subscriberCount": "1200", "videoCount": "0"},
+                }
+            ]
+        }
+    )({"channelId": "UC123"})
+
+    assert result["statistics"]["subscriberCount"] == {"state": "hidden", "provenance": "normalized"}
+    assert "value" not in result["statistics"]["subscriberCount"]
+    assert result["statistics"]["videoCount"] == {"state": "available", "value": "0", "provenance": "source_provided"}
+    assert result["statistics"]["viewCount"] == {"state": "unavailable", "provenance": "normalized"}
+    assert "value" not in result["statistics"]["viewCount"]
+    assert "hiddenSubscriberCount" not in str(result)
+
+
+@pytest.mark.parametrize("statistics", [None, "not-an-object", {"subscriberCount": "not-a-count", "videoCount": -1, "viewCount": False}])
+def test_channel_statistics_marks_missing_or_malformed_counts_unavailable(statistics):
+    """Avoid fabricating values for missing or malformed source counts.
+
+    :param statistics: Controlled invalid or incomplete source statistics value.
+    """
+    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_handler
+
+    result = build_channels_get_statistics_handler(
+        channels=lambda _arguments: {"items": [{"id": "UC123", "statistics": statistics}]}
+    )({"channelId": "UC123"})
+
+    for metric in ("subscriberCount", "videoCount", "viewCount"):
+        assert result["statistics"][metric] == {"state": "unavailable", "provenance": "normalized"}
+        assert "value" not in result["statistics"][metric]
+
+
+@pytest.mark.parametrize("payload", [{"items": []}, {"items": [None]}, {"items": "not-a-list"}])
+def test_channel_statistics_maps_empty_or_malformed_items_to_unavailable(payload):
+    """Return one unavailable-resource outcome for unusable item collections.
+
+    :param payload: Controlled lower-level response lacking one usable channel.
+    """
+    from mcp_server.tools.youtube_composed.channels import ChannelsGetStatisticsToolError, build_channels_get_statistics_handler
+
+    with pytest.raises(ChannelsGetStatisticsToolError) as exc_info:
+        build_channels_get_statistics_handler(channels=lambda _arguments: payload)({"channelId": "UC123"})
+
+    assert exc_info.value.category == "unavailable_resource"
+    assert exc_info.value.details == {"resource": "channel"}
+
+
+@pytest.mark.parametrize(
+    ("lower_category", "expected_category"),
+    [
+        ("resource_not_found", "unavailable_resource"),
+        ("authorization_failed", "authorization_sensitive_data"),
+        ("quota_exhausted", "quota_exhaustion"),
+        ("endpoint_unavailable", "upstream_failure"),
+    ],
+)
+def test_channel_statistics_maps_lower_lookup_failures_safely(lower_category, expected_category):
+    """Translate source lookup failures without retaining unsafe diagnostics.
+
+    :param lower_category: Lower-level category emitted by the controlled lookup.
+    :param expected_category: Required safe public category.
+    """
+    from mcp_server.tools.youtube_common.channels import ChannelsListToolError
+    from mcp_server.tools.youtube_composed.channels import ChannelsGetStatisticsToolError, build_channels_get_statistics_handler
+
+    def failing_channels(_arguments):
+        """Raise one controlled lower-layer error with unsafe details.
+
+        :param _arguments: Ignored lower-level request arguments.
+        :raises ChannelsListToolError: Always raised to test safe error translation.
+        """
+        raise ChannelsListToolError(
+            "source failure",
+            category=lower_category,
+            details={"reason": "source failure", "api_key": "hidden", "stack_trace": "hidden"},
+        )
+
+    with pytest.raises(ChannelsGetStatisticsToolError) as exc_info:
+        build_channels_get_statistics_handler(channels=failing_channels)({"channelId": "UC123"})
+
+    assert exc_info.value.category == expected_category
+    assert "hidden" not in str(exc_info.value.details)
+
+
 def test_channel_details_extracts_only_valid_deduplicated_public_contacts():
     """Normalize public description contacts without reading owner-only fields."""
     from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_handler
