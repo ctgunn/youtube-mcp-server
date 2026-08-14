@@ -670,5 +670,33 @@ class MethodRoutingTests(unittest.TestCase):
         self.assertNotIn("hidden", str(response["error"]))
 
 
+def test_channel_playlist_listing_routes_sanitized_source_errors():
+    """Serialize channel playlist-listing failures without unsafe details.
+
+    :return: ``None`` after validating the safe protocol error category.
+    """
+    from mcp_server.tools.youtube_common.playlists import PlaylistsListToolError
+    from mcp_server.tools.youtube_composed.channels import build_channels_list_playlists_tool_descriptor
+
+    def playlists(_arguments):
+        """Raise a source failure with details forbidden to public callers.
+
+        :param _arguments: Ignored lower-layer playlist-list arguments.
+        :raises PlaylistsListToolError: Always raised for protocol coverage.
+        """
+        raise PlaylistsListToolError("hidden", category="quota_exhausted", details={"api_key": "hidden", "raw_body": "hidden"})
+
+    dispatcher = InMemoryToolDispatcher(
+        tools=[build_channels_list_playlists_tool_descriptor(channels=lambda _arguments: {"items": [{"id": "UC123"}]}, playlists=playlists)]
+    )
+    response = route_mcp_request(
+        {"jsonrpc": "2.0", "id": "req-channel-playlists-error", "method": "tools/call", "params": {"name": "channels_listPlaylists", "arguments": {"channelId": "UC123"}}},
+        dispatcher,
+    )
+
+    assert response["error"]["data"]["category"] == "quota_exhaustion"
+    assert "hidden" not in str(response["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

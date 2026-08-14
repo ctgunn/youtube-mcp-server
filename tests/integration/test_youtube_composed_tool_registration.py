@@ -822,3 +822,33 @@ def test_channels_list_videos_descriptor_discloses_non_search_behavior_to_client
     assert metadata["orderingSemantics"]["rankingApplied"] is False
     assert metadata["publicContentPolicy"].startswith("Only publicly available")
     assert "search-oriented" in metadata["searchGuidance"].lower()
+
+
+def test_channels_list_playlists_descriptor_registers_and_executes():
+    """Register and invoke a concrete channel playlist-listing descriptor.
+
+    :return: ``None`` after asserting two bounded injected reads.
+    """
+    from mcp_server.tools.youtube_composed.channels import build_channels_list_playlists_tool_descriptor
+
+    calls = []
+    def channels(arguments):
+        """Record a verification request and return one channel.
+
+        :param arguments: Lower-level channel-list arguments.
+        :return: One public channel record.
+        """
+        calls.append(arguments)
+        return {"items": [{"id": "UC123"}]}
+    def playlists(arguments):
+        """Record a listing request and return one playlist.
+
+        :param arguments: Lower-level playlist-list arguments.
+        :return: One public playlist record.
+        """
+        calls.append(arguments)
+        return {"items": [{"id": "PL123", "snippet": {"title": "Example"}}]}
+
+    result = InMemoryToolDispatcher(tools=[build_channels_list_playlists_tool_descriptor(channels=channels, playlists=playlists)]).call_tool("channels_listPlaylists", {"channelId": "UC123"})
+    assert calls == [{"part": "id", "id": "UC123"}, {"part": "snippet,contentDetails,status", "channelId": "UC123", "maxResults": 25}]
+    assert result["items"] == [{"playlistId": "PL123", "title": "Example"}]

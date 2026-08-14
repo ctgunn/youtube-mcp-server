@@ -857,3 +857,74 @@ def test_channels_list_videos_maps_required_lookup_failures_and_discloses_safe_s
     assert partial["partialAvailability"] == {"status": "partial", "omittedItemCount": 1, "reasons": ["unusable_source_item"]}
     assert partial["fieldProvenance"]["partialAvailability"] == "normalized"
     assert "hidden" not in str(partial)
+
+
+def test_channels_list_playlists_validates_and_normalizes_a_verified_channel_listing():
+    """Validate, verify, and normalize a bounded channel playlist listing.
+
+    :return: ``None`` after asserting the public listing contract.
+    """
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsListPlaylistsToolError,
+        build_channels_list_playlists_handler,
+        validate_channels_list_playlists_arguments,
+    )
+
+    assert validate_channels_list_playlists_arguments({"channelId": " UC123 "}) == {"channelId": "UC123", "maxResults": 25}
+    for arguments, field in (({}, "channelId"), ({"channelId": " "}, "channelId"), ({"channelId": "UC123", "maxResults": 0}, "maxResults"), ({"channelId": "UC123", "maxResults": 51}, "maxResults"), ({"channelId": "UC123", "maxResults": True}, "maxResults"), ({"channelId": "UC123", "pageToken": "next"}, "pageToken")):
+        with pytest.raises(ChannelsListPlaylistsToolError) as error:
+            validate_channels_list_playlists_arguments(arguments)
+        assert error.value.details == {"field": field}
+
+    calls = []
+    def channels(arguments):
+        """Record the one public channel verification.
+
+        :param arguments: Lower-level channel-list arguments.
+        :return: One verified public channel.
+        """
+        calls.append(("channels", arguments))
+        return {"items": [{"id": "UC123"}]}
+    def playlists(arguments):
+        """Record the one ordered public playlist listing.
+
+        :param arguments: Lower-level playlist-list arguments.
+        :return: Ordered playlist source records.
+        """
+        calls.append(("playlists", arguments))
+        return {"items": [{"id": "PL1", "snippet": {"title": "First", "description": "One"}, "contentDetails": {"itemCount": 2}, "status": {"privacyStatus": "public"}}, {"id": "PL2", "snippet": {"title": "Second"}}, {"id": "PL3", "snippet": {}}]}
+
+    result = build_channels_list_playlists_handler(channels=channels, playlists=playlists)({"channelId": " UC123 ", "maxResults": 2})
+    assert calls == [("channels", {"part": "id", "id": "UC123"}), ("playlists", {"part": "snippet,contentDetails,status", "channelId": "UC123", "maxResults": 2})]
+    assert result["items"] == [{"playlistId": "PL1", "title": "First", "description": "One", "itemCount": 2, "privacyStatus": "public"}, {"playlistId": "PL2", "title": "Second"}]
+    assert result["returnedCount"] == 2
+    assert result["appliedLimit"] == 2
+    assert result["collectionContext"]["ordering"] == "source_order_at_request_time"
+    assert result["collectionContext"]["rankingApplied"] is False
+    assert result["fieldProvenance"]["items.playlistId"] == "raw_upstream"
+
+
+def test_channels_list_playlists_keeps_empty_unavailable_and_failures_distinct():
+    """Keep successful emptiness and sanitized failures caller-distinguishable.
+
+    :return: ``None`` after asserting safe listing outcomes.
+    """
+    from mcp_server.tools.youtube_common.playlists import PlaylistsListToolError
+    from mcp_server.tools.youtube_composed.channels import ChannelsListPlaylistsToolError, build_channels_list_playlists_handler
+
+    empty = build_channels_list_playlists_handler(channels=lambda _arguments: {"items": [{"id": "UC123"}]}, playlists=lambda _arguments: {"items": []})({"channelId": "UC123"})
+    assert empty["items"] == []
+    with pytest.raises(ChannelsListPlaylistsToolError) as unavailable:
+        build_channels_list_playlists_handler(channels=lambda _arguments: {"items": []}, playlists=lambda _arguments: {"items": []})({"channelId": "UC404"})
+    assert unavailable.value.category == "unavailable_resource"
+    def denied(_arguments):
+        """Raise an access failure with unsafe lower-layer details.
+
+        :param _arguments: Ignored lower-layer playlist-list arguments.
+        :raises PlaylistsListToolError: Always raised for safe mapping coverage.
+        """
+        raise PlaylistsListToolError("hidden", category="authorization_failed", details={"api_key": "hidden"})
+    with pytest.raises(ChannelsListPlaylistsToolError) as restricted:
+        build_channels_list_playlists_handler(channels=lambda _arguments: {"items": [{"id": "UC123"}]}, playlists=denied)({"channelId": "UC123"})
+    assert restricted.value.category == "authorization_sensitive_data"
+    assert "hidden" not in str(restricted.value.details)

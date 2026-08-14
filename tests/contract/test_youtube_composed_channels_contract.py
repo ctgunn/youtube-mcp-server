@@ -243,3 +243,22 @@ def test_channels_list_videos_contract_discloses_provenance_ordering_and_safe_em
         "safeAggregateOnly": True,
         "requiredLookupFailure": "whole_request_error",
     }
+
+
+def test_channels_list_playlists_contract_exposes_the_bounded_two_read_listing():
+    """Require discovery metadata for concrete channel playlist listing.
+
+    :return: ``None`` after validating public schema and metadata.
+    """
+    from mcp_server.tools.youtube_composed.channels import build_channels_list_playlists_tool_descriptor
+
+    descriptor = build_channels_list_playlists_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["name"] == "channels_listPlaylists"
+    assert descriptor["inputSchema"]["properties"]["maxResults"] == {"type": "integer", "minimum": 1, "maximum": 50, "default": 25}
+    assert metadata["compositionBoundary"]["kind"] == "source_ordered_collection"
+    assert metadata["lowerLayerDependencies"] == ["channels.list", "playlists.list"]
+    assert metadata["orderingSemantics"]["rankingApplied"] is False
+    assert metadata["errorCategories"] == ["invalid_parameters", "unavailable_resource", "authorization_sensitive_data", "quota_exhaustion", "upstream_failure"]
+    assert "representativeOnly" not in metadata
