@@ -41,6 +41,18 @@ TRANSCRIPTS_GET_TIMESTAMPED_CAPTIONS_INPUT_SCHEMA = {
     },
     "additionalProperties": False,
 }
+TRANSCRIPTS_SEARCH_TRANSCRIPT_TOOL_NAME = "transcripts_searchTranscript"
+TRANSCRIPTS_SEARCH_TRANSCRIPT_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["videoId", "query"],
+    "properties": {
+        "videoId": {"type": "string", "minLength": 1},
+        "query": {"type": "string", "minLength": 1},
+        "language": {"type": "string", "minLength": 1},
+        "maxMatches": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10},
+    },
+    "additionalProperties": False,
+}
 _LANGUAGE_PATTERN = re.compile(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*")
 _VTT_TIMESTAMP_PATTERN = re.compile(r"(?:(?P<hours>\d+):)?(?P<minutes>[0-5]\d):(?P<seconds>[0-5]\d\.\d{3})")
 
@@ -95,6 +107,26 @@ class TranscriptsGetTimestampedCaptionsToolError(ValueError):
 
     def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
         """Initialize the safe timestamped-caption retrieval error.
+
+        :param message: Caller-safe explanation.
+        :param category: Stable public error category.
+        :param details: Candidate safe diagnostic details.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = sanitize_error_details(details or {})
+
+
+class TranscriptsSearchTranscriptToolError(ValueError):
+    """Represent a safe caller-facing transcript-search failure.
+
+    :param message: Caller-safe explanation.
+    :param category: Stable public error category.
+    :param details: Candidate safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the safe transcript-search error.
 
         :param message: Caller-safe explanation.
         :param category: Stable public error category.
@@ -209,6 +241,88 @@ def validate_transcripts_get_timestamped_captions_arguments(arguments: dict[str,
         "videoId": video_id.strip(),
         "language": _normalize_timestamped_caption_language(language) if language is not None else None,
     }
+
+
+def validate_transcripts_search_transcript_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate one public transcript-search request.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Normalized video identifier, query, and optional search inputs.
+    :raises TranscriptsSearchTranscriptToolError: If required public text is invalid.
+    """
+    if not isinstance(arguments, dict):
+        raise TranscriptsSearchTranscriptToolError(
+            "transcripts_searchTranscript arguments must be an object",
+            category="invalid_parameters",
+            details={"field": "arguments"},
+        )
+    unexpected = set(arguments) - {"videoId", "query", "language", "maxMatches"}
+    if unexpected:
+        raise TranscriptsSearchTranscriptToolError(
+            "transcripts_searchTranscript received an unsupported field",
+            category="invalid_parameters",
+            details={"field": sorted(unexpected)[0]},
+        )
+    video_id = arguments.get("videoId")
+    if not isinstance(video_id, str) or not video_id.strip():
+        raise TranscriptsSearchTranscriptToolError(
+            "transcripts_searchTranscript requires a non-empty videoId",
+            category="invalid_parameters",
+            details={"field": "videoId"},
+        )
+    query = arguments.get("query")
+    if not isinstance(query, str) or not query.strip():
+        raise TranscriptsSearchTranscriptToolError(
+            "transcripts_searchTranscript requires a non-empty query",
+            category="invalid_parameters",
+            details={"field": "query"},
+        )
+    language = arguments.get("language")
+    if language is not None and not isinstance(language, str):
+        raise TranscriptsSearchTranscriptToolError(
+            "language must be a valid non-empty language tag",
+            category="invalid_parameters",
+            details={"field": "language"},
+        )
+    max_matches = arguments.get("maxMatches", 10)
+    if type(max_matches) is not int or not 1 <= max_matches <= 50:
+        raise TranscriptsSearchTranscriptToolError(
+            "maxMatches must be an integer from 1 through 50",
+            category="invalid_parameters",
+            details={"field": "maxMatches"},
+        )
+    return {
+        "videoId": video_id.strip(),
+        "query": query.strip(),
+        "language": _normalize_transcript_search_language(language) if language is not None else None,
+        "maxMatches": max_matches,
+    }
+
+
+def _normalize_transcript_search_language(value: str) -> str:
+    """Validate and canonicalize one transcript-search language tag.
+
+    :param value: Candidate caller-requested language text.
+    :return: Canonicalized BCP-47 language tag.
+    :raises TranscriptsSearchTranscriptToolError: If the language is malformed.
+    """
+    text = value.strip()
+    if not text or not _LANGUAGE_PATTERN.fullmatch(text):
+        raise TranscriptsSearchTranscriptToolError(
+            "language must be a valid non-empty language tag",
+            category="invalid_parameters",
+            details={"field": "language"},
+        )
+    parts = text.split("-")
+    return "-".join(
+        [
+            parts[0].lower(),
+            *[
+                part.upper() if len(part) == 2 else part.title() if len(part) == 4 else part.lower()
+                for part in parts[1:]
+            ],
+        ]
+    )
 
 
 def _normalize_timestamped_caption_language(value: str) -> str:
@@ -428,6 +542,154 @@ def build_transcripts_get_timestamped_captions_handler(*, caption_list=None, cap
                 "segments.text": "normalized",
                 "segments.startTimeSeconds": "normalized",
                 "segments.endTimeSeconds": "normalized",
+            },
+        }
+
+    return handler
+
+
+def _transcript_search_snippet(text: str, match_start: int, match_end: int) -> str:
+    """Build a bounded source-segment snippet around one literal match.
+
+    :param text: Normalized source segment text.
+    :param match_start: Inclusive first-match offset in ``text``.
+    :param match_end: Exclusive first-match offset in ``text``.
+    :return: At most 160 source-text characters with omission ellipses.
+    """
+    maximum_characters = 160
+    if len(text) <= maximum_characters:
+        return text
+    source_budget = maximum_characters - 6
+    match_length = min(match_end - match_start, source_budget)
+    remaining = source_budget - match_length
+    start = max(0, match_start - remaining // 2)
+    end = min(len(text), max(match_end, match_start + match_length) + (remaining - (match_start - start)))
+    if end - start < source_budget:
+        start = max(0, end - source_budget)
+    snippet = text[start:end]
+    return ("..." if start else "") + snippet + ("..." if end < len(text) else "")
+
+
+def _casefolded_source_span(text: str, query: str) -> tuple[int, int] | None:
+    """Locate a case-folded query and map it back to source-text offsets.
+
+    :param text: Source segment text.
+    :param query: Trimmed caller query.
+    :return: Inclusive/exclusive source offsets, or ``None`` when absent.
+    """
+    folded_parts = []
+    source_offsets = []
+    for source_index, character in enumerate(text):
+        folded_character = character.casefold()
+        folded_parts.append(folded_character)
+        source_offsets.extend([source_index] * len(folded_character))
+    match_start = "".join(folded_parts).find(query.casefold())
+    if match_start < 0:
+        return None
+    match_end = match_start + len(query.casefold())
+    return source_offsets[match_start], source_offsets[match_end - 1] + 1
+
+
+def _transcript_search_matches(segments: Any, query: str) -> list[dict[str, Any]]:
+    """Find one chronological literal match per valid timed source segment.
+
+    :param segments: Candidate normalized timestamped segments.
+    :param query: Trimmed caller query.
+    :return: Chronologically ordered source-segment match records.
+    :raises TranscriptsSearchTranscriptToolError: If segment timing is malformed.
+    """
+    if not isinstance(segments, list):
+        raise TranscriptsSearchTranscriptToolError(safe_upstream_error_message(), category="upstream_failure")
+    matches = []
+    for source_order, segment in enumerate(segments):
+        if not isinstance(segment, dict):
+            raise TranscriptsSearchTranscriptToolError(safe_upstream_error_message(), category="upstream_failure")
+        text = segment.get("text")
+        start_time = segment.get("startTimeSeconds")
+        end_time = segment.get("endTimeSeconds")
+        if not isinstance(text, str) or not isinstance(start_time, (int, float)) or not isinstance(end_time, (int, float)):
+            raise TranscriptsSearchTranscriptToolError(safe_upstream_error_message(), category="upstream_failure")
+        if start_time < 0 or end_time < start_time:
+            raise TranscriptsSearchTranscriptToolError(safe_upstream_error_message(), category="upstream_failure")
+        source_span = _casefolded_source_span(text, query)
+        if source_span is None:
+            continue
+        match_start, match_end = source_span
+        matches.append(
+            {
+                "matchedText": text[match_start:match_end],
+                "snippet": _transcript_search_snippet(text, match_start, match_end),
+                "startTimeSeconds": float(start_time),
+                "endTimeSeconds": float(end_time),
+                "_sourceOrder": source_order,
+            }
+        )
+    matches.sort(key=lambda match: (match["startTimeSeconds"], match["_sourceOrder"]))
+    for match in matches:
+        match.pop("_sourceOrder")
+    return matches
+
+
+def _map_timestamped_search_error(error: ValueError) -> TranscriptsSearchTranscriptToolError:
+    """Translate a timed-retrieval failure to the search tool's safe contract.
+
+    :param error: Error raised by the timed-caption dependency.
+    :return: Safe transcript-search error retaining a supported category.
+    """
+    return TranscriptsSearchTranscriptToolError(
+        safe_upstream_error_message(),
+        category=getattr(error, "category", "upstream_failure"),
+        details=getattr(error, "details", {}),
+    )
+
+
+def build_transcripts_search_transcript_handler(*, timestamped_captions=None):
+    """Build a callable handler for one timed transcript text search.
+
+    :param timestamped_captions: Optional injected timed-caption retrieval handler.
+    :return: Callable transcript-search handler.
+    """
+    selected_timestamped_captions = timestamped_captions or build_transcripts_get_timestamped_captions_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Retrieve timed segments and return chronological literal matches.
+
+        :param arguments: Caller-provided public arguments.
+        :return: Search result with selected-language context and matches.
+        :raises TranscriptsSearchTranscriptToolError: If search cannot complete safely.
+        """
+        request = validate_transcripts_search_transcript_arguments(arguments)
+        try:
+            timed_result = selected_timestamped_captions(
+                {"videoId": request["videoId"], "language": request["language"]}
+            )
+        except ValueError as exc:
+            raise _map_timestamped_search_error(exc) from exc
+        if not isinstance(timed_result, dict) or timed_result.get("availability") != "available":
+            raise TranscriptsSearchTranscriptToolError(
+                "The requested transcript is unavailable",
+                category="transcript_unavailable",
+            )
+        matches = _transcript_search_matches(timed_result.get("segments"), request["query"])[
+            : request["maxMatches"]
+        ]
+        return {
+            "videoId": timed_result.get("videoId", request["videoId"]),
+            "language": timed_result.get("language"),
+            "languageSelectionSource": timed_result.get("languageSelectionSource"),
+            "captionTrackId": timed_result.get("captionTrackId"),
+            "availability": "available" if matches else "no_matches",
+            "matches": matches,
+            "fieldProvenance": {
+                "videoId": "normalized",
+                "language": "raw_upstream",
+                "languageSelectionSource": "normalized",
+                "captionTrackId": "raw_upstream",
+                "availability": "normalized",
+                "matches.matchedText": "normalized_source_segment",
+                "matches.snippet": "normalized_source_segment",
+                "matches.startTimeSeconds": "normalized_source_segment",
+                "matches.endTimeSeconds": "normalized_source_segment",
             },
         }
 
@@ -753,6 +1015,69 @@ def build_transcripts_get_timestamped_captions_metadata() -> dict[str, Any]:
     }
 
 
+def build_transcripts_search_transcript_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for timed transcript text search.
+
+    :return: JSON-compatible public metadata.
+    """
+    return {
+        "name": TRANSCRIPTS_SEARCH_TRANSCRIPT_TOOL_NAME,
+        "family": "transcripts",
+        "parameters": ["videoId", "query", "language", "maxMatches"],
+        "inputContract": TRANSCRIPTS_SEARCH_TRANSCRIPT_INPUT_SCHEMA,
+        "compositionBoundary": {
+            "kind": "transcript_text_search",
+            "lowerLayerDependencies": ["transcripts_getTimestampedCaptions", "in_server_literal_search"],
+            "boundedness": "one video; one timed-caption retrieval; local segment-only literal search",
+            "partialResultPolicy": "Return no_matches only after successful selected-transcript retrieval.",
+        },
+        "lowerLayerDependencies": ["transcripts_getTimestampedCaptions", "in_server_literal_search"],
+        "emptyResultPolicy": "no_matches",
+        "matchLimit": {
+            "default": 10,
+            "minimum": 1,
+            "maximum": 50,
+            "appliedAfter": "chronological_ordering",
+        },
+        "languageSelection": ["explicit_language", "source_default", "source_order_fallback"],
+        "snippetPolicy": {"maximumCharacters": 160, "source": "matching source segment only"},
+        "responseFields": [
+            {"fieldName": "videoId", "category": "normalized", "source": "request"},
+            {"fieldName": "language", "category": "raw_upstream", "source": "timestamped caption retrieval"},
+            {"fieldName": "matches.matchedText", "category": "normalized", "source": "matching source segment"},
+            {"fieldName": "matches.snippet", "category": "normalized", "source": "matching source segment"},
+            {"fieldName": "matches.startTimeSeconds", "category": "normalized", "source": "timestamped caption retrieval"},
+            {"fieldName": "matches.endTimeSeconds", "category": "normalized", "source": "timestamped caption retrieval"},
+        ],
+        "authAndQuotaNotes": [
+            "Official captions require eligible OAuth-authorized access.",
+            "Successful retrieval uses captions.list and captions.download quota.",
+        ],
+        "caveats": [
+            "Matching is case-insensitive and literal within one source segment; no cross-segment matching occurs.",
+            "Matches are chronological by source segment start time; semantic relevance ranking is not provided.",
+        ],
+        "errorCategories": [
+            "invalid_parameters",
+            "transcript_unavailable",
+            "language_unavailable",
+            "authorization_sensitive_data",
+            "quota_exhaustion",
+            "source_unavailable",
+            "upstream_failure",
+        ],
+        "errorGuidance": {
+            "invalid_parameters": "Correct the named request field and retry.",
+            "transcript_unavailable": "Use a different video or obtain eligible caption access.",
+            "language_unavailable": "Request an accessible language or a different video.",
+            "authorization_sensitive_data": "Obtain eligible caption authorization.",
+            "quota_exhaustion": "Retry after capacity is available.",
+            "source_unavailable": "Retry when the caption source is available.",
+            "upstream_failure": "Retry when the source service is available.",
+        },
+    }
+
+
 def build_transcripts_get_transcript_tool_descriptor(**dependencies: Any) -> dict[str, Any]:
     """Build the executable MCP descriptor for transcript retrieval.
 
@@ -789,4 +1114,19 @@ def build_transcripts_get_timestamped_captions_tool_descriptor(**dependencies: A
         "inputSchema": TRANSCRIPTS_GET_TIMESTAMPED_CAPTIONS_INPUT_SCHEMA,
         "handler": build_transcripts_get_timestamped_captions_handler(**dependencies),
         "metadata": build_transcripts_get_timestamped_captions_metadata(),
+    }
+
+
+def build_transcripts_search_transcript_tool_descriptor(**dependencies: Any) -> dict[str, Any]:
+    """Build the executable MCP descriptor for transcript text search.
+
+    :param dependencies: Optional injected timed-caption dependency.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {
+        "name": TRANSCRIPTS_SEARCH_TRANSCRIPT_TOOL_NAME,
+        "description": "Search one video's timestamped transcript for literal matching snippets.",
+        "inputSchema": TRANSCRIPTS_SEARCH_TRANSCRIPT_INPUT_SCHEMA,
+        "handler": build_transcripts_search_transcript_handler(**dependencies),
+        "metadata": build_transcripts_search_transcript_metadata(),
     }

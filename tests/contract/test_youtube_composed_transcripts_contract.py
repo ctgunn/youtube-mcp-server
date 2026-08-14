@@ -96,3 +96,32 @@ def test_timestamped_caption_descriptor_exposes_concrete_timing_contract():
         "source_unavailable",
         "upstream_failure",
     }
+
+
+def test_transcript_search_descriptor_exposes_the_timed_literal_search_contract():
+    """Require the concrete transcript-search schema and metadata."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_tool_descriptor
+
+    descriptor = build_transcripts_search_transcript_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["name"] == "transcripts_searchTranscript"
+    assert descriptor["inputSchema"] == {
+        "type": "object",
+        "required": ["videoId", "query"],
+        "properties": {
+            "videoId": {"type": "string", "minLength": 1},
+            "query": {"type": "string", "minLength": 1},
+            "language": {"type": "string", "minLength": 1},
+            "maxMatches": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10},
+        },
+        "additionalProperties": False,
+    }
+    assert metadata["compositionBoundary"]["kind"] == "transcript_text_search"
+    assert metadata["lowerLayerDependencies"] == ["transcripts_getTimestampedCaptions", "in_server_literal_search"]
+    assert metadata["emptyResultPolicy"] == "no_matches"
+    assert metadata["snippetPolicy"]["maximumCharacters"] == 160
+    assert metadata["matchLimit"] == {"default": 10, "minimum": 1, "maximum": 50, "appliedAfter": "chronological_ordering"}
+    assert metadata["languageSelection"] == ["explicit_language", "source_default", "source_order_fallback"]
+    assert metadata["errorGuidance"]["language_unavailable"] == "Request an accessible language or a different video."
+    assert "representativeOnly" not in metadata

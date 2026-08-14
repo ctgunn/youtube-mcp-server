@@ -343,3 +343,206 @@ def test_language_discovery_validates_input_and_maps_empty_and_safe_errors():
         assert mapped_error.value.category == public_category
         assert "secret" not in str(mapped_error.value.details)
         assert "hidden" not in str(mapped_error.value.details)
+
+
+def test_transcript_search_matches_case_insensitively_with_chronological_timestamps_and_one_dependency_call():
+    """Return source-preserving, chronologically ordered timed matches."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_handler
+
+    calls = []
+
+    def timestamped_captions(arguments):
+        """Record one timed retrieval request and return unordered matches.
+
+        :param arguments: Timed-caption retrieval arguments.
+        :return: Controlled selected transcript segments.
+        """
+        calls.append(arguments)
+        return {
+            "videoId": "abc",
+            "language": "en",
+            "languageSelectionSource": "source_default",
+            "captionTrackId": "track-1",
+            "availability": "available",
+            "segments": [
+                {"text": "A later LAUNCH PLAN point", "startTimeSeconds": 9.0, "endTimeSeconds": 10.0},
+                {"text": "An earlier launch plan point", "startTimeSeconds": 2.0, "endTimeSeconds": 3.0},
+                {"text": "Nothing to see here", "startTimeSeconds": 1.0, "endTimeSeconds": 2.0},
+            ],
+        }
+
+    result = build_transcripts_search_transcript_handler(timestamped_captions=timestamped_captions)(
+        {"videoId": " abc ", "query": "Launch Plan"}
+    )
+
+    assert calls == [{"videoId": "abc", "language": None}]
+    assert result["availability"] == "available"
+    assert [match["matchedText"] for match in result["matches"]] == ["launch plan", "LAUNCH PLAN"]
+    assert [match["startTimeSeconds"] for match in result["matches"]] == [2.0, 9.0]
+    assert [match["endTimeSeconds"] for match in result["matches"]] == [3.0, 10.0]
+    assert all("snippet" in match for match in result["matches"])
+
+
+def test_transcript_search_rejects_blank_public_text_before_timed_retrieval():
+    """Reject invalid search input without requesting caption segments."""
+    from mcp_server.tools.youtube_composed.transcripts import (
+        TranscriptsSearchTranscriptToolError,
+        build_transcripts_search_transcript_handler,
+    )
+
+    calls = []
+    handler = build_transcripts_search_transcript_handler(timestamped_captions=lambda arguments: calls.append(arguments))
+
+    with pytest.raises(TranscriptsSearchTranscriptToolError) as error:
+        handler({"videoId": "abc", "query": "   "})
+
+    assert error.value.category == "invalid_parameters"
+    assert error.value.details == {"field": "query"}
+    assert calls == []
+
+
+def test_transcript_search_normalizes_and_forwards_an_explicit_language_without_fallback():
+    """Forward one canonical explicit language to timed retrieval."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_handler
+
+    calls = []
+
+    def timestamped_captions(arguments):
+        """Record explicit language and return only that selected transcript.
+
+        :param arguments: Timed-caption retrieval arguments.
+        :return: Selected French transcript segment.
+        """
+        calls.append(arguments)
+        return {
+            "videoId": "abc",
+            "language": "fr",
+            "languageSelectionSource": "explicit_language",
+            "captionTrackId": "track-fr",
+            "availability": "available",
+            "segments": [{"text": "Plan de lancement", "startTimeSeconds": 1.0, "endTimeSeconds": 2.0}],
+        }
+
+    result = build_transcripts_search_transcript_handler(timestamped_captions=timestamped_captions)(
+        {"videoId": "abc", "query": "plan", "language": " FR "}
+    )
+
+    assert calls == [{"videoId": "abc", "language": "fr"}]
+    assert result["language"] == "fr"
+    assert result["languageSelectionSource"] == "explicit_language"
+
+
+def test_transcript_search_keeps_requested_language_unavailable_error_safe():
+    """Preserve a safe exact-language unavailability outcome."""
+    from mcp_server.tools.youtube_composed.transcripts import (
+        TranscriptsGetTimestampedCaptionsToolError,
+        TranscriptsSearchTranscriptToolError,
+        build_transcripts_search_transcript_handler,
+    )
+
+    handler = build_transcripts_search_transcript_handler(
+        timestamped_captions=lambda _arguments: (_ for _ in ()).throw(
+            TranscriptsGetTimestampedCaptionsToolError(
+                "The requested caption language is unavailable",
+                category="language_unavailable",
+                details={"language": "fr", "token": "secret"},
+            )
+        )
+    )
+
+    with pytest.raises(TranscriptsSearchTranscriptToolError) as error:
+        handler({"videoId": "abc", "query": "plan", "language": "fr"})
+
+    assert error.value.category == "language_unavailable"
+    assert "secret" not in str(error.value.details)
+
+
+def test_transcript_search_defaults_and_applies_match_limit_after_chronological_ordering():
+    """Bound common-term matches after sorting their source timing."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_handler
+
+    segments = [
+        {"text": f"needle {index}", "startTimeSeconds": float(index), "endTimeSeconds": float(index) + 0.5}
+        for index in range(12, 0, -1)
+    ]
+    timed_result = {
+        "videoId": "abc",
+        "language": "en",
+        "languageSelectionSource": "source_default",
+        "captionTrackId": "track-1",
+        "availability": "available",
+        "segments": segments,
+    }
+    handler = build_transcripts_search_transcript_handler(timestamped_captions=lambda _arguments: timed_result)
+
+    default_result = handler({"videoId": "abc", "query": "needle"})
+    bounded_result = handler({"videoId": "abc", "query": "needle", "maxMatches": 2})
+
+    assert len(default_result["matches"]) == 10
+    assert [match["startTimeSeconds"] for match in default_result["matches"]] == list(range(1, 11))
+    assert [match["startTimeSeconds"] for match in bounded_result["matches"]] == [1.0, 2.0]
+
+
+def test_transcript_search_rejects_invalid_match_limits_before_retrieval_and_distinguishes_empty_states():
+    """Validate match limits and preserve no-match versus unavailable outcomes."""
+    from mcp_server.tools.youtube_composed.transcripts import (
+        TranscriptsSearchTranscriptToolError,
+        build_transcripts_search_transcript_handler,
+    )
+
+    calls = []
+    handler = build_transcripts_search_transcript_handler(timestamped_captions=lambda arguments: calls.append(arguments))
+
+    for invalid_limit in (0, 51, "2", True):
+        with pytest.raises(TranscriptsSearchTranscriptToolError) as error:
+            handler({"videoId": "abc", "query": "needle", "maxMatches": invalid_limit})
+        assert error.value.category == "invalid_parameters"
+        assert error.value.details == {"field": "maxMatches"}
+    assert calls == []
+
+    no_match = build_transcripts_search_transcript_handler(
+        timestamped_captions=lambda _arguments: {
+            "videoId": "abc",
+            "language": "en",
+            "languageSelectionSource": "source_default",
+            "captionTrackId": "track-1",
+            "availability": "available",
+            "segments": [],
+        }
+    )({"videoId": "abc", "query": "needle"})
+    assert no_match["availability"] == "no_matches"
+    assert no_match["matches"] == []
+
+    unavailable = build_transcripts_search_transcript_handler(
+        timestamped_captions=lambda _arguments: {"videoId": "abc", "availability": "no_accessible_captions", "segments": []}
+    )
+    with pytest.raises(TranscriptsSearchTranscriptToolError) as unavailable_error:
+        unavailable({"videoId": "abc", "query": "needle"})
+    assert unavailable_error.value.category == "transcript_unavailable"
+
+
+def test_transcript_search_keeps_snippets_bounded_and_preserves_expanding_casefold_source_text():
+    """Keep contract-sized context while mapping Unicode case folds to source text."""
+    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_handler
+
+    result = build_transcripts_search_transcript_handler(
+        timestamped_captions=lambda _arguments: {
+            "videoId": "abc",
+            "language": "de",
+            "languageSelectionSource": "explicit_language",
+            "captionTrackId": "track-de",
+            "availability": "available",
+            "segments": [
+                {
+                    "text": "Straße " + ("context " * 40),
+                    "startTimeSeconds": 1.0,
+                    "endTimeSeconds": 2.0,
+                }
+            ],
+        }
+    )({"videoId": "abc", "query": "STRASSE"})
+
+    match = result["matches"][0]
+    assert match["matchedText"] == "Straße"
+    assert len(match["snippet"]) <= 160
+    assert match["snippet"].endswith("...")
