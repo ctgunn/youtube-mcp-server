@@ -51,6 +51,34 @@ class RecordingPlaylistItemsLookup:
         return self.result
 
 
+class RecordingTimestampedCaptions:
+    """Record timestamped-caption requests for playlist fan-out tests.
+
+    :param responses: Mapping from video identifier to result or raised error.
+    """
+
+    def __init__(self, responses):
+        """Initialize controlled transcript responses and request history.
+
+        :param responses: Mapping from video identifier to result or raised error.
+        """
+        self.responses = responses
+        self.calls = []
+
+    def __call__(self, arguments):
+        """Record one transcript request and return its configured response.
+
+        :param arguments: Validated timestamped-caption request.
+        :return: Configured result for the requested video.
+        :raises ValueError: Re-raises the configured controlled error.
+        """
+        self.calls.append(arguments)
+        response = self.responses[arguments["videoId"]]
+        if isinstance(response, BaseException):
+            raise response
+        return response
+
+
 class PagingPlaylistItemsLookup:
     """Return controlled playlist-item pages and record their private cursors.
 
@@ -638,3 +666,227 @@ def test_playlist_search_distinguishes_unavailable_resources_and_safe_pagination
         repeated({"playlistId": "PL123", "query": "needle"})
     assert repeated_error.value.category == "upstream_failure"
     assert "loop" not in str(repeated_error.value.details)
+
+
+def test_playlist_video_transcripts_validates_bounds_and_returns_ordered_bounded_outcomes():
+    """Retrieve ordered timestamped outcomes through one bounded playlist listing.
+
+    :return: ``None`` after validating input, fan-out calls, result order, and summary.
+    """
+    from mcp_server.tools.youtube_composed.playlists import (
+        PlaylistsGetVideoTranscriptsToolError,
+        build_playlists_get_video_transcripts_handler,
+        validate_playlists_get_video_transcripts_arguments,
+    )
+
+    assert validate_playlists_get_video_transcripts_arguments({"playlistId": " PL123 "}) == {
+        "playlistId": "PL123",
+        "language": None,
+        "maxResults": 10,
+    }
+    for arguments, field in (
+        ({}, "playlistId"),
+        ({"playlistId": "PL123", "maxResults": True}, "maxResults"),
+        ({"playlistId": "PL123", "maxResults": 0}, "maxResults"),
+        ({"playlistId": "PL123", "maxResults": 51}, "maxResults"),
+        ({"playlistId": "PL123", "unexpected": "value"}, "unexpected"),
+    ):
+        with pytest.raises(PlaylistsGetVideoTranscriptsToolError) as exc_info:
+            validate_playlists_get_video_transcripts_arguments(arguments)
+
+        assert exc_info.value.category == "invalid_parameters"
+        assert exc_info.value.details == {"field": field}
+
+    playlist_items = RecordingPlaylistItemsLookup(
+        {
+            "items": [
+                _playlist_search_item(0, video_id="available"),
+                _playlist_search_item(1, video_id="", privacy="private"),
+                _playlist_search_item(2, video_id="empty"),
+            ],
+            "nextPageToken": "later",
+        }
+    )
+    timestamped = RecordingTimestampedCaptions(
+        {
+            "available": {
+                "videoId": "available",
+                "language": "en",
+                "captionTrackId": "caption-1",
+                "availability": "available",
+                "segments": [{"text": "Hello", "startTimeSeconds": 0.0, "endTimeSeconds": 1.0}],
+            },
+            "empty": {"videoId": "empty", "language": "en", "availability": "available", "segments": []},
+        }
+    )
+
+    result = build_playlists_get_video_transcripts_handler(
+        playlist_items=playlist_items,
+        timestamped_captions=timestamped,
+    )({"playlistId": " PL123 ", "maxResults": 3})
+
+    assert playlist_items.calls == [{"part": "snippet,contentDetails,status", "playlistId": "PL123", "maxResults": 3}]
+    assert timestamped.calls == [{"videoId": "available", "language": "en"}, {"videoId": "empty", "language": "en"}]
+    assert [item["transcriptStatus"] for item in result["items"]] == ["available", "video_unavailable", "empty"]
+    assert result["items"][0]["segments"][0]["text"] == "Hello"
+    assert result["fanOutSummary"] == {
+        "appliedLimit": 3,
+        "consideredItemCount": 3,
+        "transcriptAttemptCount": 2,
+        "outcomeCounts": {"available": 1, "video_unavailable": 1, "empty": 1},
+        "additionalPlaylistItemsNotAttempted": True,
+    }
+
+
+def test_playlist_video_transcripts_resolves_explicit_configured_and_english_languages():
+    """Resolve and forward one exact language for every eligible playlist video.
+
+    :return: ``None`` after validating explicit, configured, and English language behavior.
+    """
+    from mcp_server.tools.youtube_composed.playlists import (
+        PlaylistsGetVideoTranscriptsToolError,
+        build_playlists_get_video_transcripts_handler,
+    )
+
+    payload = {"items": [_playlist_search_item(0, video_id="video-1")]}
+    responses = {
+        "video-1": {"videoId": "video-1", "language": "fr", "availability": "available", "segments": []},
+    }
+    configured_captions = RecordingTimestampedCaptions(responses)
+    configured = build_playlists_get_video_transcripts_handler(
+        playlist_items=RecordingPlaylistItemsLookup(payload),
+        timestamped_captions=configured_captions,
+        default_language=" FR-ca ",
+    )({"playlistId": "PL123"})
+    assert configured_captions.calls == [{"videoId": "video-1", "language": "fr-CA"}]
+    assert configured["language"] == "fr-CA"
+    assert configured["languageSource"] == "configured_default"
+
+    explicit_captions = RecordingTimestampedCaptions(responses)
+    explicit = build_playlists_get_video_transcripts_handler(
+        playlist_items=RecordingPlaylistItemsLookup(payload),
+        timestamped_captions=explicit_captions,
+        default_language="fr",
+    )({"playlistId": "PL123", "language": " ES "})
+    assert explicit_captions.calls == [{"videoId": "video-1", "language": "es"}]
+    assert explicit["languageSource"] == "explicit"
+
+    english_captions = RecordingTimestampedCaptions(responses)
+    english = build_playlists_get_video_transcripts_handler(
+        playlist_items=RecordingPlaylistItemsLookup(payload),
+        timestamped_captions=english_captions,
+    )({"playlistId": "PL123"})
+    assert english_captions.calls == [{"videoId": "video-1", "language": "en"}]
+    assert english["languageSource"] == "english_fallback"
+
+    with pytest.raises(PlaylistsGetVideoTranscriptsToolError) as configuration_error:
+        build_playlists_get_video_transcripts_handler(
+            playlist_items=RecordingPlaylistItemsLookup(payload),
+            timestamped_captions=RecordingTimestampedCaptions(responses),
+            default_language_error="invalid",
+        )({"playlistId": "PL123"})
+    assert configuration_error.value.category == "invalid_parameters"
+    assert configuration_error.value.details == {"field": "YOUTUBE_TRANSCRIPT_LANG"}
+
+
+def test_playlist_video_transcripts_preserves_safe_mixed_access_outcomes():
+    """Preserve successful transcripts while mapping child failures per video.
+
+    :return: ``None`` after validating mixed outcomes, safe errors, and no sensitive detail.
+    """
+    from mcp_server.tools.youtube_composed.transcripts import TranscriptsGetTimestampedCaptionsToolError
+    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_video_transcripts_handler
+
+    playlist_items = RecordingPlaylistItemsLookup(
+        {
+            "items": [
+                _playlist_search_item(0, video_id="available"),
+                _playlist_search_item(1, video_id="missing"),
+                _playlist_search_item(2, video_id="restricted"),
+                _playlist_search_item(3, video_id="quota"),
+            ]
+        }
+    )
+    timestamped = RecordingTimestampedCaptions(
+        {
+            "available": {
+                "videoId": "available",
+                "language": "en",
+                "availability": "available",
+                "segments": [{"text": "Safe", "startTimeSeconds": 0.0, "endTimeSeconds": 1.0}],
+            },
+            "missing": TranscriptsGetTimestampedCaptionsToolError(
+                "secret", category="language_unavailable", details={"token": "secret"}
+            ),
+            "restricted": TranscriptsGetTimestampedCaptionsToolError(
+                "secret", category="authorization_sensitive_data", details={"api_key": "secret"}
+            ),
+            "quota": TranscriptsGetTimestampedCaptionsToolError(
+                "secret", category="quota_exhaustion", details={"raw_body": "secret"}
+            ),
+        }
+    )
+
+    result = build_playlists_get_video_transcripts_handler(
+        playlist_items=playlist_items,
+        timestamped_captions=timestamped,
+    )({"playlistId": "PL123"})
+
+    assert [item["transcriptStatus"] for item in result["items"]] == [
+        "available",
+        "transcript_unavailable",
+        "authorization_sensitive_data",
+        "quota_exhaustion",
+    ]
+    assert result["fanOutSummary"]["transcriptAttemptCount"] == 4
+    assert "secret" not in str(result)
+    assert "token" not in str(result).lower()
+
+
+def test_playlist_video_transcripts_maps_listing_and_remaining_child_failures_safely():
+    """Separate whole-request listing failures from safe source-ordered child outcomes.
+
+    :return: ``None`` after validating unavailable, source, and unexpected failure handling.
+    """
+    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
+    from mcp_server.tools.youtube_composed.playlists import (
+        PlaylistsGetVideoTranscriptsToolError,
+        build_playlists_get_video_transcripts_handler,
+    )
+    from mcp_server.tools.youtube_composed.transcripts import TranscriptsGetTimestampedCaptionsToolError
+
+    def unavailable_listing(_arguments):
+        """Raise an unavailable listing error with unsafe lower-layer details.
+
+        :param _arguments: Ignored lower-layer listing arguments.
+        :raises PlaylistItemsListToolError: Always raised for whole-request mapping coverage.
+        """
+        raise PlaylistItemsListToolError(
+            "secret",
+            category="resource_not_found",
+            details={"api_key": "secret", "raw_body": "secret"},
+        )
+
+    with pytest.raises(PlaylistsGetVideoTranscriptsToolError) as listing_error:
+        build_playlists_get_video_transcripts_handler(
+            playlist_items=unavailable_listing,
+            timestamped_captions=RecordingTimestampedCaptions({}),
+        )({"playlistId": "PL123"})
+    assert listing_error.value.category == "unavailable_resource"
+    assert listing_error.value.details == {"resource": "playlist"}
+
+    results = build_playlists_get_video_transcripts_handler(
+        playlist_items=RecordingPlaylistItemsLookup(
+            {"items": [_playlist_search_item(0, video_id="source"), _playlist_search_item(1, video_id="unexpected")]}
+        ),
+        timestamped_captions=RecordingTimestampedCaptions(
+            {
+                "source": TranscriptsGetTimestampedCaptionsToolError(
+                    "secret", category="source_unavailable", details={"token": "secret"}
+                ),
+                "unexpected": ValueError("secret"),
+            }
+        ),
+    )({"playlistId": "PL123"})
+    assert [item["transcriptStatus"] for item in results["items"]] == ["source_unavailable", "upstream_failure"]
+    assert "secret" not in str(results)

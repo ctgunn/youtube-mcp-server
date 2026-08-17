@@ -128,6 +128,55 @@ def test_timestamped_caption_descriptor_returns_safe_source_failure():
     assert "secret" not in str(error.value.details)
 
 
+def test_playlist_video_transcript_descriptor_registers_bounded_fan_out():
+    """Register and invoke the concrete playlist transcript fan-out descriptor.
+
+    :return: ``None`` after validating exact injected dependency calls and result shape.
+    """
+    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_video_transcripts_tool_descriptor
+
+    playlist_calls = []
+    transcript_calls = []
+
+    def playlist_items(arguments):
+        """Return one playlist entry and record its lower-layer listing call.
+
+        :param arguments: Bounded playlist-item listing arguments.
+        :return: One public playlist item.
+        """
+        playlist_calls.append(arguments)
+        return {"items": [{"id": "item-1", "snippet": {"position": 0}, "contentDetails": {"videoId": "video-1"}, "status": {}}]}
+
+    def timestamped_captions(arguments):
+        """Return one timestamped transcript and record its request.
+
+        :param arguments: Exact-language transcript request.
+        :return: One available timestamped transcript result.
+        """
+        transcript_calls.append(arguments)
+        return {
+            "videoId": "video-1",
+            "language": "en",
+            "captionTrackId": "caption-1",
+            "availability": "available",
+            "segments": [{"text": "Hello", "startTimeSeconds": 0.0, "endTimeSeconds": 1.0}],
+        }
+
+    descriptor = build_playlists_get_video_transcripts_tool_descriptor(
+        playlist_items=playlist_items,
+        timestamped_captions=timestamped_captions,
+    )
+    result = InMemoryToolDispatcher(tools=[descriptor]).call_tool(
+        "playlists_getVideoTranscripts", {"playlistId": "PL123", "language": "en"}
+    )
+
+    assert playlist_calls == [{"part": "snippet,contentDetails,status", "playlistId": "PL123", "maxResults": 10}]
+    assert transcript_calls == [{"videoId": "video-1", "language": "en"}]
+    assert result["items"][0]["transcriptStatus"] == "available"
+    assert result["fanOutSummary"]["transcriptAttemptCount"] == 1
+    assert "representativeOnly" not in descriptor["metadata"]
+
+
 def test_transcript_search_descriptor_registers_and_dispatches_the_timed_dependency_once():
     """Register the concrete search descriptor with an injected timed dependency."""
     from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_tool_descriptor
