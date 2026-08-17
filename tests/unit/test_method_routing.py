@@ -748,5 +748,51 @@ def test_tools_list_routes_the_default_channel_content_search_descriptor():
     assert listed["channels_searchContent"]["metadata"]["compositionBoundary"]["kind"] == "direct_search_normalization"
 
 
+def test_playlist_search_routes_sanitized_item_listing_failures():
+    """Serialize playlist-search lower-layer failures as safe MCP errors.
+
+    :return: ``None`` after validating the public category and hidden diagnostics.
+    """
+    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
+    from mcp_server.tools.youtube_composed.playlists import build_playlists_search_items_tool_descriptor
+
+    def playlists(_arguments):
+        """Return one available source playlist for search routing coverage.
+
+        :param _arguments: Ignored lower-layer playlist-list arguments.
+        :return: One available source playlist result.
+        """
+        return {"items": [{"id": "PL123"}]}
+
+    def playlist_items(_arguments):
+        """Raise a capacity failure containing forbidden lower-layer details.
+
+        :param _arguments: Ignored lower-layer playlist-item listing arguments.
+        :raises PlaylistItemsListToolError: Always raised for safe-routing coverage.
+        """
+        raise PlaylistItemsListToolError(
+            "hidden",
+            category="quota_exhausted",
+            details={"api_key": "hidden", "raw_body": "hidden"},
+        )
+
+    dispatcher = InMemoryToolDispatcher(
+        tools=[build_playlists_search_items_tool_descriptor(playlists=playlists, playlist_items=playlist_items)]
+    )
+    response = route_mcp_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "req-playlist-search-error",
+            "method": "tools/call",
+            "params": {"name": "playlists_searchItems", "arguments": {"playlistId": "PL123", "query": "needle"}},
+        },
+        dispatcher,
+    )
+
+    assert response["error"]["data"]["category"] == "quota_exhaustion"
+    assert response["error"]["data"]["protocolCategory"] == "transport_not_supported"
+    assert "hidden" not in str(response["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

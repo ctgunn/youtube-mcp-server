@@ -290,6 +290,54 @@ def test_concrete_playlist_items_descriptor_registers_and_executes_one_listing()
     assert calls == [{"part": "snippet,contentDetails,status", "playlistId": "PL123", "maxResults": 1}]
     assert result["items"][0]["videoId"] == "video-1"
     assert result["items"][0]["availabilityState"] == "available"
+
+
+def test_concrete_playlist_search_descriptor_registers_and_composes_lookup_and_listing():
+    """Register and execute the bounded concrete playlist-search descriptor.
+
+    :return: ``None`` after asserting injected lookup composition and normalized match output.
+    """
+    from mcp_server.tools.youtube_composed.playlists import build_playlists_search_items_tool_descriptor
+
+    playlist_calls = []
+    item_calls = []
+
+    def playlists(arguments):
+        """Record one availability lookup and return an accessible playlist.
+
+        :param arguments: Lower-layer playlist-list arguments.
+        :return: One accessible source playlist.
+        """
+        playlist_calls.append(arguments)
+        return {"items": [{"id": "PL123", "snippet": {}, "contentDetails": {}, "status": {}}]}
+
+    def playlist_items(arguments):
+        """Record one item listing and return a description match.
+
+        :param arguments: Lower-layer playlist-item listing arguments.
+        :return: One available source playlist item.
+        """
+        item_calls.append(arguments)
+        return {
+            "items": [
+                {
+                    "id": "PLI123",
+                    "snippet": {"position": 0, "description": "Needle in description"},
+                    "contentDetails": {"videoId": "VID123"},
+                    "status": {"privacyStatus": "public"},
+                }
+            ]
+        }
+
+    dispatcher = InMemoryToolDispatcher(
+        tools=[build_playlists_search_items_tool_descriptor(playlists=playlists, playlist_items=playlist_items)]
+    )
+    result = dispatcher.call_tool("playlists_searchItems", {"playlistId": "PL123", "query": "needle"})
+
+    assert playlist_calls == [{"part": "snippet,contentDetails,status", "id": "PL123"}]
+    assert item_calls == [{"part": "snippet,contentDetails,status", "playlistId": "PL123", "maxResults": 50}]
+    assert result["items"][0]["matchingFields"] == ["description"]
+    assert result["searchCoverage"]["isComplete"] is True
     assert "representativeOnly" not in dispatcher.list_tools()[0]["metadata"]
 
 

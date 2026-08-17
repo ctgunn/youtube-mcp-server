@@ -228,6 +228,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `channels_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff (317-channels-get-statistics)
 - Python 3.11 + Existing MCP tool registry and dispatcher; Layer 2 `search_list` handler; `youtube_composed` channel-family conventions; Python standard-library dictionaries and regular expressions; pytest; Ruff (318-channels-search-content)
 - N/A; request validation, search candidates, and normalized results exist only for one invocation (318-channels-search-content)
+- Python 3.11 + Existing in-repo MCP dispatcher and tool registry; Layer 2 YouTube resource wrappers; Python standard library (319-playlist-item-search)
+- In-memory request and result state only; no persistent storage (319-playlist-item-search)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -248,9 +250,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 319-playlist-item-search: Added Python 3.11 + Existing in-repo MCP dispatcher and tool registry; Layer 2 YouTube resource wrappers; Python standard library
 - 318-channels-search-content: Added Python 3.11 + Existing MCP tool registry and dispatcher; Layer 2 `search_list` handler; `youtube_composed` channel-family conventions; Python standard-library dictionaries and regular expressions; pytest; Ruff
 - 317-channels-get-statistics: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` conventions; existing `channels_list` handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff
-- 316-channels-list-playlists: Added Python 3.11 + Existing MCP dispatcher and registry; `youtube_composed` conventions; existing `channels_list` and `playlists_list` handlers; standard-library JSON-compatible dictionaries; pytest; Ruff
 
 
 <!-- MANUAL ADDITIONS START -->
