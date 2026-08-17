@@ -17,6 +17,7 @@ The immediate planning focus is the initial Layer 3 public catalog of 10 higher-
 - Phase 1: Video and Channel core tools.
 - Phase 2: Playlist and Transcript tools.
 - Phase 3: Hardening, observability, and production readiness.
+- Phase 4: Catalog-complete MCP integration verification and explicit configured-runtime operator verification.
 
 ## 3. Feature Inventory
 
@@ -2823,6 +2824,67 @@ Acceptance criteria:
 Dependencies:
 - `YT-203`, `YT-204`, `YT-205`, `YT-206`, `YT-207`, `YT-208`, `YT-209`, `YT-210`, `YT-211`, `YT-212`, `YT-213`, `YT-214`, `YT-215`, `YT-216`, `YT-217`, `YT-218`, `YT-219`, `YT-220`, `YT-221`, `YT-222`, `YT-223`, `YT-224`, `YT-225`, `YT-226`, `YT-227`, `YT-228`, `YT-229`, `YT-230`, `YT-231`, `YT-232`, `YT-233`, `YT-234`, `YT-235`, `YT-236`, `YT-237`, `YT-238`, `YT-239`, `YT-240`, `YT-241`, `YT-242`, `YT-243`, `YT-244`, `YT-245`, `YT-246`, `YT-247`, `YT-248`, `YT-249`, `YT-250`, `YT-251`, `YT-252`, `YT-253`, `YT-254`, `YT-255`, `YT-302`, `YT-303`, `YT-304`, `YT-305`, `YT-306`, `YT-307`, `YT-308`, `YT-309`, `YT-310`, `YT-311`, `YT-312`, `YT-313`, `YT-314`, `YT-315`, `YT-316`, `YT-317`, `YT-318`, `YT-319`, `YT-320`
 
+### OPS-403: Layer 4 Default MCP Tool-Catalog Integration Coverage
+Suggested branch: `feature/ops-403-layer4-tool-catalog`
+
+Description:
+Create the Layer 4 deterministic integration suite that discovers the default
+MCP tool catalog through `tools/list` and invokes every discovered tool through
+the public `tools/call` route. This is a release-verification layer, not a new
+public tool catalog or a substitute for the Layer 1 live execution path.
+
+Primary stories:
+- As a maintainer, I can run one focused command and see an individually reported MCP integration result for every default tool.
+- As a tool author, I cannot register a new default tool without adding a safe invocation fixture and expected outcome.
+- As an operator, I can distinguish deterministic integration verification from credential-gated live YouTube verification and know that this suite performs no remote mutation.
+
+Acceptance criteria:
+- The suite obtains the inventory from the public `tools/list` MCP route, not from a duplicated hard-coded list of registry names.
+- Pytest reports one case per discovered default tool and invokes that tool using the public `tools/call` MCP route.
+- Every successful fixture asserts a non-error MCP response and structured content. Endpoint-backed responses that expose `endpoint` also agree with registered `metadata.upstream.operationKey`.
+- Every deterministic no-data fixture that is expected to fail asserts its documented safe MCP error category and proves no process-level exception escapes the route.
+- The test fails when a discovered default tool has neither a documented safe example nor an explicit fixture; stale fixtures also fail the catalog check.
+- The implementation uses no real credentials, no outbound YouTube request, and no destructive mutation.
+- `make test-tools` runs the focused suite and the README documents both `make test-tools` and the complete `make test` command.
+
+Test plan:
+- Add `tests/integration/test_mcp_tool_catalog_endpoints.py` with catalog discovery, fixture-completeness, and per-tool route-invocation cases.
+- Run `PYTHONPATH=src python3 -m pytest tests/integration/test_mcp_tool_catalog_endpoints.py`.
+- Run `PYTHONPATH=src python3 -m pytest` before merge.
+
+Dependencies:
+- `FND-002`, `FND-010`, `FND-011`
+- `YT-203` through `YT-255`
+- `YT-302` through `YT-320`
+
+### OPS-404: Layer 4 Configured-Runtime Capability and Live-Verification Matrix
+Suggested branch: `feature/ops-404-layer4-runtime-verification`
+
+Description:
+Add the Layer 4 configured-runtime verification matrix after the catalog suite.
+It proves that the configured dispatcher binds tools to the shared live runtime,
+reports API-key and OAuth capability boundaries safely, and keeps the explicit
+credential-gated live check read-only and opt-in.
+
+Primary stories:
+- As an operator, I can verify which public tools are executable with API-key versus OAuth capability without exposing credentials.
+- As a maintainer, I can prove configured tools use the live runtime boundary rather than silently falling back to representative local data.
+
+Acceptance criteria:
+- Controlled configured-runtime integration tests cover every tool family and verify API-key, OAuth-required, and unavailable-capability outcomes through MCP.
+- The matrix proves that missing configuration produces a safe MCP error and never returns representative fixture data from a configured runtime.
+- A separately opt-in real-API smoke command remains read-only, requires an explicit environment flag, redacts credentials, and excludes mutations, uploads, deletes, ratings, reports, and moderation actions.
+- The README documents the boundary between `make test-tools`, configured-runtime tests, and the opt-in live smoke workflow.
+
+Test plan:
+- Add configured-runtime transport tests using a controlled opener that records request construction without network access.
+- Add or extend the opt-in live smoke test only for documented public read-only tools.
+- Run the focused Layer 4 catalog and configured-runtime suites, then the full suite.
+
+Dependencies:
+- `YT-157`, `YT-158`, `YT-159`, `YT-160`
+- `OPS-403`
+
 ## 4. Suggested Delivery Order
 1. `FND-001`
 2. `FND-002`
@@ -2876,6 +2938,8 @@ Dependencies:
 50. `YT-315` + `YT-320`
 51. `OPS-401`
 52. `OPS-402`
+53. `OPS-403`
+54. `OPS-404`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
