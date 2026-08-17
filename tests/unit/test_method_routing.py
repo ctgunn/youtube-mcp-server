@@ -733,5 +733,20 @@ def test_channel_statistics_lookup_failure_routes_without_sensitive_details():
     assert "hidden" not in str(response["error"])
 
 
+def test_tools_list_routes_the_default_channel_content_search_descriptor():
+    """Expose the concrete channel-content search contract through MCP discovery.
+
+    :return: ``None`` after validating public tool-list routing.
+    """
+    response = route_mcp_request(
+        {"jsonrpc": "2.0", "id": "req-channel-content-list", "method": "tools/list", "params": {}},
+        InMemoryToolDispatcher(),
+    )
+    listed = {tool["name"]: tool for tool in response["result"]["tools"]}
+
+    assert listed["channels_searchContent"]["inputSchema"]["required"] == ["channelId", "query"]
+    assert listed["channels_searchContent"]["metadata"]["compositionBoundary"]["kind"] == "direct_search_normalization"
+
+
 if __name__ == "__main__":
     unittest.main()
