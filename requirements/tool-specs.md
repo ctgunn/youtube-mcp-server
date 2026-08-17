@@ -923,7 +923,7 @@ Input schema:
   "properties": {
     "videoId": { "type": "string", "minLength": 1 },
     "query": { "type": "string", "minLength": 1 },
-    "language": { "type": "string", "minLength": 2 },
+    "language": { "type": "string", "minLength": 1 },
     "maxMatches": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
   }
 }
@@ -1480,30 +1480,40 @@ Input schema:
 ```
 
 Behavior notes:
-- This is a bounded fan-out composite tool.
-- The implementation MUST document whether `maxResults` limits:
-  - playlist items fetched
-  - transcripts attempted
-  - or both
+- This is a bounded fan-out composite tool: it makes one playlist-item listing and at most one transcript retrieval for each eligible listed video.
+- `maxResults` limits both playlist items considered and transcript attempts. The default is 10; values from 1 through 50 are accepted; no continuation input or later-page traversal is supported.
+- Playlist item order is preserved. An unavailable playlist entry is returned with a safe per-video outcome and does not receive a transcript attempt.
+- Language resolution is explicit `language`, then configured `YOUTUBE_TRANSCRIPT_LANG`, then `en`. Matching is exact after normalization; the tool does not translate or silently substitute another language.
+- Caption failures are per-video partial outcomes, so successful transcripts remain available. The result identifies unavailable, authorization-sensitive, quota, source-unavailable, and unexpected safe outcomes without exposing protected caption content or credentials.
+- The result includes a fan-out summary with the applied limit, considered-item count, transcript-attempt count, status counts, and whether a source continuation signal shows additional playlist items were not attempted.
 
 Logical payload:
 ```json
 {
   "playlistId": "PL123",
+  "language": "en",
+  "languageSource": "explicit",
   "items": [
     {
       "videoId": "abc123",
+      "transcriptStatus": "available",
       "language": "en",
       "segments": [
         {
-          "start": 0.0,
-          "duration": 4.2,
+          "startTimeSeconds": 0.0,
+          "endTimeSeconds": 4.2,
           "text": "Welcome"
         }
-      ],
-      "transcriptAvailable": true
+      ]
     }
-  ]
+  ],
+  "fanOutSummary": {
+    "appliedLimit": 10,
+    "consideredItemCount": 1,
+    "transcriptAttemptCount": 1,
+    "outcomeCounts": { "available": 1 },
+    "additionalPlaylistItemsNotAttempted": false
+  }
 }
 ```
 

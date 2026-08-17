@@ -249,6 +249,19 @@ def test_default_registry_includes_executable_captions_update_tool():
     assert listed["captions_update"]["metadata"]["authMode"] == "oauth_required"
 
 
+def test_default_registry_includes_concrete_playlist_video_transcript_tool():
+    """Register the executable playlist transcript tool without a representative marker.
+
+    :return: ``None`` after validating default discovery metadata.
+    """
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlists_getVideoTranscripts" in listed
+    assert listed["playlists_getVideoTranscripts"]["metadata"]["compositionBoundary"]["kind"] == "bounded_playlist_transcript_fan_out"
+    assert "representativeOnly" not in listed["playlists_getVideoTranscripts"]["metadata"]
+
+
 def test_default_registry_includes_executable_captions_download_tool():
     """Register ``captions_download`` by default with safe metadata."""
     dispatcher = InMemoryToolDispatcher()

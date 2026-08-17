@@ -5,6 +5,7 @@ The module owns concrete single-playlist behavior for the playlists family.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from mcp_server.tools.youtube_common.conventions import safe_upstream_error_message, sanitize_error_details
@@ -21,6 +22,10 @@ PLAYLISTS_GET_PLAYLIST_ITEMS_TOOL_NAME = "playlists_getPlaylistItems"
 PLAYLISTS_GET_PLAYLIST_ITEMS_PARTS = "snippet,contentDetails,status"
 PLAYLISTS_GET_PLAYLIST_ITEMS_DEFAULT_MAX_RESULTS = 25
 PLAYLISTS_GET_PLAYLIST_ITEMS_MAX_RESULTS = 50
+PLAYLISTS_GET_VIDEO_TRANSCRIPTS_TOOL_NAME = "playlists_getVideoTranscripts"
+PLAYLISTS_GET_VIDEO_TRANSCRIPTS_PARTS = "snippet,contentDetails,status"
+PLAYLISTS_GET_VIDEO_TRANSCRIPTS_DEFAULT_MAX_RESULTS = 10
+PLAYLISTS_GET_VIDEO_TRANSCRIPTS_MAX_RESULTS = 50
 PLAYLISTS_SEARCH_ITEMS_TOOL_NAME = "playlists_searchItems"
 PLAYLISTS_SEARCH_ITEMS_PARTS = "snippet,contentDetails,status"
 PLAYLISTS_SEARCH_ITEMS_DEFAULT_MAX_RESULTS = 25
@@ -48,6 +53,22 @@ PLAYLISTS_GET_PLAYLIST_ITEMS_INPUT_SCHEMA = {
     },
     "additionalProperties": False,
 }
+PLAYLISTS_GET_VIDEO_TRANSCRIPTS_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["playlistId"],
+    "properties": {
+        "playlistId": {"type": "string", "minLength": 1},
+        "language": {"type": "string", "minLength": 1},
+        "maxResults": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": PLAYLISTS_GET_VIDEO_TRANSCRIPTS_MAX_RESULTS,
+            "default": PLAYLISTS_GET_VIDEO_TRANSCRIPTS_DEFAULT_MAX_RESULTS,
+        },
+    },
+    "additionalProperties": False,
+}
+_PLAYLIST_TRANSCRIPT_LANGUAGE_PATTERN = re.compile(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*")
 PLAYLISTS_SEARCH_ITEMS_INPUT_SCHEMA = {
     "type": "object",
     "required": ["playlistId", "query"],
@@ -97,6 +118,26 @@ class PlaylistsGetPlaylistItemsToolError(ValueError):
         """Initialize the normalized public playlist-item error.
 
         :param message: Caller-facing explanation of the failure.
+        :param category: Stable public failure category.
+        :param details: Candidate diagnostic details to sanitize.
+        """
+        super().__init__(message)
+        self.category = category
+        self.details = sanitize_error_details(details or {})
+
+
+class PlaylistsGetVideoTranscriptsToolError(ValueError):
+    """Represent a safe caller-facing playlist transcript fan-out failure.
+
+    :param message: Caller-safe explanation of the failure.
+    :param category: Stable public failure category.
+    :param details: Candidate caller-safe diagnostic details.
+    """
+
+    def __init__(self, message: str, *, category: str, details: dict[str, Any] | None = None) -> None:
+        """Initialize the normalized public playlist transcript error.
+
+        :param message: Caller-safe explanation of the failure.
         :param category: Stable public failure category.
         :param details: Candidate diagnostic details to sanitize.
         """
@@ -238,6 +279,77 @@ def build_playlists_get_playlist_items_metadata() -> dict[str, Any]:
             "authorization_sensitive_data": "Obtain appropriate authorization if applicable.",
             "quota_exhaustion": "Retry after capacity is available.",
             "upstream_failure": "Retry when the source service is available.",
+        },
+    }
+
+
+def build_playlists_get_video_transcripts_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for bounded playlist transcript fan-out.
+
+    :return: JSON-compatible executable metadata without a representative marker.
+    """
+    return {
+        "name": PLAYLISTS_GET_VIDEO_TRANSCRIPTS_TOOL_NAME,
+        "family": "playlists",
+        "parameters": ["playlistId", "language", "maxResults"],
+        "inputContract": PLAYLISTS_GET_VIDEO_TRANSCRIPTS_INPUT_SCHEMA,
+        "compositionBoundary": {
+            "kind": "bounded_playlist_transcript_fan_out",
+            "lowerLayerDependencies": ["playlistItems.list", "captions.list", "captions.download"],
+            "boundedness": "one playlist listing; 1-50 items; at most one caption retrieval per eligible item",
+            "partialResultPolicy": "Return source-ordered per-video outcomes without discarding successful transcripts.",
+        },
+        "lowerLayerDependencies": ["playlistItems.list", "captions.list", "captions.download"],
+        "limitPolicy": {
+            "default": PLAYLISTS_GET_VIDEO_TRANSCRIPTS_DEFAULT_MAX_RESULTS,
+            "minimum": 1,
+            "maximum": PLAYLISTS_GET_VIDEO_TRANSCRIPTS_MAX_RESULTS,
+            "continuationInputAccepted": False,
+        },
+        "languageSelection": ["explicit", "configured_default", "english_fallback"],
+        "languagePolicy": "Exact normalized language matching only; no translation or other-language fallback.",
+        "fanOutPolicy": {
+            "playlistListingCount": 1,
+            "maximumTranscriptAttempts": "appliedLimit",
+            "sourceOrderPreserved": True,
+            "paginationTraversed": False,
+            "additionalItemsSignal": "nextPageToken",
+        },
+        "authAndQuotaNotes": [
+            "Playlist enumeration uses configured public-read capability.",
+            "Caption retrieval requires eligible authorized access and multiplies capacity use across the bounded fan-out.",
+        ],
+        "responseFields": [
+            {"fieldName": "items.position", "category": "raw_upstream", "source": "snippet.position"},
+            {"fieldName": "items.playlistItemId", "category": "raw_upstream", "source": "id"},
+            {"fieldName": "items.videoId", "category": "raw_upstream", "source": "contentDetails.videoId"},
+            {"fieldName": "items.transcriptStatus", "category": "normalized", "source": "public contract"},
+            {"fieldName": "items.language", "category": "raw_upstream", "source": "caption retrieval"},
+            {"fieldName": "items.languageSource", "category": "normalized", "source": "request language resolution"},
+            {"fieldName": "items.captionTrackId", "category": "raw_upstream", "source": "caption retrieval"},
+            {"fieldName": "items.segments.text", "category": "normalized", "source": "timestamped caption VTT"},
+            {"fieldName": "items.segments.startTimeSeconds", "category": "normalized", "source": "timestamped caption VTT"},
+            {"fieldName": "items.segments.endTimeSeconds", "category": "normalized", "source": "timestamped caption VTT"},
+            {"fieldName": "playlistId", "category": "normalized", "source": "validated request"},
+            {"fieldName": "language", "category": "normalized", "source": "request language resolution"},
+            {"fieldName": "languageSource", "category": "normalized", "source": "request language resolution"},
+            {"fieldName": "fanOutSummary", "category": "normalized", "source": "public contract"},
+        ],
+        "errorCategories": [
+            "invalid_parameters",
+            "unavailable_resource",
+            "authorization_sensitive_data",
+            "quota_exhaustion",
+            "source_unavailable",
+            "upstream_failure",
+        ],
+        "errorGuidance": {
+            "invalid_parameters": "Correct the identified request field and retry.",
+            "unavailable_resource": "Use a different accessible playlist identifier.",
+            "authorization_sensitive_data": "Obtain eligible caption authorization.",
+            "quota_exhaustion": "Retry after capacity is available.",
+            "source_unavailable": "Retry when the source is available.",
+            "upstream_failure": "Retry when the source is available.",
         },
     }
 
@@ -388,6 +500,87 @@ def validate_playlists_get_playlist_items_arguments(arguments: dict[str, Any]) -
     return {"playlistId": playlist_id.strip(), "maxResults": max_results}
 
 
+def _normalize_playlist_transcript_language(value: str, *, field: str) -> str:
+    """Validate and canonicalize one playlist transcript language tag.
+
+    :param value: Candidate language text.
+    :param field: Caller-visible field name for a validation error.
+    :return: Canonicalized language tag.
+    :raises PlaylistsGetVideoTranscriptsToolError: If the language tag is malformed.
+    """
+    text = value.strip() if isinstance(value, str) else ""
+    if not text or not _PLAYLIST_TRANSCRIPT_LANGUAGE_PATTERN.fullmatch(text):
+        raise PlaylistsGetVideoTranscriptsToolError(
+            "language must be a valid non-empty language tag",
+            category="invalid_parameters",
+            details={"field": field},
+        )
+    parts = text.split("-")
+    return "-".join(
+        [
+            parts[0].lower(),
+            *[
+                part.upper() if len(part) == 2 else part.title() if len(part) == 4 else part.lower()
+                for part in parts[1:]
+            ],
+        ]
+    )
+
+
+def validate_playlists_get_video_transcripts_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize one public playlist transcript request.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Normalized playlist identifier, optional language, and applied limit.
+    :raises PlaylistsGetVideoTranscriptsToolError: If public input is invalid or unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise PlaylistsGetVideoTranscriptsToolError(
+            "playlists_getVideoTranscripts arguments must be an object",
+            category="invalid_parameters",
+            details={"field": "arguments"},
+        )
+    unexpected_fields = set(arguments) - {"playlistId", "language", "maxResults"}
+    if unexpected_fields:
+        raise PlaylistsGetVideoTranscriptsToolError(
+            "playlists_getVideoTranscripts received an unsupported field",
+            category="invalid_parameters",
+            details={"field": sorted(unexpected_fields)[0]},
+        )
+    playlist_id = arguments.get("playlistId")
+    if not isinstance(playlist_id, str) or not playlist_id.strip():
+        raise PlaylistsGetVideoTranscriptsToolError(
+            "playlists_getVideoTranscripts requires a non-empty playlistId",
+            category="invalid_parameters",
+            details={"field": "playlistId"},
+        )
+    language = arguments.get("language")
+    if language is not None and not isinstance(language, str):
+        raise PlaylistsGetVideoTranscriptsToolError(
+            "language must be a valid non-empty language tag",
+            category="invalid_parameters",
+            details={"field": "language"},
+        )
+    max_results = arguments.get("maxResults", PLAYLISTS_GET_VIDEO_TRANSCRIPTS_DEFAULT_MAX_RESULTS)
+    if isinstance(max_results, bool) or not isinstance(max_results, int):
+        raise PlaylistsGetVideoTranscriptsToolError(
+            "maxResults must be an integer",
+            category="invalid_parameters",
+            details={"field": "maxResults"},
+        )
+    if not 1 <= max_results <= PLAYLISTS_GET_VIDEO_TRANSCRIPTS_MAX_RESULTS:
+        raise PlaylistsGetVideoTranscriptsToolError(
+            f"maxResults must be between 1 and {PLAYLISTS_GET_VIDEO_TRANSCRIPTS_MAX_RESULTS}",
+            category="invalid_parameters",
+            details={"field": "maxResults"},
+        )
+    return {
+        "playlistId": playlist_id.strip(),
+        "language": _normalize_playlist_transcript_language(language, field="language") if language is not None else None,
+        "maxResults": max_results,
+    }
+
+
 def validate_playlists_search_items_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize one public playlist-item search request.
 
@@ -455,6 +648,19 @@ def _playlist_items_lookup_arguments(arguments: dict[str, Any]) -> dict[str, Any
     """
     return {
         "part": PLAYLISTS_GET_PLAYLIST_ITEMS_PARTS,
+        "playlistId": arguments["playlistId"],
+        "maxResults": arguments["maxResults"],
+    }
+
+
+def _playlist_video_transcript_lookup_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Build the one bounded playlist-item lookup for transcript fan-out.
+
+    :param arguments: Validated public playlist transcript request.
+    :return: Lower-layer playlist-item listing arguments with the applied limit.
+    """
+    return {
+        "part": PLAYLISTS_GET_VIDEO_TRANSCRIPTS_PARTS,
         "playlistId": arguments["playlistId"],
         "maxResults": arguments["maxResults"],
     }
@@ -815,6 +1021,34 @@ def _map_playlist_items_list_error(error: PlaylistItemsListToolError) -> Playlis
     )
 
 
+def _map_playlist_items_list_error_to_video_transcripts(
+    error: PlaylistItemsListToolError,
+) -> PlaylistsGetVideoTranscriptsToolError:
+    """Translate one playlist-item listing error to the fan-out public taxonomy.
+
+    :param error: Safe lower-layer playlist-item listing error.
+    :return: Safe whole-request playlist transcript error.
+    """
+    if error.category in {"resource_not_found", "removed"}:
+        return PlaylistsGetVideoTranscriptsToolError(
+            "The requested playlist is unavailable",
+            category="unavailable_resource",
+            details={"resource": "playlist"},
+        )
+    public_category = {
+        "invalid_request": "invalid_parameters",
+        "authentication_failed": "authorization_sensitive_data",
+        "authorization_failed": "authorization_sensitive_data",
+        "quota_exhausted": "quota_exhaustion",
+        "endpoint_unavailable": "source_unavailable",
+    }.get(error.category, "upstream_failure")
+    return PlaylistsGetVideoTranscriptsToolError(
+        safe_upstream_error_message(),
+        category=public_category,
+        details=error.details,
+    )
+
+
 def _map_playlists_list_error_to_search(error: PlaylistsListToolError) -> PlaylistsSearchItemsToolError:
     """Translate a playlist availability failure to the public search taxonomy.
 
@@ -942,6 +1176,265 @@ def build_playlists_get_playlist_items_tool_descriptor(*, playlist_items=None) -
         "inputSchema": PLAYLISTS_GET_PLAYLIST_ITEMS_INPUT_SCHEMA,
         "handler": build_playlists_get_playlist_items_handler(playlist_items=playlist_items),
         "metadata": build_playlists_get_playlist_items_metadata(),
+    }
+
+
+def _resolved_playlist_transcript_language(
+    request: dict[str, Any],
+    default_language: str | None,
+    default_language_error: str | None,
+) -> tuple[str, str]:
+    """Resolve playlist transcript language from explicit, configured, and English sources.
+
+    :param request: Validated public playlist transcript request.
+    :param default_language: Optional injected configured transcript language.
+    :param default_language_error: Safe invalid-configuration state supplied by runtime settings.
+    :return: Resolved language and its public selection-source label.
+    :raises PlaylistsGetVideoTranscriptsToolError: If configured language is invalid.
+    """
+    if request["language"] is not None:
+        return request["language"], "explicit"
+    if default_language_error:
+        raise PlaylistsGetVideoTranscriptsToolError(
+            "configured transcript language is invalid",
+            category="invalid_parameters",
+            details={"field": "YOUTUBE_TRANSCRIPT_LANG"},
+        )
+    if default_language:
+        return _normalize_playlist_transcript_language(default_language, field="YOUTUBE_TRANSCRIPT_LANG"), "configured_default"
+    return "en", "english_fallback"
+
+
+def _playlist_video_transcript_error_outcome(item: dict[str, Any], error: ValueError) -> dict[str, Any]:
+    """Build one safe per-video outcome from a timestamped-caption failure.
+
+    :param item: Existing normalized playlist item identity.
+    :param error: Safe child caption retrieval error.
+    :return: Source-ordered public outcome without unsafe child details.
+    """
+    child_category = getattr(error, "category", "upstream_failure")
+    status = {
+        "language_unavailable": "transcript_unavailable",
+        "transcript_unavailable": "transcript_unavailable",
+        "authorization_sensitive_data": "authorization_sensitive_data",
+        "quota_exhaustion": "quota_exhaustion",
+        "source_unavailable": "source_unavailable",
+    }.get(child_category, "upstream_failure")
+    reason = {
+        "transcript_unavailable": "No accessible transcript is available in the requested language.",
+        "authorization_sensitive_data": "Caption access is restricted for this video.",
+        "quota_exhaustion": "Caption retrieval capacity is currently unavailable.",
+        "source_unavailable": "The caption source is temporarily unavailable.",
+        "upstream_failure": "The transcript could not be retrieved safely.",
+    }[status]
+    return {**item, "transcriptStatus": status, "safeReason": reason}
+
+
+def _playlist_video_transcript_outcome(
+    source_item: Any,
+    *,
+    timestamped_captions,
+    language: str,
+    language_source: str,
+) -> tuple[dict[str, Any], bool]:
+    """Build one source-ordered playlist transcript outcome.
+
+    :param source_item: Candidate lower-layer playlist item.
+    :param timestamped_captions: Injected timestamped-caption handler.
+    :param language: Exact resolved language forwarded to the child handler.
+    :param language_source: Public request language-selection source.
+    :return: Outcome and whether a caption attempt occurred.
+    """
+    normalized_item = _normalize_playlist_item(source_item)
+    if normalized_item.get("availabilityState") != "available" or not normalized_item.get("videoId"):
+        normalized_item.pop("availabilityState", None)
+        return {
+            **normalized_item,
+            "transcriptStatus": "video_unavailable",
+            "safeReason": "This playlist entry has no accessible video for transcript retrieval.",
+        }, False
+    try:
+        payload = timestamped_captions({"videoId": normalized_item["videoId"], "language": language})
+    except ValueError as exc:
+        normalized_item.pop("availabilityState", None)
+        return _playlist_video_transcript_error_outcome(normalized_item, exc), True
+    normalized_item.pop("availabilityState", None)
+    if not isinstance(payload, dict):
+        return _playlist_video_transcript_error_outcome(
+            normalized_item,
+            ValueError("invalid transcript result"),
+        ), True
+    availability = payload.get("availability")
+    if availability == "no_accessible_captions":
+        return {
+            **normalized_item,
+            "transcriptStatus": "transcript_unavailable",
+            "safeReason": "No accessible transcript is available in the requested language.",
+        }, True
+    segments = payload.get("segments")
+    if availability != "available" or not isinstance(segments, list):
+        return _playlist_video_transcript_error_outcome(
+            normalized_item,
+            ValueError("invalid transcript result"),
+        ), True
+    result: dict[str, Any] = {
+        **normalized_item,
+        "transcriptStatus": "available" if segments else "empty",
+        "languageSource": language_source,
+        "segments": segments,
+    }
+    for field in ("language", "captionTrackId"):
+        value = payload.get(field)
+        if isinstance(value, str) and value:
+            result[field] = value
+    return result, True
+
+
+def _playlist_video_transcript_result(
+    *,
+    request: dict[str, Any],
+    language: str,
+    language_source: str,
+    payload: Any,
+    timestamped_captions,
+) -> dict[str, Any]:
+    """Build one completed bounded playlist transcript fan-out result.
+
+    :param request: Validated public request with the applied limit.
+    :param language: Resolved request language.
+    :param language_source: Public language-selection source label.
+    :param payload: Lower-layer playlist-item listing result.
+    :param timestamped_captions: Injected timestamped-caption handler.
+    :return: Normalized source-ordered result and fan-out summary.
+    :raises PlaylistsGetVideoTranscriptsToolError: If the listing payload is malformed.
+    """
+    source_items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(source_items, list):
+        raise PlaylistsGetVideoTranscriptsToolError(
+            safe_upstream_error_message(),
+            category="upstream_failure",
+        )
+    outcomes: list[dict[str, Any]] = []
+    attempt_count = 0
+    for source_item in source_items[: request["maxResults"]]:
+        outcome, attempted = _playlist_video_transcript_outcome(
+            source_item,
+            timestamped_captions=timestamped_captions,
+            language=language,
+            language_source=language_source,
+        )
+        outcomes.append(outcome)
+        attempt_count += int(attempted)
+    outcome_counts: dict[str, int] = {}
+    for outcome in outcomes:
+        status = outcome["transcriptStatus"]
+        outcome_counts[status] = outcome_counts.get(status, 0) + 1
+    return {
+        "playlistId": request["playlistId"],
+        "language": language,
+        "languageSource": language_source,
+        "items": outcomes,
+        "fanOutSummary": {
+            "appliedLimit": request["maxResults"],
+            "consideredItemCount": len(outcomes),
+            "transcriptAttemptCount": attempt_count,
+            "outcomeCounts": outcome_counts,
+            "additionalPlaylistItemsNotAttempted": bool(payload.get("nextPageToken")) if isinstance(payload, dict) else False,
+        },
+        "fieldProvenance": {
+            "items.position": "raw_upstream",
+            "items.playlistItemId": "raw_upstream",
+            "items.videoId": "raw_upstream",
+            "items.transcriptStatus": "normalized",
+            "items.language": "raw_upstream",
+            "items.languageSource": "normalized",
+            "items.captionTrackId": "raw_upstream",
+            "items.segments.text": "normalized",
+            "items.segments.startTimeSeconds": "normalized",
+            "items.segments.endTimeSeconds": "normalized",
+            "playlistId": "normalized",
+            "language": "normalized",
+            "languageSource": "normalized",
+            "fanOutSummary": "normalized",
+        },
+    }
+
+
+def build_playlists_get_video_transcripts_handler(
+    *,
+    playlist_items=None,
+    timestamped_captions=None,
+    default_language: str | None = None,
+    default_language_error: str | None = None,
+):
+    """Build a callable handler for bounded playlist transcript aggregation.
+
+    :param playlist_items: Optional injected lower-layer playlist-item handler.
+    :param timestamped_captions: Optional injected timestamped-caption handler.
+    :param default_language: Optional injected configured transcript language.
+    :param default_language_error: Optional safe invalid-configuration state.
+    :return: Callable that validates, lists, and aggregates playlist transcripts.
+    """
+    selected_playlist_items = playlist_items or build_playlist_items_list_handler()
+    if timestamped_captions is None:
+        from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_timestamped_captions_handler
+
+        timestamped_captions = build_transcripts_get_timestamped_captions_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated bounded playlist transcript aggregation request.
+
+        :param arguments: Caller-provided public arguments.
+        :return: Source-ordered transcript outcomes and fan-out summary.
+        :raises PlaylistsGetVideoTranscriptsToolError: If validation or playlist listing fails safely.
+        """
+        request = validate_playlists_get_video_transcripts_arguments(arguments)
+        language, language_source = _resolved_playlist_transcript_language(
+            request,
+            default_language,
+            default_language_error,
+        )
+        try:
+            payload = selected_playlist_items(_playlist_video_transcript_lookup_arguments(request))
+        except PlaylistItemsListToolError as exc:
+            raise _map_playlist_items_list_error_to_video_transcripts(exc) from exc
+        return _playlist_video_transcript_result(
+            request=request,
+            language=language,
+            language_source=language_source,
+            payload=payload,
+            timestamped_captions=timestamped_captions,
+        )
+
+    return handler
+
+
+def build_playlists_get_video_transcripts_tool_descriptor(
+    *,
+    playlist_items=None,
+    timestamped_captions=None,
+    default_language: str | None = None,
+    default_language_error: str | None = None,
+) -> dict[str, Any]:
+    """Build the executable MCP descriptor for playlist transcript aggregation.
+
+    :param playlist_items: Optional injected lower-layer playlist-item handler.
+    :param timestamped_captions: Optional injected timestamped-caption handler.
+    :param default_language: Optional injected configured transcript language.
+    :param default_language_error: Optional safe invalid-configuration state.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {
+        "name": PLAYLISTS_GET_VIDEO_TRANSCRIPTS_TOOL_NAME,
+        "description": "Retrieve timestamped transcripts for videos in one playlist with bounded fan-out.",
+        "inputSchema": PLAYLISTS_GET_VIDEO_TRANSCRIPTS_INPUT_SCHEMA,
+        "handler": build_playlists_get_video_transcripts_handler(
+            playlist_items=playlist_items,
+            timestamped_captions=timestamped_captions,
+            default_language=default_language,
+            default_language_error=default_language_error,
+        ),
+        "metadata": build_playlists_get_video_transcripts_metadata(),
     }
 
 

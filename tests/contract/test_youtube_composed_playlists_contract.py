@@ -72,7 +72,31 @@ def test_playlist_details_contract_documents_safe_categories_without_unsafe_meta
     ]
     assert metadata["errorGuidance"]["unavailable_resource"] == "Use a different accessible playlist identifier."
     assert "representativeOnly" not in metadata
-    assert "token" not in str(metadata).lower()
+    assert "api_key" not in str(metadata).lower()
+    assert "stack" not in str(metadata).lower()
+
+
+def test_playlist_video_transcripts_contract_documents_language_and_safe_partial_results():
+    """Require language and partial-result guidance without unsafe metadata.
+
+    :return: ``None`` after validating public recovery and safety details.
+    """
+    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_video_transcripts_metadata
+
+    metadata = build_playlists_get_video_transcripts_metadata()
+
+    assert metadata["languagePolicy"] == "Exact normalized language matching only; no translation or other-language fallback."
+    assert metadata["fanOutPolicy"]["maximumTranscriptAttempts"] == "appliedLimit"
+    assert metadata["compositionBoundary"]["partialResultPolicy"].startswith("Return source-ordered")
+    assert metadata["errorCategories"] == [
+        "invalid_parameters",
+        "unavailable_resource",
+        "authorization_sensitive_data",
+        "quota_exhaustion",
+        "source_unavailable",
+        "upstream_failure",
+    ]
+    assert "api_key" not in str(metadata).lower()
     assert "stack" not in str(metadata).lower()
 
 
@@ -172,3 +196,36 @@ def test_playlist_search_contract_is_concrete_and_documents_composite_bounded_se
     ]
     assert "representativeOnly" not in metadata
     assert "token" not in str(metadata).lower()
+
+
+def test_playlist_video_transcripts_contract_is_concrete_and_bounded():
+    """Require the playlist transcript fan-out descriptor's public boundary.
+
+    :return: ``None`` after validating schema, metadata, provenance, and safe limits.
+    """
+    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_video_transcripts_tool_descriptor
+
+    descriptor = build_playlists_get_video_transcripts_tool_descriptor()
+    metadata = descriptor["metadata"]
+    fields = {field["fieldName"]: field for field in metadata["responseFields"]}
+
+    assert descriptor["name"] == "playlists_getVideoTranscripts"
+    assert descriptor["inputSchema"] == {
+        "type": "object",
+        "required": ["playlistId"],
+        "properties": {
+            "playlistId": {"type": "string", "minLength": 1},
+            "language": {"type": "string", "minLength": 1},
+            "maxResults": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10},
+        },
+        "additionalProperties": False,
+    }
+    assert metadata["compositionBoundary"]["kind"] == "bounded_playlist_transcript_fan_out"
+    assert metadata["lowerLayerDependencies"] == ["playlistItems.list", "captions.list", "captions.download"]
+    assert metadata["limitPolicy"] == {"default": 10, "minimum": 1, "maximum": 50, "continuationInputAccepted": False}
+    assert metadata["languageSelection"] == ["explicit", "configured_default", "english_fallback"]
+    assert fields["items.segments.text"]["category"] == "normalized"
+    assert fields["fanOutSummary"]["category"] == "normalized"
+    assert "representativeOnly" not in metadata
+    assert "api_key" not in str(metadata).lower()
+    assert "stack" not in str(metadata).lower()
