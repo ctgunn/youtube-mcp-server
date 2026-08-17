@@ -1066,3 +1066,182 @@ def test_channels_list_playlists_keeps_empty_unavailable_and_failures_distinct()
         build_channels_list_playlists_handler(channels=lambda _arguments: {"items": [{"id": "UC123"}]}, playlists=denied)({"channelId": "UC123"})
     assert restricted.value.category == "authorization_sensitive_data"
     assert "hidden" not in str(restricted.value.details)
+
+
+def test_channels_search_content_validates_and_normalizes_one_direct_channel_search():
+    """Execute one direct public video search scoped to the requested channel.
+
+    The fixture includes duplicate, malformed, and mismatched source records to
+    prove that only safely usable requested-channel items are returned.
+    """
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsSearchContentToolError,
+        build_channels_search_content_handler,
+        validate_channels_search_content_arguments,
+    )
+
+    assert validate_channels_search_content_arguments({"channelId": " UC123 ", "query": " release notes "}) == {
+        "channelId": "UC123",
+        "query": "release notes",
+        "maxResults": 10,
+        "order": "relevance",
+    }
+    for arguments, field in (
+        (None, "arguments"),
+        ({}, "channelId"),
+        ({"channelId": "UC123"}, "query"),
+        ({"channelId": " ", "query": "release"}, "channelId"),
+        ({"channelId": "UC123", "query": " ", "unexpected": True}, "unexpected"),
+    ):
+        with pytest.raises(ChannelsSearchContentToolError) as error:
+            validate_channels_search_content_arguments(arguments)
+        assert error.value.category == "invalid_parameters"
+        assert error.value.details == {"field": field}
+
+    calls = []
+
+    def search(arguments):
+        """Record the direct lower-layer request and return controlled records.
+
+        :param arguments: Lower-layer public search request.
+        :return: Ordered source records including unusable candidates.
+        """
+        calls.append(arguments)
+        return {
+            "items": [
+                {
+                    "id": {"videoId": "v1"},
+                    "snippet": {
+                        "channelId": "UC123",
+                        "channelTitle": "Example",
+                        "title": "First",
+                        "description": "Public description",
+                        "publishedAt": "2026-01-01T00:00:00Z",
+                        "thumbnails": {"medium": "https://example.invalid/first"},
+                    },
+                },
+                {"id": {"videoId": "v1"}, "snippet": {"channelId": "UC123", "title": "Duplicate"}},
+                {"id": {"videoId": "v2"}, "snippet": {"channelId": "UC999", "title": "Mismatched"}},
+                {"id": {}, "snippet": {"channelId": "UC123", "title": "Unusable"}},
+            ]
+        }
+
+    result = build_channels_search_content_handler(search=search)({"channelId": " UC123 ", "query": " release notes "})
+
+    assert calls == [{"part": "snippet", "q": "release notes", "channelId": "UC123", "type": "video", "maxResults": 10, "order": "relevance"}]
+    assert result["items"] == [{"videoId": "v1", "contentType": "video", "title": "First", "description": "Public description", "publishedAt": "2026-01-01T00:00:00Z", "channelId": "UC123", "channelTitle": "Example", "thumbnails": {"medium": "https://example.invalid/first"}}]
+    assert result["returnedCount"] == 1
+    assert result["appliedInputs"] == {"channelId": "UC123", "query": "release notes", "maxResults": 10, "order": "relevance"}
+    assert result["searchContext"]["matching"] == "direct_upstream_search"
+    assert result["searchContext"]["rankingApplied"] is False
+    assert result["partialAvailability"] == {"status": "partial", "omittedItemCount": 3, "reasons": ["unusable_or_out_of_scope_source_item"]}
+    assert result["fieldProvenance"]["items.videoId"] == "raw_upstream"
+    assert result["fieldProvenance"]["searchContext"] == "normalized"
+
+
+def test_channels_search_content_returns_empty_and_maps_safe_lower_layer_errors():
+    """Keep empty success distinct from sanitized required-search failures."""
+    from mcp_server.tools.youtube_common.search import SearchListToolError
+    from mcp_server.tools.youtube_composed.channels import ChannelsSearchContentToolError, build_channels_search_content_handler
+
+    empty = build_channels_search_content_handler(search=lambda _arguments: {"items": []})({"channelId": "UC123", "query": "absent"})
+    assert empty["items"] == []
+    assert empty["returnedCount"] == 0
+    assert empty["channelId"] == "UC123"
+
+    def quota_limited(_arguments):
+        """Raise a lower-layer quota error with unsafe diagnostic details.
+
+        :param _arguments: Ignored lower-layer search request.
+        :raises SearchListToolError: Always raised for safe mapping coverage.
+        """
+        raise SearchListToolError("quota", category="quota_exhausted", details={"api_key": "hidden", "raw_body": "hidden"})
+
+    with pytest.raises(ChannelsSearchContentToolError) as error:
+        build_channels_search_content_handler(search=quota_limited)({"channelId": "UC123", "query": "release"})
+    assert error.value.category == "quota_exhaustion"
+    assert error.value.details == {}
+
+
+def test_channels_search_content_applies_bounded_limits_and_direct_source_ordering():
+    """Validate result controls and forward them without local ranking."""
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsSearchContentToolError,
+        build_channels_search_content_handler,
+        validate_channels_search_content_arguments,
+    )
+
+    assert validate_channels_search_content_arguments({"channelId": "UC123", "query": "topic", "maxResults": 1, "order": "date"}) == {
+        "channelId": "UC123",
+        "query": "topic",
+        "maxResults": 1,
+        "order": "date",
+    }
+    for arguments, field in (
+        ({"channelId": "UC123", "query": "topic", "maxResults": True}, "maxResults"),
+        ({"channelId": "UC123", "query": "topic", "maxResults": 0}, "maxResults"),
+        ({"channelId": "UC123", "query": "topic", "maxResults": 51}, "maxResults"),
+        ({"channelId": "UC123", "query": "topic", "order": "title"}, "order"),
+    ):
+        with pytest.raises(ChannelsSearchContentToolError) as error:
+            validate_channels_search_content_arguments(arguments)
+        assert error.value.details == {"field": field}
+
+    calls = []
+
+    def search(arguments):
+        """Record explicit controls and return more records than the final cap.
+
+        :param arguments: Lower-layer public channel-video search request.
+        :return: Ordered matching public video records.
+        """
+        calls.append(arguments)
+        return {"items": [
+            {"id": {"videoId": "v1"}, "snippet": {"channelId": "UC123", "title": "First"}},
+            {"id": {"videoId": "v2"}, "snippet": {"channelId": "UC123", "title": "Second"}},
+        ]}
+
+    result = build_channels_search_content_handler(search=search)({"channelId": "UC123", "query": "topic", "maxResults": 1, "order": "viewCount"})
+    assert calls == [{"part": "snippet", "q": "topic", "channelId": "UC123", "type": "video", "maxResults": 1, "order": "viewCount"}]
+    assert [item["videoId"] for item in result["items"]] == ["v1"]
+    assert result["searchContext"]["order"] == "viewCount"
+    assert result["searchContext"]["ordering"] == "upstream_order"
+    assert result["searchContext"]["rankingApplied"] is False
+
+
+def test_channels_search_content_validates_and_forwards_language_as_relevance_hint():
+    """Forward only a valid optional language preference to the source search."""
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsSearchContentToolError,
+        build_channels_search_content_handler,
+        validate_channels_search_content_arguments,
+    )
+
+    assert validate_channels_search_content_arguments({"channelId": "UC123", "query": "topic", "language": " en-US "}) == {
+        "channelId": "UC123",
+        "query": "topic",
+        "maxResults": 10,
+        "order": "relevance",
+        "language": "en-US",
+    }
+    for language in ("", " ", "english", "en_US", 3):
+        with pytest.raises(ChannelsSearchContentToolError) as error:
+            validate_channels_search_content_arguments({"channelId": "UC123", "query": "topic", "language": language})
+        assert error.value.category == "invalid_parameters"
+        assert error.value.details == {"field": "language"}
+
+    calls = []
+
+    def search(arguments):
+        """Record the relevance hint without imposing a content-language filter.
+
+        :param arguments: Lower-layer public channel-video search request.
+        :return: Empty public source result.
+        """
+        calls.append(arguments)
+        return {"items": []}
+
+    result = build_channels_search_content_handler(search=search)({"channelId": "UC123", "query": "topic", "language": "en-US"})
+    assert calls == [{"part": "snippet", "q": "topic", "channelId": "UC123", "type": "video", "maxResults": 10, "order": "relevance", "relevanceLanguage": "en-US"}]
+    assert result["appliedInputs"]["language"] == "en-US"
+    assert result["searchContext"]["languageRefinesRelevance"] is True

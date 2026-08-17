@@ -315,3 +315,63 @@ def test_channels_list_playlists_contract_exposes_the_bounded_two_read_listing()
     assert metadata["orderingSemantics"]["rankingApplied"] is False
     assert metadata["errorCategories"] == ["invalid_parameters", "unavailable_resource", "authorization_sensitive_data", "quota_exhaustion", "upstream_failure"]
     assert "representativeOnly" not in metadata
+
+
+def test_channels_search_content_contract_exposes_direct_channel_search():
+    """Require the executable public schema and direct-search boundary."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+
+    descriptor = build_channels_search_content_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["name"] == "channels_searchContent"
+    assert descriptor["inputSchema"]["required"] == ["channelId", "query"]
+    assert descriptor["inputSchema"]["additionalProperties"] is False
+    assert metadata["compositionBoundary"]["kind"] == "direct_search_normalization"
+    assert metadata["lowerLayerDependencies"] == ["search.list"]
+    assert metadata["publicContentPolicy"].startswith("Only publicly available")
+    assert "representativeOnly" not in metadata
+
+
+def test_channels_search_content_contract_discloses_provenance_and_safe_outcomes():
+    """Require direct-search, provenance, and safe-error disclosure."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_metadata
+
+    metadata = build_channels_search_content_metadata()
+    fields = {field["fieldName"]: field for field in metadata["responseFields"]}
+
+    assert fields["items.videoId"]["category"] == "raw_upstream"
+    assert fields["items.contentType"]["category"] == "normalized"
+    assert fields["searchContext"]["category"] == "normalized"
+    assert metadata["directSearchSemantics"]["localRankingApplied"] is False
+    assert metadata["directSearchSemantics"]["localEnrichmentApplied"] is False
+    assert metadata["errorCategories"] == ["invalid_parameters", "unavailable_resource", "authorization_sensitive_data", "quota_exhaustion", "upstream_failure"]
+
+
+def test_channels_search_content_contract_exposes_bounded_direct_order_controls():
+    """Require exact public defaults and upstream-order disclosure."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+
+    descriptor = build_channels_search_content_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["inputSchema"]["properties"]["maxResults"] == {"type": "integer", "minimum": 1, "maximum": 50, "default": 10}
+    assert descriptor["inputSchema"]["properties"]["order"] == {"type": "string", "enum": ["relevance", "date", "viewCount"], "default": "relevance"}
+    assert "one channel-constrained" in metadata["compositionBoundary"]["boundedness"]
+    assert metadata["directSearchSemantics"]["ordering"] == "upstream_order"
+    assert metadata["directSearchSemantics"]["localRankingApplied"] is False
+
+
+def test_channels_search_content_contract_discloses_optional_language_relevance():
+    """Require language preference to remain an optional relevance-only input."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+
+    descriptor = build_channels_search_content_tool_descriptor()
+    metadata = descriptor["metadata"]
+
+    assert descriptor["inputSchema"]["properties"]["language"]["type"] == "string"
+    assert metadata["languageSemantics"] == {
+        "input": "BCP 47 language preference",
+        "effect": "relevance_hint_only",
+        "guaranteesLanguageMatchedResults": False,
+    }

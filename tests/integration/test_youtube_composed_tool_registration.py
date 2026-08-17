@@ -897,3 +897,63 @@ def test_channels_list_playlists_descriptor_registers_and_executes():
     result = InMemoryToolDispatcher(tools=[build_channels_list_playlists_tool_descriptor(channels=channels, playlists=playlists)]).call_tool("channels_listPlaylists", {"channelId": "UC123"})
     assert calls == [{"part": "id", "id": "UC123"}, {"part": "snippet,contentDetails,status", "channelId": "UC123", "maxResults": 25}]
     assert result["items"] == [{"playlistId": "PL123", "title": "Example"}]
+
+
+def test_channels_search_content_descriptor_registers_and_executes_direct_search():
+    """Register one injected direct channel-content search descriptor."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+
+    def search(arguments):
+        """Assert one channel-constrained public video request.
+
+        :param arguments: Lower-layer public search request.
+        :return: One matching public video record.
+        """
+        assert arguments == {"part": "snippet", "q": "release", "channelId": "UC123", "type": "video", "maxResults": 10, "order": "relevance"}
+        return {"items": [{"id": {"videoId": "v1"}, "snippet": {"channelId": "UC123", "title": "Release"}}]}
+
+    dispatcher = InMemoryToolDispatcher(tools=[build_channels_search_content_tool_descriptor(search=search)])
+    result = dispatcher.call_tool("channels_searchContent", {"channelId": "UC123", "query": "release"})
+
+    assert result["items"] == [{"videoId": "v1", "contentType": "video", "title": "Release", "channelId": "UC123"}]
+    assert dispatcher.list_tools()[0]["metadata"]["compositionBoundary"]["kind"] == "direct_search_normalization"
+
+
+def test_channels_search_content_descriptor_forwards_explicit_result_controls():
+    """Register the descriptor with bounded direct-source result controls."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+
+    def search(arguments):
+        """Assert explicit result controls reach the one lower-layer search.
+
+        :param arguments: Lower-layer public search request.
+        :return: Empty public source result.
+        """
+        assert arguments["maxResults"] == 3
+        assert arguments["order"] == "date"
+        return {"items": []}
+
+    result = InMemoryToolDispatcher(tools=[build_channels_search_content_tool_descriptor(search=search)]).call_tool(
+        "channels_searchContent", {"channelId": "UC123", "query": "release", "maxResults": 3, "order": "date"}
+    )
+    assert result["maxResults"] == 3
+    assert result["searchContext"]["order"] == "date"
+
+
+def test_channels_search_content_descriptor_forwards_language_preference():
+    """Register direct search with an optional language relevance preference."""
+    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+
+    def search(arguments):
+        """Assert the normalized preference reaches the lower-layer request.
+
+        :param arguments: Lower-layer public search request.
+        :return: Empty public source result.
+        """
+        assert arguments["relevanceLanguage"] == "fr"
+        return {"items": []}
+
+    result = InMemoryToolDispatcher(tools=[build_channels_search_content_tool_descriptor(search=search)]).call_tool(
+        "channels_searchContent", {"channelId": "UC123", "query": "release", "language": "fr"}
+    )
+    assert result["appliedInputs"]["language"] == "fr"

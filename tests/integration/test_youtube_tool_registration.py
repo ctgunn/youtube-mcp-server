@@ -1616,3 +1616,13 @@ def test_default_registry_includes_executable_channels_update_tool_with_update_m
     assert "bannerExternalUrl" in metadata_text
     assert "channelBanners_insert" in metadata_text
     assert "analytics" in metadata_text.lower()
+
+
+def test_default_registry_includes_channel_content_search_tool():
+    """Discover the concrete direct channel-content search descriptor by default."""
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "channels_searchContent" in listed
+    assert listed["channels_searchContent"]["metadata"]["compositionBoundary"]["kind"] == "direct_search_normalization"
+    assert "representativeOnly" not in listed["channels_searchContent"]["metadata"]

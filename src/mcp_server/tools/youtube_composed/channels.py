@@ -29,6 +29,9 @@ CHANNELS_SEARCH_CHANNELS_MAX_RESULTS = 50
 CHANNELS_SEARCH_CHANNELS_ORDERS = ("date", "relevance", "title", "videoCount")
 CHANNELS_SEARCH_CHANNELS_TYPES = ("any", "show")
 CHANNELS_SEARCH_CHANNELS_SORTS = ("relevance", "subscribers_asc", "subscribers_desc", "indie_priority", "recent_activity")
+CHANNELS_SEARCH_CONTENT_TOOL_NAME = "channels_searchContent"
+CHANNELS_SEARCH_CONTENT_MAX_RESULTS = 50
+_BCP47_LANGUAGE_TAG_PATTERN = re.compile(r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
 CHANNELS_SEARCH_CHANNELS_INPUT_SCHEMA = {
     "type": "object",
     "required": ["query"],
@@ -43,6 +46,18 @@ CHANNELS_SEARCH_CHANNELS_INPUT_SCHEMA = {
         "lastUploadBefore": {"type": "string", "format": "date-time"},
         "creatorOnly": {"type": "boolean", "default": False},
         "sortBy": {"type": "string", "enum": list(CHANNELS_SEARCH_CHANNELS_SORTS), "default": "relevance"},
+    },
+    "additionalProperties": False,
+}
+CHANNELS_SEARCH_CONTENT_INPUT_SCHEMA = {
+    "type": "object",
+    "required": ["channelId", "query"],
+    "properties": {
+        "channelId": {"type": "string", "minLength": 1},
+        "query": {"type": "string", "minLength": 1},
+        "maxResults": {"type": "integer", "minimum": 1, "maximum": CHANNELS_SEARCH_CONTENT_MAX_RESULTS, "default": 10},
+        "order": {"type": "string", "enum": ["relevance", "date", "viewCount"], "default": "relevance"},
+        "language": {"type": "string", "minLength": 1},
     },
     "additionalProperties": False,
 }
@@ -144,6 +159,10 @@ class ChannelsListPlaylistsToolError(ChannelsGetChannelToolError):
 
 class ChannelsSearchChannelsToolError(ChannelsGetChannelToolError):
     """Represent a safe caller-facing public channel-search failure."""
+
+
+class ChannelsSearchContentToolError(ChannelsGetChannelToolError):
+    """Represent a safe caller-facing channel-content-search failure."""
 
 
 def build_channels_get_channel_metadata() -> dict[str, Any]:
@@ -1561,6 +1580,285 @@ def _channel_search_timestamp(value: Any, field: str) -> str:
             details={"field": field},
         )
     return normalized
+
+
+def validate_channels_search_content_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize one public channel-content search request.
+
+    :param arguments: Candidate public tool arguments.
+    :return: Normalized required fields with internal default search controls.
+    :raises ChannelsSearchContentToolError: If a public field is missing, invalid, or unsupported.
+    """
+    if not isinstance(arguments, dict):
+        raise ChannelsSearchContentToolError(
+            "channels_searchContent arguments must be an object",
+            category="invalid_parameters",
+            details={"field": "arguments"},
+        )
+    unexpected = set(arguments) - set(CHANNELS_SEARCH_CONTENT_INPUT_SCHEMA["properties"])
+    if unexpected:
+        raise ChannelsSearchContentToolError(
+            "channels_searchContent received an unsupported field",
+            category="invalid_parameters",
+            details={"field": sorted(unexpected)[0]},
+        )
+    normalized: dict[str, Any] = {"maxResults": arguments.get("maxResults", 10), "order": arguments.get("order", "relevance")}
+    for field in ("channelId", "query"):
+        value = arguments.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise ChannelsSearchContentToolError(
+                f"channels_searchContent requires a non-empty {field}",
+                category="invalid_parameters",
+                details={"field": field},
+            )
+        normalized[field] = value.strip()
+    max_results = normalized["maxResults"]
+    if isinstance(max_results, bool) or not isinstance(max_results, int) or not 1 <= max_results <= CHANNELS_SEARCH_CONTENT_MAX_RESULTS:
+        raise ChannelsSearchContentToolError(
+            f"maxResults must be an integer from 1 through {CHANNELS_SEARCH_CONTENT_MAX_RESULTS}",
+            category="invalid_parameters",
+            details={"field": "maxResults"},
+        )
+    if normalized["order"] not in ("relevance", "date", "viewCount"):
+        raise ChannelsSearchContentToolError(
+            "order must use a supported direct-search value",
+            category="invalid_parameters",
+            details={"field": "order"},
+        )
+    if "language" in arguments:
+        language = arguments["language"]
+        if not isinstance(language, str) or not language.strip() or not _BCP47_LANGUAGE_TAG_PATTERN.fullmatch(language.strip()):
+            raise ChannelsSearchContentToolError(
+                "language must be a valid BCP 47 language tag",
+                category="invalid_parameters",
+                details={"field": "language"},
+            )
+        normalized["language"] = language.strip()
+    return normalized
+
+
+def _channels_search_content_base_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Build the one bounded lower-layer request for channel-content search.
+
+    :param arguments: Validated public channel-content search request.
+    :return: Lower-layer public video-search arguments constrained to one channel.
+    """
+    result = {
+        "part": "snippet",
+        "q": arguments["query"],
+        "channelId": arguments["channelId"],
+        "type": "video",
+        "maxResults": arguments["maxResults"],
+        "order": arguments["order"],
+    }
+    if "language" in arguments:
+        result["relevanceLanguage"] = arguments["language"]
+    return result
+
+
+def _normalize_channels_search_content_items(payload: dict[str, Any], channel_id: str, max_results: int) -> tuple[list[dict[str, Any]], int]:
+    """Normalize usable public video records from one channel-constrained search.
+
+    :param payload: Lower-layer search payload containing public source items.
+    :param channel_id: Requested normalized channel identifier.
+    :param max_results: Final public result cap.
+    :return: Distinct public video items in source order and a safe omitted-item count.
+    """
+    source_items = payload.get("items") if isinstance(payload, dict) and isinstance(payload.get("items"), list) else []
+    items: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    omitted_item_count = 0
+    for source_item in source_items:
+        if not isinstance(source_item, dict):
+            omitted_item_count += 1
+            continue
+        identifier = source_item.get("id") if isinstance(source_item.get("id"), dict) else {}
+        video_id = identifier.get("videoId")
+        snippet = source_item.get("snippet") if isinstance(source_item.get("snippet"), dict) else {}
+        source_channel_id = snippet.get("channelId")
+        if (
+            not isinstance(video_id, str)
+            or not video_id.strip()
+            or not isinstance(source_channel_id, str)
+            or source_channel_id.strip() != channel_id
+            or video_id.strip() in seen_ids
+        ):
+            omitted_item_count += 1
+            continue
+        normalized_video_id = video_id.strip()
+        seen_ids.add(normalized_video_id)
+        item: dict[str, Any] = {"videoId": normalized_video_id, "contentType": "video"}
+        for field in ("title", "description", "publishedAt", "channelId", "channelTitle", "thumbnails"):
+            _copy_if_present(item, snippet, field)
+        items.append(item)
+        if len(items) >= max_results:
+            break
+    return items, omitted_item_count
+
+
+def _map_channels_search_content_error(error: SearchListToolError) -> ChannelsSearchContentToolError:
+    """Translate a lower-layer search error into the channel-content taxonomy.
+
+    :param error: Safe lower-layer search failure.
+    :return: Sanitized public channel-content-search failure.
+    """
+    category = {
+        "invalid_request": "invalid_parameters",
+        "authentication_failed": "authorization_sensitive_data",
+        "authorization_failed": "authorization_sensitive_data",
+        "quota_exhausted": "quota_exhaustion",
+        "resource_not_found": "unavailable_resource",
+    }.get(error.category, "upstream_failure")
+    return ChannelsSearchContentToolError(safe_upstream_error_message(), category=category, details=error.details)
+
+
+def _channels_search_content_result(arguments: dict[str, Any], items: list[dict[str, Any]], omitted_item_count: int) -> dict[str, Any]:
+    """Build one stable direct-search public result collection.
+
+    :param arguments: Validated channel-content search request.
+    :param items: Usable requested-channel video items in source order.
+    :param omitted_item_count: Safely known count of omitted source records.
+    :return: Normalized result collection with direct-search context and provenance.
+    """
+    result: dict[str, Any] = {
+        "channelId": arguments["channelId"],
+        "query": arguments["query"],
+        "items": items,
+        "returnedCount": len(items),
+        "maxResults": arguments["maxResults"],
+        "appliedInputs": dict(arguments),
+        "searchContext": {
+            "source": "channel_constrained_public_video_search",
+            "matching": "direct_upstream_search",
+            "ordering": "upstream_order",
+            "order": arguments["order"],
+            "rankingApplied": False,
+            "enrichmentApplied": False,
+            "localFilteringApplied": False,
+            "publicContentOnly": True,
+            "languageRefinesRelevance": "language" in arguments,
+            "requestTimeVariability": "search_results_can_change",
+        },
+        "fieldProvenance": {
+            "items.videoId": "raw_upstream",
+            "items.contentType": "normalized",
+            "items.title": "raw_upstream",
+            "items.description": "raw_upstream",
+            "items.publishedAt": "raw_upstream",
+            "items.channelId": "raw_upstream",
+            "items.channelTitle": "raw_upstream",
+            "items.thumbnails": "raw_upstream",
+            "channelId": "normalized",
+            "query": "normalized",
+            "returnedCount": "normalized",
+            "maxResults": "normalized",
+            "appliedInputs": "normalized",
+            "searchContext": "normalized",
+        },
+    }
+    if omitted_item_count:
+        result["partialAvailability"] = {
+            "status": "partial",
+            "omittedItemCount": omitted_item_count,
+            "reasons": ["unusable_or_out_of_scope_source_item"],
+        }
+        result["fieldProvenance"]["partialAvailability"] = "normalized"
+    return result
+
+
+def build_channels_search_content_metadata() -> dict[str, Any]:
+    """Build safe discovery metadata for direct channel-content search.
+
+    :return: JSON-compatible executable metadata without a representative marker.
+    """
+    return {
+        "name": CHANNELS_SEARCH_CONTENT_TOOL_NAME,
+        "family": "channels",
+        "parameters": list(CHANNELS_SEARCH_CONTENT_INPUT_SCHEMA["properties"]),
+        "inputContract": CHANNELS_SEARCH_CONTENT_INPUT_SCHEMA,
+        "compositionBoundary": {
+            "kind": "direct_search_normalization",
+            "lowerLayerDependencies": ["search.list"],
+            "boundedness": "one channel-constrained public video search; 1-50 normalized items",
+            "partialResultPolicy": "A successful no-match response is empty; unusable source records are disclosed only in safe aggregate form; required search failure is a whole-request error.",
+        },
+        "lowerLayerDependencies": ["search.list"],
+        "publicContentPolicy": "Only publicly available requested-channel videos are returned; inaccessible content is omitted.",
+        "directSearchSemantics": {
+            "matching": "direct_upstream_search",
+            "ordering": "upstream_order",
+            "localRankingApplied": False,
+            "localEnrichmentApplied": False,
+            "localFilteringApplied": False,
+        },
+        "languageSemantics": {
+            "input": "BCP 47 language preference",
+            "effect": "relevance_hint_only",
+            "guaranteesLanguageMatchedResults": False,
+        },
+        "authAndQuotaNotes": ["Uses configured public-read capability and does not request owner-scoped data.", "One bounded public search consumes quota and can fail when capacity is exhausted."],
+        "responseFields": [
+            {"fieldName": "items.videoId", "category": "raw_upstream", "source": "id.videoId"},
+            {"fieldName": "items.contentType", "category": "normalized", "source": "fixed public video scope"},
+            {"fieldName": "items.title", "category": "raw_upstream", "source": "snippet.title"},
+            {"fieldName": "items.description", "category": "raw_upstream", "source": "snippet.description"},
+            {"fieldName": "items.publishedAt", "category": "raw_upstream", "source": "snippet.publishedAt"},
+            {"fieldName": "items.channelId", "category": "raw_upstream", "source": "snippet.channelId"},
+            {"fieldName": "items.channelTitle", "category": "raw_upstream", "source": "snippet.channelTitle"},
+            {"fieldName": "items.thumbnails", "category": "raw_upstream", "source": "snippet.thumbnails"},
+            {"fieldName": "searchContext", "category": "normalized", "source": "direct-search contract"},
+            {"fieldName": "partialAvailability", "category": "normalized", "source": "safe aggregate source omissions"},
+        ],
+        "errorCategories": ["invalid_parameters", "unavailable_resource", "authorization_sensitive_data", "quota_exhaustion", "upstream_failure"],
+        "errorGuidance": {
+            "invalid_parameters": "Correct the identified request field and retry.",
+            "unavailable_resource": "Use a different accessible channel identifier or retry later.",
+            "authorization_sensitive_data": "Obtain applicable public-read capability if available.",
+            "quota_exhaustion": "Retry after capacity is available.",
+            "upstream_failure": "Retry when the source service is available.",
+        },
+    }
+
+
+def build_channels_search_content_handler(*, search=None):
+    """Build a callable handler for direct public channel-content search.
+
+    :param search: Optional lower-layer ``search_list`` override for tests.
+    :return: Callable bounded direct-search handler.
+    """
+    selected_search = search or build_search_list_handler()
+
+    def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute one validated public channel-content search request.
+
+        :param arguments: Caller-provided public tool arguments.
+        :return: Normalized public requested-channel video collection.
+        :raises ChannelsSearchContentToolError: If validation or the required search fails.
+        """
+        request = validate_channels_search_content_arguments(arguments)
+        try:
+            payload = selected_search(_channels_search_content_base_arguments(request))
+        except SearchListToolError as exc:
+            raise _map_channels_search_content_error(exc) from exc
+        items, omitted_item_count = _normalize_channels_search_content_items(payload, request["channelId"], request["maxResults"])
+        return _channels_search_content_result(request, items, omitted_item_count)
+
+    return handler
+
+
+def build_channels_search_content_tool_descriptor(*, search=None) -> dict[str, Any]:
+    """Build the executable MCP descriptor for ``channels_searchContent``.
+
+    :param search: Optional lower-layer ``search_list`` override for tests.
+    :return: Descriptor consumable by the in-memory dispatcher.
+    """
+    return {
+        "name": CHANNELS_SEARCH_CONTENT_TOOL_NAME,
+        "description": "Search publicly available video content within one YouTube channel using direct search.",
+        "inputSchema": CHANNELS_SEARCH_CONTENT_INPUT_SCHEMA,
+        "handler": build_channels_search_content_handler(search=search),
+        "metadata": build_channels_search_content_metadata(),
+    }
 
 
 def validate_channels_search_channels_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
