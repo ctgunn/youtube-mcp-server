@@ -2795,6 +2795,35 @@ Dependencies:
 - `YT-304`
 - `YT-311`
 
+### OPS-401: CI/CD and Quality Gates
+Description:
+Add CI checks and deploy automation guardrails.
+
+Primary stories:
+- As a maintainer, PRs are blocked on lint/typecheck/tests.
+
+Acceptance criteria:
+- CI pipeline executes lint, typecheck, tests.
+- Build/deploy instructions reproducible from docs.
+
+Dependencies:
+- `FND-008`
+
+### OPS-402: Production Hardening
+Description:
+Add rate limiting, caching policy, and operational alerts.
+
+Primary stories:
+- As an operator, I get alerted on sustained errors/latency spikes.
+
+Acceptance criteria:
+- Basic alerting configured.
+- Rate limiting strategy implemented.
+- Caching strategy documented and applied where appropriate.
+
+Dependencies:
+- `YT-203`, `YT-204`, `YT-205`, `YT-206`, `YT-207`, `YT-208`, `YT-209`, `YT-210`, `YT-211`, `YT-212`, `YT-213`, `YT-214`, `YT-215`, `YT-216`, `YT-217`, `YT-218`, `YT-219`, `YT-220`, `YT-221`, `YT-222`, `YT-223`, `YT-224`, `YT-225`, `YT-226`, `YT-227`, `YT-228`, `YT-229`, `YT-230`, `YT-231`, `YT-232`, `YT-233`, `YT-234`, `YT-235`, `YT-236`, `YT-237`, `YT-238`, `YT-239`, `YT-240`, `YT-241`, `YT-242`, `YT-243`, `YT-244`, `YT-245`, `YT-246`, `YT-247`, `YT-248`, `YT-249`, `YT-250`, `YT-251`, `YT-252`, `YT-253`, `YT-254`, `YT-255`, `YT-302`, `YT-303`, `YT-304`, `YT-305`, `YT-306`, `YT-307`, `YT-308`, `YT-309`, `YT-310`, `YT-311`, `YT-312`, `YT-313`, `YT-314`, `YT-315`, `YT-316`, `YT-317`, `YT-318`, `YT-319`, `YT-320`
+
 ### OPS-403: Layer 4 Default MCP Tool-Catalog Integration Coverage
 Suggested branch: `feature/ops-403-layer4-tool-catalog`
 
@@ -2855,35 +2884,6 @@ Test plan:
 Dependencies:
 - `YT-157`, `YT-158`, `YT-159`, `YT-160`
 - `OPS-403`
-
-### OPS-401: CI/CD and Quality Gates
-Description:
-Add CI checks and deploy automation guardrails.
-
-Primary stories:
-- As a maintainer, PRs are blocked on lint/typecheck/tests.
-
-Acceptance criteria:
-- CI pipeline executes lint, typecheck, tests.
-- Build/deploy instructions reproducible from docs.
-
-Dependencies:
-- `FND-008`
-
-### OPS-402: Production Hardening
-Description:
-Add rate limiting, caching policy, and operational alerts.
-
-Primary stories:
-- As an operator, I get alerted on sustained errors/latency spikes.
-
-Acceptance criteria:
-- Basic alerting configured.
-- Rate limiting strategy implemented.
-- Caching strategy documented and applied where appropriate.
-
-Dependencies:
-- `YT-203`, `YT-204`, `YT-205`, `YT-206`, `YT-207`, `YT-208`, `YT-209`, `YT-210`, `YT-211`, `YT-212`, `YT-213`, `YT-214`, `YT-215`, `YT-216`, `YT-217`, `YT-218`, `YT-219`, `YT-220`, `YT-221`, `YT-222`, `YT-223`, `YT-224`, `YT-225`, `YT-226`, `YT-227`, `YT-228`, `YT-229`, `YT-230`, `YT-231`, `YT-232`, `YT-233`, `YT-234`, `YT-235`, `YT-236`, `YT-237`, `YT-238`, `YT-239`, `YT-240`, `YT-241`, `YT-242`, `YT-243`, `YT-244`, `YT-245`, `YT-246`, `YT-247`, `YT-248`, `YT-249`, `YT-250`, `YT-251`, `YT-252`, `YT-253`, `YT-254`, `YT-255`, `YT-302`, `YT-303`, `YT-304`, `YT-305`, `YT-306`, `YT-307`, `YT-308`, `YT-309`, `YT-310`, `YT-311`, `YT-312`, `YT-313`, `YT-314`, `YT-315`, `YT-316`, `YT-317`, `YT-318`, `YT-319`, `YT-320`
 
 ## 4. Suggested Delivery Order
 1. `FND-001`

@@ -181,6 +181,8 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - tools may perform ETL-style normalization, filtering, enrichment, and ranking before returning results
 - Layer 4 is the internal integration-verification layer:
   - it is not an additional public MCP tool catalog or YouTube API surface
+  - `OPS-401` supplies CI/CD quality gates that block changes on lint, typecheck, and test failures and keep build/deploy instructions reproducible
+  - `OPS-402` supplies production hardening through rate limiting, caching policy, and operational alerting for sustained errors and latency
   - it proves `tools/list` discovery and `tools/call` dispatch for every tool in the default registry
   - it uses safe deterministic fixtures for mutations and explicit expected-error fixtures where the no-runtime path must not fabricate unavailable remote data
 - Initial scope decision:
@@ -259,6 +261,7 @@ This phase establishes a working MCP server before any YouTube tools are added.
 - Adding a default-registry tool MUST fail the Layer 4 catalog suite until the tool provides either a documented safe example or an explicit fixture and expected outcome.
 - Layer 4 verification MUST run without real YouTube credentials, outbound API traffic, or destructive remote mutations. Credential-gated live verification remains a separately explicit operator workflow.
 - The repository MUST provide and document a focused manual command for the Layer 4 catalog suite and a command for the full automated suite.
+- Layer 4 delivery sequence MUST preserve `OPS-401` CI/CD and quality gates, then `OPS-402` production hardening, before `OPS-403` catalog coverage and `OPS-404` configured-runtime verification.
 
 ### 6.3 Required Upstream API Surface
 - Primary data source: YouTube Data API v3.
@@ -771,9 +774,10 @@ The initial public Layer 3 catalog contains 19 MCP tools.
 23. Implement the Layer 3 core public tools.
 24. Implement the additional Layer 3 value-add tools for statistics, transcript discovery/search, channel playlist/content workflows, and playlist transcript/search workflows.
 25. Add auth, secrets, quota/error handling, and transcript-access hardening across low-level and composed public workflows.
-26. Add monitoring, alerts, and release documentation.
-27. Deliver `OPS-403` Layer 4 catalog-driven MCP integration coverage so every registered public tool is discovered and invoked through the public transport with an explicit expected outcome.
-28. Deliver `OPS-404` Layer 4 configured-runtime and operator verification so capability-gated behavior and the boundary between deterministic fixtures and live YouTube calls remain explicit.
+26. Deliver `OPS-401` CI/CD and quality gates so lint, typecheck, and tests are enforced and build/deploy instructions are reproducible.
+27. Deliver `OPS-402` production hardening through rate limiting, caching policy, and operational alerting for sustained errors and latency.
+28. Deliver `OPS-403` Layer 4 catalog-driven MCP integration coverage so every registered public tool is discovered and invoked through the public transport with an explicit expected outcome.
+29. Deliver `OPS-404` Layer 4 configured-runtime and operator verification so capability-gated behavior and the boundary between deterministic fixtures and live YouTube calls remain explicit.
 
 ## 16. Open Decisions
 - Final transcript fallback approach when official captions are unavailable.
