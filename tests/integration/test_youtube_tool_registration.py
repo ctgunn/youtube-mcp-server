@@ -1524,6 +1524,21 @@ def test_default_registry_includes_concrete_playlist_detail_tool():
     assert "representativeOnly" not in metadata
 
 
+def test_default_registry_includes_concrete_playlist_item_search_tool():
+    """Discover the default bounded playlist-item search descriptor.
+
+    :return: ``None`` after validating additive concrete registration.
+    """
+    dispatcher = InMemoryToolDispatcher()
+    listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
+
+    assert "playlists_searchItems" in listed
+    metadata = listed["playlists_searchItems"]["metadata"]
+    assert metadata["compositionBoundary"]["kind"] == "bounded_playlist_item_literal_search"
+    assert metadata["searchPolicy"]["maximumInspectedEntries"] == 500
+    assert "representativeOnly" not in metadata
+
+
 def test_default_registry_includes_executable_playlist_items_insert_tool_with_insert_metadata():
     """Register ``playlistItems_insert`` by default with insert metadata."""
     dispatcher = InMemoryToolDispatcher()

@@ -129,3 +129,46 @@ def test_playlist_items_contract_documents_provenance_limits_and_safe_categories
     assert metadata["errorGuidance"]["unavailable_resource"] == "Use a different accessible playlist identifier."
     assert "token" not in str(metadata).lower()
     assert "stack" not in str(metadata).lower()
+
+
+def test_playlist_search_contract_is_concrete_and_documents_composite_bounded_search():
+    """Require discovery metadata for the bounded playlist-item search tool.
+
+    :return: ``None`` after validating strict inputs, coverage, matching, and safe errors.
+    """
+    from mcp_server.tools.youtube_composed.playlists import build_playlists_search_items_tool_descriptor
+
+    descriptor = build_playlists_search_items_tool_descriptor()
+    metadata = descriptor["metadata"]
+    fields = {field["fieldName"]: field for field in metadata["responseFields"]}
+
+    assert descriptor["name"] == "playlists_searchItems"
+    assert descriptor["inputSchema"] == {
+        "type": "object",
+        "required": ["playlistId", "query"],
+        "properties": {
+            "playlistId": {"type": "string", "minLength": 1},
+            "query": {"type": "string", "minLength": 1},
+            "maxResults": {"type": "integer", "minimum": 1, "maximum": 50, "default": 25},
+        },
+        "additionalProperties": False,
+    }
+    assert metadata["compositionBoundary"]["kind"] == "bounded_playlist_item_literal_search"
+    assert metadata["compositionBoundary"]["boundedness"] == "one playlist lookup; up to 10 item pages; at most 500 inspected entries; 1-50 returned matches"
+    assert metadata["lowerLayerDependencies"] == ["playlists.list", "playlistItems.list", "in_server_literal_search"]
+    assert metadata["limitPolicy"] == {"default": 25, "minimum": 1, "maximum": 50, "continuationInputAccepted": False}
+    assert metadata["searchPolicy"]["matching"] == "case_insensitive_literal_phrase"
+    assert metadata["searchPolicy"]["searchableFields"] == ["title", "description", "channelTitle", "videoId"]
+    assert metadata["searchPolicy"]["paginationTraversed"] is True
+    assert metadata["searchPolicy"]["maximumInspectedEntries"] == 500
+    assert fields["items.matchingFields"]["category"] == "normalized"
+    assert fields["searchCoverage"]["category"] == "normalized"
+    assert metadata["errorCategories"] == [
+        "invalid_parameters",
+        "unavailable_resource",
+        "authorization_sensitive_data",
+        "quota_exhaustion",
+        "upstream_failure",
+    ]
+    assert "representativeOnly" not in metadata
+    assert "token" not in str(metadata).lower()
