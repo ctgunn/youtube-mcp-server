@@ -232,6 +232,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - In-memory request and result state only; no persistent storage (319-playlist-item-search)
 - Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` Layer 3 conventions; existing `playlistItems.list` handler; existing timestamped-caption handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff (320-playlist-transcripts)
 - N/A; request, language resolution, transcript outcomes, and summary are in-memory only (320-playlist-transcripts)
+- Python 3.11 for test and deployment-support tooling; YAML for checked-in automation; Make for canonical developer commands + Existing FastAPI/Pydantic/Uvicorn service; declared development tooling comprising `pytest`, Ruff, and mypy; existing Cloud Build, GitHub Actions, Terraform, Docker, `scripts/deploy_cloud_run.sh`, and `scripts/verify_cloud_run_foundation.py` (401-ci-quality-gates)
+- No new runtime storage. Checked-in workflow/configuration/documentation files, an externally configured GitHub `main` ruleset, and existing file-based image, deployment, and verification evidence artifacts (401-ci-quality-gates)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -252,9 +254,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 401-ci-quality-gates: Added Python 3.11 for test and deployment-support tooling; YAML for checked-in automation; Make for canonical developer commands + Existing FastAPI/Pydantic/Uvicorn service; declared development tooling comprising `pytest`, Ruff, and mypy; existing Cloud Build, GitHub Actions, Terraform, Docker, `scripts/deploy_cloud_run.sh`, and `scripts/verify_cloud_run_foundation.py`
 - 320-playlist-transcripts: Added Python 3.11 + Existing MCP tool registry and dispatcher; `src/mcp_server/tools/youtube_composed/` Layer 3 conventions; existing `playlistItems.list` handler; existing timestamped-caption handler; Python standard-library JSON-compatible dictionaries; pytest; Ruff
 - 319-playlist-item-search: Added Python 3.11 + Existing in-repo MCP dispatcher and tool registry; Layer 2 YouTube resource wrappers; Python standard library
-- 318-channels-search-content: Added Python 3.11 + Existing MCP tool registry and dispatcher; Layer 2 `search_list` handler; `youtube_composed` channel-family conventions; Python standard-library dictionaries and regular expressions; pytest; Ruff
 
 
 <!-- MANUAL ADDITIONS START -->

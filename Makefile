@@ -7,3 +7,18 @@ dev-hosted:
 
 dev-down:
 	./scripts/local_compose.sh down
+
+PYTHON ?= python3
+
+.PHONY: lint typecheck test quality
+
+lint:
+	$(PYTHON) -m ruff check .
+
+typecheck:
+	$(PYTHON) -m mypy src/mcp_server
+
+test:
+	$(PYTHON) -m pytest
+
+quality: lint typecheck test
