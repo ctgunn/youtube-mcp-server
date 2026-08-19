@@ -1,7 +1,9 @@
 """Integration tests for registering the concrete ``activities_list`` tool."""
 
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
-from mcp_server.tools.youtube_common.activities import build_activities_list_tool_descriptor
+from mcp_server.tools.youtube_common.activities import (
+    build_activities_list_tool_descriptor,
+)
 
 
 def _register_activities_list() -> InMemoryToolDispatcher:

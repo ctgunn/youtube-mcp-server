@@ -8,8 +8,8 @@ from mcp_server.config import (
     config_validation_error_details,
     ensure_runtime_config,
     load_youtube_live_runtime_settings,
-    youtube_capability_readiness,
     validate_runtime_config,
+    youtube_capability_readiness,
 )
 
 

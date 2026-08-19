@@ -85,8 +85,10 @@ def _enum_value(value: Enum | str, enum_type: type[Enum], field_name: str) -> st
     :return: Public string value.
     :raises ToolContractError: If the value does not belong to the enum.
     """
-    if isinstance(value, enum_type):
-        return value.value
+    if not isinstance(value, str):
+        if isinstance(value, enum_type):
+            return str(value.value)
+        raise ToolContractError(f"unsupported {field_name}: {value}")
     text = _require_text(value, field_name)
     if text not in {member.value for member in enum_type}:
         raise ToolContractError(f"unsupported {field_name}: {text}")
@@ -186,7 +188,7 @@ class ResponseFieldProvenance:
         """
         return {
             "fieldName": self.field_name,
-            "category": self.category,
+            "category": _enum_value(self.category, ResponseFieldCategory, "category"),
             "source": self.source,
             "callerGuidance": self.caller_guidance,
             "limitations": self.limitations,

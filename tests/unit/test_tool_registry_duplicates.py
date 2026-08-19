@@ -4,7 +4,11 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.tools.dispatcher import DuplicateToolError, InMemoryToolDispatcher, ToolRegistrationError
+from mcp_server.tools.dispatcher import (
+    DuplicateToolError,
+    InMemoryToolDispatcher,
+    ToolRegistrationError,
+)
 
 
 class ToolRegistryDuplicateTests(unittest.TestCase):

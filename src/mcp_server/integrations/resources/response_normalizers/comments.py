@@ -1,11 +1,11 @@
-# ruff: noqa: F405
 """Response normalizers for comments resources."""
 
 from __future__ import annotations
 
 import json
 
-from mcp_server.integrations.resources.response_normalizers.base import *  # noqa: F403
+from mcp_server.integrations.resources.response_normalizers.base import *
+
 
 def _comments_list_payload(payload: str) -> dict[str, Any]:
     """Return the internal result shape for a `comments.list` response.
@@ -63,7 +63,7 @@ def _comments_set_moderation_status_payload(
     """
     raw_ids = execution.arguments.get("id")
     if isinstance(raw_ids, str):
-        comment_ids = (raw_ids,)
+        comment_ids: tuple[str, ...] = (raw_ids,)
     elif isinstance(raw_ids, (list, tuple)):
         comment_ids = tuple(str(value) for value in raw_ids)
     else:

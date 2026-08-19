@@ -9,6 +9,7 @@ from typing import Any
 
 from mcp_server.integrations.executor import RequestExecution
 
+
 @dataclass(frozen=True)
 class ResponseNormalizer:
     """Adapt one operation-specific response normalizer to a shared signature.
@@ -31,7 +32,7 @@ class ResponseNormalizer:
         family_name: str,
         operation_key: str,
         handler: Callable[[RequestExecution], dict[str, Any]],
-    ) -> "ResponseNormalizer":
+    ) -> ResponseNormalizer:
         """Build a normalizer that only needs execution context.
 
         :param family_name: Resource-family name that owns the normalizer.
@@ -48,7 +49,7 @@ class ResponseNormalizer:
         family_name: str,
         operation_key: str,
         handler: Callable[[str], dict[str, Any]],
-    ) -> "ResponseNormalizer":
+    ) -> ResponseNormalizer:
         """Build a normalizer that only needs response payload content.
 
         :param family_name: Resource-family name that owns the normalizer.
@@ -65,7 +66,7 @@ class ResponseNormalizer:
         family_name: str,
         operation_key: str,
         handler: Callable[[RequestExecution, str], dict[str, Any]],
-    ) -> "ResponseNormalizer":
+    ) -> ResponseNormalizer:
         """Build a normalizer that needs execution context and payload content.
 
         :param family_name: Resource-family name that owns the normalizer.
@@ -213,6 +214,8 @@ def _videos_get_rating_summary(video_ratings: Sequence[Mapping[str, object]]) ->
     return "all_unrated"
 
 __all__ = [
+    "Any",
+    "RequestExecution",
     "ResponseNormalizer",
     "_normalized_video_rating_state",
     "_split_comma_delimited_ids",

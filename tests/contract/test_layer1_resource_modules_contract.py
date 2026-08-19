@@ -1,7 +1,7 @@
+import importlib.util
 import os
 import sys
 import unittest
-import importlib.util
 
 sys.path.insert(0, os.path.abspath("src"))
 

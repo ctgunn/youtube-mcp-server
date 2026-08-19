@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any, Callable, Mapping, TextIO
+from typing import Any, TextIO
 
 from mcp_server.config import (
     HostedRuntimeSettings,
@@ -13,14 +14,22 @@ from mcp_server.config import (
     secret_access_readiness,
     youtube_capability_readiness,
 )
-from mcp_server.health import RuntimeLifecycleState, health_payload, initialize_runtime_lifecycle, readiness_payload
+from mcp_server.health import (
+    RuntimeLifecycleState,
+    health_payload,
+    initialize_runtime_lifecycle,
+    readiness_payload,
+)
+from mcp_server.integrations.runtime import (
+    ConfiguredYouTubeRuntime,
+    build_configured_youtube_runtime,
+)
 from mcp_server.observability import InMemoryObservability, build_request_context
 from mcp_server.protocol.envelope import error_response_for_category
 from mcp_server.protocol.methods import route_mcp_request
 from mcp_server.security import is_mcp_application_security_category
-from mcp_server.transport.streaming import StreamManager
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
-from mcp_server.integrations.runtime import ConfiguredYouTubeRuntime, build_configured_youtube_runtime
+from mcp_server.transport.streaming import StreamManager
 
 JSON_CONTENT_TYPE = "application/json"
 SUPPORTED_HOSTED_METHODS = {
@@ -218,9 +227,11 @@ class MCPHTTPTransport:
             secret_access = secret_access_readiness(self.runtime_env, self.startup_validation)
             durability = self.stream_manager.durability_status(required=runtime_settings.session.durability_required)
             if not secret_access["available"]:
-                self.runtime_lifecycle.mark_degraded(secret_access["reason"])
+                reason = secret_access["reason"]
+                self.runtime_lifecycle.mark_degraded(reason if isinstance(reason, dict) else None)
             if not durability["available"] and runtime_settings.session.durability_required:
-                self.runtime_lifecycle.mark_degraded(durability["reason"])
+                reason = durability["reason"]
+                self.runtime_lifecycle.mark_degraded(reason if isinstance(reason, dict) else None)
 
     def handle(self, path: str, payload: dict) -> dict:
         """Handle one local request against the transport surface."""
@@ -256,17 +267,14 @@ class MCPHTTPTransport:
                 details={"path": path},
             )
         else:
-            mcp_payload = payload if isinstance(payload, dict) else payload
+            mcp_payload = payload
             if isinstance(mcp_payload, dict) and not mcp_payload.get("id"):
                 mcp_payload = {**mcp_payload, "id": context.request_id}
             response = route_mcp_request(mcp_payload, self.dispatcher)
 
         outcome = "success"
-        if isinstance(response, dict):
-            if "error" in response:
-                outcome = "error"
-            elif response.get("status") == "not_ready":
-                outcome = "error"
+        if isinstance(response, dict) and ("error" in response or response.get("status") == "not_ready"):
+            outcome = "error"
 
         self.observability.record(
             context=context,

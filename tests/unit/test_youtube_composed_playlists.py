@@ -157,7 +157,9 @@ def test_playlist_details_uses_one_lookup_and_normalizes_available_public_fields
 
     :return: ``None`` after asserting exact request and result behavior.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_handler
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_playlist_handler,
+    )
 
     lookup = RecordingPlaylistLookup(_playlist_payload())
 
@@ -199,7 +201,9 @@ def test_playlist_details_omits_sparse_optional_metadata_without_fabrication():
 
     :return: ``None`` after asserting absent values are not synthesized.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_handler
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_playlist_handler,
+    )
 
     result = build_playlists_get_playlist_handler(
         lookup=RecordingPlaylistLookup({"items": [{"id": "PL123", "snippet": {}, "contentDetails": {}, "status": {}}]})
@@ -357,7 +361,9 @@ def test_playlist_items_honor_bounds_and_normalize_ordered_available_and_unavail
 
     :return: ``None`` after asserting bounds, item mapping, and availability states.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_items_handler
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_playlist_items_handler,
+    )
 
     lookup = RecordingPlaylistItemsLookup(_playlist_items_payload())
     result = build_playlists_get_playlist_items_handler(playlist_items=lookup)(
@@ -408,7 +414,9 @@ def test_playlist_items_return_successful_empty_collection_and_map_safe_errors()
 
     :return: ``None`` after validating empty and error outcomes.
     """
-    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
+    from mcp_server.tools.youtube_common.playlist_items import (
+        PlaylistItemsListToolError,
+    )
     from mcp_server.tools.youtube_composed.playlists import (
         PlaylistsGetPlaylistItemsToolError,
         build_playlists_get_playlist_items_handler,
@@ -544,7 +552,9 @@ def test_playlist_search_limits_results_and_reports_private_pagination_coverage(
 
     :return: ``None`` after validating limits, omission, and inspection-cap behavior.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_search_items_handler
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_search_items_handler,
+    )
 
     lookup = PagingPlaylistItemsLookup(
         {
@@ -593,7 +603,9 @@ def test_playlist_search_completes_multi_page_results_and_accessible_empty_playl
 
     :return: ``None`` after validating complete multi-page and empty-playlist results.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_search_items_handler
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_search_items_handler,
+    )
 
     paged_lookup = PagingPlaylistItemsLookup(
         {
@@ -794,8 +806,12 @@ def test_playlist_video_transcripts_preserves_safe_mixed_access_outcomes():
 
     :return: ``None`` after validating mixed outcomes, safe errors, and no sensitive detail.
     """
-    from mcp_server.tools.youtube_composed.transcripts import TranscriptsGetTimestampedCaptionsToolError
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_video_transcripts_handler
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_video_transcripts_handler,
+    )
+    from mcp_server.tools.youtube_composed.transcripts import (
+        TranscriptsGetTimestampedCaptionsToolError,
+    )
 
     playlist_items = RecordingPlaylistItemsLookup(
         {
@@ -848,12 +864,16 @@ def test_playlist_video_transcripts_maps_listing_and_remaining_child_failures_sa
 
     :return: ``None`` after validating unavailable, source, and unexpected failure handling.
     """
-    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
+    from mcp_server.tools.youtube_common.playlist_items import (
+        PlaylistItemsListToolError,
+    )
     from mcp_server.tools.youtube_composed.playlists import (
         PlaylistsGetVideoTranscriptsToolError,
         build_playlists_get_video_transcripts_handler,
     )
-    from mcp_server.tools.youtube_composed.transcripts import TranscriptsGetTimestampedCaptionsToolError
+    from mcp_server.tools.youtube_composed.transcripts import (
+        TranscriptsGetTimestampedCaptionsToolError,
+    )
 
     def unavailable_listing(_arguments):
         """Raise an unavailable listing error with unsafe lower-layer details.

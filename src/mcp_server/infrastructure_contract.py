@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 
-
 SHARED_PLATFORM_CAPABILITIES = (
     "hosted_runtime",
     "network_ingress",

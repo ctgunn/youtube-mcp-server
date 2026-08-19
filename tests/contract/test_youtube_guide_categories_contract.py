@@ -64,7 +64,9 @@ def test_guide_categories_list_descriptor_uses_public_contract_shape():
 
 def test_guide_categories_list_metadata_exposes_quota_auth_examples_and_caveats():
     """Expose safe caller-facing metadata before ``guideCategories_list`` invocation."""
-    from mcp_server.tools.youtube_common.guide_categories import GUIDE_CATEGORIES_LIST_CALLER_EXAMPLES
+    from mcp_server.tools.youtube_common.guide_categories import (
+        GUIDE_CATEGORIES_LIST_CALLER_EXAMPLES,
+    )
 
     metadata = build_guide_categories_list_contract().to_tool_metadata()
     descriptor = build_guide_categories_list_tool_descriptor()

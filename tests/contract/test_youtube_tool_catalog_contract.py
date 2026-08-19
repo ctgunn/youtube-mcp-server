@@ -1,6 +1,9 @@
 """Contract tests for representative YouTube tool catalog examples."""
 
-from mcp_server.tools.youtube_common import AuthMode, REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
+from mcp_server.tools.youtube_common import (
+    REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS,
+    AuthMode,
+)
 
 
 def test_representative_examples_include_required_us1_shapes():
@@ -65,7 +68,9 @@ def test_representative_examples_expose_auth_quota_and_caveats():
 
 def test_representative_activities_example_aligns_with_concrete_contract():
     """Keep the representative activities example aligned with YT-203."""
-    from mcp_server.tools.youtube_common.activities import build_activities_list_contract
+    from mcp_server.tools.youtube_common.activities import (
+        build_activities_list_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "activities_list"
@@ -133,7 +138,9 @@ def test_representative_captions_update_example_aligns_with_concrete_contract():
 
 def test_representative_captions_download_example_aligns_with_concrete_contract():
     """Keep the representative captions-download example aligned with YT-207."""
-    from mcp_server.tools.youtube_common.captions import build_captions_download_contract
+    from mcp_server.tools.youtube_common.captions import (
+        build_captions_download_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "captions_download"
@@ -223,7 +230,9 @@ def test_representative_watermarks_set_example_aligns_with_concrete_contract():
 
 def test_representative_watermarks_unset_example_aligns_with_concrete_contract():
     """Keep the representative watermarks-unset example aligned with YT-255."""
-    from mcp_server.tools.youtube_common.watermarks import build_watermarks_unset_contract
+    from mcp_server.tools.youtube_common.watermarks import (
+        build_watermarks_unset_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "watermarks_unset"
@@ -327,7 +336,10 @@ def test_representative_video_categories_example_aligns_with_concrete_contract()
 
 def test_representative_videos_list_example_aligns_with_concrete_contract():
     """Keep the representative videos-list example aligned with YT-247."""
-    from mcp_server.tools.youtube_common.videos import build_videos_list_contract, build_videos_list_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_list_contract,
+        build_videos_list_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "videos_list"
@@ -368,7 +380,10 @@ def test_representative_videos_list_example_aligns_with_concrete_contract():
 
 def test_representative_videos_insert_example_aligns_with_concrete_contract():
     """Keep the representative videos-insert example aligned with YT-248."""
-    from mcp_server.tools.youtube_common.videos import build_videos_insert_contract, build_videos_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_insert_contract,
+        build_videos_insert_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "videos_insert"
@@ -459,7 +474,10 @@ def test_representative_videos_insert_out_of_scope_boundaries_are_explicit():
 
 def test_representative_videos_delete_example_aligns_with_concrete_contract():
     """Keep the representative videos-delete example aligned with YT-253."""
-    from mcp_server.tools.youtube_common.videos import build_videos_delete_contract, build_videos_delete_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_delete_contract,
+        build_videos_delete_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "videos_delete"
@@ -550,7 +568,9 @@ def test_representative_comments_update_example_aligns_with_concrete_contract():
 
 def test_representative_comment_threads_list_example_aligns_with_concrete_contract():
     """Keep the representative commentThreads-list example aligned with YT-221."""
-    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_list_contract
+    from mcp_server.tools.youtube_common.comment_threads import (
+        build_comment_threads_list_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "commentThreads_list"
@@ -606,7 +626,9 @@ def test_representative_commentThreads_insert_example_aligns_with_concrete_contr
 
 def test_representative_comments_set_moderation_status_example_aligns_with_concrete_contract():
     """Keep the representative comments moderation example aligned with YT-219."""
-    from mcp_server.tools.youtube_common.comments import build_comments_set_moderation_status_contract
+    from mcp_server.tools.youtube_common.comments import (
+        build_comments_set_moderation_status_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "comments_setModerationStatus"
@@ -658,7 +680,9 @@ def test_representative_comments_delete_example_aligns_with_concrete_contract():
 
 def test_representative_channel_banners_insert_example_aligns_with_concrete_contract():
     """Keep the representative channel-banner upload example aligned with YT-209."""
-    from mcp_server.tools.youtube_common.channel_banners import build_channel_banners_insert_contract
+    from mcp_server.tools.youtube_common.channel_banners import (
+        build_channel_banners_insert_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "channelBanners_insert"
@@ -698,7 +722,9 @@ def test_representative_channels_list_example_aligns_with_concrete_contract():
 
 def test_representative_channel_sections_list_example_aligns_with_concrete_contract():
     """Keep the representative channel-sections-list example aligned with YT-212."""
-    from mcp_server.tools.youtube_common.channel_sections import build_channel_sections_list_contract
+    from mcp_server.tools.youtube_common.channel_sections import (
+        build_channel_sections_list_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "channelSections_list"
@@ -725,7 +751,9 @@ def test_representative_channel_sections_list_example_aligns_with_concrete_contr
 
 def test_representative_channel_sections_insert_example_aligns_with_concrete_contract():
     """Keep the representative channel-section insert example aligned with YT-213."""
-    from mcp_server.tools.youtube_common.channel_sections import build_channel_sections_insert_contract
+    from mcp_server.tools.youtube_common.channel_sections import (
+        build_channel_sections_insert_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "channelSections_insert"
@@ -750,7 +778,9 @@ def test_representative_channel_sections_insert_example_aligns_with_concrete_con
 
 def test_representative_channel_sections_update_example_aligns_with_concrete_contract():
     """Keep the representative channel-section update example aligned with YT-214."""
-    from mcp_server.tools.youtube_common.channel_sections import build_channel_sections_update_contract
+    from mcp_server.tools.youtube_common.channel_sections import (
+        build_channel_sections_update_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "channelSections_update"
@@ -797,7 +827,9 @@ def test_representative_channels_update_example_aligns_with_concrete_contract():
 
 def test_representative_playlist_images_delete_example_aligns_with_concrete_contract():
     """Keep the representative playlistImages-delete example aligned with YT-231."""
-    from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_delete_contract
+    from mcp_server.tools.youtube_common.playlist_images import (
+        build_playlist_images_delete_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistImages_delete"
@@ -824,7 +856,9 @@ def test_representative_playlist_images_delete_example_aligns_with_concrete_cont
 
 def test_representative_guideCategories_list_example_aligns_with_concrete_contract():
     """Keep the representative guideCategories-list example aligned with YT-223."""
-    from mcp_server.tools.youtube_common.guide_categories import build_guide_categories_list_contract
+    from mcp_server.tools.youtube_common.guide_categories import (
+        build_guide_categories_list_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "guideCategories_list"
@@ -848,7 +882,9 @@ def test_representative_guideCategories_list_example_aligns_with_concrete_contra
 
 def test_representative_i18nLanguages_list_example_aligns_with_concrete_contract():
     """Keep the representative i18nLanguages-list example aligned with YT-224."""
-    from mcp_server.tools.youtube_common.localization import build_i18n_languages_list_contract
+    from mcp_server.tools.youtube_common.localization import (
+        build_i18n_languages_list_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "i18nLanguages_list"
@@ -889,7 +925,9 @@ def test_representative_i18nLanguages_list_metadata_exposes_localization_usage()
 
 def test_representative_i18nRegions_list_example_aligns_with_concrete_contract():
     """Keep the representative i18nRegions-list example aligned with YT-225."""
-    from mcp_server.tools.youtube_common.localization import build_i18n_regions_list_contract
+    from mcp_server.tools.youtube_common.localization import (
+        build_i18n_regions_list_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "i18nRegions_list"
@@ -973,7 +1011,9 @@ def test_representative_members_list_metadata_exposes_membership_usage():
 
 def test_representative_members_list_descriptor_examples_cover_boundaries():
     """Expose representative members-list examples for success and safe failure boundaries."""
-    from mcp_server.tools.youtube_common.members import build_members_list_tool_descriptor
+    from mcp_server.tools.youtube_common.members import (
+        build_members_list_tool_descriptor,
+    )
 
     descriptor = build_members_list_tool_descriptor()
     example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
@@ -995,7 +1035,9 @@ def test_representative_members_list_descriptor_examples_cover_boundaries():
 
 def test_representative_memberships_levels_list_example_aligns_with_concrete_contract():
     """Keep the representative membershipsLevels-list example aligned with YT-227."""
-    from mcp_server.tools.youtube_common.memberships_levels import build_memberships_levels_list_contract
+    from mcp_server.tools.youtube_common.memberships_levels import (
+        build_memberships_levels_list_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "membershipsLevels_list"
@@ -1037,7 +1079,9 @@ def test_representative_memberships_levels_list_metadata_exposes_membership_leve
 
 def test_representative_memberships_levels_list_descriptor_examples_cover_boundaries():
     """Expose representative membershipsLevels-list examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.memberships_levels import build_memberships_levels_list_tool_descriptor
+    from mcp_server.tools.youtube_common.memberships_levels import (
+        build_memberships_levels_list_tool_descriptor,
+    )
 
     descriptor = build_memberships_levels_list_tool_descriptor()
     example_names = {example["name"] for example in descriptor["metadata"]["examples"]}
@@ -1055,7 +1099,9 @@ def test_representative_memberships_levels_list_descriptor_examples_cover_bounda
 
 def test_representative_playlist_images_list_example_aligns_with_concrete_contract():
     """Keep the representative playlistImages-list example aligned with YT-228."""
-    from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_list_contract
+    from mcp_server.tools.youtube_common.playlist_images import (
+        build_playlist_images_list_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistImages_list"
@@ -1080,7 +1126,9 @@ def test_representative_playlist_images_list_example_aligns_with_concrete_contra
 
 def test_representative_playlist_items_list_example_aligns_with_concrete_contract():
     """Keep the representative playlistItems-list example aligned with YT-232."""
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_list_contract
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_list_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistItems_list"
@@ -1105,7 +1153,9 @@ def test_representative_playlist_items_list_example_aligns_with_concrete_contrac
 
 def test_representative_playlist_items_list_descriptor_examples_cover_boundaries():
     """Expose representative playlistItems-list examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_list_tool_descriptor
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_list_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistItems_list"
@@ -1165,7 +1215,9 @@ def test_representative_playlists_list_example_aligns_with_concrete_contract():
 
 def test_representative_playlists_list_descriptor_examples_cover_boundaries():
     """Expose representative playlists-list examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.playlists import build_playlists_list_tool_descriptor
+    from mcp_server.tools.youtube_common.playlists import (
+        build_playlists_list_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlists_list"
@@ -1193,7 +1245,9 @@ def test_representative_playlists_list_descriptor_examples_cover_boundaries():
 
 def test_representative_playlists_insert_example_aligns_with_concrete_contract():
     """Keep the representative playlists-insert example aligned with YT-237."""
-    from mcp_server.tools.youtube_common.playlists import build_playlists_insert_contract
+    from mcp_server.tools.youtube_common.playlists import (
+        build_playlists_insert_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlists_insert"
@@ -1219,7 +1273,9 @@ def test_representative_playlists_insert_example_aligns_with_concrete_contract()
 
 def test_representative_playlists_insert_descriptor_examples_cover_boundaries():
     """Expose representative playlists-insert examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.playlists import build_playlists_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.playlists import (
+        build_playlists_insert_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlists_insert"
@@ -1247,7 +1303,9 @@ def test_representative_playlists_insert_descriptor_examples_cover_boundaries():
 
 def test_representative_playlists_update_example_aligns_with_concrete_contract():
     """Keep the representative playlists-update example aligned with YT-238."""
-    from mcp_server.tools.youtube_common.playlists import build_playlists_update_contract
+    from mcp_server.tools.youtube_common.playlists import (
+        build_playlists_update_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlists_update"
@@ -1274,7 +1332,9 @@ def test_representative_playlists_update_example_aligns_with_concrete_contract()
 
 def test_representative_playlists_update_descriptor_examples_cover_boundaries():
     """Expose representative playlists-update examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.playlists import build_playlists_update_tool_descriptor
+    from mcp_server.tools.youtube_common.playlists import (
+        build_playlists_update_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlists_update"
@@ -1304,7 +1364,9 @@ def test_representative_playlists_update_descriptor_examples_cover_boundaries():
 
 def test_representative_playlists_delete_example_aligns_with_concrete_contract():
     """Keep the representative playlists-delete example aligned with YT-239."""
-    from mcp_server.tools.youtube_common.playlists import build_playlists_delete_contract
+    from mcp_server.tools.youtube_common.playlists import (
+        build_playlists_delete_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlists_delete"
@@ -1330,7 +1392,9 @@ def test_representative_playlists_delete_example_aligns_with_concrete_contract()
 
 def test_representative_playlists_delete_descriptor_examples_cover_boundaries():
     """Expose representative playlists-delete examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.playlists import build_playlists_delete_tool_descriptor
+    from mcp_server.tools.youtube_common.playlists import (
+        build_playlists_delete_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlists_delete"
@@ -1360,7 +1424,9 @@ def test_representative_playlists_delete_descriptor_examples_cover_boundaries():
 
 def test_representative_playlist_items_insert_example_aligns_with_concrete_contract():
     """Keep the representative playlistItems-insert example aligned with YT-233."""
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_insert_contract
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_insert_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistItems_insert"
@@ -1385,7 +1451,9 @@ def test_representative_playlist_items_insert_example_aligns_with_concrete_contr
 
 def test_representative_playlist_items_insert_descriptor_examples_cover_boundaries():
     """Expose representative playlistItems-insert examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_insert_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistItems_insert"
@@ -1414,7 +1482,9 @@ def test_representative_playlist_items_insert_descriptor_examples_cover_boundari
 
 def test_representative_playlist_items_update_example_aligns_with_concrete_contract():
     """Keep the representative playlistItems-update example aligned with YT-234."""
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_update_contract
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_update_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistItems_update"
@@ -1441,7 +1511,9 @@ def test_representative_playlist_items_update_example_aligns_with_concrete_contr
 
 def test_representative_playlist_items_update_descriptor_examples_cover_boundaries():
     """Expose representative playlistItems-update examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_update_tool_descriptor
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_update_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistItems_update"
@@ -1470,7 +1542,9 @@ def test_representative_playlist_items_update_descriptor_examples_cover_boundari
 
 def test_representative_playlist_items_delete_example_aligns_with_concrete_contract():
     """Keep the representative playlistItems-delete example aligned with YT-235."""
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_delete_contract
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_delete_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistItems_delete"
@@ -1497,7 +1571,9 @@ def test_representative_playlist_items_delete_example_aligns_with_concrete_contr
 
 def test_representative_playlist_items_delete_descriptor_examples_cover_boundaries():
     """Expose representative playlistItems-delete examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_delete_tool_descriptor
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_delete_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistItems_delete"
@@ -1581,7 +1657,9 @@ def test_representative_search_list_descriptor_examples_cover_boundaries():
 
 def test_representative_subscriptions_list_example_aligns_with_concrete_contract():
     """Keep the representative subscriptions-list example aligned with YT-241."""
-    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_list_contract
+    from mcp_server.tools.youtube_common.subscriptions import (
+        build_subscriptions_list_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "subscriptions_list"
@@ -1607,7 +1685,9 @@ def test_representative_subscriptions_list_example_aligns_with_concrete_contract
 
 def test_representative_subscriptions_list_descriptor_examples_cover_boundaries():
     """Expose representative subscriptions-list examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_list_tool_descriptor
+    from mcp_server.tools.youtube_common.subscriptions import (
+        build_subscriptions_list_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "subscriptions_list"
@@ -1637,7 +1717,9 @@ def test_representative_subscriptions_list_descriptor_examples_cover_boundaries(
 
 def test_representative_subscriptions_insert_example_aligns_with_concrete_contract():
     """Keep the representative subscriptions-insert example aligned with YT-242."""
-    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_insert_contract
+    from mcp_server.tools.youtube_common.subscriptions import (
+        build_subscriptions_insert_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "subscriptions_insert"
@@ -1661,7 +1743,9 @@ def test_representative_subscriptions_insert_example_aligns_with_concrete_contra
 
 def test_representative_subscriptions_insert_descriptor_examples_cover_boundaries():
     """Expose representative subscriptions-insert examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.subscriptions import (
+        build_subscriptions_insert_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "subscriptions_insert"
@@ -1691,7 +1775,9 @@ def test_representative_subscriptions_insert_descriptor_examples_cover_boundarie
 
 def test_representative_subscriptions_delete_example_aligns_with_concrete_contract():
     """Keep the representative subscriptions-delete example aligned with YT-243."""
-    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_delete_contract
+    from mcp_server.tools.youtube_common.subscriptions import (
+        build_subscriptions_delete_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "subscriptions_delete"
@@ -1715,7 +1801,9 @@ def test_representative_subscriptions_delete_example_aligns_with_concrete_contra
 
 def test_representative_subscriptions_delete_descriptor_examples_cover_boundaries():
     """Expose representative subscriptions-delete examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_delete_tool_descriptor
+    from mcp_server.tools.youtube_common.subscriptions import (
+        build_subscriptions_delete_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "subscriptions_delete"
@@ -1741,7 +1829,9 @@ def test_representative_subscriptions_delete_descriptor_examples_cover_boundarie
 
 def test_representative_playlist_images_list_descriptor_examples_cover_boundaries():
     """Expose representative playlistImages-list examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_list_tool_descriptor
+    from mcp_server.tools.youtube_common.playlist_images import (
+        build_playlist_images_list_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistImages_list"
@@ -1768,7 +1858,9 @@ def test_representative_playlist_images_list_descriptor_examples_cover_boundarie
 
 def test_representative_playlist_images_insert_example_aligns_with_concrete_contract():
     """Keep the representative playlistImages-insert example aligned with YT-229."""
-    from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_insert_contract
+    from mcp_server.tools.youtube_common.playlist_images import (
+        build_playlist_images_insert_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistImages_insert"
@@ -1793,7 +1885,9 @@ def test_representative_playlist_images_insert_example_aligns_with_concrete_cont
 
 def test_representative_playlist_images_insert_descriptor_examples_cover_boundaries():
     """Expose representative playlistImages-insert examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.playlist_images import (
+        build_playlist_images_insert_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistImages_insert"
@@ -1822,7 +1916,9 @@ def test_representative_playlist_images_insert_descriptor_examples_cover_boundar
 
 def test_representative_playlist_images_update_example_aligns_with_concrete_contract():
     """Keep the representative playlistImages-update example aligned with YT-230."""
-    from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_update_contract
+    from mcp_server.tools.youtube_common.playlist_images import (
+        build_playlist_images_update_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistImages_update"
@@ -1848,7 +1944,9 @@ def test_representative_playlist_images_update_example_aligns_with_concrete_cont
 
 def test_representative_playlist_images_update_descriptor_examples_cover_boundaries():
     """Expose representative playlistImages-update examples for success and safe failures."""
-    from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_update_tool_descriptor
+    from mcp_server.tools.youtube_common.playlist_images import (
+        build_playlist_images_update_tool_descriptor,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "playlistImages_update"
@@ -1959,7 +2057,9 @@ def test_representative_examples_cover_required_us2_shapes():
 
 def test_representative_videos_update_descriptor_examples_cover_boundaries():
     """Expose concrete videos update examples and safe metadata in the catalog."""
-    from mcp_server.tools.youtube_common.videos import build_videos_update_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_update_tool_descriptor,
+    )
 
     descriptor = build_videos_update_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -2030,7 +2130,9 @@ def test_representative_videos_rate_descriptor_examples_cover_boundaries():
 
 def test_representative_videos_get_rating_descriptor_examples_cover_boundaries():
     """Expose concrete videos getRating examples and safe metadata in the catalog."""
-    from mcp_server.tools.youtube_common.videos import build_videos_get_rating_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_get_rating_tool_descriptor,
+    )
 
     descriptor = build_videos_get_rating_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -2058,7 +2160,9 @@ def test_representative_videos_get_rating_descriptor_examples_cover_boundaries()
 
 def test_representative_videos_report_abuse_descriptor_examples_cover_boundaries():
     """Expose concrete videos reportAbuse examples and safe metadata in the catalog."""
-    from mcp_server.tools.youtube_common.videos import build_videos_report_abuse_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_report_abuse_tool_descriptor,
+    )
 
     descriptor = build_videos_report_abuse_tool_descriptor()
     metadata = descriptor["metadata"]

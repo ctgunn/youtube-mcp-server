@@ -4,7 +4,10 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.transport.session_store import create_session_store, reset_memory_session_store_registry
+from mcp_server.transport.session_store import (
+    create_session_store,
+    reset_memory_session_store_registry,
+)
 
 
 class DurableSessionStoreTests(unittest.TestCase):

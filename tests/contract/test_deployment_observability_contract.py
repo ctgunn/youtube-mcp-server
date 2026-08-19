@@ -5,7 +5,11 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.deploy import DeploymentRunRecord, RuntimeSettingsSnapshot, serialize_deployment_run
+from mcp_server.deploy import (
+    DeploymentRunRecord,
+    RuntimeSettingsSnapshot,
+    serialize_deployment_run,
+)
 
 
 class DeploymentObservabilityContractTests(unittest.TestCase):

@@ -13,9 +13,16 @@ from mcp_server.integrations.resources.comment_threads import (
     build_comment_threads_list_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
-
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    sanitize_error_details,
+)
 
 COMMENT_THREADS_LIST_TOOL_NAME = "commentThreads_list"
 COMMENT_THREADS_LIST_QUOTA_COST = 1
@@ -91,10 +98,10 @@ COMMENT_THREADS_LIST_DESCRIPTION = (
 )
 
 COMMENT_THREADS_LIST_USAGE_NOTES = (
-    "Quota cost: 1. Auth: api_key. Provide part and exactly one selector: videoId, "
-    "allThreadsRelatedToChannelId, or id.",
-    "Quota cost: 1. Use maxResults, pageToken, order, searchTerms, moderationStatus, "
-    "and textFormat only with videoId or allThreadsRelatedToChannelId selectors.",
+    ("Quota cost: 1. Auth: api_key. Provide part and exactly one selector: videoId, "
+    "allThreadsRelatedToChannelId, or id."),
+    ("Quota cost: 1. Use maxResults, pageToken, order, searchTerms, moderationStatus, "
+    "and textFormat only with videoId or allThreadsRelatedToChannelId selectors."),
     "Quota cost: 1. textFormat defaults to html; pass plainText when caller-readable text is preferred.",
     "Quota cost: 1. Empty upstream item collections are returned as successful no-match results.",
 )
@@ -211,8 +218,8 @@ COMMENT_THREADS_INSERT_DESCRIPTION = (
 )
 
 COMMENT_THREADS_INSERT_USAGE_NOTES = (
-    "Quota cost: 50. Auth: oauth_required. Provide part and body.snippet.channelId, "
-    "body.snippet.videoId, and body.snippet.topLevelComment.snippet.textOriginal.",
+    ("Quota cost: 50. Auth: oauth_required. Provide part and body.snippet.channelId, "
+    "body.snippet.videoId, and body.snippet.topLevelComment.snippet.textOriginal."),
     "Quota cost: 50. commentThreads_insert creates top-level comments only; reply creation belongs to comments_insert.",
     "Quota cost: 50. onBehalfOfContentOwner is optional delegation context when eligible OAuth access supports it.",
     "Quota cost: 50. Successful results preserve the created commentThread resource with safe target and auth context.",

@@ -7,8 +7,8 @@ sys.path.insert(0, os.path.abspath("src"))
 from mcp_server.security import (
     HostedSecuritySettings,
     browser_preflight_headers,
-    evaluate_credential,
     evaluate_browser_preflight,
+    evaluate_credential,
     evaluate_origin,
     evaluate_security_request,
     parse_requested_headers,

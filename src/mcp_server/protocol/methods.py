@@ -5,10 +5,9 @@ from __future__ import annotations
 import json
 
 from mcp_server.protocol.envelope import error_response_for_category, success_response
-from mcp_server.transport.streaming import SUPPORTED_MCP_PROTOCOL_VERSIONS
 from mcp_server.tools.retrieval import RetrievalError
 from mcp_server.tools.youtube_common.conventions import sanitize_error_details
-
+from mcp_server.transport.streaming import SUPPORTED_MCP_PROTOCOL_VERSIONS
 
 UNKNOWN_TOOL_MESSAGE = "Tool not found."
 TOOL_ERROR_PROTOCOL_CATEGORIES = {
@@ -60,7 +59,7 @@ def _serialize_tool_result(result) -> dict:
     :param result: Raw tool result.
     :return: MCP ``tools/call`` result payload.
     """
-    content = {
+    content: dict[str, object] = {
         "type": "text",
         "text": json.dumps(result, sort_keys=True),
     }
@@ -81,7 +80,7 @@ def _parse_call_params(request_id, params):
     :param params: Raw method parameters.
     :return: Tuple of tool name, arguments, and optional validation error.
     """
-    tool_name = params.get("name")
+    tool_name: object = params.get("name")
     if tool_name is None:
         tool_name = params.get("toolName")
     if not isinstance(tool_name, str) or not tool_name.strip():
@@ -91,7 +90,7 @@ def _parse_call_params(request_id, params):
             request_id=request_id,
         )
 
-    arguments = params.get("arguments", {})
+    arguments: object = params.get("arguments", {})
     if not isinstance(arguments, dict):
         return None, None, error_response_for_category(
             "invalid_argument",
@@ -186,7 +185,7 @@ def _handle_call(request_id, params, dispatcher):
             request_id=request_id,
             details=details,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 - public tool execution must not leak unexpected exceptions.
         return error_response_for_category(
             "internal_execution_failure",
             "Unexpected tool execution error.",

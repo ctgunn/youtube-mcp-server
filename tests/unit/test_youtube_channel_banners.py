@@ -3,8 +3,8 @@
 import pytest
 
 from mcp_server.tools.youtube_common.channel_banners import (
-    CHANNEL_BANNERS_MAX_BYTES,
     CHANNEL_BANNERS_INSERT_INPUT_SCHEMA,
+    CHANNEL_BANNERS_MAX_BYTES,
     ChannelBannersInsertToolError,
     build_channel_banners_insert_tool_descriptor,
     map_channel_banners_insert_result,

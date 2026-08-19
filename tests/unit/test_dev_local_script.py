@@ -58,12 +58,13 @@ class DevLocalScriptUnitTests(unittest.TestCase):
         return fake_python
 
     def test_missing_env_local_exits_with_guidance(self):
-        temp_dir, script_path = self._make_workspace(include_env=False)
+        _temp_dir, script_path = self._make_workspace(include_env=False)
 
         completed = subprocess.run(
             ["bash", str(script_path)],
             cwd=script_path.parent.parent,
             capture_output=True,
+            check=False,
             text=True,
         )
 
@@ -91,6 +92,7 @@ class DevLocalScriptUnitTests(unittest.TestCase):
             cwd=script_path.parent.parent,
             env=env,
             capture_output=True,
+            check=False,
             text=True,
         )
 
@@ -122,6 +124,7 @@ class DevLocalScriptUnitTests(unittest.TestCase):
             cwd=script_path.parent.parent,
             env=env,
             capture_output=True,
+            check=False,
             text=True,
         )
 

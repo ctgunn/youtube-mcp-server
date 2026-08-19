@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-
 SEARCH_TOOL_SCHEMA = {
     "type": "object",
     "required": ["query"],
@@ -107,7 +106,7 @@ def _search_results(query: str) -> list[RetrievalSource]:
     terms = [term for term in query.split() if term]
     ranked: list[tuple[int, RetrievalSource]] = []
     for source in SAMPLE_SOURCES:
-        haystack = " ".join((source.title, source.snippet, source.content, source.source_name)).lower()
+        haystack = f"{source.title} {source.snippet} {source.content} {source.source_name}".lower()
         score = sum(1 for term in terms if term in haystack)
         if score:
             ranked.append((score, source))

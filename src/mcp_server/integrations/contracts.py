@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from mcp_server.integrations.auth import AuthMode
-
 
 _REVIEWABLE_LIFECYCLE_STATES = frozenset({"deprecated", "limited", "inconsistent-docs"})
 

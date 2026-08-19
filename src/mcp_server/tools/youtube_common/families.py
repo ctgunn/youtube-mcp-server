@@ -7,7 +7,6 @@ from typing import Any
 
 from mcp_server.tools.youtube_common.contracts import YouTubeToolContract
 
-
 SHARED_YOUTUBE_HELPER_BOUNDARY = {
     "shared": (
         "naming",

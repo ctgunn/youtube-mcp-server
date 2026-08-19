@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from mcp_server.integrations.auth import AuthContext
+from mcp_server.integrations.resources.consumers.base import ConsumerMixinBase
 
 
-class VideoAbuseReportReasonsConsumerMixin:
+class VideoAbuseReportReasonsConsumerMixin(ConsumerMixinBase):
     """Provide higher-layer summaries for video abuse report reasons resources."""
 
     def fetch_video_abuse_report_reasons_summary(

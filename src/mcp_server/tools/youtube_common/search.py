@@ -10,9 +10,17 @@ from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.search import build_search_list_wrapper
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, safe_upstream_error_message, sanitize_error_details
-
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
 
 SEARCH_LIST_TOOL_NAME = "search_list"
 SEARCH_LIST_QUOTA_COST = 100
@@ -97,8 +105,8 @@ SEARCH_LIST_CAVEATS = (
     "Restricted filters forContentOwner, forDeveloper, and forMine are mutually exclusive and require OAuth authorization.",
     "Video-specific refinements require type=video.",
     "channelType accepts any or show and requires type=channel.",
-    "This tool returns search result references and does not hydrate videos, channels, playlists, transcripts, analytics, "
-    "rankings, summaries, recommendations, research syntheses, or cross-endpoint enrichments.",
+    ("This tool returns search result references and does not hydrate videos, channels, playlists, transcripts, analytics, "
+    "rankings, summaries, recommendations, research syntheses, or cross-endpoint enrichments."),
 )
 
 SEARCH_LIST_CALLER_EXAMPLES = (

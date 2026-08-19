@@ -7,11 +7,11 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.config import load_youtube_live_runtime_settings
 from mcp_server.integrations.auth import AuthMode
+from mcp_server.integrations.resources.activities import build_activities_list_wrapper
 from mcp_server.integrations.runtime import (
     LiveRuntimeConfigurationError,
     build_configured_youtube_runtime,
 )
-from mcp_server.integrations.resources.activities import build_activities_list_wrapper
 
 
 class _FakeHTTPResponse:
@@ -79,7 +79,9 @@ class Layer1LiveRuntimeTests(unittest.TestCase):
         self.assertNotIn("oauth-token-for-test", str(exc_info.exception))
 
     def test_runtime_factory_is_available_from_integration_compatibility_exports(self):
-        from mcp_server.integrations import build_configured_youtube_runtime as exported_factory
+        from mcp_server.integrations import (
+            build_configured_youtube_runtime as exported_factory,
+        )
 
         self.assertIs(exported_factory, build_configured_youtube_runtime)
 

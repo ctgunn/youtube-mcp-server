@@ -5,7 +5,11 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.protocol.envelope import error_response, error_response_for_category, success_response
+from mcp_server.protocol.envelope import (
+    error_response,
+    error_response_for_category,
+    success_response,
+)
 from mcp_server.protocol.methods import route_mcp_request
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 

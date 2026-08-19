@@ -21,4 +21,7 @@ typecheck:
 test:
 	$(PYTHON) -m pytest
 
-quality: lint typecheck test
+quality:
+	$(MAKE) lint
+	$(MAKE) typecheck
+	$(MAKE) test

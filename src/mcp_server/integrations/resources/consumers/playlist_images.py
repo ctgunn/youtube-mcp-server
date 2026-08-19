@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from mcp_server.integrations.auth import AuthContext
+from mcp_server.integrations.resources.consumers.base import ConsumerMixinBase
 
 
-class PlaylistImagesConsumerMixin:
+class PlaylistImagesConsumerMixin(ConsumerMixinBase):
     """Provide higher-layer summaries for playlist images resources."""
 
     def fetch_playlist_images_summary(

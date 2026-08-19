@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
-from typing import Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
 from urllib.parse import urlparse
 
 DEFAULT_BROWSER_ACCESSIBLE_ROUTES = ("/mcp",)

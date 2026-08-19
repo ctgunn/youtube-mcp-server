@@ -3,7 +3,9 @@
 
 def test_transcript_descriptor_exposes_concrete_safe_contract():
     """Require schema, dependencies, provenance, and safe failures."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_transcript_tool_descriptor
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_get_transcript_tool_descriptor,
+    )
 
     descriptor = build_transcripts_get_transcript_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -19,7 +21,9 @@ def test_transcript_descriptor_exposes_concrete_safe_contract():
 
 def test_transcript_language_discovery_descriptor_exposes_the_executable_contract():
     """Require the bounded public language-discovery contract."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_list_languages_tool_descriptor
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_list_languages_tool_descriptor,
+    )
 
     descriptor = build_transcripts_list_languages_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -56,7 +60,9 @@ def test_transcript_language_discovery_descriptor_exposes_the_executable_contrac
 
 def test_timestamped_caption_descriptor_exposes_concrete_timing_contract():
     """Require the bounded timestamped-caption public contract."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_timestamped_captions_tool_descriptor
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_get_timestamped_captions_tool_descriptor,
+    )
 
     descriptor = build_transcripts_get_timestamped_captions_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -100,7 +106,9 @@ def test_timestamped_caption_descriptor_exposes_concrete_timing_contract():
 
 def test_transcript_search_descriptor_exposes_the_timed_literal_search_contract():
     """Require the concrete transcript-search schema and metadata."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_tool_descriptor
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_search_transcript_tool_descriptor,
+    )
 
     descriptor = build_transcripts_search_transcript_tool_descriptor()
     metadata = descriptor["metadata"]

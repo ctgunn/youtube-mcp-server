@@ -15,9 +15,15 @@ from mcp_server.integrations.resources.channel_sections import (
     build_channel_sections_update_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
-
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+)
 
 CHANNEL_SECTIONS_INSERT_TOOL_NAME = "channelSections_insert"
 CHANNEL_SECTIONS_INSERT_QUOTA_COST = 50
@@ -2259,31 +2265,31 @@ def build_channel_sections_delete_tool_descriptor(
 
 
 __all__ = [
-    "CHANNEL_SECTIONS_DELETE_CAVEATS",
     "CHANNEL_SECTIONS_DELETE_CALLER_EXAMPLES",
+    "CHANNEL_SECTIONS_DELETE_CAVEATS",
     "CHANNEL_SECTIONS_DELETE_DESCRIPTION",
     "CHANNEL_SECTIONS_DELETE_INPUT_SCHEMA",
     "CHANNEL_SECTIONS_DELETE_QUOTA_COST",
     "CHANNEL_SECTIONS_DELETE_TOOL_NAME",
     "CHANNEL_SECTIONS_DELETE_USAGE_NOTES",
-    "CHANNEL_SECTIONS_INSERT_CAVEATS",
     "CHANNEL_SECTIONS_INSERT_CALLER_EXAMPLES",
+    "CHANNEL_SECTIONS_INSERT_CAVEATS",
     "CHANNEL_SECTIONS_INSERT_DESCRIPTION",
     "CHANNEL_SECTIONS_INSERT_INPUT_SCHEMA",
     "CHANNEL_SECTIONS_INSERT_QUOTA_COST",
     "CHANNEL_SECTIONS_INSERT_SUPPORTED_PARTS",
     "CHANNEL_SECTIONS_INSERT_TOOL_NAME",
     "CHANNEL_SECTIONS_INSERT_USAGE_NOTES",
-    "CHANNEL_SECTIONS_LIST_CAVEATS",
     "CHANNEL_SECTIONS_LIST_CALLER_EXAMPLES",
+    "CHANNEL_SECTIONS_LIST_CAVEATS",
     "CHANNEL_SECTIONS_LIST_DESCRIPTION",
     "CHANNEL_SECTIONS_LIST_INPUT_SCHEMA",
     "CHANNEL_SECTIONS_LIST_QUOTA_COST",
     "CHANNEL_SECTIONS_LIST_SELECTORS",
     "CHANNEL_SECTIONS_LIST_TOOL_NAME",
     "CHANNEL_SECTIONS_LIST_USAGE_NOTES",
-    "CHANNEL_SECTIONS_UPDATE_CAVEATS",
     "CHANNEL_SECTIONS_UPDATE_CALLER_EXAMPLES",
+    "CHANNEL_SECTIONS_UPDATE_CAVEATS",
     "CHANNEL_SECTIONS_UPDATE_DESCRIPTION",
     "CHANNEL_SECTIONS_UPDATE_INPUT_SCHEMA",
     "CHANNEL_SECTIONS_UPDATE_QUOTA_COST",

@@ -5,7 +5,9 @@ import pytest
 
 def test_transcript_handler_retrieves_one_vtt_transcript_and_normalizes_text():
     """Compose one caption lookup and download into a normalized result."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_transcript_handler
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_get_transcript_handler,
+    )
 
     list_calls, download_calls = [], []
 
@@ -28,7 +30,9 @@ def test_transcript_handler_retrieves_one_vtt_transcript_and_normalizes_text():
 
 def test_language_selection_is_explicit_then_configured_then_english_and_exact():
     """Select exact matching language tracks with deterministic identifiers."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_transcript_handler
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_get_transcript_handler,
+    )
 
     calls = []
     handler = build_transcripts_get_transcript_handler(
@@ -48,7 +52,10 @@ def test_language_selection_is_explicit_then_configured_then_english_and_exact()
 def test_transcript_handler_maps_unavailable_and_safe_errors():
     """Expose stable safe transcript failure categories."""
     from mcp_server.tools.youtube_common.captions import CaptionsListToolError
-    from mcp_server.tools.youtube_composed.transcripts import TranscriptsGetTranscriptToolError, build_transcripts_get_transcript_handler
+    from mcp_server.tools.youtube_composed.transcripts import (
+        TranscriptsGetTranscriptToolError,
+        build_transcripts_get_transcript_handler,
+    )
 
     unavailable = build_transcripts_get_transcript_handler(caption_list=lambda _: {"items": []})
     with pytest.raises(TranscriptsGetTranscriptToolError) as unavailable_error:
@@ -65,7 +72,9 @@ def test_transcript_handler_maps_unavailable_and_safe_errors():
 
 def test_timestamped_caption_handler_preserves_vtt_cues_and_timing():
     """Return one normalized segment for every ordered VTT cue."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_timestamped_captions_handler
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_get_timestamped_captions_handler,
+    )
 
     calls = []
 
@@ -159,7 +168,9 @@ def test_timestamped_caption_handler_selects_exact_requested_language_or_safe_un
 
 def test_timestamped_caption_handler_uses_source_default_before_source_order_fallback():
     """Prefer an explicitly designated source default when language is omitted."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_timestamped_captions_handler
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_get_timestamped_captions_handler,
+    )
 
     handler = build_transcripts_get_timestamped_captions_handler(
         caption_list=lambda _arguments: {
@@ -179,7 +190,10 @@ def test_timestamped_caption_handler_uses_source_default_before_source_order_fal
 
 def test_timestamped_caption_handler_distinguishes_empty_access_and_source_failures_safely():
     """Keep completed absence and each unsafe source outcome distinct."""
-    from mcp_server.tools.youtube_common.captions import CaptionsDownloadToolError, CaptionsListToolError
+    from mcp_server.tools.youtube_common.captions import (
+        CaptionsDownloadToolError,
+        CaptionsListToolError,
+    )
     from mcp_server.tools.youtube_composed.transcripts import (
         TranscriptsGetTimestampedCaptionsToolError,
         build_transcripts_get_timestamped_captions_handler,
@@ -231,7 +245,9 @@ def test_timestamped_caption_handler_distinguishes_empty_access_and_source_failu
 
 def test_language_discovery_lists_every_track_once_in_source_order_without_caption_content():
     """Return one safe option for each source caption track."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_list_languages_handler
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_list_languages_handler,
+    )
 
     calls = []
 
@@ -263,7 +279,9 @@ def test_language_discovery_lists_every_track_once_in_source_order_without_capti
 
 def test_language_discovery_preserves_only_approved_source_metadata_and_missing_values():
     """Expose allowed source metadata without inventing unavailable values."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_list_languages_handler
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_list_languages_handler,
+    )
 
     result = build_transcripts_list_languages_handler(
         caption_list=lambda _: {
@@ -347,7 +365,9 @@ def test_language_discovery_validates_input_and_maps_empty_and_safe_errors():
 
 def test_transcript_search_matches_case_insensitively_with_chronological_timestamps_and_one_dependency_call():
     """Return source-preserving, chronologically ordered timed matches."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_handler
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_search_transcript_handler,
+    )
 
     calls = []
 
@@ -403,7 +423,9 @@ def test_transcript_search_rejects_blank_public_text_before_timed_retrieval():
 
 def test_transcript_search_normalizes_and_forwards_an_explicit_language_without_fallback():
     """Forward one canonical explicit language to timed retrieval."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_handler
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_search_transcript_handler,
+    )
 
     calls = []
 
@@ -459,7 +481,9 @@ def test_transcript_search_keeps_requested_language_unavailable_error_safe():
 
 def test_transcript_search_defaults_and_applies_match_limit_after_chronological_ordering():
     """Bound common-term matches after sorting their source timing."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_handler
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_search_transcript_handler,
+    )
 
     segments = [
         {"text": f"needle {index}", "startTimeSeconds": float(index), "endTimeSeconds": float(index) + 0.5}
@@ -523,7 +547,9 @@ def test_transcript_search_rejects_invalid_match_limits_before_retrieval_and_dis
 
 def test_transcript_search_keeps_snippets_bounded_and_preserves_expanding_casefold_source_text():
     """Keep contract-sized context while mapping Unicode case folds to source text."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_handler
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_search_transcript_handler,
+    )
 
     result = build_transcripts_search_transcript_handler(
         timestamped_captions=lambda _arguments: {

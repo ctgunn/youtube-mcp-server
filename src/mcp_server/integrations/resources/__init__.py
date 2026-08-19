@@ -147,7 +147,7 @@ DEFAULT_FAMILY_BUILDER_REGISTRY = build_family_builder_registry(
 )
 RESPONSE_NORMALIZER_FAMILIES = MappingProxyType(
     {
-        module.FAMILY_NAME: getattr(module, "RESPONSE_NORMALIZER_KEYS")
+        module.FAMILY_NAME: module.RESPONSE_NORMALIZER_KEYS
         for module in _RESOURCE_MODULES
         if hasattr(module, "RESPONSE_NORMALIZER_KEYS")
     }

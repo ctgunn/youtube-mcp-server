@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from mcp_server.integrations.auth import AuthContext
+from mcp_server.integrations.resources.consumers.base import ConsumerMixinBase
 
 
-class ChannelsConsumerMixin:
+class ChannelsConsumerMixin(ConsumerMixinBase):
     """Provide higher-layer summaries for channels resources."""
 
     def fetch_channels_summary(

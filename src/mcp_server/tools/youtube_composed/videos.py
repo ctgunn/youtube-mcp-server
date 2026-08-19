@@ -8,12 +8,26 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from mcp_server.tools.youtube_common.conventions import safe_upstream_error_message, sanitize_error_details
-from mcp_server.tools.youtube_common.channels import ChannelsListToolError, build_channels_list_handler
-from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError, build_playlist_items_list_handler
-from mcp_server.tools.youtube_common.search import SearchListToolError, build_search_list_handler
-from mcp_server.tools.youtube_common.videos import VideosListToolError, build_videos_list_handler
-
+from mcp_server.tools.youtube_common.channels import (
+    ChannelsListToolError,
+    build_channels_list_handler,
+)
+from mcp_server.tools.youtube_common.conventions import (
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
+from mcp_server.tools.youtube_common.playlist_items import (
+    PlaylistItemsListToolError,
+    build_playlist_items_list_handler,
+)
+from mcp_server.tools.youtube_common.search import (
+    SearchListToolError,
+    build_search_list_handler,
+)
+from mcp_server.tools.youtube_common.videos import (
+    VideosListToolError,
+    build_videos_list_handler,
+)
 from mcp_server.tools.youtube_composed.families import get_family
 
 FAMILY_SCAFFOLDING = get_family("videos")
@@ -268,7 +282,7 @@ def validate_videos_get_video_arguments(arguments: dict[str, Any]) -> dict[str, 
         raise VideosGetVideoToolError(
             "videos_getVideo received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected_fields)[0]},
+            details={"field": min(unexpected_fields)},
         )
     video_id = arguments.get("videoId")
     if not isinstance(video_id, str) or not video_id.strip():
@@ -311,7 +325,7 @@ def validate_videos_get_statistics_arguments(arguments: dict[str, Any]) -> dict[
         raise VideosGetStatisticsToolError(
             "videos_getStatistics received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected_fields)[0]},
+            details={"field": min(unexpected_fields)},
         )
     video_id = arguments.get("videoId")
     if not isinstance(video_id, str) or not video_id.strip():
@@ -672,7 +686,7 @@ def validate_videos_search_videos_arguments(arguments: dict[str, Any]) -> dict[s
         raise VideosSearchVideosToolError(
             "videos_searchVideos received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected_fields)[0]},
+            details={"field": min(unexpected_fields)},
         )
 
     source = dict(arguments)

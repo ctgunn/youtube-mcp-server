@@ -15,14 +15,17 @@ from mcp_server.integrations.resources.playlist_items import (
     build_playlist_items_update_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
 from mcp_server.tools.youtube_common.conventions import (
     ResponseBoundary,
     ResponseBoundaryKind,
     safe_upstream_error_message,
     sanitize_error_details,
 )
-
 
 PLAYLIST_ITEMS_LIST_TOOL_NAME = "playlistItems_list"
 PLAYLIST_ITEMS_LIST_QUOTA_COST = 1
@@ -141,10 +144,10 @@ PLAYLIST_ITEMS_LIST_USAGE_NOTES = (
 
 PLAYLIST_ITEMS_LIST_CAVEATS = (
     "This tool only retrieves playlist item resources through playlistItems.list.",
-    "playlist item mutation, playlist mutation, playlist search, video enrichment, transcript retrieval, analytics, "
-    "recommendation, ranking, summarization, enrichment, and cross-endpoint aggregation are out of scope.",
-    "Returned playlist item fields depend on selected parts and upstream availability; missing optional fields are not "
-    "fabricated.",
+    ("playlist item mutation, playlist mutation, playlist search, video enrichment, transcript retrieval, analytics, "
+    "recommendation, ranking, summarization, enrichment, and cross-endpoint aggregation are out of scope."),
+    ("Returned playlist item fields depend on selected parts and upstream availability; missing optional fields are not "
+    "fabricated."),
 )
 
 PLAYLIST_ITEMS_LIST_CALLER_EXAMPLES = (
@@ -236,10 +239,10 @@ PLAYLIST_ITEMS_INSERT_CAVEATS = (
     "playlistItems_insert creates one playlist item through playlistItems.insert and requires OAuth authorization.",
     "Use playlistItems_list for playlist-item retrieval; this tool only performs playlistItems.insert.",
     "body.snippet.playlistId and body.snippet.resourceId.videoId are required for supported insert requests.",
-    "Unsupported placement details, read-only fields, playlist item listing, updates, deletion, playlist search, "
-    "video enrichment, analytics, ranking, summarization, recommendation, and automated curation are out of scope.",
-    "Returned playlist item fields depend on selected parts and upstream availability; missing optional fields are not "
-    "fabricated.",
+    ("Unsupported placement details, read-only fields, playlist item listing, updates, deletion, playlist search, "
+    "video enrichment, analytics, ranking, summarization, recommendation, and automated curation are out of scope."),
+    ("Returned playlist item fields depend on selected parts and upstream availability; missing optional fields are not "
+    "fabricated."),
 )
 
 PLAYLIST_ITEMS_INSERT_CALLER_EXAMPLES = (
@@ -391,14 +394,14 @@ PLAYLIST_ITEMS_UPDATE_USAGE_NOTES = (
 
 PLAYLIST_ITEMS_UPDATE_CAVEATS = (
     "playlistItems_update updates one playlist item through playlistItems.update and requires OAuth authorization.",
-    "Use playlistItems_list for playlist-item retrieval and playlistItems_insert for creation; this tool only performs "
-    "playlistItems.update.",
+    ("Use playlistItems_list for playlist-item retrieval and playlistItems_insert for creation; this tool only performs "
+    "playlistItems.update."),
     "body.id, body.snippet.playlistId, and body.snippet.resourceId.videoId are required for supported update requests.",
-    "Unsupported placement details, content-detail updates, read-only fields, playlist item listing, insertion, deletion, "
+    ("Unsupported placement details, content-detail updates, read-only fields, playlist item listing, insertion, deletion, "
     "playlist search, video enrichment, analytics, ranking, summarization, recommendation, and automated curation are "
-    "out of scope.",
-    "Returned playlist item fields depend on selected parts and upstream availability; missing optional fields are not "
-    "fabricated.",
+    "out of scope."),
+    ("Returned playlist item fields depend on selected parts and upstream availability; missing optional fields are not "
+    "fabricated."),
 )
 
 PLAYLIST_ITEMS_UPDATE_CALLER_EXAMPLES = (
@@ -579,8 +582,8 @@ PLAYLIST_ITEMS_DELETE_CAVEATS = (
     "playlistItems_delete is destructive and deletes one playlist item through playlistItems.delete.",
     "This tool requires OAuth authorization and does not accept request body, part, playlist metadata, or paging fields.",
     "Successful upstream deletion has no returned resource body; deleted playlist item resources are not fabricated.",
-    "playlist item listing, insertion, update, playlist search, video enrichment, analytics, ranking, summarization, "
-    "recommendation, automated curation, and cross-endpoint aggregation are out of scope.",
+    ("playlist item listing, insertion, update, playlist search, video enrichment, analytics, ranking, summarization, "
+    "recommendation, automated curation, and cross-endpoint aggregation are out of scope."),
 )
 
 PLAYLIST_ITEMS_DELETE_CALLER_EXAMPLES = (
@@ -2148,14 +2151,6 @@ __all__ = [
     "PLAYLIST_ITEMS_INSERT_SUPPORTED_PARTS",
     "PLAYLIST_ITEMS_INSERT_TOOL_NAME",
     "PLAYLIST_ITEMS_INSERT_USAGE_NOTES",
-    "PLAYLIST_ITEMS_UPDATE_CALLER_EXAMPLES",
-    "PLAYLIST_ITEMS_UPDATE_CAVEATS",
-    "PLAYLIST_ITEMS_UPDATE_DESCRIPTION",
-    "PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA",
-    "PLAYLIST_ITEMS_UPDATE_QUOTA_COST",
-    "PLAYLIST_ITEMS_UPDATE_SUPPORTED_PARTS",
-    "PLAYLIST_ITEMS_UPDATE_TOOL_NAME",
-    "PLAYLIST_ITEMS_UPDATE_USAGE_NOTES",
     "PLAYLIST_ITEMS_LIST_CALLER_EXAMPLES",
     "PLAYLIST_ITEMS_LIST_CAVEATS",
     "PLAYLIST_ITEMS_LIST_DESCRIPTION",
@@ -2166,6 +2161,14 @@ __all__ = [
     "PLAYLIST_ITEMS_LIST_SUPPORTED_PARTS",
     "PLAYLIST_ITEMS_LIST_TOOL_NAME",
     "PLAYLIST_ITEMS_LIST_USAGE_NOTES",
+    "PLAYLIST_ITEMS_UPDATE_CALLER_EXAMPLES",
+    "PLAYLIST_ITEMS_UPDATE_CAVEATS",
+    "PLAYLIST_ITEMS_UPDATE_DESCRIPTION",
+    "PLAYLIST_ITEMS_UPDATE_INPUT_SCHEMA",
+    "PLAYLIST_ITEMS_UPDATE_QUOTA_COST",
+    "PLAYLIST_ITEMS_UPDATE_SUPPORTED_PARTS",
+    "PLAYLIST_ITEMS_UPDATE_TOOL_NAME",
+    "PLAYLIST_ITEMS_UPDATE_USAGE_NOTES",
     "PlaylistItemsDeleteToolError",
     "PlaylistItemsInsertToolError",
     "PlaylistItemsListToolError",
@@ -2176,18 +2179,18 @@ __all__ = [
     "build_playlist_items_insert_contract",
     "build_playlist_items_insert_handler",
     "build_playlist_items_insert_tool_descriptor",
-    "build_playlist_items_update_contract",
-    "build_playlist_items_update_handler",
-    "build_playlist_items_update_tool_descriptor",
     "build_playlist_items_list_contract",
     "build_playlist_items_list_handler",
     "build_playlist_items_list_tool_descriptor",
+    "build_playlist_items_update_contract",
+    "build_playlist_items_update_handler",
+    "build_playlist_items_update_tool_descriptor",
     "map_playlist_items_delete_result",
     "map_playlist_items_insert_result",
-    "map_playlist_items_update_result",
     "map_playlist_items_list_result",
+    "map_playlist_items_update_result",
     "validate_playlist_items_delete_arguments",
     "validate_playlist_items_insert_arguments",
-    "validate_playlist_items_update_arguments",
     "validate_playlist_items_list_arguments",
+    "validate_playlist_items_update_arguments",
 ]

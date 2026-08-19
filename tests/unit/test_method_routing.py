@@ -1,7 +1,7 @@
+import json
 import os
 import sys
 import unittest
-import json
 
 sys.path.insert(0, os.path.abspath("src"))
 
@@ -119,7 +119,10 @@ class MethodRoutingTests(unittest.TestCase):
 
     def test_channel_detail_error_categories_route_safely(self):
         """Serialize channel-detail failures without exposing unsafe details."""
-        from mcp_server.tools.youtube_composed.channels import ChannelsGetChannelToolError, build_channels_get_channel_tool_descriptor
+        from mcp_server.tools.youtube_composed.channels import (
+            ChannelsGetChannelToolError,
+            build_channels_get_channel_tool_descriptor,
+        )
 
         def channels(_arguments):
             """Raise a lower-level quota failure with unsafe diagnostic values.
@@ -151,7 +154,9 @@ class MethodRoutingTests(unittest.TestCase):
 
     def test_channel_video_listing_error_categories_route_safely(self):
         """Serialize required collection failures without unsafe diagnostics."""
-        from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
+        from mcp_server.tools.youtube_common.playlist_items import (
+            PlaylistItemsListToolError,
+        )
         from mcp_server.tools.youtube_composed.channels import (
             ChannelsListVideosToolError,
             build_channels_list_videos_tool_descriptor,
@@ -197,7 +202,9 @@ class MethodRoutingTests(unittest.TestCase):
         :return: ``None`` after validating safe protocol error serialization.
         """
         from mcp_server.tools.youtube_common.playlists import PlaylistsListToolError
-        from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_tool_descriptor
+        from mcp_server.tools.youtube_composed.playlists import (
+            build_playlists_get_playlist_tool_descriptor,
+        )
 
         def lookup(_arguments):
             """Raise a capacity failure containing unsafe lower-layer details.
@@ -231,8 +238,12 @@ class MethodRoutingTests(unittest.TestCase):
 
         :return: ``None`` after validating safe protocol error serialization.
         """
-        from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
-        from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_items_tool_descriptor
+        from mcp_server.tools.youtube_common.playlist_items import (
+            PlaylistItemsListToolError,
+        )
+        from mcp_server.tools.youtube_composed.playlists import (
+            build_playlists_get_playlist_items_tool_descriptor,
+        )
 
         def playlist_items(_arguments):
             """Raise a capacity failure containing unsafe lower-layer details.
@@ -640,7 +651,9 @@ class MethodRoutingTests(unittest.TestCase):
     def test_video_statistics_lookup_failure_routes_without_sensitive_details(self):
         """Serialize a statistics lookup failure as a safe MCP error."""
         from mcp_server.tools.youtube_common.videos import VideosListToolError
-        from mcp_server.tools.youtube_composed.videos import build_videos_get_statistics_tool_descriptor
+        from mcp_server.tools.youtube_composed.videos import (
+            build_videos_get_statistics_tool_descriptor,
+        )
 
         def lookup(_arguments):
             """Raise a controlled capacity failure with unsafe detail fields.
@@ -676,7 +689,9 @@ def test_channel_playlist_listing_routes_sanitized_source_errors():
     :return: ``None`` after validating the safe protocol error category.
     """
     from mcp_server.tools.youtube_common.playlists import PlaylistsListToolError
-    from mcp_server.tools.youtube_composed.channels import build_channels_list_playlists_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_list_playlists_tool_descriptor,
+    )
 
     def playlists(_arguments):
         """Raise a source failure with details forbidden to public callers.
@@ -704,7 +719,9 @@ def test_channel_statistics_lookup_failure_routes_without_sensitive_details():
     :return: ``None`` after validating protocol-safe error serialization.
     """
     from mcp_server.tools.youtube_common.channels import ChannelsListToolError
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_statistics_tool_descriptor,
+    )
 
     def channels(_arguments):
         """Raise a controlled capacity failure with unsafe detail fields.
@@ -753,8 +770,12 @@ def test_playlist_search_routes_sanitized_item_listing_failures():
 
     :return: ``None`` after validating the public category and hidden diagnostics.
     """
-    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_search_items_tool_descriptor
+    from mcp_server.tools.youtube_common.playlist_items import (
+        PlaylistItemsListToolError,
+    )
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_search_items_tool_descriptor,
+    )
 
     def playlists(_arguments):
         """Return one available source playlist for search routing coverage.

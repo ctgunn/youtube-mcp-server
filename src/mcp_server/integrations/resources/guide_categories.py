@@ -1,9 +1,9 @@
-# ruff: noqa: F405
 """Guide Categories resource-family wrappers for Layer 1 YouTube integrations."""
 
 from __future__ import annotations
 
-from mcp_server.integrations.resources.base import *  # noqa: F403
+from mcp_server.integrations.resources.base import *
+
 
 @dataclass(frozen=True)
 class GuideCategoriesListWrapper(RepresentativeEndpointWrapper):
@@ -80,7 +80,7 @@ BUILDER_FUNCTIONS = {"guideCategories.list": build_guide_categories_list_wrapper
 __all__ = [
     "BUILDER_FUNCTIONS",
     "FAMILY_NAME",
-    "GuideCategoriesListWrapper",
     "RESOURCE_NAMES",
+    "GuideCategoriesListWrapper",
     "build_guide_categories_list_wrapper",
 ]

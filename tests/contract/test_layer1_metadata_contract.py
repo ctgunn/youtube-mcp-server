@@ -13,10 +13,10 @@ from mcp_server.integrations.wrappers import (
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
-    build_comment_threads_insert_wrapper,
-    build_comment_threads_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
+    build_comment_threads_insert_wrapper,
+    build_comment_threads_list_wrapper,
     build_comments_delete_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
@@ -30,21 +30,21 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
+    build_playlist_images_update_wrapper,
     build_playlist_items_delete_wrapper,
     build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
     build_playlist_items_update_wrapper,
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
+    build_playlists_update_wrapper,
     build_search_list_wrapper,
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
-    build_videos_list_wrapper,
-    build_playlists_update_wrapper,
-    build_playlist_images_update_wrapper,
-    build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
+    build_video_categories_list_wrapper,
+    build_videos_list_wrapper,
 )
 
 
@@ -90,9 +90,15 @@ class Layer1MetadataContractTests(unittest.TestCase):
         self.assertIn("quota guidance conflicts", review_surface["caveatNote"])
 
     def test_resource_family_builders_preserve_representative_metadata(self):
-        from mcp_server.integrations.resources.activities import build_activities_list_wrapper
-        from mcp_server.integrations.resources.videos import build_videos_report_abuse_wrapper
-        from mcp_server.integrations.resources.watermarks import build_watermarks_set_wrapper
+        from mcp_server.integrations.resources.activities import (
+            build_activities_list_wrapper,
+        )
+        from mcp_server.integrations.resources.videos import (
+            build_videos_report_abuse_wrapper,
+        )
+        from mcp_server.integrations.resources.watermarks import (
+            build_watermarks_set_wrapper,
+        )
 
         self.assertEqual(build_activities_list_wrapper().review_surface()["quotaCost"], 1)
         self.assertEqual(build_activities_list_wrapper().review_surface()["authMode"], "mixed/conditional")

@@ -5,8 +5,12 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.config import HostedSessionSettings
-from mcp_server.transport.streaming import StreamManager, encode_sse, normalize_accept_header
 from mcp_server.transport.session_store import reset_memory_session_store_registry
+from mcp_server.transport.streaming import (
+    StreamManager,
+    encode_sse,
+    normalize_accept_header,
+)
 from tests.unit.conftest import parse_sse_payload
 
 

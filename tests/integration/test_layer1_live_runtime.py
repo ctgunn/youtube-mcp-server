@@ -248,7 +248,7 @@ class Layer1LiveRuntimeIntegrationTests(unittest.TestCase):
                     "YOUTUBE_API_KEY": "configured-api-key",
                     "YOUTUBE_OAUTH_TOKEN": "configured-oauth-token",
                 },
-                youtube_opener=lambda request, timeout: captured.append((request, timeout))
+                youtube_opener=lambda request, timeout, captured=captured, tool_name=tool_name: captured.append((request, timeout))
                 or _FakeHTTPResponse({"items": [{"id": f"live-{tool_name}"}]}),
             )
 
@@ -321,7 +321,7 @@ class Layer1LiveRuntimeIntegrationTests(unittest.TestCase):
                     "YOUTUBE_API_KEY": "configured-api-key",
                     "YOUTUBE_OAUTH_TOKEN": "configured-oauth-token",
                 },
-                youtube_opener=lambda request, timeout: captured.append((request, timeout))
+                youtube_opener=lambda request, timeout, captured=captured: captured.append((request, timeout))
                 or (_ for _ in ()).throw(
                     HTTPError(
                         url=request.full_url,
@@ -370,7 +370,7 @@ class Layer1LiveRuntimeIntegrationTests(unittest.TestCase):
             captured = []
             transport = create_app(
                 env={"MCP_ENVIRONMENT": "dev"},
-                youtube_opener=lambda request, timeout: captured.append((request, timeout)),
+                youtube_opener=lambda request, timeout, captured=captured: captured.append((request, timeout)),
             )
 
             with self.assertRaises(ValueError) as exc_info:
@@ -485,7 +485,7 @@ class Layer1LiveRuntimeIntegrationTests(unittest.TestCase):
                     "YOUTUBE_API_KEY": "configured-api-key",
                     "YOUTUBE_OAUTH_TOKEN": "configured-oauth-token",
                 },
-                youtube_opener=lambda request, timeout: captured.append((request, timeout))
+                youtube_opener=lambda request, timeout, captured=captured, tool_name=tool_name: captured.append((request, timeout))
                 or _FakeHTTPResponse({"items": [{"id": f"live-{tool_name}"}]}),
             )
 
@@ -532,7 +532,7 @@ class Layer1LiveRuntimeIntegrationTests(unittest.TestCase):
                     "YOUTUBE_API_KEY": "configured-api-key",
                     "YOUTUBE_OAUTH_TOKEN": "configured-oauth-token",
                 },
-                youtube_opener=lambda request, timeout: captured.append((request, timeout))
+                youtube_opener=lambda request, timeout, captured=captured: captured.append((request, timeout))
                 or (_ for _ in ()).throw(
                     HTTPError(
                         url=request.full_url,
@@ -573,7 +573,7 @@ class Layer1LiveRuntimeIntegrationTests(unittest.TestCase):
             captured = []
             transport = create_app(
                 env={"MCP_ENVIRONMENT": "dev"},
-                youtube_opener=lambda request, timeout: captured.append((request, timeout)),
+                youtube_opener=lambda request, timeout, captured=captured: captured.append((request, timeout)),
             )
 
             with self.assertRaises(ValueError) as exc_info:

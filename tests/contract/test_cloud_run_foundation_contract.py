@@ -5,7 +5,11 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, serialize_verification_run
+from mcp_server.deploy import (
+    HostedRevisionRecord,
+    run_hosted_verification,
+    serialize_verification_run,
+)
 
 
 class CloudRunFoundationContractTests(unittest.TestCase):

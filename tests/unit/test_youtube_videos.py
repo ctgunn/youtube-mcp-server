@@ -522,7 +522,10 @@ def test_videos_insert_handler_calls_layer1_once_with_oauth():
 )
 def test_videos_insert_validation_rejects_missing_invalid_and_unsupported_inputs(arguments, field):
     """Reject malformed creation, metadata-only, media-only, option, and scope requests."""
-    from mcp_server.tools.youtube_common.videos import VideosInsertToolError, validate_videos_insert_arguments
+    from mcp_server.tools.youtube_common.videos import (
+        VideosInsertToolError,
+        validate_videos_insert_arguments,
+    )
 
     with pytest.raises(VideosInsertToolError) as exc_info:
         validate_videos_insert_arguments(arguments)
@@ -533,7 +536,10 @@ def test_videos_insert_validation_rejects_missing_invalid_and_unsupported_inputs
 
 def test_videos_insert_handler_rejects_missing_oauth_before_layer1_execution():
     """Surface missing OAuth without invoking the Layer 1 upload wrapper."""
-    from mcp_server.tools.youtube_common.videos import VideosInsertToolError, build_videos_insert_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosInsertToolError,
+        build_videos_insert_handler,
+    )
 
     wrapper = RecordingWrapper()
     handler = build_videos_insert_handler(wrapper=wrapper, oauth_token=None)
@@ -566,7 +572,10 @@ def test_videos_insert_handler_rejects_missing_oauth_before_layer1_execution():
 )
 def test_videos_insert_handler_maps_and_sanitizes_upstream_failures(upstream_category, expected_category):
     """Convert Layer 1 upload failures into safe caller-facing categories."""
-    from mcp_server.tools.youtube_common.videos import VideosInsertToolError, build_videos_insert_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosInsertToolError,
+        build_videos_insert_handler,
+    )
 
     wrapper = FailingWrapper(
         NormalizedUpstreamError(
@@ -669,7 +678,10 @@ def test_videos_rate_handler_calls_layer1_once_with_oauth(rating):
 )
 def test_videos_rate_validation_rejects_missing_invalid_and_unsupported_inputs(arguments, field):
     """Reject malformed rating requests and unsupported aliases or modifiers."""
-    from mcp_server.tools.youtube_common.videos import VideosRateToolError, validate_videos_rate_arguments
+    from mcp_server.tools.youtube_common.videos import (
+        VideosRateToolError,
+        validate_videos_rate_arguments,
+    )
 
     with pytest.raises(VideosRateToolError) as exc_info:
         validate_videos_rate_arguments(arguments)
@@ -705,7 +717,10 @@ def test_videos_rate_validation_rejects_missing_invalid_and_unsupported_inputs(a
 )
 def test_videos_rate_validation_rejects_out_of_scope_workflow_fields(field):
     """Reject lookup, upload, update, analytics, ranking, and enrichment fields."""
-    from mcp_server.tools.youtube_common.videos import VideosRateToolError, validate_videos_rate_arguments
+    from mcp_server.tools.youtube_common.videos import (
+        VideosRateToolError,
+        validate_videos_rate_arguments,
+    )
 
     with pytest.raises(VideosRateToolError) as exc_info:
         validate_videos_rate_arguments({"id": "abc123", "rating": "like", field: "value"})
@@ -716,7 +731,10 @@ def test_videos_rate_validation_rejects_out_of_scope_workflow_fields(field):
 
 def test_videos_rate_handler_rejects_missing_oauth_before_layer1_execution():
     """Surface missing OAuth without invoking the Layer 1 rate wrapper."""
-    from mcp_server.tools.youtube_common.videos import VideosRateToolError, build_videos_rate_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosRateToolError,
+        build_videos_rate_handler,
+    )
 
     wrapper = RecordingWrapper()
     handler = build_videos_rate_handler(wrapper=wrapper, oauth_token=None)
@@ -754,7 +772,10 @@ def test_videos_rate_handler_rejects_missing_oauth_before_layer1_execution():
 )
 def test_videos_rate_handler_maps_and_sanitizes_upstream_failures(upstream_category, expected_category):
     """Convert Layer 1 rating failures into safe caller-facing categories."""
-    from mcp_server.tools.youtube_common.videos import VideosRateToolError, build_videos_rate_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosRateToolError,
+        build_videos_rate_handler,
+    )
 
     wrapper = FailingWrapper(
         NormalizedUpstreamError(
@@ -785,7 +806,9 @@ def test_videos_rate_handler_maps_and_sanitizes_upstream_failures(upstream_categ
 
 def test_validate_videos_get_rating_accepts_single_multi_and_delegated_lookups():
     """Normalize valid viewer rating lookup requests without changing identifier semantics."""
-    from mcp_server.tools.youtube_common.videos import validate_videos_get_rating_arguments
+    from mcp_server.tools.youtube_common.videos import (
+        validate_videos_get_rating_arguments,
+    )
 
     assert validate_videos_get_rating_arguments({"id": " abc123 "}) == {"id": "abc123"}
     assert validate_videos_get_rating_arguments(_valid_videos_get_rating_arguments()) == {"id": "abc123,def456"}
@@ -865,7 +888,10 @@ def test_videos_get_rating_handler_calls_layer1_once_with_oauth():
 )
 def test_videos_get_rating_validation_rejects_missing_invalid_and_unsupported_inputs(arguments, field):
     """Reject malformed rating lookup requests and unsupported aliases or modifiers."""
-    from mcp_server.tools.youtube_common.videos import VideosGetRatingToolError, validate_videos_get_rating_arguments
+    from mcp_server.tools.youtube_common.videos import (
+        VideosGetRatingToolError,
+        validate_videos_get_rating_arguments,
+    )
 
     with pytest.raises(VideosGetRatingToolError) as exc_info:
         validate_videos_get_rating_arguments(arguments)
@@ -901,7 +927,10 @@ def test_videos_get_rating_validation_rejects_missing_invalid_and_unsupported_in
 )
 def test_videos_get_rating_validation_rejects_out_of_scope_workflow_fields(field):
     """Reject mutation, upload, analytics, ranking, and enrichment fields."""
-    from mcp_server.tools.youtube_common.videos import VideosGetRatingToolError, validate_videos_get_rating_arguments
+    from mcp_server.tools.youtube_common.videos import (
+        VideosGetRatingToolError,
+        validate_videos_get_rating_arguments,
+    )
 
     with pytest.raises(VideosGetRatingToolError) as exc_info:
         validate_videos_get_rating_arguments({"id": "abc123", field: "value"})
@@ -912,7 +941,10 @@ def test_videos_get_rating_validation_rejects_out_of_scope_workflow_fields(field
 
 def test_videos_get_rating_handler_rejects_missing_oauth_before_layer1_execution():
     """Surface missing OAuth without invoking the Layer 1 get-rating wrapper."""
-    from mcp_server.tools.youtube_common.videos import VideosGetRatingToolError, build_videos_get_rating_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosGetRatingToolError,
+        build_videos_get_rating_handler,
+    )
 
     wrapper = RecordingWrapper()
     handler = build_videos_get_rating_handler(wrapper=wrapper, oauth_token=None)
@@ -945,7 +977,10 @@ def test_videos_get_rating_handler_rejects_missing_oauth_before_layer1_execution
 )
 def test_videos_get_rating_handler_maps_and_sanitizes_upstream_failures(upstream_category, expected_category):
     """Convert Layer 1 rating lookup failures into safe caller-facing categories."""
-    from mcp_server.tools.youtube_common.videos import VideosGetRatingToolError, build_videos_get_rating_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosGetRatingToolError,
+        build_videos_get_rating_handler,
+    )
 
     wrapper = FailingWrapper(
         NormalizedUpstreamError(
@@ -975,7 +1010,9 @@ def test_videos_get_rating_handler_maps_and_sanitizes_upstream_failures(upstream
 
 def test_validate_videos_report_abuse_accepts_required_and_optional_body():
     """Normalize valid video abuse-report requests without changing report semantics."""
-    from mcp_server.tools.youtube_common.videos import validate_videos_report_abuse_arguments
+    from mcp_server.tools.youtube_common.videos import (
+        validate_videos_report_abuse_arguments,
+    )
 
     assert validate_videos_report_abuse_arguments(_valid_videos_report_abuse_arguments()) == {
         "body": {"videoId": "abc123", "reasonId": "VIOLENCE"},
@@ -1135,7 +1172,10 @@ def test_videos_report_abuse_validation_rejects_out_of_scope_workflow_fields(fie
 
 def test_videos_report_abuse_handler_rejects_missing_oauth_before_layer1_execution():
     """Surface missing OAuth without invoking the Layer 1 report-abuse wrapper."""
-    from mcp_server.tools.youtube_common.videos import VideosReportAbuseToolError, build_videos_report_abuse_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosReportAbuseToolError,
+        build_videos_report_abuse_handler,
+    )
 
     wrapper = RecordingWrapper()
     handler = build_videos_report_abuse_handler(wrapper=wrapper, oauth_token=None)
@@ -1178,7 +1218,10 @@ def test_videos_report_abuse_handler_maps_and_sanitizes_upstream_failures(
     expected_category,
 ):
     """Convert Layer 1 report failures into safe caller-facing categories."""
-    from mcp_server.tools.youtube_common.videos import VideosReportAbuseToolError, build_videos_report_abuse_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosReportAbuseToolError,
+        build_videos_report_abuse_handler,
+    )
 
     wrapper = FailingWrapper(
         NormalizedUpstreamError(
@@ -1303,7 +1346,10 @@ def test_videos_update_handler_calls_layer1_once_with_oauth():
 )
 def test_videos_update_validation_rejects_missing_invalid_and_unsupported_inputs(arguments, field):
     """Reject malformed update, read-only field, and delegation requests."""
-    from mcp_server.tools.youtube_common.videos import VideosUpdateToolError, validate_videos_update_arguments
+    from mcp_server.tools.youtube_common.videos import (
+        VideosUpdateToolError,
+        validate_videos_update_arguments,
+    )
 
     with pytest.raises(VideosUpdateToolError) as exc_info:
         validate_videos_update_arguments(arguments)
@@ -1334,7 +1380,10 @@ def test_videos_update_validation_rejects_missing_invalid_and_unsupported_inputs
 )
 def test_videos_update_validation_rejects_out_of_scope_workflow_fields(field):
     """Reject upload, publishing, analytics, ranking, and enrichment fields."""
-    from mcp_server.tools.youtube_common.videos import VideosUpdateToolError, validate_videos_update_arguments
+    from mcp_server.tools.youtube_common.videos import (
+        VideosUpdateToolError,
+        validate_videos_update_arguments,
+    )
 
     with pytest.raises(VideosUpdateToolError) as exc_info:
         validate_videos_update_arguments(
@@ -1347,7 +1396,10 @@ def test_videos_update_validation_rejects_out_of_scope_workflow_fields(field):
 
 def test_videos_update_handler_rejects_missing_oauth_before_layer1_execution():
     """Surface missing OAuth without invoking the Layer 1 update wrapper."""
-    from mcp_server.tools.youtube_common.videos import VideosUpdateToolError, build_videos_update_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosUpdateToolError,
+        build_videos_update_handler,
+    )
 
     wrapper = RecordingWrapper()
     handler = build_videos_update_handler(wrapper=wrapper, oauth_token=None)
@@ -1380,7 +1432,10 @@ def test_videos_update_handler_rejects_missing_oauth_before_layer1_execution():
 )
 def test_videos_update_handler_maps_and_sanitizes_upstream_failures(upstream_category, expected_category):
     """Convert Layer 1 update failures into safe caller-facing categories."""
-    from mcp_server.tools.youtube_common.videos import VideosUpdateToolError, build_videos_update_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosUpdateToolError,
+        build_videos_update_handler,
+    )
 
     wrapper = FailingWrapper(
         NormalizedUpstreamError(
@@ -1475,7 +1530,10 @@ def test_videos_delete_handler_calls_layer1_once_with_oauth():
 )
 def test_videos_delete_validation_rejects_missing_invalid_and_unsupported_inputs(arguments, field):
     """Reject malformed delete requests and unsupported aliases or modifiers."""
-    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, validate_videos_delete_arguments
+    from mcp_server.tools.youtube_common.videos import (
+        VideosDeleteToolError,
+        validate_videos_delete_arguments,
+    )
 
     with pytest.raises(VideosDeleteToolError) as exc_info:
         validate_videos_delete_arguments(arguments)
@@ -1514,7 +1572,10 @@ def test_videos_delete_validation_rejects_missing_invalid_and_unsupported_inputs
 )
 def test_videos_delete_validation_rejects_out_of_scope_workflow_fields(field):
     """Reject lookup, bulk, recovery, analytics, ranking, and enrichment fields."""
-    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, validate_videos_delete_arguments
+    from mcp_server.tools.youtube_common.videos import (
+        VideosDeleteToolError,
+        validate_videos_delete_arguments,
+    )
 
     with pytest.raises(VideosDeleteToolError) as exc_info:
         validate_videos_delete_arguments({"id": "abc123", field: "value"})
@@ -1525,7 +1586,10 @@ def test_videos_delete_validation_rejects_out_of_scope_workflow_fields(field):
 
 def test_videos_delete_handler_rejects_missing_oauth_before_layer1_execution():
     """Surface missing OAuth without invoking the Layer 1 delete wrapper."""
-    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, build_videos_delete_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosDeleteToolError,
+        build_videos_delete_handler,
+    )
 
     wrapper = RecordingWrapper()
     handler = build_videos_delete_handler(wrapper=wrapper, oauth_token=None)
@@ -1564,7 +1628,10 @@ def test_videos_delete_handler_rejects_missing_oauth_before_layer1_execution():
 )
 def test_videos_delete_handler_maps_and_sanitizes_upstream_failures(upstream_category, expected_category):
     """Convert Layer 1 delete failures into safe caller-facing categories."""
-    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, build_videos_delete_handler
+    from mcp_server.tools.youtube_common.videos import (
+        VideosDeleteToolError,
+        build_videos_delete_handler,
+    )
 
     wrapper = FailingWrapper(
         NormalizedUpstreamError(

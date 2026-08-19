@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 import os
 import sys
+from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from time import perf_counter
-from typing import Any, Mapping
+from typing import Any
 
 from mcp_server.app import create_app
 from mcp_server.config import load_hosted_runtime_settings, secret_access_readiness
@@ -23,16 +24,23 @@ from mcp_server.security import (
     evaluate_browser_preflight,
     evaluate_security_request,
 )
-from mcp_server.transport.http import JSON_CONTENT_TYPE, classify_hosted_request, hosted_security_status_code, hosted_status_code
+from mcp_server.transport.http import (
+    JSON_CONTENT_TYPE,
+    classify_hosted_request,
+    hosted_security_status_code,
+    hosted_status_code,
+)
 from mcp_server.transport.streaming import (
-    ExpiredSessionError,
     JSON_CONTENT_TYPE as STREAM_JSON_CONTENT_TYPE,
+)
+from mcp_server.transport.streaming import (
     MCP_PROTOCOL_VERSION_HEADER,
     MCP_SESSION_ID_HEADER,
-    ReplayUnavailableError,
     SSE_CONTENT_TYPE,
     SUPPORTED_MCP_PROTOCOL_VERSIONS,
+    ExpiredSessionError,
     InvalidSessionError,
+    ReplayUnavailableError,
     encode_sse,
     normalize_accept_header,
 )
@@ -40,14 +48,14 @@ from mcp_server.transport.streaming import (
 try:
     from fastapi import FastAPI, Request, Response
 except ImportError:  # pragma: no cover - exercised when optional deps are absent
-    FastAPI = None
-    Request = Any
-    Response = Any
+    FastAPI = None  # type: ignore[misc,assignment]
+    Request = Any  # type: ignore[misc,assignment]
+    Response = Any  # type: ignore[misc,assignment]
 
 try:
     import uvicorn
 except ImportError:  # pragma: no cover - exercised when optional deps are absent
-    uvicorn = None
+    uvicorn = None  # type: ignore[assignment]
 
 
 @dataclass(frozen=True)
@@ -562,6 +570,8 @@ def build_asgi_app(
         runtime_stderr=runtime_stderr,
     )
     transport.runtime_lifecycle = RuntimeLifecycleState()
+    runtime_settings = transport.runtime_settings
+    assert runtime_settings is not None
     if not transport.startup_validation.is_valid:
         transport.runtime_lifecycle.mark_degraded(
             {
@@ -572,13 +582,13 @@ def build_asgi_app(
 
     def _start_runtime() -> None:
         secret_status = secret_access_readiness(transport.runtime_env, transport.startup_validation)
-        durability = transport.stream_manager.durability_status(required=transport.runtime_settings.session.durability_required)
+        durability = transport.stream_manager.durability_status(required=runtime_settings.session.durability_required)
         if transport.startup_validation.is_valid and secret_status["available"] and durability["available"]:
             transport.runtime_lifecycle.mark_ready()
             transport.observability.emit_runtime_event(
                 "runtime.startup",
                 "success",
-                {"runtime": transport.runtime_settings.server_implementation},
+                {"runtime": runtime_settings.server_implementation},
             )
         else:
             if not secret_status["available"]:
@@ -590,7 +600,7 @@ def build_asgi_app(
                     "code": "CONFIG_VALIDATION_ERROR",
                     "message": "Required configuration is invalid or incomplete.",
                 }
-            transport.runtime_lifecycle.mark_degraded(reason)
+            transport.runtime_lifecycle.mark_degraded(reason if isinstance(reason, dict) else None)
             transport.observability.emit_runtime_event("runtime.startup", "error")
 
     def _stop_runtime() -> None:
@@ -598,16 +608,16 @@ def build_asgi_app(
         transport.observability.emit_runtime_event("runtime.shutdown", "success")
         transport.runtime_lifecycle.mark_stopped()
 
-    transport.start_runtime = _start_runtime
-    transport.stop_runtime = _stop_runtime
+    transport.start_runtime = _start_runtime  # type: ignore[attr-defined]
+    transport.stop_runtime = _stop_runtime  # type: ignore[attr-defined]
 
     @asynccontextmanager
     async def _lifespan(_app):
-        transport.start_runtime()
+        _start_runtime()
         try:
             yield
         finally:
-            transport.stop_runtime()
+            _stop_runtime()
 
     if FastAPI is not None:
         app = FastAPI(lifespan=_lifespan)
@@ -657,10 +667,10 @@ def run_server() -> None:
             if data:
                 self.wfile.write(data)
 
-        def do_GET(self) -> None:  # noqa: N802
-            self._send_result(execute_hosted_request(transport, method="GET", path=self.path, headers=self.headers))
+        def do_GET(self) -> None:
+            self._send_result(execute_hosted_request(transport, method="GET", path=self.path, headers=dict(self.headers.items())))
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             length = int(self.headers.get("Content-Length", "0"))
             body = self.rfile.read(length) if length else b""
             self._send_result(
@@ -668,21 +678,21 @@ def run_server() -> None:
                     transport,
                     method="POST",
                     path=self.path,
-                    headers=self.headers,
+                    headers=dict(self.headers.items()),
                     body=body,
                 )
             )
 
-        def do_PUT(self) -> None:  # noqa: N802
-            self._send_result(execute_hosted_request(transport, method="PUT", path=self.path, headers=self.headers))
+        def do_PUT(self) -> None:
+            self._send_result(execute_hosted_request(transport, method="PUT", path=self.path, headers=dict(self.headers.items())))
 
-        def do_DELETE(self) -> None:  # noqa: N802
-            self._send_result(execute_hosted_request(transport, method="DELETE", path=self.path, headers=self.headers))
+        def do_DELETE(self) -> None:
+            self._send_result(execute_hosted_request(transport, method="DELETE", path=self.path, headers=dict(self.headers.items())))
 
-        def do_OPTIONS(self) -> None:  # noqa: N802
-            self._send_result(execute_hosted_request(transport, method="OPTIONS", path=self.path, headers=self.headers))
+        def do_OPTIONS(self) -> None:
+            self._send_result(execute_hosted_request(transport, method="OPTIONS", path=self.path, headers=dict(self.headers.items())))
 
-        def log_message(self, format: str, *args) -> None:  # noqa: A003
+        def log_message(self, format: str, *args) -> None:
             return
 
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)

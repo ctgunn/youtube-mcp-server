@@ -3,7 +3,7 @@
 
 def test_package_exposes_shared_contract_boundaries():
     """Require the Layer 3 package to expose shared contract surfaces only."""
-    import mcp_server.tools.youtube_composed as youtube_composed
+    from mcp_server.tools import youtube_composed
 
     assert youtube_composed.SHARED_HELPER_BOUNDARY == "representative_contracts_only"
     assert youtube_composed.CONCRETE_TOOL_EXECUTION_ENABLED is False
@@ -52,7 +52,10 @@ def test_public_metadata_rejects_unsafe_fields():
     """Reject public Layer 3 metadata that exposes unsafe diagnostic fields."""
     import pytest
 
-    from mcp_server.tools.youtube_composed import ToolContractError, validate_safe_public_metadata
+    from mcp_server.tools.youtube_composed import (
+        ToolContractError,
+        validate_safe_public_metadata,
+    )
 
     with pytest.raises(ToolContractError):
         validate_safe_public_metadata({"safe": "ok", "oauthToken": "secret"})
@@ -62,7 +65,10 @@ def test_public_metadata_rejects_secret_diagnostic_fields():
     """Reject common secret, stack trace, signed URL, and raw media fields."""
     import pytest
 
-    from mcp_server.tools.youtube_composed import ToolContractError, validate_safe_public_metadata
+    from mcp_server.tools.youtube_composed import (
+        ToolContractError,
+        validate_safe_public_metadata,
+    )
 
     unsafe_examples = (
         {"apiKey": "hidden"},
@@ -83,7 +89,10 @@ def test_response_field_provenance_requires_heuristic_disclosure():
     import pytest
 
     from mcp_server.tools.youtube_composed import ToolContractError
-    from mcp_server.tools.youtube_composed.conventions import ResponseFieldCategory, ResponseFieldProvenance
+    from mcp_server.tools.youtube_composed.conventions import (
+        ResponseFieldCategory,
+        ResponseFieldProvenance,
+    )
 
     provenance = ResponseFieldProvenance(
         field_name="creatorSignals",

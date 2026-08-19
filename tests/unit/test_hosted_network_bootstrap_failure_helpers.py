@@ -4,7 +4,10 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.deploy import classify_bootstrap_failure, serialize_workflow_stage  # noqa: E402
+from mcp_server.deploy import (
+    classify_bootstrap_failure,
+    serialize_workflow_stage,
+)
 
 
 class HostedNetworkBootstrapFailureHelpersUnitTests(unittest.TestCase):

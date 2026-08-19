@@ -1,9 +1,9 @@
-# ruff: noqa: F405
 """Activities resource-family wrappers for Layer 1 YouTube integrations."""
 
 from __future__ import annotations
 
-from mcp_server.integrations.resources.base import *  # noqa: F403
+from mcp_server.integrations.resources.base import *
+
 
 @dataclass(frozen=True)
 class ActivitiesListWrapper(RepresentativeEndpointWrapper):
@@ -82,4 +82,4 @@ FAMILY_NAME = "activities"
 RESOURCE_NAMES = ("activities",)
 BUILDER_FUNCTIONS = {"activities.list": build_activities_list_wrapper}
 
-__all__ = ["ActivitiesListWrapper", "BUILDER_FUNCTIONS", "FAMILY_NAME", "RESOURCE_NAMES", "build_activities_list_wrapper"]
+__all__ = ["BUILDER_FUNCTIONS", "FAMILY_NAME", "RESOURCE_NAMES", "ActivitiesListWrapper", "build_activities_list_wrapper"]

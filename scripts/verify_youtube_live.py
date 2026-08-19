@@ -5,14 +5,13 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Mapping
-
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR / "src"))
 
-from mcp_server.app import create_app  # noqa: E402
+from mcp_server.app import create_app
 
 
 def run_live_smoke(environment: Mapping[str, str] | None = None) -> dict[str, object]:
@@ -42,7 +41,7 @@ def main() -> int:
     """
     try:
         result = run_live_smoke()
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - the CLI is the final user-facing error boundary.
         print(f"YouTube live smoke check failed: {error}", file=sys.stderr)
         return 1
     print(f"YouTube live smoke check passed: {result['operation']} returned {result['itemCount']} items")

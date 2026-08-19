@@ -2,41 +2,25 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from mcp_server.integrations.runtime import ConfiguredYouTubeRuntime
-from mcp_server.tools.retrieval import FETCH_TOOL_SCHEMA, SEARCH_TOOL_SCHEMA, fetch_tool, search_tool
-from mcp_server.tools.youtube_composed import (
-    build_channels_find_creators_tool_descriptor,
-    build_channels_get_channel_tool_descriptor,
-    build_channels_get_channels_tool_descriptor,
-    build_channels_get_statistics_tool_descriptor,
-    build_channels_list_videos_tool_descriptor,
-    build_channels_list_playlists_tool_descriptor,
-    build_channels_search_channels_tool_descriptor,
-    build_channels_search_content_tool_descriptor,
-    build_playlists_get_playlist_tool_descriptor,
-    build_playlists_get_playlist_items_tool_descriptor,
-    build_playlists_get_video_transcripts_tool_descriptor,
-    build_playlists_search_items_tool_descriptor,
-    build_transcripts_get_transcript_tool_descriptor,
-    build_transcripts_get_timestamped_captions_handler,
-    build_transcripts_get_timestamped_captions_tool_descriptor,
-    build_transcripts_list_languages_tool_descriptor,
-    build_transcripts_search_transcript_tool_descriptor,
-    build_videos_get_statistics_tool_descriptor,
-    build_videos_get_video_tool_descriptor,
-    build_videos_search_videos_tool_descriptor,
+from mcp_server.tools.retrieval import (
+    FETCH_TOOL_SCHEMA,
+    SEARCH_TOOL_SCHEMA,
+    fetch_tool,
+    search_tool,
 )
 from mcp_server.tools.youtube_common import (
     build_activities_list_tool_descriptor,
     build_captions_delete_tool_descriptor,
-    build_captions_download_tool_descriptor,
     build_captions_download_handler,
+    build_captions_download_tool_descriptor,
     build_captions_insert_tool_descriptor,
-    build_captions_list_tool_descriptor,
     build_captions_list_handler,
+    build_captions_list_tool_descriptor,
     build_captions_update_tool_descriptor,
     build_channel_banners_insert_tool_descriptor,
     build_channel_sections_delete_tool_descriptor,
@@ -46,13 +30,13 @@ from mcp_server.tools.youtube_common import (
     build_channels_list_handler,
     build_channels_list_tool_descriptor,
     build_channels_update_tool_descriptor,
+    build_comment_threads_insert_tool_descriptor,
+    build_comment_threads_list_tool_descriptor,
     build_comments_delete_tool_descriptor,
     build_comments_insert_tool_descriptor,
     build_comments_list_tool_descriptor,
     build_comments_set_moderation_status_tool_descriptor,
     build_comments_update_tool_descriptor,
-    build_comment_threads_insert_tool_descriptor,
-    build_comment_threads_list_tool_descriptor,
     build_guide_categories_list_tool_descriptor,
     build_i18n_languages_list_tool_descriptor,
     build_i18n_regions_list_tool_descriptor,
@@ -69,8 +53,8 @@ from mcp_server.tools.youtube_common import (
     build_playlist_items_update_tool_descriptor,
     build_playlists_delete_tool_descriptor,
     build_playlists_insert_tool_descriptor,
-    build_playlists_list_tool_descriptor,
     build_playlists_list_handler,
+    build_playlists_list_tool_descriptor,
     build_playlists_update_tool_descriptor,
     build_search_list_handler,
     build_search_list_tool_descriptor,
@@ -78,8 +62,6 @@ from mcp_server.tools.youtube_common import (
     build_subscriptions_insert_tool_descriptor,
     build_subscriptions_list_tool_descriptor,
     build_thumbnails_set_tool_descriptor,
-    build_watermarks_set_tool_descriptor,
-    build_watermarks_unset_tool_descriptor,
     build_video_abuse_report_reasons_list_tool_descriptor,
     build_video_categories_list_tool_descriptor,
     build_videos_delete_tool_descriptor,
@@ -90,6 +72,30 @@ from mcp_server.tools.youtube_common import (
     build_videos_rate_tool_descriptor,
     build_videos_report_abuse_tool_descriptor,
     build_videos_update_tool_descriptor,
+    build_watermarks_set_tool_descriptor,
+    build_watermarks_unset_tool_descriptor,
+)
+from mcp_server.tools.youtube_composed import (
+    build_channels_find_creators_tool_descriptor,
+    build_channels_get_channel_tool_descriptor,
+    build_channels_get_channels_tool_descriptor,
+    build_channels_get_statistics_tool_descriptor,
+    build_channels_list_playlists_tool_descriptor,
+    build_channels_list_videos_tool_descriptor,
+    build_channels_search_channels_tool_descriptor,
+    build_channels_search_content_tool_descriptor,
+    build_playlists_get_playlist_items_tool_descriptor,
+    build_playlists_get_playlist_tool_descriptor,
+    build_playlists_get_video_transcripts_tool_descriptor,
+    build_playlists_search_items_tool_descriptor,
+    build_transcripts_get_timestamped_captions_handler,
+    build_transcripts_get_timestamped_captions_tool_descriptor,
+    build_transcripts_get_transcript_tool_descriptor,
+    build_transcripts_list_languages_tool_descriptor,
+    build_transcripts_search_transcript_tool_descriptor,
+    build_videos_get_statistics_tool_descriptor,
+    build_videos_get_video_tool_descriptor,
+    build_videos_search_videos_tool_descriptor,
 )
 
 BASELINE_TOOL_SCHEMAS = {
@@ -490,7 +496,7 @@ class InMemoryToolDispatcher:
         properties = schema.get("properties", {})
         if additional is False and isinstance(properties, dict):
             allowed = set(properties.keys())
-            unexpected = [key for key in arguments.keys() if key not in allowed]
+            unexpected = [key for key in arguments if key not in allowed]
             if unexpected:
                 raise ValueError(f"arguments contain unsupported field: {unexpected[0]}")
 
@@ -599,7 +605,7 @@ class InMemoryToolDispatcher:
         """Build the payload returned by the built-in ping tool."""
         return {
             "status": "ok",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     def _server_ping(self, _arguments):

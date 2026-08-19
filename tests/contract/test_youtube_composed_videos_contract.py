@@ -13,7 +13,9 @@ def test_video_details_metadata_is_concrete_not_representative_only():
 
 def test_video_details_contract_exposes_the_core_schema_and_provenance():
     """Require stable discovery metadata for core normalized retrieval."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_get_video_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_get_video_tool_descriptor,
+    )
 
     descriptor = build_videos_get_video_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -32,7 +34,9 @@ def test_video_details_contract_exposes_the_core_schema_and_provenance():
 
 def test_video_details_contract_documents_every_optional_part_mapping():
     """Require discovery metadata to expose all additive detail groups."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_get_video_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_get_video_tool_descriptor,
+    )
 
     descriptor = build_videos_get_video_tool_descriptor()
     schema = descriptor["inputSchema"]
@@ -72,7 +76,9 @@ def test_video_details_contract_retains_videos_list_dependency_without_represent
 
     :return: ``None`` after validating the concrete dependency boundary.
     """
-    from mcp_server.tools.youtube_composed.videos import build_videos_get_video_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_get_video_tool_descriptor,
+    )
 
     metadata = build_videos_get_video_tool_descriptor()["metadata"]
 
@@ -82,7 +88,9 @@ def test_video_details_contract_retains_videos_list_dependency_without_represent
 
 def test_video_search_contract_exposes_concrete_schema_and_safe_metadata():
     """Require concrete discovery metadata for the public video-search tool."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_tool_descriptor,
+    )
 
     descriptor = build_videos_search_videos_tool_descriptor()
     schema = descriptor["inputSchema"]
@@ -103,7 +111,9 @@ def test_video_search_contract_exposes_concrete_schema_and_safe_metadata():
 
 def test_video_search_contract_discloses_enrichment_limits_and_partial_behavior():
     """Require channel-aware metadata to make bounds and uncertainty explicit."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_metadata
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_metadata,
+    )
 
     metadata = build_videos_search_videos_metadata()
 
@@ -117,7 +127,9 @@ def test_video_search_contract_discloses_enrichment_limits_and_partial_behavior(
 
 def test_video_search_contract_discloses_deterministic_ranking_and_exclusion_rules():
     """Require public metadata for ranking provenance and unavailable data behavior."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_metadata
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_metadata,
+    )
 
     metadata = build_videos_search_videos_metadata()
 
@@ -129,7 +141,9 @@ def test_video_search_contract_discloses_deterministic_ranking_and_exclusion_rul
 
 def test_video_statistics_contract_exposes_a_concrete_single_video_schema_and_boundary():
     """Require concrete discovery metadata for public video statistics."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_get_statistics_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_get_statistics_tool_descriptor,
+    )
 
     descriptor = build_videos_get_statistics_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -149,7 +163,9 @@ def test_video_statistics_contract_exposes_a_concrete_single_video_schema_and_bo
 
 def test_video_statistics_contract_documents_metric_availability_and_safe_caveats():
     """Require metric provenance, unavailable states, and source caveats."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_get_statistics_metadata
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_get_statistics_metadata,
+    )
 
     metadata = build_videos_get_statistics_metadata()
     fields = {field["fieldName"]: field for field in metadata["responseFields"]}

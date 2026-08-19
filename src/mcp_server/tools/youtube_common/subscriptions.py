@@ -14,9 +14,17 @@ from mcp_server.integrations.resources.subscriptions import (
     build_subscriptions_list_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, safe_upstream_error_message, sanitize_error_details
-
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
 
 SUBSCRIPTIONS_LIST_TOOL_NAME = "subscriptions_list"
 SUBSCRIPTIONS_LIST_QUOTA_COST = 1
@@ -64,10 +72,10 @@ SUBSCRIPTIONS_LIST_CAVEATS = (
     "User-context selectors mine, myRecentSubscribers, and mySubscribers require OAuth authorization.",
     "Private subscriber visibility and account state can limit returned subscriber data even for authorized callers.",
     "This tool only retrieves subscription resources through subscriptions.list.",
-    "Subscription creation, deletion, partner-only delegation, channel enrichment, subscriber analytics, ranking, "
-    "summarization, recommendation, and cross-endpoint aggregation are out of scope.",
-    "Returned subscription fields depend on selected parts and upstream availability; missing optional fields are not "
-    "fabricated.",
+    ("Subscription creation, deletion, partner-only delegation, channel enrichment, subscriber analytics, ranking, "
+    "summarization, recommendation, and cross-endpoint aggregation are out of scope."),
+    ("Returned subscription fields depend on selected parts and upstream availability; missing optional fields are not "
+    "fabricated."),
 )
 
 SUBSCRIPTIONS_LIST_CALLER_EXAMPLES = (
@@ -254,8 +262,8 @@ SUBSCRIPTIONS_INSERT_CAVEATS = (
     "Use subscriptions_list for retrieval and subscriptions_delete for deletion; this tool only performs subscriptions.insert.",
     "body.snippet.resourceId.channelId is required for supported subscription creation requests.",
     "Unsupported write fields such as body.title, body.status, extra body.snippet mappings, or extra resourceId fields are out of scope.",
-    "Channel search, recommendation, notification management, subscriber analytics, ranking, summarization, enrichment, idempotency, "
-    "duplicate prevention, and cross-endpoint behavior are out of scope.",
+    ("Channel search, recommendation, notification management, subscriber analytics, ranking, summarization, enrichment, idempotency, "
+    "duplicate prevention, and cross-endpoint behavior are out of scope."),
     "Returned subscription fields depend on selected parts and upstream availability; missing optional fields are not fabricated.",
 )
 
@@ -367,13 +375,13 @@ SUBSCRIPTIONS_DELETE_USAGE_NOTES = (
 
 SUBSCRIPTIONS_DELETE_CAVEATS = (
     "subscriptions_delete is a destructive operation and requires eligible OAuth authorization.",
-    "The request accepts exactly one target subscription relationship id; listing, lookup, bulk deletion, and discovery "
-    "belong outside this tool boundary.",
-    "Missing, already-removed, inaccessible, not-owned, blocked, or otherwise non-removable subscription relationships "
-    "are surfaced as safe validation, authorization, missing-target, or non-removable-target failures.",
-    "The tool does not perform subscription listing, creation, channel search, notification management, subscriber "
+    ("The request accepts exactly one target subscription relationship id; listing, lookup, bulk deletion, and discovery "
+    "belong outside this tool boundary."),
+    ("Missing, already-removed, inaccessible, not-owned, blocked, or otherwise non-removable subscription relationships "
+    "are surfaced as safe validation, authorization, missing-target, or non-removable-target failures."),
+    ("The tool does not perform subscription listing, creation, channel search, notification management, subscriber "
     "analytics, ranking, summarization, enrichment, preflight lookup, idempotency, bulk deletion, or cross-endpoint "
-    "aggregation.",
+    "aggregation."),
 )
 
 SUBSCRIPTIONS_DELETE_CALLER_EXAMPLES = (
@@ -780,12 +788,11 @@ def validate_subscriptions_list_arguments(arguments: dict[str, Any]) -> dict[str
             )
 
     order = normalized.get("order")
-    if order is not None:
-        if not isinstance(order, str) or order not in SUBSCRIPTIONS_LIST_ORDER_VALUES:
-            raise SubscriptionsListToolError(
-                "unsupported subscription order",
-                details={"field": "order", "allowed": list(SUBSCRIPTIONS_LIST_ORDER_VALUES)},
-            )
+    if order is not None and (not isinstance(order, str) or order not in SUBSCRIPTIONS_LIST_ORDER_VALUES):
+        raise SubscriptionsListToolError(
+            "unsupported subscription order",
+            details={"field": "order", "allowed": list(SUBSCRIPTIONS_LIST_ORDER_VALUES)},
+        )
 
     if selector == "id" and any(field in normalized for field in ("pageToken", "maxResults", "order")):
         raise SubscriptionsListToolError(

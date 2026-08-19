@@ -3,16 +3,16 @@
 import pytest
 
 from mcp_server.tools.youtube_common import (
+    SHARED_YOUTUBE_HELPER_BOUNDARY,
     AuthMode,
     AvailabilityState,
     ErrorCategory,
-    YouTubeToolContractError,
-    YouTubeToolContract,
-    SHARED_YOUTUBE_HELPER_BOUNDARY,
     ResponseBoundary,
     ResponseBoundaryKind,
     ResponseConvention,
     ResponseKind,
+    YouTubeToolContract,
+    YouTubeToolContractError,
     sanitize_error_details,
     validate_safe_public_metadata,
 )
@@ -52,7 +52,9 @@ def test_youtube_tool_contract_requires_public_metadata():
 def test_playlist_items_list_contract_uses_existing_resource_family():
     """Expose the concrete ``playlistItems_list`` contract in the playlist-items family."""
     from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_list_contract
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_list_contract,
+    )
 
     playlist_items = get_resource_family("playlist_items")
     contract = build_playlist_items_list_contract()
@@ -68,7 +70,9 @@ def test_playlist_items_list_contract_uses_existing_resource_family():
 def test_playlist_items_insert_contract_uses_existing_resource_family():
     """Expose the concrete ``playlistItems_insert`` contract in the playlist-items family."""
     from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_insert_contract
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_insert_contract,
+    )
 
     playlist_items = get_resource_family("playlist_items")
     contract = build_playlist_items_insert_contract()
@@ -91,7 +95,9 @@ def test_playlist_items_insert_contract_uses_existing_resource_family():
 def test_playlist_items_update_contract_uses_existing_resource_family():
     """Expose the concrete ``playlistItems_update`` contract in the playlist-items family."""
     from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_update_contract
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_update_contract,
+    )
 
     playlist_items = get_resource_family("playlist_items")
     contract = build_playlist_items_update_contract()
@@ -114,7 +120,9 @@ def test_playlist_items_update_contract_uses_existing_resource_family():
 def test_playlist_items_delete_contract_uses_existing_resource_family():
     """Expose the concrete ``playlistItems_delete`` contract in the playlist-items family."""
     from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common.playlist_items import build_playlist_items_delete_contract
+    from mcp_server.tools.youtube_common.playlist_items import (
+        build_playlist_items_delete_contract,
+    )
 
     playlist_items = get_resource_family("playlist_items")
     contract = build_playlist_items_delete_contract()
@@ -136,8 +144,7 @@ def test_playlist_items_delete_contract_uses_existing_resource_family():
 
 def test_playlists_family_module_is_importable():
     """Expose the concrete playlists family module for YT-236."""
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import playlists
+    from mcp_server.tools.youtube_common import get_resource_family, playlists
 
     playlists_family = get_resource_family("playlists")
 
@@ -148,8 +155,7 @@ def test_playlists_family_module_is_importable():
 
 def test_search_family_module_is_importable():
     """Expose the concrete search family module for YT-240."""
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import search
+    from mcp_server.tools.youtube_common import get_resource_family, search
 
     search_family = get_resource_family("search")
 
@@ -160,8 +166,7 @@ def test_search_family_module_is_importable():
 
 def test_subscriptions_family_module_is_importable():
     """Expose the concrete subscriptions family module for YT-241."""
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import subscriptions
+    from mcp_server.tools.youtube_common import get_resource_family, subscriptions
 
     subscriptions_family = get_resource_family("subscriptions")
 
@@ -173,9 +178,10 @@ def test_subscriptions_family_module_is_importable():
 def test_subscriptions_list_contract_uses_existing_resource_family():
     """Expose the concrete ``subscriptions_list`` contract in the subscriptions family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import subscriptions
-    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_list_contract
+    from mcp_server.tools.youtube_common import get_resource_family, subscriptions
+    from mcp_server.tools.youtube_common.subscriptions import (
+        build_subscriptions_list_contract,
+    )
 
     subscriptions_family = get_resource_family("subscriptions")
     contract = build_subscriptions_list_contract()
@@ -202,9 +208,10 @@ def test_subscriptions_list_contract_uses_existing_resource_family():
 def test_subscriptions_insert_contract_uses_existing_resource_family():
     """Expose the concrete ``subscriptions_insert`` contract in the subscriptions family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import subscriptions
-    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_insert_contract
+    from mcp_server.tools.youtube_common import get_resource_family, subscriptions
+    from mcp_server.tools.youtube_common.subscriptions import (
+        build_subscriptions_insert_contract,
+    )
 
     subscriptions_family = get_resource_family("subscriptions")
     contract = build_subscriptions_insert_contract()
@@ -232,9 +239,10 @@ def test_subscriptions_insert_contract_uses_existing_resource_family():
 def test_subscriptions_delete_contract_uses_existing_resource_family():
     """Expose the concrete ``subscriptions_delete`` contract in the subscriptions family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import subscriptions
-    from mcp_server.tools.youtube_common.subscriptions import build_subscriptions_delete_contract
+    from mcp_server.tools.youtube_common import get_resource_family, subscriptions
+    from mcp_server.tools.youtube_common.subscriptions import (
+        build_subscriptions_delete_contract,
+    )
 
     subscriptions_family = get_resource_family("subscriptions")
     contract = build_subscriptions_delete_contract()
@@ -263,8 +271,7 @@ def test_subscriptions_delete_contract_uses_existing_resource_family():
 def test_videos_update_contract_uses_existing_resource_family():
     """Expose the concrete ``videos_update`` contract in the videos family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import videos
+    from mcp_server.tools.youtube_common import get_resource_family, videos
     from mcp_server.tools.youtube_common.videos import build_videos_update_contract
 
     videos_family = get_resource_family("videos")
@@ -294,8 +301,7 @@ def test_videos_update_contract_uses_existing_resource_family():
 def test_watermarks_set_contract_uses_existing_resource_family():
     """Expose the concrete ``watermarks_set`` contract in the watermarks family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import watermarks
+    from mcp_server.tools.youtube_common import get_resource_family, watermarks
     from mcp_server.tools.youtube_common.watermarks import build_watermarks_set_contract
 
     watermarks_family = get_resource_family("watermarks")
@@ -328,9 +334,10 @@ def test_watermarks_set_contract_uses_existing_resource_family():
 def test_watermarks_unset_contract_uses_existing_resource_family():
     """Expose the concrete ``watermarks_unset`` contract in the watermarks family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import watermarks
-    from mcp_server.tools.youtube_common.watermarks import build_watermarks_unset_contract
+    from mcp_server.tools.youtube_common import get_resource_family, watermarks
+    from mcp_server.tools.youtube_common.watermarks import (
+        build_watermarks_unset_contract,
+    )
 
     watermarks_family = get_resource_family("watermarks")
     contract = build_watermarks_unset_contract()
@@ -363,8 +370,7 @@ def test_watermarks_unset_contract_uses_existing_resource_family():
 def test_videos_rate_contract_uses_existing_resource_family():
     """Expose the concrete ``videos_rate`` contract in the videos family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import videos
+    from mcp_server.tools.youtube_common import get_resource_family, videos
     from mcp_server.tools.youtube_common.videos import build_videos_rate_contract
 
     videos_family = get_resource_family("videos")
@@ -402,8 +408,7 @@ def test_videos_rate_contract_uses_existing_resource_family():
 def test_videos_get_rating_contract_uses_existing_resource_family():
     """Expose the concrete ``videos_getRating`` contract in the videos family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import videos
+    from mcp_server.tools.youtube_common import get_resource_family, videos
     from mcp_server.tools.youtube_common.videos import build_videos_get_rating_contract
 
     videos_family = get_resource_family("videos")
@@ -441,9 +446,10 @@ def test_videos_get_rating_contract_uses_existing_resource_family():
 def test_videos_report_abuse_contract_uses_existing_resource_family():
     """Expose the concrete ``videos_reportAbuse`` contract in the videos family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import videos
-    from mcp_server.tools.youtube_common.videos import build_videos_report_abuse_contract
+    from mcp_server.tools.youtube_common import get_resource_family, videos
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_report_abuse_contract,
+    )
 
     videos_family = get_resource_family("videos")
     contract = build_videos_report_abuse_contract()
@@ -480,8 +486,7 @@ def test_videos_report_abuse_contract_uses_existing_resource_family():
 def test_videos_delete_contract_uses_existing_resource_family():
     """Expose the concrete ``videos_delete`` contract in the videos family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import videos
+    from mcp_server.tools.youtube_common import get_resource_family, videos
     from mcp_server.tools.youtube_common.videos import build_videos_delete_contract
 
     videos_family = get_resource_family("videos")
@@ -519,8 +524,7 @@ def test_videos_delete_contract_uses_existing_resource_family():
 def test_thumbnails_set_contract_uses_existing_resource_family():
     """Expose the concrete ``thumbnails_set`` contract in the thumbnails family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import thumbnails
+    from mcp_server.tools.youtube_common import get_resource_family, thumbnails
     from mcp_server.tools.youtube_common.thumbnails import build_thumbnails_set_contract
 
     thumbnails_family = get_resource_family("thumbnails")
@@ -574,9 +578,10 @@ def test_search_list_contract_uses_existing_resource_family():
 def test_video_categories_list_contract_uses_existing_resource_family():
     """Expose the concrete ``videoCategories_list`` contract in the video-categories family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import video_categories
-    from mcp_server.tools.youtube_common.video_categories import build_video_categories_list_contract
+    from mcp_server.tools.youtube_common import get_resource_family, video_categories
+    from mcp_server.tools.youtube_common.video_categories import (
+        build_video_categories_list_contract,
+    )
 
     family = get_resource_family("video_categories")
     contract = build_video_categories_list_contract()
@@ -606,8 +611,7 @@ def test_video_categories_list_contract_uses_existing_resource_family():
 def test_videos_list_contract_uses_existing_resource_family():
     """Expose the concrete ``videos_list`` contract in the videos family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import videos
+    from mcp_server.tools.youtube_common import get_resource_family, videos
     from mcp_server.tools.youtube_common.videos import build_videos_list_contract
 
     family = get_resource_family("videos")
@@ -640,8 +644,7 @@ def test_videos_list_contract_uses_existing_resource_family():
 def test_videos_insert_contract_uses_existing_resource_family():
     """Expose the concrete ``videos_insert`` contract in the videos family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import videos
+    from mcp_server.tools.youtube_common import get_resource_family, videos
     from mcp_server.tools.youtube_common.videos import build_videos_insert_contract
 
     family = get_resource_family("videos")
@@ -702,9 +705,10 @@ def test_playlists_list_contract_uses_existing_resource_family():
 def test_playlists_insert_contract_uses_existing_resource_family():
     """Expose the concrete ``playlists_insert`` contract in the playlists family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import playlists
-    from mcp_server.tools.youtube_common.playlists import build_playlists_insert_contract
+    from mcp_server.tools.youtube_common import get_resource_family, playlists
+    from mcp_server.tools.youtube_common.playlists import (
+        build_playlists_insert_contract,
+    )
 
     playlists_family = get_resource_family("playlists")
     contract = build_playlists_insert_contract()
@@ -728,9 +732,10 @@ def test_playlists_insert_contract_uses_existing_resource_family():
 def test_playlists_update_contract_uses_existing_resource_family():
     """Expose the concrete ``playlists_update`` contract in the playlists family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import playlists
-    from mcp_server.tools.youtube_common.playlists import build_playlists_update_contract
+    from mcp_server.tools.youtube_common import get_resource_family, playlists
+    from mcp_server.tools.youtube_common.playlists import (
+        build_playlists_update_contract,
+    )
 
     playlists_family = get_resource_family("playlists")
     contract = build_playlists_update_contract()
@@ -755,9 +760,10 @@ def test_playlists_update_contract_uses_existing_resource_family():
 def test_playlists_delete_contract_uses_existing_resource_family():
     """Expose the concrete ``playlists_delete`` contract in the playlists family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import playlists
-    from mcp_server.tools.youtube_common.playlists import build_playlists_delete_contract
+    from mcp_server.tools.youtube_common import get_resource_family, playlists
+    from mcp_server.tools.youtube_common.playlists import (
+        build_playlists_delete_contract,
+    )
 
     playlists_family = get_resource_family("playlists")
     contract = build_playlists_delete_contract()
@@ -1004,7 +1010,9 @@ def test_captions_update_public_metadata_is_safe_and_complete():
 
 def test_playlist_images_list_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, selector, and paging metadata for ``playlistImages_list``."""
-    from mcp_server.tools.youtube_common.playlist_images import build_playlist_images_list_contract
+    from mcp_server.tools.youtube_common.playlist_images import (
+        build_playlist_images_list_contract,
+    )
 
     metadata = build_playlist_images_list_contract().to_tool_metadata()
     metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
@@ -1035,7 +1043,9 @@ def test_playlist_images_list_public_metadata_is_safe_and_complete():
 
 def test_i18n_languages_list_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, and active metadata for ``i18nLanguages_list``."""
-    from mcp_server.tools.youtube_common.localization import build_i18n_languages_list_contract
+    from mcp_server.tools.youtube_common.localization import (
+        build_i18n_languages_list_contract,
+    )
 
     metadata = build_i18n_languages_list_contract().to_tool_metadata()
 
@@ -1051,7 +1061,9 @@ def test_i18n_languages_list_public_metadata_is_safe_and_complete():
 
 def test_i18n_regions_list_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, and active metadata for ``i18nRegions_list``."""
-    from mcp_server.tools.youtube_common.localization import build_i18n_regions_list_contract
+    from mcp_server.tools.youtube_common.localization import (
+        build_i18n_regions_list_contract,
+    )
 
     metadata = build_i18n_regions_list_contract().to_tool_metadata()
 
@@ -1117,7 +1129,9 @@ def test_comments_update_representative_metadata_aligns_with_shared_safety_rules
 
 def test_comments_set_moderation_status_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, status, and optional-flag metadata."""
-    from mcp_server.tools.youtube_common.comments import build_comments_set_moderation_status_contract
+    from mcp_server.tools.youtube_common.comments import (
+        build_comments_set_moderation_status_contract,
+    )
 
     metadata = build_comments_set_moderation_status_contract().to_tool_metadata()
     metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
@@ -1143,7 +1157,9 @@ def test_comments_set_moderation_status_public_metadata_is_safe_and_complete():
 def test_comments_set_moderation_status_representative_metadata_aligns_with_shared_safety_rules():
     """Keep public representative metadata aligned with concrete moderation safety."""
     from mcp_server.tools.youtube_common import REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS
-    from mcp_server.tools.youtube_common.comments import build_comments_set_moderation_status_contract
+    from mcp_server.tools.youtube_common.comments import (
+        build_comments_set_moderation_status_contract,
+    )
 
     representative = {contract.tool_name: contract for contract in REPRESENTATIVE_YOUTUBE_TOOL_CONTRACTS}[
         "comments_setModerationStatus"
@@ -1237,7 +1253,9 @@ def test_comments_insert_public_metadata_is_safe_and_complete():
 
 def test_captions_download_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, permission, and conversion metadata for ``captions_download``."""
-    from mcp_server.tools.youtube_common.captions import build_captions_download_contract
+    from mcp_server.tools.youtube_common.captions import (
+        build_captions_download_contract,
+    )
 
     metadata = build_captions_download_contract().to_tool_metadata()
 
@@ -1278,7 +1296,9 @@ def test_captions_delete_public_metadata_is_safe_and_complete():
 
 def test_channel_sections_delete_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, destructive delete, and acknowledgment metadata."""
-    from mcp_server.tools.youtube_common.channel_sections import build_channel_sections_delete_contract
+    from mcp_server.tools.youtube_common.channel_sections import (
+        build_channel_sections_delete_contract,
+    )
 
     metadata = build_channel_sections_delete_contract().to_tool_metadata()
 
@@ -1346,7 +1366,9 @@ def test_members_list_public_metadata_is_safe_and_complete():
 
 def test_memberships_levels_list_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, owner access, and membership-level metadata."""
-    from mcp_server.tools.youtube_common.memberships_levels import build_memberships_levels_list_contract
+    from mcp_server.tools.youtube_common.memberships_levels import (
+        build_memberships_levels_list_contract,
+    )
 
     metadata = build_memberships_levels_list_contract().to_tool_metadata()
 
@@ -1370,7 +1392,9 @@ def test_memberships_levels_list_public_metadata_is_safe_and_complete():
 
 def test_comment_threads_list_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, selector, pagination, and list metadata."""
-    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_list_contract
+    from mcp_server.tools.youtube_common.comment_threads import (
+        build_comment_threads_list_contract,
+    )
 
     metadata = build_comment_threads_list_contract().to_tool_metadata()
 
@@ -1394,7 +1418,9 @@ def test_comment_threads_list_public_metadata_is_safe_and_complete():
 
 def test_commentThreads_insert_public_metadata_is_safe_and_complete():
     """Expose safe quota, OAuth, target, and top-level body metadata."""
-    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_insert_contract
+    from mcp_server.tools.youtube_common.comment_threads import (
+        build_comment_threads_insert_contract,
+    )
 
     metadata = build_comment_threads_insert_contract().to_tool_metadata()
     metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
@@ -1439,7 +1465,9 @@ def test_commentThreads_insert_shared_metadata_exposes_examples_and_safe_boundar
 
 def test_channel_banners_insert_public_metadata_is_safe_and_complete():
     """Expose safe quota, auth, media, URL, and activation-boundary metadata."""
-    from mcp_server.tools.youtube_common.channel_banners import build_channel_banners_insert_contract
+    from mcp_server.tools.youtube_common.channel_banners import (
+        build_channel_banners_insert_contract,
+    )
 
     metadata = build_channel_banners_insert_contract().to_tool_metadata()
 
@@ -1465,8 +1493,10 @@ def test_channel_banners_insert_public_metadata_is_safe_and_complete():
 def test_video_abuse_report_reasons_list_contract_uses_existing_resource_family():
     """Expose the concrete ``videoAbuseReportReasons_list`` contract in its resource family."""
     from mcp_server.tools import youtube_common
-    from mcp_server.tools.youtube_common import get_resource_family
-    from mcp_server.tools.youtube_common import video_abuse_report_reasons
+    from mcp_server.tools.youtube_common import (
+        get_resource_family,
+        video_abuse_report_reasons,
+    )
     from mcp_server.tools.youtube_common.video_abuse_report_reasons import (
         build_video_abuse_report_reasons_list_contract,
     )

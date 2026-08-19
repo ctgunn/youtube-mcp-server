@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from time import perf_counter, sleep
-from typing import Any, Callable
+from typing import Any
 
 from mcp_server.integrations.auth import AuthContext
 from mcp_server.integrations.contracts import EndpointMetadata
-from mcp_server.integrations.errors import NormalizedUpstreamError, normalize_upstream_error
+from mcp_server.integrations.errors import (
+    NormalizedUpstreamError,
+    normalize_upstream_error,
+)
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.observability import InMemoryObservability, integration_execution_event
 
@@ -90,7 +94,7 @@ class IntegrationExecutor:
                     self._sleep_before_retry(attempt_number)
                     continue
                 raise
-            except Exception as error:  # pragma: no cover - exercised in integration tests
+            except Exception as error:  # noqa: BLE001 - normalize every transport failure at this boundary.
                 normalized = normalize_upstream_error(error)
                 if self._hooks.on_error is not None:
                     self._hooks.on_error(execution, normalized)

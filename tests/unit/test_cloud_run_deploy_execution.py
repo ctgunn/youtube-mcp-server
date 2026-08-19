@@ -5,7 +5,11 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.deploy import deployment_input_from_mapping, execute_deploy_command, serialize_deployment_run
+from mcp_server.deploy import (
+    deployment_input_from_mapping,
+    execute_deploy_command,
+    serialize_deployment_run,
+)
 
 
 class CloudRunDeployExecutionUnitTests(unittest.TestCase):

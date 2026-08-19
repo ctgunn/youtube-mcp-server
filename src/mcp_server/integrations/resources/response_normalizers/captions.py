@@ -1,10 +1,9 @@
-# ruff: noqa: F405
 """Response normalizers for captions resources."""
 
 from __future__ import annotations
 
+from mcp_server.integrations.resources.response_normalizers.base import *
 
-from mcp_server.integrations.resources.response_normalizers.base import *  # noqa: F403
 
 def _download_payload(execution: RequestExecution, payload: str) -> dict[str, Any]:
     """Return the internal result shape for a `captions.download` response.

@@ -77,7 +77,10 @@ class RecordingSearchLookup:
 
 def test_video_details_requires_a_nonblank_video_identifier():
     """Reject missing, blank, and non-text video identifiers before lookup."""
-    from mcp_server.tools.youtube_composed.videos import VideosGetVideoToolError, validate_videos_get_video_arguments
+    from mcp_server.tools.youtube_composed.videos import (
+        VideosGetVideoToolError,
+        validate_videos_get_video_arguments,
+    )
 
     for arguments in ({}, {"videoId": " "}, {"videoId": 123}):
         with pytest.raises(VideosGetVideoToolError) as exc_info:
@@ -187,7 +190,10 @@ def test_video_details_treats_an_empty_optional_part_list_as_the_default_shape()
 def test_video_details_translates_lower_lookup_failures_safely(lower_category, expected_category):
     """Map lower lookup failures to the public safe error taxonomy."""
     from mcp_server.tools.youtube_common.videos import VideosListToolError
-    from mcp_server.tools.youtube_composed.videos import VideosGetVideoToolError, build_videos_get_video_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        VideosGetVideoToolError,
+        build_videos_get_video_handler,
+    )
 
     def failing_lookup(_arguments):
         """Raise an error containing details unsafe for public exposure.
@@ -211,7 +217,10 @@ def test_video_details_translates_lower_lookup_failures_safely(lower_category, e
 
 def test_video_details_empty_lookup_hides_the_specific_availability_reason():
     """Return one generic unavailable outcome for an empty item collection."""
-    from mcp_server.tools.youtube_composed.videos import VideosGetVideoToolError, build_videos_get_video_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        VideosGetVideoToolError,
+        build_videos_get_video_handler,
+    )
 
     with pytest.raises(VideosGetVideoToolError) as exc_info:
         build_videos_get_video_handler(lookup=RecordingLookup({"items": []}))({"videoId": "abc123"})
@@ -223,7 +232,10 @@ def test_video_details_empty_lookup_hides_the_specific_availability_reason():
 
 def test_video_search_validates_public_arguments_and_normalizes_defaults():
     """Reject invalid public search arguments and normalize valid defaults."""
-    from mcp_server.tools.youtube_composed.videos import VideosSearchVideosToolError, validate_videos_search_videos_arguments
+    from mcp_server.tools.youtube_composed.videos import (
+        VideosSearchVideosToolError,
+        validate_videos_search_videos_arguments,
+    )
 
     for arguments, field in (
         ({}, "query"),
@@ -253,7 +265,9 @@ def test_video_search_validates_public_arguments_and_normalizes_defaults():
 
 def test_video_search_maps_base_request_and_normalizes_bounded_results():
     """Map public query constraints into one video-only base search."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_handler,
+    )
 
     search = RecordingSearchLookup()
     result = build_videos_search_videos_handler(search=search)(
@@ -300,7 +314,10 @@ def test_video_search_maps_base_request_and_normalizes_bounded_results():
 def test_video_search_returns_empty_success_and_sanitizes_search_errors():
     """Keep empty search success distinct from safe lower-layer failure."""
     from mcp_server.tools.youtube_common.search import SearchListToolError
-    from mcp_server.tools.youtube_composed.videos import VideosSearchVideosToolError, build_videos_search_videos_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        VideosSearchVideosToolError,
+        build_videos_search_videos_handler,
+    )
 
     assert build_videos_search_videos_handler(search=RecordingSearchLookup({"items": []}))({"query": "none"})["items"] == []
 
@@ -325,7 +342,9 @@ def test_video_search_returns_empty_success_and_sanitizes_search_errors():
 
 def test_video_search_filters_enriched_channels_and_keeps_one_ranked_video_per_channel():
     """Apply subscriber and creator filters with explicit unique-channel output."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_handler,
+    )
 
     search = RecordingSearchLookup(
         {
@@ -360,7 +379,9 @@ def test_video_search_filters_enriched_channels_and_keeps_one_ranked_video_per_c
 
 def test_video_search_uses_latest_activity_only_when_requested_and_discloses_partial_data():
     """Filter by conditional latest activity and disclose excluded missing metadata."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_handler,
+    )
 
     search = RecordingSearchLookup(
         {
@@ -399,7 +420,9 @@ def test_video_search_uses_latest_activity_only_when_requested_and_discloses_par
 
 def test_video_search_derives_requested_latest_activity_from_public_uploads_playlists():
     """Use the enriched public uploads playlist only for a latest-activity rule."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_handler,
+    )
 
     search = RecordingSearchLookup({"items": [{"id": {"videoId": "video-1"}, "snippet": {"title": "First", "channelId": "UC1"}}]})
     channels = RecordingSearchLookup(
@@ -428,7 +451,10 @@ def test_video_search_derives_requested_latest_activity_from_public_uploads_play
 def test_video_search_fails_safely_when_all_required_enrichment_is_unavailable():
     """Return partial-enrichment failure instead of unfiltered candidates."""
     from mcp_server.tools.youtube_common.channels import ChannelsListToolError
-    from mcp_server.tools.youtube_composed.videos import VideosSearchVideosToolError, build_videos_search_videos_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        VideosSearchVideosToolError,
+        build_videos_search_videos_handler,
+    )
 
     def unavailable_channels(_arguments):
         """Raise a safe lower-layer failure for all requested channel metadata.
@@ -453,7 +479,9 @@ def test_video_search_ranks_filtered_candidates_stably_before_unique_channel_sel
     The controlled candidates also prove that a subscriber filter runs before
     ranking and that the final cap is applied only after ranking and de-duplication.
     """
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_handler,
+    )
 
     search = RecordingSearchLookup(
         {
@@ -496,7 +524,9 @@ def test_video_search_ranks_filtered_candidates_stably_before_unique_channel_sel
 
 def test_video_search_excludes_unavailable_ranking_values_with_partial_disclosure():
     """Never rank a channel when its selected subscriber datum is unavailable."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_handler,
+    )
 
     search = RecordingSearchLookup(
         {"items": [{"id": {"videoId": "known"}, "snippet": {"title": "Known", "channelId": "UC1"}}, {"id": {"videoId": "hidden"}, "snippet": {"title": "Hidden", "channelId": "UC2"}}]}
@@ -561,7 +591,9 @@ def test_video_statistics_validates_one_identifier_and_normalizes_available_sour
 
 def test_video_statistics_marks_absent_expected_metrics_unavailable_without_values():
     """Keep absent expected source statistics distinct from reported zero."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_get_statistics_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_get_statistics_handler,
+    )
 
     result = build_videos_get_statistics_handler(
         lookup=RecordingLookup({"items": [{"id": "abc123", "statistics": {"viewCount": "0"}}]})
@@ -580,7 +612,10 @@ def test_video_statistics_rejects_empty_or_malformed_source_items(payload):
 
     :param payload: Controlled lower-level response lacking one usable video item.
     """
-    from mcp_server.tools.youtube_composed.videos import VideosGetStatisticsToolError, build_videos_get_statistics_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        VideosGetStatisticsToolError,
+        build_videos_get_statistics_handler,
+    )
 
     with pytest.raises(VideosGetStatisticsToolError) as exc_info:
         build_videos_get_statistics_handler(lookup=RecordingLookup(payload))({"videoId": "abc123"})
@@ -605,7 +640,10 @@ def test_video_statistics_maps_empty_and_lower_lookup_failures_safely(lower_cate
     :param expected_category: Required safe public category.
     """
     from mcp_server.tools.youtube_common.videos import VideosListToolError
-    from mcp_server.tools.youtube_composed.videos import VideosGetStatisticsToolError, build_videos_get_statistics_handler
+    from mcp_server.tools.youtube_composed.videos import (
+        VideosGetStatisticsToolError,
+        build_videos_get_statistics_handler,
+    )
 
     def failing_lookup(_arguments):
         """Raise one controlled lower-layer failure with unsafe diagnostics.

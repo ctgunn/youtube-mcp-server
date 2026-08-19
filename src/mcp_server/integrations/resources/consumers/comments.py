@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from mcp_server.integrations.auth import AuthContext
+from mcp_server.integrations.resources.consumers.base import ConsumerMixinBase
 
 
-class CommentsConsumerMixin:
+class CommentsConsumerMixin(ConsumerMixinBase):
     """Provide higher-layer summaries for comments resources."""
 
     def fetch_comments_summary(

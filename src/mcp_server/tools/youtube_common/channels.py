@@ -8,11 +8,20 @@ from mcp_server.integrations.auth import AuthContext, CredentialBundle
 from mcp_server.integrations.auth import AuthMode as Layer1AuthMode
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
-from mcp_server.integrations.resources.channels import build_channels_list_wrapper, build_channels_update_wrapper
+from mcp_server.integrations.resources.channels import (
+    build_channels_list_wrapper,
+    build_channels_update_wrapper,
+)
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
-
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+)
 
 CHANNELS_LIST_TOOL_NAME = "channels_list"
 CHANNELS_LIST_QUOTA_COST = 1
@@ -926,16 +935,16 @@ def build_channels_update_tool_descriptor(
 
 
 __all__ = [
-    "CHANNELS_LIST_CAVEATS",
     "CHANNELS_LIST_CALLER_EXAMPLES",
+    "CHANNELS_LIST_CAVEATS",
     "CHANNELS_LIST_DESCRIPTION",
     "CHANNELS_LIST_INPUT_SCHEMA",
     "CHANNELS_LIST_QUOTA_COST",
     "CHANNELS_LIST_SELECTORS",
     "CHANNELS_LIST_TOOL_NAME",
     "CHANNELS_LIST_USAGE_NOTES",
-    "CHANNELS_UPDATE_CAVEATS",
     "CHANNELS_UPDATE_CALLER_EXAMPLES",
+    "CHANNELS_UPDATE_CAVEATS",
     "CHANNELS_UPDATE_DESCRIPTION",
     "CHANNELS_UPDATE_INPUT_SCHEMA",
     "CHANNELS_UPDATE_QUOTA_COST",

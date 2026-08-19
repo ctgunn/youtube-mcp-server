@@ -29,7 +29,10 @@ def _channel_payload():
 
 def test_channel_details_validates_one_trimmed_identifier_and_rejects_unknown_fields():
     """Require exactly one nonblank public channel identifier."""
-    from mcp_server.tools.youtube_composed.channels import ChannelsGetChannelToolError, validate_channels_get_channel_arguments
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsGetChannelToolError,
+        validate_channels_get_channel_arguments,
+    )
 
     assert validate_channels_get_channel_arguments({"channelId": " UC123 "}) == {"channelId": "UC123"}
     for arguments, field in (({}, "channelId"), ({"channelId": " "}, "channelId"), ({"channelId": 3}, "channelId"), ({"channelId": "UC123", "part": "snippet"}, "part")):
@@ -41,7 +44,9 @@ def test_channel_details_validates_one_trimmed_identifier_and_rejects_unknown_fi
 
 def test_channel_details_normalizes_core_metadata_provenance_and_latest_upload():
     """Return one bounded enriched channel detail from controlled dependencies."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_handler,
+    )
 
     channel_calls = []
     playlist_calls = []
@@ -89,7 +94,9 @@ def test_channel_details_normalizes_core_metadata_provenance_and_latest_upload()
 
 def test_channel_details_preserves_sparse_public_fields_without_fabrication():
     """Omit unavailable source fields while retaining a successful profile."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_handler,
+    )
 
     result = build_channels_get_channel_handler(
         channels=lambda _arguments: {"items": [{"id": "UC123", "snippet": {}, "contentDetails": {}}]},
@@ -151,7 +158,9 @@ def test_channel_statistics_validates_one_trimmed_identifier_and_normalizes_avai
 
 def test_channel_statistics_distinguishes_hidden_and_unavailable_metrics_without_values():
     """Give source hiddenness precedence and preserve unavailable states."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_statistics_handler,
+    )
 
     result = build_channels_get_statistics_handler(
         channels=lambda _arguments: {
@@ -178,7 +187,9 @@ def test_channel_statistics_marks_missing_or_malformed_counts_unavailable(statis
 
     :param statistics: Controlled invalid or incomplete source statistics value.
     """
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_statistics_handler,
+    )
 
     result = build_channels_get_statistics_handler(
         channels=lambda _arguments: {"items": [{"id": "UC123", "statistics": statistics}]}
@@ -195,7 +206,10 @@ def test_channel_statistics_maps_empty_or_malformed_items_to_unavailable(payload
 
     :param payload: Controlled lower-level response lacking one usable channel.
     """
-    from mcp_server.tools.youtube_composed.channels import ChannelsGetStatisticsToolError, build_channels_get_statistics_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsGetStatisticsToolError,
+        build_channels_get_statistics_handler,
+    )
 
     with pytest.raises(ChannelsGetStatisticsToolError) as exc_info:
         build_channels_get_statistics_handler(channels=lambda _arguments: payload)({"channelId": "UC123"})
@@ -220,7 +234,10 @@ def test_channel_statistics_maps_lower_lookup_failures_safely(lower_category, ex
     :param expected_category: Required safe public category.
     """
     from mcp_server.tools.youtube_common.channels import ChannelsListToolError
-    from mcp_server.tools.youtube_composed.channels import ChannelsGetStatisticsToolError, build_channels_get_statistics_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsGetStatisticsToolError,
+        build_channels_get_statistics_handler,
+    )
 
     def failing_channels(_arguments):
         """Raise one controlled lower-layer error with unsafe details.
@@ -243,7 +260,9 @@ def test_channel_statistics_maps_lower_lookup_failures_safely(lower_category, ex
 
 def test_channel_details_extracts_only_valid_deduplicated_public_contacts():
     """Normalize public description contacts without reading owner-only fields."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_handler,
+    )
 
     payload = _channel_payload()
     payload["items"][0]["snippet"]["description"] = (
@@ -275,7 +294,9 @@ def test_channel_details_extracts_only_valid_deduplicated_public_contacts():
 )
 def test_channel_details_classifies_only_positive_nonconflicting_public_signals(title, description, classification, signals):
     """Return creator, brand, or unknown from public positive evidence only."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_handler,
+    )
 
     payload = _channel_payload()
     payload["items"][0]["snippet"]["title"] = title
@@ -293,7 +314,10 @@ def test_channel_details_classifies_only_positive_nonconflicting_public_signals(
 def test_channel_details_maps_empty_and_failed_core_lookups_to_safe_categories():
     """Distinguish safe whole-request core failures without source diagnostics."""
     from mcp_server.tools.youtube_common.channels import ChannelsListToolError
-    from mcp_server.tools.youtube_composed.channels import ChannelsGetChannelToolError, build_channels_get_channel_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsGetChannelToolError,
+        build_channels_get_channel_handler,
+    )
 
     unavailable = build_channels_get_channel_handler(
         channels=lambda _arguments: {"items": []},
@@ -333,7 +357,9 @@ def test_channel_details_maps_empty_and_failed_core_lookups_to_safe_categories()
 )
 def test_channel_details_marks_missing_or_malformed_latest_data_unavailable(playlist_payload):
     """Keep a successful profile when no valid latest publication time exists."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_handler,
+    )
 
     result = build_channels_get_channel_handler(
         channels=lambda _arguments: _channel_payload(),
@@ -354,8 +380,12 @@ def test_channel_details_marks_missing_or_malformed_latest_data_unavailable(play
 )
 def test_channel_details_preserves_profile_on_safe_partial_enrichment_failure(lower_category, cause_category):
     """Return a partial profile when bounded latest enrichment fails."""
-    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_handler
+    from mcp_server.tools.youtube_common.playlist_items import (
+        PlaylistItemsListToolError,
+    )
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_handler,
+    )
 
     calls = []
 
@@ -413,7 +443,9 @@ def test_batch_channel_details_validate_trimmed_bounded_request_arguments():
 
 def test_batch_channel_details_uses_one_core_lookup_and_preserves_request_order():
     """Return normalized available items in caller order from one bulk lookup."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channels_handler,
+    )
 
     calls = []
 
@@ -446,7 +478,9 @@ def test_batch_channel_details_uses_one_core_lookup_and_preserves_request_order(
 
 def test_batch_channel_details_applies_parts_and_latest_upload_controls():
     """Select public groups and perform latest enrichment only when enabled."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channels_handler,
+    )
 
     payload = {
         "items": [
@@ -488,8 +522,12 @@ def test_batch_channel_details_applies_parts_and_latest_upload_controls():
 
 def test_batch_channel_details_preserves_available_items_for_unavailable_and_partial_outcomes():
     """Keep ordered usable items when one ID is absent or enrichment fails."""
-    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_handler
+    from mcp_server.tools.youtube_common.playlist_items import (
+        PlaylistItemsListToolError,
+    )
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channels_handler,
+    )
 
     payload = {
         "items": [
@@ -527,7 +565,10 @@ def test_batch_channel_details_preserves_available_items_for_unavailable_and_par
 def test_batch_channel_details_maps_bulk_core_errors_without_source_diagnostics():
     """Expose safe request-wide failures when the shared core lookup fails."""
     from mcp_server.tools.youtube_common.channels import ChannelsListToolError
-    from mcp_server.tools.youtube_composed.channels import ChannelsGetChannelsToolError, build_channels_get_channels_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsGetChannelsToolError,
+        build_channels_get_channels_handler,
+    )
 
     def failing_channels(_arguments):
         """Raise a lower-level failure containing unsafe diagnostics.
@@ -546,7 +587,10 @@ def test_batch_channel_details_maps_bulk_core_errors_without_source_diagnostics(
 
 def test_channel_search_validates_query_and_query_only_options():
     """Normalize the public query-only channel-search request safely."""
-    from mcp_server.tools.youtube_composed.channels import ChannelsSearchChannelsToolError, validate_channels_search_channels_arguments
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsSearchChannelsToolError,
+        validate_channels_search_channels_arguments,
+    )
 
     assert validate_channels_search_channels_arguments({"query": " creator "}) == {
         "query": "creator",
@@ -563,7 +607,9 @@ def test_channel_search_validates_query_and_query_only_options():
 
 def test_channel_search_query_only_normalizes_distinct_candidates_and_preserves_base_context():
     """Return query-only normalized channel candidates without enrichment calls."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_channels_handler,
+    )
 
     calls = []
 
@@ -598,7 +644,10 @@ def test_channel_search_query_only_normalizes_distinct_candidates_and_preserves_
 def test_channel_search_maps_base_search_failure_without_lower_layer_details():
     """Translate a lower-level base-search failure to the public safe taxonomy."""
     from mcp_server.tools.youtube_common.search import SearchListToolError
-    from mcp_server.tools.youtube_composed.channels import ChannelsSearchChannelsToolError, build_channels_search_channels_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsSearchChannelsToolError,
+        build_channels_search_channels_handler,
+    )
 
     def failing_search(_arguments):
         """Raise a lower-level failure containing unsafe details.
@@ -616,7 +665,9 @@ def test_channel_search_maps_base_search_failure_without_lower_layer_details():
 
 def test_channel_search_refines_with_bounded_public_channel_and_activity_enrichment():
     """Apply subscriber, activity, and creator filters using public enrichment."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_channels_handler,
+    )
 
     channel_calls = []
     playlist_calls = []
@@ -683,7 +734,10 @@ def test_channel_search_refines_with_bounded_public_channel_and_activity_enrichm
 
 def test_channel_search_fails_safely_when_required_enrichment_is_unavailable_for_every_candidate():
     """Reject an unverified filtered collection instead of returning base candidates."""
-    from mcp_server.tools.youtube_composed.channels import ChannelsSearchChannelsToolError, build_channels_search_channels_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsSearchChannelsToolError,
+        build_channels_search_channels_handler,
+    )
 
     with pytest.raises(ChannelsSearchChannelsToolError) as exc_info:
         build_channels_search_channels_handler(
@@ -697,7 +751,9 @@ def test_channel_search_fails_safely_when_required_enrichment_is_unavailable_for
 
 def test_channel_search_applies_documented_rankings_after_filters_with_stable_ties():
     """Rank enriched public channels deterministically after filtering."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_channels_handler,
+    )
 
     def search(_arguments):
         """Return candidates in deterministic base-search order.
@@ -755,7 +811,10 @@ def test_channel_search_applies_documented_rankings_after_filters_with_stable_ti
 
 def test_creator_discovery_validates_groups_and_samples_matched_videos():
     """Group matching videos by earliest public channel occurrence."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_find_creators_handler, validate_channels_find_creators_arguments
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_find_creators_handler,
+        validate_channels_find_creators_arguments,
+    )
 
     assert validate_channels_find_creators_arguments({"query": " creator "}) == {
         "query": "creator", "maxResults": 10, "creatorOnly": False, "sortBy": "relevance", "sampleVideosPerChannel": 0
@@ -786,7 +845,10 @@ def test_creator_discovery_validates_groups_and_samples_matched_videos():
 
 def test_creator_discovery_filters_ranks_and_handles_unavailable_enrichment():
     """Apply public refinement before ranking and sample final candidates."""
-    from mcp_server.tools.youtube_composed.channels import ChannelsFindCreatorsToolError, build_channels_find_creators_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsFindCreatorsToolError,
+        build_channels_find_creators_handler,
+    )
 
     def search(_arguments):
         """Return ordered topic-matching video candidates.
@@ -905,7 +967,9 @@ def test_channels_list_videos_validates_public_request_and_lists_distinct_upload
 
 def test_channels_list_videos_returns_successful_empty_collections_without_extra_reads():
     """Keep absent uploads references and empty public collections successful."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_list_videos_handler,
+    )
 
     playlist_calls = []
     no_uploads = build_channels_list_videos_handler(
@@ -926,7 +990,9 @@ def test_channels_list_videos_returns_successful_empty_collections_without_extra
 
 def test_channels_list_videos_result_context_discloses_public_source_order_without_ranking():
     """Expose caller-visible ordering and public-content context on results."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_list_videos_handler,
+    )
 
     result = build_channels_list_videos_handler(
         channels=lambda _arguments: {"items": [{"id": "UC123", "contentDetails": {"relatedPlaylists": {"uploads": "UU123"}}}]},
@@ -948,8 +1014,13 @@ def test_channels_list_videos_result_context_discloses_public_source_order_witho
 def test_channels_list_videos_maps_required_lookup_failures_and_discloses_safe_source_omissions():
     """Keep unavailable, source failures, and malformed items safe to callers."""
     from mcp_server.tools.youtube_common.channels import ChannelsListToolError
-    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
-    from mcp_server.tools.youtube_composed.channels import ChannelsListVideosToolError, build_channels_list_videos_handler
+    from mcp_server.tools.youtube_common.playlist_items import (
+        PlaylistItemsListToolError,
+    )
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsListVideosToolError,
+        build_channels_list_videos_handler,
+    )
 
     with pytest.raises(ChannelsListVideosToolError) as core_error:
         build_channels_list_videos_handler(
@@ -1048,7 +1119,10 @@ def test_channels_list_playlists_keeps_empty_unavailable_and_failures_distinct()
     :return: ``None`` after asserting safe listing outcomes.
     """
     from mcp_server.tools.youtube_common.playlists import PlaylistsListToolError
-    from mcp_server.tools.youtube_composed.channels import ChannelsListPlaylistsToolError, build_channels_list_playlists_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsListPlaylistsToolError,
+        build_channels_list_playlists_handler,
+    )
 
     empty = build_channels_list_playlists_handler(channels=lambda _arguments: {"items": [{"id": "UC123"}]}, playlists=lambda _arguments: {"items": []})({"channelId": "UC123"})
     assert empty["items"] == []
@@ -1142,7 +1216,10 @@ def test_channels_search_content_validates_and_normalizes_one_direct_channel_sea
 def test_channels_search_content_returns_empty_and_maps_safe_lower_layer_errors():
     """Keep empty success distinct from sanitized required-search failures."""
     from mcp_server.tools.youtube_common.search import SearchListToolError
-    from mcp_server.tools.youtube_composed.channels import ChannelsSearchContentToolError, build_channels_search_content_handler
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsSearchContentToolError,
+        build_channels_search_content_handler,
+    )
 
     empty = build_channels_search_content_handler(search=lambda _arguments: {"items": []})({"channelId": "UC123", "query": "absent"})
     assert empty["items"] == []

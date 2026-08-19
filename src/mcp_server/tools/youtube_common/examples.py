@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
-from mcp_server.tools.youtube_common.channel_banners import build_channel_banners_insert_contract
+from mcp_server.tools.youtube_common.channel_banners import (
+    build_channel_banners_insert_contract,
+)
 from mcp_server.tools.youtube_common.channel_sections import (
     build_channel_sections_delete_contract,
     build_channel_sections_insert_contract,
     build_channel_sections_list_contract,
     build_channel_sections_update_contract,
 )
-from mcp_server.tools.youtube_common.channels import build_channels_list_contract, build_channels_update_contract
+from mcp_server.tools.youtube_common.channels import (
+    build_channels_list_contract,
+    build_channels_update_contract,
+)
+from mcp_server.tools.youtube_common.comment_threads import (
+    build_comment_threads_insert_contract,
+    build_comment_threads_list_contract,
+)
 from mcp_server.tools.youtube_common.comments import (
     build_comments_delete_contract,
     build_comments_insert_contract,
@@ -17,19 +26,27 @@ from mcp_server.tools.youtube_common.comments import (
     build_comments_set_moderation_status_contract,
     build_comments_update_contract,
 )
-from mcp_server.tools.youtube_common.comment_threads import (
-    build_comment_threads_insert_contract,
-    build_comment_threads_list_contract,
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+    derive_tool_name,
 )
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract, derive_tool_name
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind
-from mcp_server.tools.youtube_common.guide_categories import build_guide_categories_list_contract
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+)
+from mcp_server.tools.youtube_common.guide_categories import (
+    build_guide_categories_list_contract,
+)
 from mcp_server.tools.youtube_common.localization import (
     build_i18n_languages_list_contract,
     build_i18n_regions_list_contract,
 )
 from mcp_server.tools.youtube_common.members import build_members_list_contract
-from mcp_server.tools.youtube_common.memberships_levels import build_memberships_levels_list_contract
+from mcp_server.tools.youtube_common.memberships_levels import (
+    build_memberships_levels_list_contract,
+)
 from mcp_server.tools.youtube_common.playlist_images import (
     build_playlist_images_delete_contract,
     build_playlist_images_insert_contract,
@@ -58,7 +75,9 @@ from mcp_server.tools.youtube_common.thumbnails import build_thumbnails_set_cont
 from mcp_server.tools.youtube_common.video_abuse_report_reasons import (
     build_video_abuse_report_reasons_list_contract,
 )
-from mcp_server.tools.youtube_common.video_categories import build_video_categories_list_contract
+from mcp_server.tools.youtube_common.video_categories import (
+    build_video_categories_list_contract,
+)
 from mcp_server.tools.youtube_common.videos import (
     build_videos_delete_contract,
     build_videos_get_rating_contract,
@@ -68,7 +87,10 @@ from mcp_server.tools.youtube_common.videos import (
     build_videos_report_abuse_contract,
     build_videos_update_contract,
 )
-from mcp_server.tools.youtube_common.watermarks import build_watermarks_set_contract, build_watermarks_unset_contract
+from mcp_server.tools.youtube_common.watermarks import (
+    build_watermarks_set_contract,
+    build_watermarks_unset_contract,
+)
 
 
 def _contract(
