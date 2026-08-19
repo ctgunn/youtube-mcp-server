@@ -6,7 +6,10 @@ import pytest
 
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
-from mcp_server.tools.youtube_common.videos import VideosListToolError, build_videos_list_tool_descriptor
+from mcp_server.tools.youtube_common.videos import (
+    VideosListToolError,
+    build_videos_list_tool_descriptor,
+)
 
 
 class RecordingWrapper:
@@ -131,7 +134,9 @@ def test_descriptor_propagates_safe_access_failures():
 
 def test_videos_insert_descriptor_registers_as_executable_upload_tool():
     """Register and execute the ``videos_insert`` descriptor through the dispatcher."""
-    from mcp_server.tools.youtube_common.videos import build_videos_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_insert_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper(payload={"id": "video-123", "snippet": {"title": "Example upload"}})
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_insert_tool_descriptor(wrapper=wrapper)])
@@ -163,7 +168,9 @@ def test_videos_insert_descriptor_registers_as_executable_upload_tool():
 
 def test_videos_insert_descriptor_exposes_caller_metadata_and_examples():
     """Expose usage notes and examples needed before high-cost upload calls."""
-    from mcp_server.tools.youtube_common.videos import build_videos_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_insert_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_insert_tool_descriptor()])
     listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
@@ -195,7 +202,9 @@ def test_videos_insert_descriptor_exposes_caller_metadata_and_examples():
 )
 def test_videos_insert_descriptor_schema_rejects_missing_required_inputs(arguments, message):
     """Reject missing required upload fields before handler execution."""
-    from mcp_server.tools.youtube_common.videos import build_videos_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_insert_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper()
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_insert_tool_descriptor(wrapper=wrapper)])
@@ -208,7 +217,10 @@ def test_videos_insert_descriptor_schema_rejects_missing_required_inputs(argumen
 
 def test_videos_insert_descriptor_rejects_missing_oauth_safely():
     """Reject valid upload requests with missing OAuth before Layer 1 execution."""
-    from mcp_server.tools.youtube_common.videos import VideosInsertToolError, build_videos_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosInsertToolError,
+        build_videos_insert_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper()
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_insert_tool_descriptor(wrapper=wrapper, oauth_token=None)])
@@ -230,7 +242,10 @@ def test_videos_insert_descriptor_rejects_missing_oauth_safely():
 
 def test_videos_insert_descriptor_rejects_unsupported_upload_mode():
     """Reject unsupported upload modes through the executable descriptor."""
-    from mcp_server.tools.youtube_common.videos import VideosInsertToolError, build_videos_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosInsertToolError,
+        build_videos_insert_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_insert_tool_descriptor()])
 
@@ -251,7 +266,10 @@ def test_videos_insert_descriptor_rejects_unsupported_upload_mode():
 
 def test_videos_insert_descriptor_propagates_sanitized_access_failures():
     """Expose sanitized insert access failures from the registered handler."""
-    from mcp_server.tools.youtube_common.videos import VideosInsertToolError, build_videos_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosInsertToolError,
+        build_videos_insert_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(
         tools=[build_videos_insert_tool_descriptor(wrapper=UnsafeInsertFailingWrapper())]
@@ -274,7 +292,9 @@ def test_videos_insert_descriptor_propagates_sanitized_access_failures():
 
 def test_videos_update_descriptor_registers_as_executable_mutation_tool():
     """Register and execute the ``videos_update`` descriptor through the dispatcher."""
-    from mcp_server.tools.youtube_common.videos import build_videos_update_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_update_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper(payload={"id": "abc123", "snippet": {"title": "Updated title"}})
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor(wrapper=wrapper)])
@@ -304,7 +324,9 @@ def test_videos_update_descriptor_registers_as_executable_mutation_tool():
 
 def test_videos_update_descriptor_exposes_caller_metadata_and_examples():
     """Expose usage notes and examples needed before video update calls."""
-    from mcp_server.tools.youtube_common.videos import build_videos_update_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_update_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor()])
     listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
@@ -330,7 +352,9 @@ def test_videos_update_descriptor_exposes_caller_metadata_and_examples():
 )
 def test_videos_update_descriptor_schema_rejects_missing_required_inputs(arguments, message):
     """Reject missing required update fields before handler execution."""
-    from mcp_server.tools.youtube_common.videos import build_videos_update_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_update_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper()
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor(wrapper=wrapper)])
@@ -343,7 +367,10 @@ def test_videos_update_descriptor_schema_rejects_missing_required_inputs(argumen
 
 def test_videos_update_descriptor_rejects_missing_oauth_safely():
     """Reject valid update requests with missing OAuth before Layer 1 execution."""
-    from mcp_server.tools.youtube_common.videos import VideosUpdateToolError, build_videos_update_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosUpdateToolError,
+        build_videos_update_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper()
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor(wrapper=wrapper, oauth_token=None)])
@@ -361,7 +388,10 @@ def test_videos_update_descriptor_rejects_missing_oauth_safely():
 
 def test_videos_update_descriptor_rejects_unsupported_body_field():
     """Reject unsupported update body fields through the executable descriptor."""
-    from mcp_server.tools.youtube_common.videos import VideosUpdateToolError, build_videos_update_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosUpdateToolError,
+        build_videos_update_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor()])
 
@@ -380,7 +410,9 @@ def test_videos_update_descriptor_rejects_unsupported_body_field():
 
 def test_videos_update_descriptor_rejects_out_of_scope_upload_field():
     """Reject upload workflow fields through the executable update descriptor."""
-    from mcp_server.tools.youtube_common.videos import build_videos_update_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_update_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_update_tool_descriptor()])
 
@@ -458,7 +490,10 @@ def test_videos_rate_descriptor_schema_rejects_missing_required_inputs(arguments
 
 def test_videos_rate_descriptor_rejects_missing_oauth_safely():
     """Reject valid rating requests with missing OAuth before Layer 1 execution."""
-    from mcp_server.tools.youtube_common.videos import VideosRateToolError, build_videos_rate_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosRateToolError,
+        build_videos_rate_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper()
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_rate_tool_descriptor(wrapper=wrapper, oauth_token=None)])
@@ -473,7 +508,10 @@ def test_videos_rate_descriptor_rejects_missing_oauth_safely():
 
 def test_videos_rate_descriptor_rejects_unsupported_rating_and_body():
     """Reject unsupported rating and request body fields through the descriptor."""
-    from mcp_server.tools.youtube_common.videos import VideosRateToolError, build_videos_rate_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosRateToolError,
+        build_videos_rate_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_rate_tool_descriptor()])
 
@@ -488,7 +526,10 @@ def test_videos_rate_descriptor_rejects_unsupported_rating_and_body():
 
 def test_videos_rate_descriptor_propagates_sanitized_access_failures():
     """Expose sanitized rating access failures from the registered handler."""
-    from mcp_server.tools.youtube_common.videos import VideosRateToolError, build_videos_rate_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosRateToolError,
+        build_videos_rate_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_rate_tool_descriptor(wrapper=AccessFailingWrapper())])
 
@@ -502,7 +543,9 @@ def test_videos_rate_descriptor_propagates_sanitized_access_failures():
 
 def test_videos_get_rating_descriptor_registers_as_executable_lookup_tool():
     """Register and execute the ``videos_getRating`` descriptor through the dispatcher."""
-    from mcp_server.tools.youtube_common.videos import build_videos_get_rating_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_get_rating_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper(
         payload={"items": [{"videoId": "abc123", "rating": "like"}, {"videoId": "def456", "rating": "none"}]}
@@ -527,7 +570,9 @@ def test_videos_get_rating_descriptor_registers_as_executable_lookup_tool():
 
 def test_videos_get_rating_descriptor_exposes_caller_metadata_and_examples():
     """Expose usage notes and examples needed before video rating lookup calls."""
-    from mcp_server.tools.youtube_common.videos import build_videos_get_rating_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_get_rating_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_rating_tool_descriptor()])
     listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
@@ -547,7 +592,9 @@ def test_videos_get_rating_descriptor_exposes_caller_metadata_and_examples():
 
 def test_videos_get_rating_descriptor_schema_rejects_missing_required_inputs():
     """Reject missing required rating lookup fields before handler execution."""
-    from mcp_server.tools.youtube_common.videos import build_videos_get_rating_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_get_rating_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper()
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_rating_tool_descriptor(wrapper=wrapper)])
@@ -560,7 +607,10 @@ def test_videos_get_rating_descriptor_schema_rejects_missing_required_inputs():
 
 def test_videos_get_rating_descriptor_rejects_missing_oauth_safely():
     """Reject valid lookup requests with missing OAuth before Layer 1 execution."""
-    from mcp_server.tools.youtube_common.videos import VideosGetRatingToolError, build_videos_get_rating_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosGetRatingToolError,
+        build_videos_get_rating_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper()
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_rating_tool_descriptor(wrapper=wrapper, oauth_token=None)])
@@ -575,7 +625,10 @@ def test_videos_get_rating_descriptor_rejects_missing_oauth_safely():
 
 def test_videos_get_rating_descriptor_rejects_duplicate_over_limit_body_and_delegation():
     """Reject malformed identifier, body, and delegation fields through the descriptor."""
-    from mcp_server.tools.youtube_common.videos import VideosGetRatingToolError, build_videos_get_rating_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosGetRatingToolError,
+        build_videos_get_rating_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_rating_tool_descriptor()])
 
@@ -595,7 +648,10 @@ def test_videos_get_rating_descriptor_rejects_duplicate_over_limit_body_and_dele
 
 def test_videos_get_rating_descriptor_propagates_sanitized_access_failures():
     """Expose sanitized rating lookup access failures from the registered handler."""
-    from mcp_server.tools.youtube_common.videos import VideosGetRatingToolError, build_videos_get_rating_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosGetRatingToolError,
+        build_videos_get_rating_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_get_rating_tool_descriptor(wrapper=AccessFailingWrapper())])
 
@@ -609,7 +665,9 @@ def test_videos_get_rating_descriptor_propagates_sanitized_access_failures():
 
 def test_videos_report_abuse_descriptor_registers_as_executable_mutation_tool():
     """Register and execute the ``videos_reportAbuse`` descriptor through the dispatcher."""
-    from mcp_server.tools.youtube_common.videos import build_videos_report_abuse_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_report_abuse_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper(payload={})
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_report_abuse_tool_descriptor(wrapper=wrapper)])
@@ -633,7 +691,9 @@ def test_videos_report_abuse_descriptor_registers_as_executable_mutation_tool():
 
 def test_videos_report_abuse_descriptor_exposes_caller_metadata_and_examples():
     """Expose usage notes and examples needed before video abuse-report calls."""
-    from mcp_server.tools.youtube_common.videos import build_videos_report_abuse_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_report_abuse_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_report_abuse_tool_descriptor()])
     listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
@@ -664,7 +724,9 @@ def test_videos_report_abuse_descriptor_exposes_caller_metadata_and_examples():
 )
 def test_videos_report_abuse_descriptor_schema_rejects_missing_required_inputs(arguments, message):
     """Reject missing required abuse-report fields before handler execution."""
-    from mcp_server.tools.youtube_common.videos import build_videos_report_abuse_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_report_abuse_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper()
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_report_abuse_tool_descriptor(wrapper=wrapper)])
@@ -677,7 +739,10 @@ def test_videos_report_abuse_descriptor_schema_rejects_missing_required_inputs(a
 
 def test_videos_report_abuse_descriptor_rejects_missing_oauth_safely():
     """Reject valid report requests with missing OAuth before Layer 1 execution."""
-    from mcp_server.tools.youtube_common.videos import VideosReportAbuseToolError, build_videos_report_abuse_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosReportAbuseToolError,
+        build_videos_report_abuse_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper()
     dispatcher = InMemoryToolDispatcher(
@@ -694,7 +759,10 @@ def test_videos_report_abuse_descriptor_rejects_missing_oauth_safely():
 
 def test_videos_report_abuse_descriptor_rejects_unsupported_body_delegation_and_scope_fields():
     """Reject unsupported report body, delegation, and workflow fields through the descriptor."""
-    from mcp_server.tools.youtube_common.videos import VideosReportAbuseToolError, build_videos_report_abuse_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosReportAbuseToolError,
+        build_videos_report_abuse_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_report_abuse_tool_descriptor()])
 
@@ -720,7 +788,10 @@ def test_videos_report_abuse_descriptor_rejects_unsupported_body_delegation_and_
 
 def test_videos_report_abuse_descriptor_propagates_sanitized_access_failures():
     """Expose sanitized report-abuse access failures from the registered handler."""
-    from mcp_server.tools.youtube_common.videos import VideosReportAbuseToolError, build_videos_report_abuse_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosReportAbuseToolError,
+        build_videos_report_abuse_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_report_abuse_tool_descriptor(wrapper=AccessFailingWrapper())])
 
@@ -734,7 +805,9 @@ def test_videos_report_abuse_descriptor_propagates_sanitized_access_failures():
 
 def test_videos_delete_descriptor_registers_as_executable_mutation_tool():
     """Register and execute the ``videos_delete`` descriptor through the dispatcher."""
-    from mcp_server.tools.youtube_common.videos import build_videos_delete_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_delete_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper(payload={"sourceOperation": "videos.delete", "isDeleted": True})
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor(wrapper=wrapper)])
@@ -758,7 +831,9 @@ def test_videos_delete_descriptor_registers_as_executable_mutation_tool():
 
 def test_videos_delete_descriptor_exposes_caller_metadata_and_examples():
     """Expose usage notes and examples needed before video deletion calls."""
-    from mcp_server.tools.youtube_common.videos import build_videos_delete_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_delete_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor()])
     listed = {tool["name"]: tool for tool in dispatcher.list_tools()}
@@ -777,7 +852,9 @@ def test_videos_delete_descriptor_exposes_caller_metadata_and_examples():
 
 def test_videos_delete_descriptor_schema_rejects_missing_required_inputs():
     """Reject missing required delete fields before handler execution."""
-    from mcp_server.tools.youtube_common.videos import build_videos_delete_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        build_videos_delete_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper()
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor(wrapper=wrapper)])
@@ -790,7 +867,10 @@ def test_videos_delete_descriptor_schema_rejects_missing_required_inputs():
 
 def test_videos_delete_descriptor_rejects_missing_oauth_safely():
     """Reject valid delete requests with missing OAuth before Layer 1 execution."""
-    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, build_videos_delete_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosDeleteToolError,
+        build_videos_delete_tool_descriptor,
+    )
 
     wrapper = RecordingWrapper()
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor(wrapper=wrapper, oauth_token=None)])
@@ -805,7 +885,10 @@ def test_videos_delete_descriptor_rejects_missing_oauth_safely():
 
 def test_videos_delete_descriptor_rejects_body_delegation_and_scope_fields():
     """Reject request body, delegation, and workflow fields through the descriptor."""
-    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, build_videos_delete_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosDeleteToolError,
+        build_videos_delete_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor()])
 
@@ -824,7 +907,10 @@ def test_videos_delete_descriptor_rejects_body_delegation_and_scope_fields():
 
 def test_videos_delete_descriptor_propagates_sanitized_access_failures():
     """Expose sanitized delete access failures from the registered handler."""
-    from mcp_server.tools.youtube_common.videos import VideosDeleteToolError, build_videos_delete_tool_descriptor
+    from mcp_server.tools.youtube_common.videos import (
+        VideosDeleteToolError,
+        build_videos_delete_tool_descriptor,
+    )
 
     dispatcher = InMemoryToolDispatcher(tools=[build_videos_delete_tool_descriptor(wrapper=AccessFailingWrapper())])
 

@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from mcp_server.integrations.auth import AuthContext
+from mcp_server.integrations.resources.consumers.base import ConsumerMixinBase
 
 
-class CaptionsConsumerMixin:
+class CaptionsConsumerMixin(ConsumerMixinBase):
     """Provide higher-layer summaries for captions resources."""
 
     def fetch_caption_summary(

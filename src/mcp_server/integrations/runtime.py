@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from mcp_server.config import YouTubeLiveRuntimeSettings
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
-from mcp_server.integrations.executor import IntegrationExecutor, build_observability_hooks
-from mcp_server.integrations.oauth import OAuthCredentialProvider, RenewableOAuthToken, build_oauth_credential_provider
+from mcp_server.integrations.executor import (
+    IntegrationExecutor,
+    build_observability_hooks,
+)
+from mcp_server.integrations.oauth import (
+    OAuthCredentialProvider,
+    RenewableOAuthToken,
+    build_oauth_credential_provider,
+)
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.youtube import build_youtube_data_api_executor
 from mcp_server.observability import InMemoryObservability

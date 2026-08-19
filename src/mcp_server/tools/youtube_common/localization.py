@@ -13,14 +13,17 @@ from mcp_server.integrations.resources.localization import (
     build_i18n_regions_list_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
 from mcp_server.tools.youtube_common.conventions import (
     ResponseBoundary,
     ResponseBoundaryKind,
     safe_upstream_error_message,
     sanitize_error_details,
 )
-
 
 I18N_LANGUAGES_LIST_TOOL_NAME = "i18nLanguages_list"
 I18N_LANGUAGES_LIST_QUOTA_COST = 1

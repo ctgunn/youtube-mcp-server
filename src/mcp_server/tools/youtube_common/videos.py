@@ -18,9 +18,17 @@ from mcp_server.integrations.resources.videos import (
     build_videos_update_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, safe_upstream_error_message, sanitize_error_details
-
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
 
 VIDEOS_LIST_TOOL_NAME = "videos_list"
 VIDEOS_LIST_QUOTA_COST = 1
@@ -4240,22 +4248,22 @@ __all__ = [
     "VIDEOS_UPDATE_UNSAFE_DETAIL_KEYS",
     "VIDEOS_UPDATE_USAGE_NOTES",
     "VIDEOS_UPDATE_WRITABLE_PARTS",
+    "VideosDeleteToolError",
     "VideosGetRatingToolError",
     "VideosInsertToolError",
     "VideosListToolError",
-    "VideosDeleteToolError",
     "VideosRateToolError",
     "VideosReportAbuseToolError",
     "VideosUpdateToolError",
     "build_videos_delete_contract",
     "build_videos_delete_handler",
     "build_videos_delete_tool_descriptor",
-    "build_videos_insert_contract",
-    "build_videos_insert_handler",
-    "build_videos_insert_tool_descriptor",
     "build_videos_get_rating_contract",
     "build_videos_get_rating_handler",
     "build_videos_get_rating_tool_descriptor",
+    "build_videos_insert_contract",
+    "build_videos_insert_handler",
+    "build_videos_insert_tool_descriptor",
     "build_videos_list_contract",
     "build_videos_list_handler",
     "build_videos_list_tool_descriptor",
@@ -4269,15 +4277,15 @@ __all__ = [
     "build_videos_update_handler",
     "build_videos_update_tool_descriptor",
     "map_videos_delete_result",
-    "map_videos_insert_result",
     "map_videos_get_rating_result",
+    "map_videos_insert_result",
     "map_videos_list_result",
     "map_videos_rate_result",
     "map_videos_report_abuse_result",
     "map_videos_update_result",
     "validate_videos_delete_arguments",
-    "validate_videos_insert_arguments",
     "validate_videos_get_rating_arguments",
+    "validate_videos_insert_arguments",
     "validate_videos_list_arguments",
     "validate_videos_rate_arguments",
     "validate_videos_report_abuse_arguments",

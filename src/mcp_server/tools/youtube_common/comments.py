@@ -16,9 +16,16 @@ from mcp_server.integrations.resources.comments import (
     build_comments_update_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, sanitize_error_details
-
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    sanitize_error_details,
+)
 
 COMMENTS_LIST_TOOL_NAME = "comments_list"
 COMMENTS_LIST_QUOTA_COST = 1
@@ -2366,6 +2373,15 @@ __all__ = [
     "COMMENTS_INSERT_QUOTA_COST",
     "COMMENTS_INSERT_TOOL_NAME",
     "COMMENTS_INSERT_USAGE_NOTES",
+    "COMMENTS_LIST_CALLER_EXAMPLES",
+    "COMMENTS_LIST_CAVEATS",
+    "COMMENTS_LIST_DESCRIPTION",
+    "COMMENTS_LIST_INPUT_SCHEMA",
+    "COMMENTS_LIST_QUOTA_COST",
+    "COMMENTS_LIST_SELECTORS",
+    "COMMENTS_LIST_TEXT_FORMATS",
+    "COMMENTS_LIST_TOOL_NAME",
+    "COMMENTS_LIST_USAGE_NOTES",
     "COMMENTS_SET_MODERATION_STATUS_CALLER_EXAMPLES",
     "COMMENTS_SET_MODERATION_STATUS_CAVEATS",
     "COMMENTS_SET_MODERATION_STATUS_DESCRIPTION",
@@ -2382,17 +2398,8 @@ __all__ = [
     "COMMENTS_UPDATE_SUPPORTED_PARTS",
     "COMMENTS_UPDATE_TOOL_NAME",
     "COMMENTS_UPDATE_USAGE_NOTES",
-    "COMMENTS_LIST_CALLER_EXAMPLES",
-    "COMMENTS_LIST_CAVEATS",
-    "COMMENTS_LIST_DESCRIPTION",
-    "COMMENTS_LIST_INPUT_SCHEMA",
-    "COMMENTS_LIST_QUOTA_COST",
-    "COMMENTS_LIST_SELECTORS",
-    "COMMENTS_LIST_TEXT_FORMATS",
-    "COMMENTS_LIST_TOOL_NAME",
-    "COMMENTS_LIST_USAGE_NOTES",
-    "CommentsInsertToolError",
     "CommentsDeleteToolError",
+    "CommentsInsertToolError",
     "CommentsListToolError",
     "CommentsSetModerationStatusToolError",
     "CommentsUpdateToolError",
@@ -2402,23 +2409,23 @@ __all__ = [
     "build_comments_insert_contract",
     "build_comments_insert_handler",
     "build_comments_insert_tool_descriptor",
+    "build_comments_list_contract",
+    "build_comments_list_handler",
+    "build_comments_list_tool_descriptor",
     "build_comments_set_moderation_status_contract",
     "build_comments_set_moderation_status_handler",
     "build_comments_set_moderation_status_tool_descriptor",
     "build_comments_update_contract",
     "build_comments_update_handler",
     "build_comments_update_tool_descriptor",
-    "build_comments_list_contract",
-    "build_comments_list_handler",
-    "build_comments_list_tool_descriptor",
     "map_comments_delete_result",
     "map_comments_insert_result",
+    "map_comments_list_result",
     "map_comments_set_moderation_status_result",
     "map_comments_update_result",
-    "map_comments_list_result",
     "validate_comments_delete_arguments",
     "validate_comments_insert_arguments",
+    "validate_comments_list_arguments",
     "validate_comments_set_moderation_status_arguments",
     "validate_comments_update_arguments",
-    "validate_comments_list_arguments",
 ]

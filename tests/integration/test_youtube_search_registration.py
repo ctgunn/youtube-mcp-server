@@ -6,7 +6,10 @@ import pytest
 
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
-from mcp_server.tools.youtube_common.search import SearchListToolError, build_search_list_tool_descriptor
+from mcp_server.tools.youtube_common.search import (
+    SearchListToolError,
+    build_search_list_tool_descriptor,
+)
 
 
 def _register_search_list(**descriptor_kwargs) -> InMemoryToolDispatcher:

@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.deploy import (  # noqa: E402
+from mcp_server.deploy import (
     HostedDeploymentWorkflowStage,
     classify_bootstrap_failure,
     serialize_workflow_run,

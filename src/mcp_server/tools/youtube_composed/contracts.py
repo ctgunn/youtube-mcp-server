@@ -261,7 +261,7 @@ class ToolContract:
         """
         metadata = {
             "name": self.tool_name,
-            "family": self.family.value,
+            "family": normalize_family(self.family).value,
             "description": self.description,
             "parameters": list(self.parameters),
             "responseFields": list(self.response_fields),

@@ -3,7 +3,9 @@
 import pytest
 
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
-from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_list_tool_descriptor
+from mcp_server.tools.youtube_common.comment_threads import (
+    build_comment_threads_list_tool_descriptor,
+)
 
 
 def _register_comment_threads_list(**descriptor_kwargs) -> InMemoryToolDispatcher:
@@ -22,7 +24,9 @@ def _register_comment_threads_list(**descriptor_kwargs) -> InMemoryToolDispatche
 
 def _register_commentThreads_insert(**descriptor_kwargs) -> InMemoryToolDispatcher:
     """Register the concrete comment-thread insert tool in a fresh dispatcher."""
-    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.comment_threads import (
+        build_comment_threads_insert_tool_descriptor,
+    )
 
     descriptor = build_comment_threads_insert_tool_descriptor(**descriptor_kwargs)
     dispatcher = InMemoryToolDispatcher(tools=[])

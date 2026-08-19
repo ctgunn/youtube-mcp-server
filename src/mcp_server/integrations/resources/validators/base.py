@@ -1,8 +1,6 @@
-# ruff: noqa: F405
 """Validation helpers for base resource wrappers."""
 
 from __future__ import annotations
-
 
 
 def _validated_reference_values(

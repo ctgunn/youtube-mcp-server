@@ -33,7 +33,7 @@ class OperationalObservabilityContractTests(unittest.TestCase):
             headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
             body=b'{"jsonrpc":"2.0","id":"req-ops-sec","method":"initialize","params":{"clientInfo":{"name":"client","version":"1.0.0"}}}',
         )
-        event = [json.loads(line) for line in stderr.getvalue().splitlines() if line.strip()][0]
+        event = next(json.loads(line) for line in stderr.getvalue().splitlines() if line.strip())
         self.assertEqual(event["event"], "security.decision")
         self.assertEqual(event["decisionCategory"], "unauthenticated")
         self.assertEqual(event["path"], "/mcp")

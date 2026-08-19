@@ -5,7 +5,11 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, serialize_verification_run
+from mcp_server.deploy import (
+    HostedRevisionRecord,
+    run_hosted_verification,
+    serialize_verification_run,
+)
 
 
 class HostedReachabilityVerificationContractTests(unittest.TestCase):
@@ -104,7 +108,7 @@ class HostedReachabilityVerificationContractTests(unittest.TestCase):
 
         mcp_run = run_hosted_verification(self._revision(), requester=mcp_denied)
         mcp_payload = serialize_verification_run(mcp_run)
-        failing = [check for check in mcp_payload["checks"] if check["result"] == "fail"][0]
+        failing = next(check for check in mcp_payload["checks"] if check["result"] == "fail")
         self.assertEqual(failing["failureLayer"], "mcp_application")
         self.assertTrue(failing["requestReachedApplication"])
         self.assertIn("remediation", failing)

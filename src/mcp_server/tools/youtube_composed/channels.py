@@ -2,16 +2,31 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 import re
+from datetime import datetime
 from typing import Any
 from urllib.parse import urlparse
 
-from mcp_server.tools.youtube_common.channels import ChannelsListToolError, build_channels_list_handler
-from mcp_server.tools.youtube_common.conventions import safe_upstream_error_message, sanitize_error_details
-from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError, build_playlist_items_list_handler
-from mcp_server.tools.youtube_common.playlists import PlaylistsListToolError, build_playlists_list_handler
-from mcp_server.tools.youtube_common.search import SearchListToolError, build_search_list_handler
+from mcp_server.tools.youtube_common.channels import (
+    ChannelsListToolError,
+    build_channels_list_handler,
+)
+from mcp_server.tools.youtube_common.conventions import (
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
+from mcp_server.tools.youtube_common.playlist_items import (
+    PlaylistItemsListToolError,
+    build_playlist_items_list_handler,
+)
+from mcp_server.tools.youtube_common.playlists import (
+    PlaylistsListToolError,
+    build_playlists_list_handler,
+)
+from mcp_server.tools.youtube_common.search import (
+    SearchListToolError,
+    build_search_list_handler,
+)
 from mcp_server.tools.youtube_composed.families import get_family
 
 FAMILY_SCAFFOLDING = get_family("channels")
@@ -303,7 +318,7 @@ def validate_channels_get_channel_arguments(arguments: dict[str, Any]) -> dict[s
         raise ChannelsGetChannelToolError(
             "channels_getChannel received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected_fields)[0]},
+            details={"field": min(unexpected_fields)},
         )
     channel_id = arguments.get("channelId")
     if not isinstance(channel_id, str) or not channel_id.strip():
@@ -333,7 +348,7 @@ def validate_channels_get_statistics_arguments(arguments: dict[str, Any]) -> dic
         raise ChannelsGetStatisticsToolError(
             "channels_getStatistics received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected_fields)[0]},
+            details={"field": min(unexpected_fields)},
         )
     channel_id = arguments.get("channelId")
     if not isinstance(channel_id, str) or not channel_id.strip():
@@ -363,7 +378,7 @@ def validate_channels_list_videos_arguments(arguments: dict[str, Any]) -> dict[s
         raise ChannelsListVideosToolError(
             "channels_listVideos received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected_fields)[0]},
+            details={"field": min(unexpected_fields)},
         )
     channel_id = arguments.get("channelId")
     if not isinstance(channel_id, str) or not channel_id.strip():
@@ -393,7 +408,7 @@ def validate_channels_list_playlists_arguments(arguments: dict[str, Any]) -> dic
         raise ChannelsListPlaylistsToolError("channels_listPlaylists arguments must be an object", category="invalid_parameters", details={"field": "arguments"})
     unexpected_fields = set(arguments) - {"channelId", "maxResults"}
     if unexpected_fields:
-        raise ChannelsListPlaylistsToolError("channels_listPlaylists received an unsupported field", category="invalid_parameters", details={"field": sorted(unexpected_fields)[0]})
+        raise ChannelsListPlaylistsToolError("channels_listPlaylists received an unsupported field", category="invalid_parameters", details={"field": min(unexpected_fields)})
     channel_id = arguments.get("channelId")
     if not isinstance(channel_id, str) or not channel_id.strip():
         raise ChannelsListPlaylistsToolError("channels_listPlaylists requires a non-empty channelId", category="invalid_parameters", details={"field": "channelId"})
@@ -421,7 +436,7 @@ def validate_channels_get_channels_arguments(arguments: dict[str, Any]) -> dict[
         raise ChannelsGetChannelsToolError(
             "channels_getChannels received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected_fields)[0]},
+            details={"field": min(unexpected_fields)},
         )
     channel_ids = arguments.get("channelIds")
     if not isinstance(channel_ids, list) or not 1 <= len(channel_ids) <= CHANNELS_GET_CHANNELS_MAX_IDS:
@@ -1600,7 +1615,7 @@ def validate_channels_search_content_arguments(arguments: dict[str, Any]) -> dic
         raise ChannelsSearchContentToolError(
             "channels_searchContent received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected)[0]},
+            details={"field": min(unexpected)},
         )
     normalized: dict[str, Any] = {"maxResults": arguments.get("maxResults", 10), "order": arguments.get("order", "relevance")}
     for field in ("channelId", "query"):
@@ -1879,7 +1894,7 @@ def validate_channels_search_channels_arguments(arguments: dict[str, Any]) -> di
         raise ChannelsSearchChannelsToolError(
             "channels_searchChannels received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected)[0]},
+            details={"field": min(unexpected)},
         )
     query = arguments.get("query")
     if not isinstance(query, str) or not query.strip():
@@ -1943,8 +1958,8 @@ def validate_channels_search_channels_arguments(arguments: dict[str, Any]) -> di
         if field in arguments:
             normalized[field] = _channel_search_timestamp(arguments[field], field)
     if "lastUploadAfter" in normalized and "lastUploadBefore" in normalized:
-        after = datetime.fromisoformat(normalized["lastUploadAfter"].replace("Z", "+00:00"))
-        before = datetime.fromisoformat(normalized["lastUploadBefore"].replace("Z", "+00:00"))
+        after = datetime.fromisoformat(normalized["lastUploadAfter"])
+        before = datetime.fromisoformat(normalized["lastUploadBefore"])
         if after > before:
             raise ChannelsSearchChannelsToolError(
                 "lastUploadAfter cannot be later than lastUploadBefore",
@@ -2079,10 +2094,10 @@ def _channel_search_timestamp_matches(timestamp: str, arguments: dict[str, Any])
     :param arguments: Validated public channel-search request.
     :return: ``True`` when the timestamp is within all supplied inclusive bounds.
     """
-    value = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-    if "lastUploadAfter" in arguments and value < datetime.fromisoformat(arguments["lastUploadAfter"].replace("Z", "+00:00")):
+    value = datetime.fromisoformat(timestamp)
+    if "lastUploadAfter" in arguments and value < datetime.fromisoformat(arguments["lastUploadAfter"]):
         return False
-    return "lastUploadBefore" not in arguments or value <= datetime.fromisoformat(arguments["lastUploadBefore"].replace("Z", "+00:00"))
+    return "lastUploadBefore" not in arguments or value <= datetime.fromisoformat(arguments["lastUploadBefore"])
 
 
 def _channel_search_partial_error(excluded_count: int, reasons: list[str], required_for: list[str]) -> ChannelsSearchChannelsToolError:
@@ -2126,7 +2141,7 @@ def _rank_channel_search_candidates(candidates: list[dict[str, Any]], arguments:
     return sorted(
         candidates,
         key=lambda candidate: (
-            -datetime.fromisoformat(candidate["latestVideoPublishedAt"].replace("Z", "+00:00")).timestamp(),
+            -datetime.fromisoformat(candidate["latestVideoPublishedAt"]).timestamp(),
             candidate["_baseSearchPosition"],
         ),
     )
@@ -2410,8 +2425,8 @@ def _creator_pair_is_ordered(arguments: dict[str, Any], after_field: str, before
     :raises ChannelsFindCreatorsToolError: If both values exist and the lower bound is later.
     """
     if after_field in arguments and before_field in arguments:
-        after = datetime.fromisoformat(arguments[after_field].replace("Z", "+00:00"))
-        before = datetime.fromisoformat(arguments[before_field].replace("Z", "+00:00"))
+        after = datetime.fromisoformat(arguments[after_field])
+        before = datetime.fromisoformat(arguments[before_field])
         if after > before:
             raise ChannelsFindCreatorsToolError(f"{after_field} cannot be later than {before_field}", category="invalid_parameters", details={"field": after_field})
 
@@ -2427,7 +2442,7 @@ def validate_channels_find_creators_arguments(arguments: dict[str, Any]) -> dict
         raise ChannelsFindCreatorsToolError("channels_findCreators arguments must be an object", category="invalid_parameters", details={"field": "arguments"})
     unexpected = set(arguments) - set(CHANNELS_FIND_CREATORS_INPUT_SCHEMA["properties"])
     if unexpected:
-        raise ChannelsFindCreatorsToolError("channels_findCreators received an unsupported field", category="invalid_parameters", details={"field": sorted(unexpected)[0]})
+        raise ChannelsFindCreatorsToolError("channels_findCreators received an unsupported field", category="invalid_parameters", details={"field": min(unexpected)})
     query = arguments.get("query")
     if not isinstance(query, str) or not query.strip():
         raise ChannelsFindCreatorsToolError("channels_findCreators requires a non-empty query", category="invalid_parameters", details={"field": "query"})
@@ -2545,10 +2560,10 @@ def _creator_activity_matches(timestamp: str, arguments: dict[str, Any]) -> bool
     :param arguments: Validated creator-discovery request.
     :return: ``True`` when all selected activity bounds are satisfied.
     """
-    value = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-    if "channelLastUploadAfter" in arguments and value < datetime.fromisoformat(arguments["channelLastUploadAfter"].replace("Z", "+00:00")):
+    value = datetime.fromisoformat(timestamp)
+    if "channelLastUploadAfter" in arguments and value < datetime.fromisoformat(arguments["channelLastUploadAfter"]):
         return False
-    return "channelLastUploadBefore" not in arguments or value <= datetime.fromisoformat(arguments["channelLastUploadBefore"].replace("Z", "+00:00"))
+    return "channelLastUploadBefore" not in arguments or value <= datetime.fromisoformat(arguments["channelLastUploadBefore"])
 
 
 def _creator_enrich_and_filter(candidates: list[dict[str, Any]], arguments: dict[str, Any], channels, playlist_items) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:

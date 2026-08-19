@@ -8,24 +8,36 @@ import mcp_server.integrations as integrations_package
 import mcp_server.integrations.wrappers as wrappers_module
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
-from mcp_server.integrations.errors import NormalizedUpstreamError, normalize_upstream_error
-from mcp_server.integrations.executor import IntegrationExecutor, IntegrationHooks, RequestExecution, timed_execution
+from mcp_server.integrations.errors import (
+    NormalizedUpstreamError,
+    normalize_upstream_error,
+)
+from mcp_server.integrations.executor import (
+    IntegrationExecutor,
+    IntegrationHooks,
+    RequestExecution,
+    timed_execution,
+)
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.integrations.youtube import build_youtube_data_api_transport
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_captions_delete_wrapper,
+    build_captions_download_wrapper,
+    build_captions_insert_wrapper,
+    build_captions_list_wrapper,
+    build_captions_update_wrapper,
     build_channel_banners_insert_wrapper,
     build_channel_sections_delete_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
-    build_comment_threads_insert_wrapper,
-    build_comment_threads_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
-    build_comments_insert_wrapper,
+    build_comment_threads_insert_wrapper,
+    build_comment_threads_list_wrapper,
     build_comments_delete_wrapper,
+    build_comments_insert_wrapper,
     build_comments_list_wrapper,
     build_comments_set_moderation_status_wrapper,
     build_comments_update_wrapper,
@@ -42,24 +54,20 @@ from mcp_server.integrations.wrappers import (
     build_playlist_items_update_wrapper,
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
+    build_playlists_update_wrapper,
     build_search_list_wrapper,
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
+    build_video_categories_list_wrapper,
     build_videos_delete_wrapper,
     build_videos_list_wrapper,
-    build_videos_report_abuse_wrapper,
     build_videos_rate_wrapper,
-    build_video_categories_list_wrapper,
+    build_videos_report_abuse_wrapper,
     build_watermarks_set_wrapper,
     build_watermarks_unset_wrapper,
-    build_playlists_update_wrapper,
-    build_captions_delete_wrapper,
-    build_captions_download_wrapper,
-    build_captions_insert_wrapper,
-    build_captions_list_wrapper,
-    build_captions_update_wrapper,
 )
+from mcp_server.integrations.youtube import build_youtube_data_api_transport
 
 
 class _FakeHTTPResponse:

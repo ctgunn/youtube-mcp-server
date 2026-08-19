@@ -8,13 +8,13 @@ from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools import youtube_common
 from mcp_server.tools.youtube_common import AuthMode, AvailabilityState
 from mcp_server.tools.youtube_common.members import (
-    MEMBERS_LIST_INPUT_SCHEMA,
     MEMBERS_LIST_CALLER_EXAMPLES,
     MEMBERS_LIST_DESCRIPTION,
+    MEMBERS_LIST_INPUT_SCHEMA,
     MEMBERS_LIST_TOOL_NAME,
     MembersListToolError,
-    build_members_list_handler,
     build_members_list_contract,
+    build_members_list_handler,
     build_members_list_tool_descriptor,
     validate_members_list_arguments,
 )

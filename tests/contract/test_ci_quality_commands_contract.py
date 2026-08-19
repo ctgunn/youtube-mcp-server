@@ -1,7 +1,7 @@
 """Contract coverage for the repository quality-command surface."""
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 
 class CiQualityCommandsContractTests(unittest.TestCase):

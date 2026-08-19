@@ -10,9 +10,17 @@ from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.resources.thumbnails import build_thumbnails_set_wrapper
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
-from mcp_server.tools.youtube_common.conventions import ResponseBoundary, ResponseBoundaryKind, safe_upstream_error_message, sanitize_error_details
-
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
+from mcp_server.tools.youtube_common.conventions import (
+    ResponseBoundary,
+    ResponseBoundaryKind,
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
 
 THUMBNAILS_SET_ALLOWED_MIME_TYPES = ("image/jpeg", "image/png", "application/octet-stream")
 THUMBNAILS_SET_TOOL_NAME = "thumbnails_set"

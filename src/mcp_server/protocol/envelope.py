@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 ERROR_CODE_BY_CATEGORY = {
     "malformed_request": -32600,
     "invalid_json": -32600,

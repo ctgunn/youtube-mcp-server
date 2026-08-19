@@ -8,8 +8,8 @@ from pathlib import Path
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.deploy import (
-    HostedDeploymentWorkflowStage,
     WORKFLOW_STAGE_ORDER,
+    HostedDeploymentWorkflowStage,
     collect_missing_bootstrap_prerequisites,
     load_json_artifact,
     serialize_workflow_run,

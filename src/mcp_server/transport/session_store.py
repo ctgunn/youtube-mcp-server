@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from dataclasses import dataclass
-import json
 from threading import RLock
 from typing import Any
 
+redis: Any
 try:  # pragma: no cover - optional dependency
     import redis
 except ImportError:  # pragma: no cover - optional dependency
@@ -167,7 +168,7 @@ class RedisSessionStore(BaseSessionStore):
             self._client = redis.from_url(store_url, decode_responses=True)
             self._client.ping()
             self._status = SessionStoreStatus(backend="redis", configured=True, healthy=True, shared=True)
-        except Exception as exc:  # pragma: no cover - depends on external runtime
+        except Exception as exc:  # noqa: BLE001 - third-party Redis clients expose implementation-specific failures.
             self._status = SessionStoreStatus(
                 backend="redis",
                 configured=True,

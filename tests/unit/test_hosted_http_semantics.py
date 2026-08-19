@@ -5,7 +5,11 @@ import unittest
 sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.security import HostedSecuritySettings, browser_response_headers
-from mcp_server.transport.http import HostedRequestClassification, classify_hosted_request, hosted_status_code
+from mcp_server.transport.http import (
+    HostedRequestClassification,
+    classify_hosted_request,
+    hosted_status_code,
+)
 
 
 class HostedHTTPSemanticsUnitTests(unittest.TestCase):

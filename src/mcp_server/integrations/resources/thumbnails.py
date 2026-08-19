@@ -1,9 +1,9 @@
-# ruff: noqa: F405
 """Thumbnails resource-family wrappers for Layer 1 YouTube integrations."""
 
 from __future__ import annotations
 
-from mcp_server.integrations.resources.base import *  # noqa: F403
+from mcp_server.integrations.resources.base import *
+
 
 @dataclass(frozen=True)
 class ThumbnailsSetWrapper(RepresentativeEndpointWrapper):

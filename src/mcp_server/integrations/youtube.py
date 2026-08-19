@@ -9,7 +9,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
-from mcp_server.integrations.executor import IntegrationExecutor, IntegrationHooks, RequestExecution
+from mcp_server.integrations.executor import (
+    IntegrationExecutor,
+    IntegrationHooks,
+    RequestExecution,
+)
 from mcp_server.integrations.resources.normalizers import (
     ResponseNormalizer,
     build_response_normalizer_registry,
@@ -23,8 +27,8 @@ DEFAULT_RESUMABLE_CHUNK_SIZE = 8 * 1024 * 1024
 _MAX_RESUMABLE_RECOVERY_ATTEMPTS = 2
 
 __all__ = [
-    "ResponseNormalizer",
     "YOUTUBE_DATA_API_ORIGIN",
+    "ResponseNormalizer",
     "build_response_normalizer_registry",
     "build_youtube_data_api_executor",
     "build_youtube_data_api_request",
@@ -71,7 +75,7 @@ def build_youtube_data_api_transport(
         except HTTPError as error:
             details = _error_details(error)
             raise _normalized_upstream_failure(
-                details["message"],
+                str(details["message"]),
                 category=_normalized_category_for_execution(execution, status_code=error.code, details=details),
                 status_code=error.code,
                 details=details,
@@ -357,13 +361,13 @@ def _multipart_related_payload(
     media_bytes = _media_content_bytes(media.get("content"))
     mime_type = str(media.get("mimeType", "application/octet-stream"))
     parts = [
-        f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n".encode("utf-8"),
+        f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n".encode(),
         metadata,
         b"\r\n",
-        f"--{boundary}\r\nContent-Type: {mime_type}\r\n\r\n".encode("utf-8"),
+        f"--{boundary}\r\nContent-Type: {mime_type}\r\n\r\n".encode(),
         media_bytes,
         b"\r\n",
-        f"--{boundary}--\r\n".encode("utf-8"),
+        f"--{boundary}--\r\n".encode(),
     ]
     return b"".join(parts)
 
@@ -622,7 +626,7 @@ def _error_details(error: HTTPError) -> dict[str, object]:
     body = ""
     try:
         body = error.read().decode("utf-8", errors="replace")
-    except Exception:  # pragma: no cover - best effort only
+    except (OSError, ValueError):  # pragma: no cover - best effort only
         body = ""
     message = _extract_error_message(body) or error.reason or str(error)
     details: dict[str, object] = {"reason": str(error.reason)}

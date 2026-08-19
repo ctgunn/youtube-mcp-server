@@ -4,9 +4,9 @@ from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_common.comments import (
     build_comments_delete_tool_descriptor,
     build_comments_insert_tool_descriptor,
+    build_comments_list_tool_descriptor,
     build_comments_set_moderation_status_tool_descriptor,
     build_comments_update_tool_descriptor,
-    build_comments_list_tool_descriptor,
 )
 
 

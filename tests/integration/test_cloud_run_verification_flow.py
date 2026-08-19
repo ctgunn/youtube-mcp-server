@@ -8,7 +8,12 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from mcp_server.app import create_app
 from mcp_server.cloud_run_entrypoint import execute_hosted_request
-from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, serialize_verification_run, write_verification_evidence
+from mcp_server.deploy import (
+    HostedRevisionRecord,
+    run_hosted_verification,
+    serialize_verification_run,
+    write_verification_evidence,
+)
 from mcp_server.transport.session_store import reset_memory_session_store_registry
 
 
@@ -205,9 +210,9 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         )
         requester = self._hosted_requester(app)
         run = run_hosted_verification(self._revision(), requester=requester)
-        invalid = [check for check in run.checks if check.check_name == "initialize-invalid-no-session"][0]
-        post = [check for check in run.checks if check.check_name == "session-post-continuation"][0]
-        replay = [check for check in run.checks if check.check_name == "session-reconnect"][0]
+        invalid = next(check for check in run.checks if check.check_name == "initialize-invalid-no-session")
+        post = next(check for check in run.checks if check.check_name == "session-post-continuation")
+        replay = next(check for check in run.checks if check.check_name == "session-reconnect")
         self.assertEqual(invalid.result, "pass")
         self.assertEqual(post.result, "pass")
         self.assertEqual(replay.result, "pass")
@@ -262,7 +267,7 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         self.assertFalse(cloud_run.checks[1].request_reached_application)
 
         mcp_run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
-        failing = [check for check in mcp_run.checks if check.result == "fail"][0]
+        failing = next(check for check in mcp_run.checks if check.result == "fail")
         self.assertIn(failing.check_name, {"secret-access", "initialize-invalid-no-session", "initialize"})
         self.assertIn(failing.failure_layer, {"secret_access", "mcp_application"})
         self.assertTrue(failing.request_reached_application)
@@ -276,7 +281,7 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
             validate_startup=False,
         )
         run = run_hosted_verification(self._revision(), requester=self._hosted_requester(app))
-        failing = [check for check in run.checks if check.result == "fail"][0]
+        failing = next(check for check in run.checks if check.result == "fail")
         self.assertEqual(failing.check_name, "secret-access")
         self.assertEqual(failing.failure_layer, "secret_access")
 

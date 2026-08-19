@@ -2,7 +2,6 @@
 
 import pytest
 
-
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 from mcp_server.tools.youtube_composed import (
     REPRESENTATIVE_TOOL_CONTRACTS,
@@ -12,7 +11,9 @@ from mcp_server.tools.youtube_composed import (
 
 def test_concrete_transcript_descriptor_registers_and_executes():
     """Register and invoke the concrete transcript descriptor."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_transcript_tool_descriptor
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_get_transcript_tool_descriptor,
+    )
 
     calls = []
     def caption_list(arguments):
@@ -39,7 +40,9 @@ def test_concrete_transcript_descriptor_registers_and_executes():
 
 def test_concrete_transcript_language_descriptor_registers_and_executes_one_listing():
     """Register and invoke one bounded language-discovery descriptor."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_list_languages_tool_descriptor
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_list_languages_tool_descriptor,
+    )
 
     calls = []
 
@@ -63,7 +66,9 @@ def test_concrete_transcript_language_descriptor_registers_and_executes_one_list
 
 def test_timestamped_caption_descriptor_registers_and_dispatches_one_vtt_download():
     """Register and invoke the timed-caption descriptor through the dispatcher."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_timestamped_captions_tool_descriptor
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_get_timestamped_captions_tool_descriptor,
+    )
 
     calls = []
 
@@ -133,7 +138,9 @@ def test_playlist_video_transcript_descriptor_registers_bounded_fan_out():
 
     :return: ``None`` after validating exact injected dependency calls and result shape.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_video_transcripts_tool_descriptor
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_video_transcripts_tool_descriptor,
+    )
 
     playlist_calls = []
     transcript_calls = []
@@ -179,7 +186,9 @@ def test_playlist_video_transcript_descriptor_registers_bounded_fan_out():
 
 def test_transcript_search_descriptor_registers_and_dispatches_the_timed_dependency_once():
     """Register the concrete search descriptor with an injected timed dependency."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_tool_descriptor
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_search_transcript_tool_descriptor,
+    )
 
     calls = []
 
@@ -209,7 +218,9 @@ def test_transcript_search_descriptor_registers_and_dispatches_the_timed_depende
 
 def test_transcript_search_descriptor_forwards_normalized_explicit_language():
     """Dispatch one canonical explicit language through the descriptor."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_tool_descriptor
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_search_transcript_tool_descriptor,
+    )
 
     calls = []
     descriptor = build_transcripts_search_transcript_tool_descriptor(
@@ -233,7 +244,9 @@ def test_transcript_search_descriptor_forwards_normalized_explicit_language():
 
 def test_transcript_search_descriptor_returns_a_bounded_chronological_match_collection():
     """Apply a caller match cap after timed-segment ordering."""
-    from mcp_server.tools.youtube_composed.transcripts import build_transcripts_search_transcript_tool_descriptor
+    from mcp_server.tools.youtube_composed.transcripts import (
+        build_transcripts_search_transcript_tool_descriptor,
+    )
 
     result = InMemoryToolDispatcher(
         tools=[
@@ -278,7 +291,9 @@ def test_concrete_playlist_details_descriptor_registers_and_exposes_scope():
 
     :return: ``None`` after validating registration, provenance, and scope.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_tool_descriptor
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_playlist_tool_descriptor,
+    )
 
     calls = []
 
@@ -311,7 +326,9 @@ def test_concrete_playlist_items_descriptor_registers_and_executes_one_listing()
 
     :return: ``None`` after asserting one bounded injected lower-layer listing.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_items_tool_descriptor
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_playlist_items_tool_descriptor,
+    )
 
     calls = []
 
@@ -346,7 +363,9 @@ def test_concrete_playlist_search_descriptor_registers_and_composes_lookup_and_l
 
     :return: ``None`` after asserting injected lookup composition and normalized match output.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_search_items_tool_descriptor
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_search_items_tool_descriptor,
+    )
 
     playlist_calls = []
     item_calls = []
@@ -423,7 +442,9 @@ def test_representative_youtube_composed_descriptor_exposes_family_and_compositi
 
 def test_concrete_video_details_descriptor_registers_and_executes():
     """Register and execute the concrete one-video descriptor."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_get_video_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_get_video_tool_descriptor,
+    )
 
     lookup = SuccessfulVideoLookup()
     descriptor = build_videos_get_video_tool_descriptor(lookup=lookup)
@@ -438,7 +459,9 @@ def test_concrete_video_details_descriptor_registers_and_executes():
 
 def test_concrete_channel_details_descriptor_registers_with_injected_dependencies():
     """Register the concrete channel descriptor with controlled dependencies."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_tool_descriptor,
+    )
 
     def channels(arguments):
         """Return one public channel for the requested identifier.
@@ -461,8 +484,12 @@ def test_concrete_channel_details_descriptor_registers_with_injected_dependencie
 
 def test_concrete_channel_details_descriptor_returns_partial_profile_after_enrichment_failure():
     """Keep an injected core profile available when latest enrichment fails."""
-    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_tool_descriptor
+    from mcp_server.tools.youtube_common.playlist_items import (
+        PlaylistItemsListToolError,
+    )
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_tool_descriptor,
+    )
 
     def channels(_arguments):
         """Return one channel with a public uploads playlist.
@@ -491,7 +518,9 @@ def test_concrete_channel_details_descriptor_returns_partial_profile_after_enric
 
 def test_concrete_batch_channel_details_descriptor_registers_and_executes():
     """Register and invoke the concrete batch channel descriptor."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channels_tool_descriptor,
+    )
 
     def channels(arguments):
         """Return two source records for one controlled batch lookup.
@@ -518,8 +547,12 @@ def test_concrete_batch_channel_details_descriptor_registers_and_executes():
 
 def test_concrete_batch_channel_details_descriptor_returns_mixed_safe_outcomes():
     """Keep registered batch results usable across unavailable and partial items."""
-    from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_tool_descriptor
+    from mcp_server.tools.youtube_common.playlist_items import (
+        PlaylistItemsListToolError,
+    )
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channels_tool_descriptor,
+    )
 
     def channels(_arguments):
         """Return only one available source item from the requested batch.
@@ -560,7 +593,9 @@ def test_concrete_video_details_registration_preserves_lower_layer_provenance():
 
     :return: ``None`` after validating registration metadata and result shape.
     """
-    from mcp_server.tools.youtube_composed.videos import build_videos_get_video_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_get_video_tool_descriptor,
+    )
 
     descriptor = build_videos_get_video_tool_descriptor(lookup=SuccessfulVideoLookup())
 
@@ -571,7 +606,9 @@ def test_concrete_video_details_registration_preserves_lower_layer_provenance():
 
 def test_concrete_video_details_descriptor_returns_requested_optional_groups():
     """Return selected optional groups while retaining the core result."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_get_video_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_get_video_tool_descriptor,
+    )
 
     class OptionalGroupLookup:
         """Return source groups selected by the video-detail request."""
@@ -608,7 +645,10 @@ def test_concrete_video_details_descriptor_returns_requested_optional_groups():
 def test_concrete_video_details_descriptor_returns_safe_failure_categories():
     """Expose public failures without leaking lower-level diagnostics."""
     from mcp_server.tools.youtube_common.videos import VideosListToolError
-    from mcp_server.tools.youtube_composed.videos import VideosGetVideoToolError, build_videos_get_video_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        VideosGetVideoToolError,
+        build_videos_get_video_tool_descriptor,
+    )
 
     class FailingLookup:
         """Raise a lower-level quota failure containing unsafe diagnostics."""
@@ -636,7 +676,9 @@ def test_concrete_video_details_descriptor_returns_safe_failure_categories():
 
 def test_concrete_video_search_descriptor_registers_and_executes_query_only_search():
     """Register and invoke the concrete query-only video-search descriptor."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_tool_descriptor,
+    )
 
     class SearchLookup:
         """Return one video-search item and record public arguments."""
@@ -666,7 +708,9 @@ def test_concrete_video_search_descriptor_registers_and_executes_query_only_sear
 
 def test_concrete_video_search_descriptor_composes_channel_filtering():
     """Register channel-aware search composition with injected dependencies."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_tool_descriptor,
+    )
 
     def search(arguments):
         """Return one base candidate for the configured search request.
@@ -695,7 +739,9 @@ def test_concrete_video_search_descriptor_composes_channel_filtering():
 
 def test_concrete_video_search_descriptor_ranks_before_unique_channel_selection():
     """Expose ranked, one-per-channel output through the executable descriptor."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_search_videos_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_search_videos_tool_descriptor,
+    )
 
     def search(_arguments):
         """Return candidates whose base order differs from subscriber ranking.
@@ -734,7 +780,9 @@ def test_concrete_video_search_descriptor_ranks_before_unique_channel_selection(
 
 def test_concrete_video_statistics_descriptor_registers_and_executes_one_lookup():
     """Register and invoke the public statistics descriptor with injected data."""
-    from mcp_server.tools.youtube_composed.videos import build_videos_get_statistics_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        build_videos_get_statistics_tool_descriptor,
+    )
 
     calls = []
 
@@ -759,7 +807,10 @@ def test_concrete_video_statistics_descriptor_registers_and_executes_one_lookup(
 def test_concrete_video_statistics_descriptor_returns_safe_lookup_failures():
     """Expose translated errors without unsafe lower-layer diagnostic details."""
     from mcp_server.tools.youtube_common.videos import VideosListToolError
-    from mcp_server.tools.youtube_composed.videos import VideosGetStatisticsToolError, build_videos_get_statistics_tool_descriptor
+    from mcp_server.tools.youtube_composed.videos import (
+        VideosGetStatisticsToolError,
+        build_videos_get_statistics_tool_descriptor,
+    )
 
     def lookup(_arguments):
         """Raise a controlled quota failure with unsafe source details.
@@ -782,7 +833,9 @@ def test_concrete_video_statistics_descriptor_returns_safe_lookup_failures():
 
 def test_concrete_channel_search_descriptor_registers_and_executes_query_only_search():
     """Register and execute the concrete query-only channel search descriptor."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_channels_tool_descriptor,
+    )
 
     def search(arguments):
         """Return one base channel candidate for the configured query.
@@ -804,7 +857,9 @@ def test_concrete_channel_search_descriptor_registers_and_executes_query_only_se
 
 def test_concrete_channel_statistics_descriptor_registers_and_executes_one_lookup():
     """Register and invoke the public channel-statistics descriptor."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_statistics_tool_descriptor,
+    )
 
     calls = []
 
@@ -828,7 +883,10 @@ def test_concrete_channel_statistics_descriptor_registers_and_executes_one_looku
 def test_concrete_channel_statistics_descriptor_returns_safe_lookup_failures():
     """Expose translated channel-statistics errors without unsafe details."""
     from mcp_server.tools.youtube_common.channels import ChannelsListToolError
-    from mcp_server.tools.youtube_composed.channels import ChannelsGetStatisticsToolError, build_channels_get_statistics_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        ChannelsGetStatisticsToolError,
+        build_channels_get_statistics_tool_descriptor,
+    )
 
     def channels(_arguments):
         """Raise a controlled quota failure with unsafe source details.
@@ -849,7 +907,9 @@ def test_concrete_channel_statistics_descriptor_returns_safe_lookup_failures():
 
 def test_concrete_channel_search_descriptor_composes_public_refinement():
     """Execute bounded channel enrichment through the registered descriptor."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_channels_tool_descriptor,
+    )
 
     def search(_arguments):
         """Return one public base channel.
@@ -877,7 +937,9 @@ def test_concrete_channel_search_descriptor_composes_public_refinement():
 
 def test_concrete_channel_search_descriptor_applies_subscriber_ranking():
     """Execute deterministic public subscriber ranking through the descriptor."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_channels_tool_descriptor,
+    )
 
     def search(_arguments):
         """Return two base channels in reverse subscriber order.
@@ -904,7 +966,9 @@ def test_concrete_channel_search_descriptor_applies_subscriber_ranking():
 
 def test_creator_discovery_descriptor_executes_query_only_video_grouping():
     """Execute creator discovery through an injected public video search."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_find_creators_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_find_creators_tool_descriptor,
+    )
 
     def search(arguments):
         """Return one video-derived public channel.
@@ -924,7 +988,9 @@ def test_creator_discovery_descriptor_executes_query_only_video_grouping():
 
 def test_channels_list_videos_descriptor_registers_and_executes_bounded_listing():
     """Register and execute the source-ordered channel video descriptor."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_list_videos_tool_descriptor,
+    )
 
     def channels(arguments):
         """Return an uploads reference for the requested public channel.
@@ -956,7 +1022,9 @@ def test_channels_list_videos_descriptor_registers_and_executes_bounded_listing(
 
 def test_channels_list_videos_descriptor_discloses_non_search_behavior_to_clients():
     """Keep the registered descriptor distinguishable from relevance-ranked search."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_list_videos_tool_descriptor,
+    )
 
     descriptor = build_channels_list_videos_tool_descriptor()
     metadata = InMemoryToolDispatcher(tools=[descriptor]).list_tools()[0]["metadata"]
@@ -971,7 +1039,9 @@ def test_channels_list_playlists_descriptor_registers_and_executes():
 
     :return: ``None`` after asserting two bounded injected reads.
     """
-    from mcp_server.tools.youtube_composed.channels import build_channels_list_playlists_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_list_playlists_tool_descriptor,
+    )
 
     calls = []
     def channels(arguments):
@@ -998,7 +1068,9 @@ def test_channels_list_playlists_descriptor_registers_and_executes():
 
 def test_channels_search_content_descriptor_registers_and_executes_direct_search():
     """Register one injected direct channel-content search descriptor."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_content_tool_descriptor,
+    )
 
     def search(arguments):
         """Assert one channel-constrained public video request.
@@ -1018,7 +1090,9 @@ def test_channels_search_content_descriptor_registers_and_executes_direct_search
 
 def test_channels_search_content_descriptor_forwards_explicit_result_controls():
     """Register the descriptor with bounded direct-source result controls."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_content_tool_descriptor,
+    )
 
     def search(arguments):
         """Assert explicit result controls reach the one lower-layer search.
@@ -1039,7 +1113,9 @@ def test_channels_search_content_descriptor_forwards_explicit_result_controls():
 
 def test_channels_search_content_descriptor_forwards_language_preference():
     """Register direct search with an optional language relevance preference."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_content_tool_descriptor,
+    )
 
     def search(arguments):
         """Assert the normalized preference reaches the lower-layer request.

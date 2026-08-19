@@ -5,12 +5,16 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.integrations.oauth import OAuthCredentialRefreshError, RenewableOAuthToken, build_oauth_credential_provider
 from mcp_server.config import load_youtube_live_runtime_settings
+from mcp_server.integrations.oauth import (
+    OAuthCredentialRefreshError,
+    RenewableOAuthToken,
+    build_oauth_credential_provider,
+)
 from mcp_server.integrations.runtime import build_configured_youtube_runtime
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
 
@@ -53,7 +57,7 @@ class _FakeHTTPResponse:
 def test_refreshable_oauth_token_uses_google_refresh_grant_and_caches_response():
     """Refresh an access token once and reuse it until its safety window expires."""
     captured = []
-    now = datetime(2026, 8, 3, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 3, tzinfo=UTC)
     provider = build_oauth_credential_provider(
         oauth_token=None,
         refresh_token="refresh-secret",
@@ -79,7 +83,7 @@ def test_refreshable_oauth_token_uses_google_refresh_grant_and_caches_response()
 
 def test_refreshable_oauth_token_replaces_expired_cached_access_token():
     """Obtain a second access token after the cached token has expired."""
-    clock = [datetime(2026, 8, 3, tzinfo=timezone.utc)]
+    clock = [datetime(2026, 8, 3, tzinfo=UTC)]
     responses = iter((
         {"access_token": "first-access-token", "expires_in": 120},
         {"access_token": "second-access-token", "expires_in": 120},

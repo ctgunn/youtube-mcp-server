@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import subprocess
-from typing import Callable, Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 
 from mcp_server.infrastructure_contract import is_supported_public_invocation_intent
 
 
 def _now_iso() -> str:
     """Return the current UTC timestamp in ISO 8601 format."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _clean_env_value(value: object) -> str | None:
@@ -136,10 +136,10 @@ def deployment_input_from_mapping(values: Mapping[str, object]) -> DeploymentInp
         session_subnet_reference=str(values.get("MCP_SESSION_SUBNET_REFERENCE", "")).strip(),
         session_connector_reference=str(values.get("MCP_SESSION_CONNECTOR_REFERENCE", "")).strip(),
         config_values=config_values,
-        min_instances=int(values.get("MIN_INSTANCES", 0)),
-        max_instances=int(values.get("MAX_INSTANCES", 1)),
-        concurrency=int(values.get("CONCURRENCY", 80)),
-        timeout_seconds=int(values.get("TIMEOUT_SECONDS", 300)),
+        min_instances=int(str(values.get("MIN_INSTANCES", 0))),
+        max_instances=int(str(values.get("MAX_INSTANCES", 1))),
+        concurrency=int(str(values.get("CONCURRENCY", 80))),
+        timeout_seconds=int(str(values.get("TIMEOUT_SECONDS", 300))),
     )
 
 
@@ -596,7 +596,7 @@ def _build_deployment_record(
 ) -> DeploymentRunRecord:
     """Build a deployment run record from execution inputs and outcome."""
     return DeploymentRunRecord(
-        deployment_id=f"deploy-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        deployment_id=f"deploy-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}",
         executed_at=_now_iso(),
         outcome=outcome,
         summary=summary,
@@ -1094,14 +1094,13 @@ def run_hosted_verification(
         return _finalize("fail")
 
     ready_payload = _normalize_request_result(requester("/ready", {"__httpMethod": "GET"}))
-    if dependency_checks_enabled:
-        if not _append(
-            "secret-access",
-            ready_payload,
-            lambda payload: payload.get("checks", {}).get("secrets") == "pass",
-            "Hosted readiness reported healthy secret access state.",
-        ):
-            return _finalize("fail")
+    if dependency_checks_enabled and not _append(
+        "secret-access",
+        ready_payload,
+        lambda payload: payload.get("checks", {}).get("secrets") == "pass",
+        "Hosted readiness reported healthy secret access state.",
+    ):
+        return _finalize("fail")
     if not _append(
         "readiness",
         ready_payload,
@@ -1109,14 +1108,13 @@ def run_hosted_verification(
         "Hosted readiness endpoint returned ready status.",
     ):
         return _finalize("fail")
-    if dependency_checks_enabled:
-        if not _append(
-            "session-connectivity",
-            ready_payload,
-            lambda payload: payload.get("checks", {}).get("sessionDurability") == "pass",
-            "Hosted readiness reported healthy session connectivity state.",
-        ):
-            return _finalize("fail")
+    if dependency_checks_enabled and not _append(
+        "session-connectivity",
+        ready_payload,
+        lambda payload: payload.get("checks", {}).get("sessionDurability") == "pass",
+        "Hosted readiness reported healthy session connectivity state.",
+    ):
+        return _finalize("fail")
 
     invalid_initialize_payload = _normalize_request_result(
         requester(

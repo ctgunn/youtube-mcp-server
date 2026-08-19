@@ -62,7 +62,9 @@ def test_i18n_languages_list_descriptor_uses_public_contract_shape():
 
 def test_i18n_languages_list_metadata_exposes_quota_auth_examples_and_boundaries():
     """Expose safe caller-facing metadata before ``i18nLanguages_list`` invocation."""
-    from mcp_server.tools.youtube_common.localization import I18N_LANGUAGES_LIST_CALLER_EXAMPLES
+    from mcp_server.tools.youtube_common.localization import (
+        I18N_LANGUAGES_LIST_CALLER_EXAMPLES,
+    )
 
     metadata = build_i18n_languages_list_contract().to_tool_metadata()
     descriptor = build_i18n_languages_list_tool_descriptor()

@@ -15,14 +15,17 @@ from mcp_server.integrations.resources.playlists import (
     build_playlists_update_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
 from mcp_server.tools.youtube_common.conventions import (
     ResponseBoundary,
     ResponseBoundaryKind,
     safe_upstream_error_message,
     sanitize_error_details,
 )
-
 
 PLAYLISTS_LIST_TOOL_NAME = "playlists_list"
 PLAYLISTS_LIST_QUOTA_COST = 1
@@ -61,11 +64,11 @@ PLAYLISTS_LIST_USAGE_NOTES = (
 PLAYLISTS_LIST_CAVEATS = (
     "Exactly one selector is required: channelId, id, or mine.",
     "This tool only retrieves playlist resources through playlists.list.",
-    "Playlist insertion, update, deletion, playlist item traversal, playlist image handling, playlist search, "
+    ("Playlist insertion, update, deletion, playlist item traversal, playlist image handling, playlist search, "
     "video enrichment, transcript retrieval, analytics, recommendation, ranking, summarization, enrichment, "
-    "and cross-endpoint aggregation are out of scope.",
-    "Returned playlist fields depend on selected parts and upstream availability; missing optional fields are not "
-    "fabricated.",
+    "and cross-endpoint aggregation are out of scope."),
+    ("Returned playlist fields depend on selected parts and upstream availability; missing optional fields are not "
+    "fabricated."),
 )
 
 PLAYLISTS_LIST_CALLER_EXAMPLES = (
@@ -197,8 +200,8 @@ PLAYLISTS_INSERT_CAVEATS = (
     "Use playlists_list for playlist retrieval; this tool only performs playlists.insert.",
     "body.snippet.title is required for supported playlist creation requests.",
     "Unsupported write fields such as body.snippet.description, body.status, or body.localizations are out of scope.",
-    "Playlist update, deletion, playlist item insertion, playlist image handling, video curation, transcript retrieval, "
-    "analytics, ranking, summarization, recommendation, duplicate-prevention, and cross-endpoint enrichment are out of scope.",
+    ("Playlist update, deletion, playlist item insertion, playlist image handling, video curation, transcript retrieval, "
+    "analytics, ranking, summarization, recommendation, duplicate-prevention, and cross-endpoint enrichment are out of scope."),
     "Returned playlist fields depend on selected parts and upstream availability; missing optional fields are not fabricated.",
 )
 
@@ -312,9 +315,9 @@ PLAYLISTS_UPDATE_CAVEATS = (
     "Use playlists_list for playlist retrieval and playlists_insert for playlist creation; this tool only performs playlists.update.",
     "body.id identifies the existing playlist and body.snippet.title is required for supported update requests.",
     "Unsupported write fields such as body.snippet.description, body.status, or body.localizations are out of scope.",
-    "Playlist listing, creation, deletion, playlist item management, playlist image handling, video curation, "
+    ("Playlist listing, creation, deletion, playlist item management, playlist image handling, video curation, "
     "transcript retrieval, analytics, ranking, summarization, recommendation, rollback, conflict detection, "
-    "playlist-versioning, and cross-endpoint enrichment are out of scope.",
+    "playlist-versioning, and cross-endpoint enrichment are out of scope."),
     "Returned playlist fields depend on selected parts and upstream availability; missing optional fields are not fabricated.",
 )
 
@@ -432,8 +435,8 @@ PLAYLISTS_DELETE_CAVEATS = (
     "This is a destructive operation for a user-visible playlist represented by the authorized account.",
     "Use playlists_list for retrieval, playlists_insert for creation, and playlists_update for updates; this tool only performs playlists.delete.",
     "Only id is accepted. Request bodies, part selection, list selectors, paging fields, restore, rollback, and idempotency guarantees are out of scope.",
-    "Playlist listing, creation, update, playlist item management, playlist image handling, video curation, transcript retrieval, "
-    "analytics, ranking, summarization, recommendation, restore, rollback, and cross-endpoint enrichment are out of scope.",
+    ("Playlist listing, creation, update, playlist item management, playlist image handling, video curation, transcript retrieval, "
+    "analytics, ranking, summarization, recommendation, restore, rollback, and cross-endpoint enrichment are out of scope."),
     "No deleted playlist resource is fabricated from request context; successful no-body responses are represented as acknowledgments.",
 )
 
@@ -1995,14 +1998,6 @@ __all__ = [
     "PLAYLISTS_INSERT_SUPPORTED_PARTS",
     "PLAYLISTS_INSERT_TOOL_NAME",
     "PLAYLISTS_INSERT_USAGE_NOTES",
-    "PLAYLISTS_UPDATE_CALLER_EXAMPLES",
-    "PLAYLISTS_UPDATE_CAVEATS",
-    "PLAYLISTS_UPDATE_DESCRIPTION",
-    "PLAYLISTS_UPDATE_INPUT_SCHEMA",
-    "PLAYLISTS_UPDATE_QUOTA_COST",
-    "PLAYLISTS_UPDATE_SUPPORTED_PARTS",
-    "PLAYLISTS_UPDATE_TOOL_NAME",
-    "PLAYLISTS_UPDATE_USAGE_NOTES",
     "PLAYLISTS_LIST_CALLER_EXAMPLES",
     "PLAYLISTS_LIST_CAVEATS",
     "PLAYLISTS_LIST_DESCRIPTION",
@@ -2013,28 +2008,36 @@ __all__ = [
     "PLAYLISTS_LIST_SUPPORTED_PARTS",
     "PLAYLISTS_LIST_TOOL_NAME",
     "PLAYLISTS_LIST_USAGE_NOTES",
-    "PlaylistsInsertToolError",
+    "PLAYLISTS_UPDATE_CALLER_EXAMPLES",
+    "PLAYLISTS_UPDATE_CAVEATS",
+    "PLAYLISTS_UPDATE_DESCRIPTION",
+    "PLAYLISTS_UPDATE_INPUT_SCHEMA",
+    "PLAYLISTS_UPDATE_QUOTA_COST",
+    "PLAYLISTS_UPDATE_SUPPORTED_PARTS",
+    "PLAYLISTS_UPDATE_TOOL_NAME",
+    "PLAYLISTS_UPDATE_USAGE_NOTES",
     "PlaylistsDeleteToolError",
-    "PlaylistsUpdateToolError",
+    "PlaylistsInsertToolError",
     "PlaylistsListToolError",
-    "build_playlists_insert_contract",
+    "PlaylistsUpdateToolError",
     "build_playlists_delete_contract",
-    "build_playlists_insert_handler",
     "build_playlists_delete_handler",
-    "build_playlists_insert_tool_descriptor",
     "build_playlists_delete_tool_descriptor",
-    "build_playlists_update_contract",
-    "build_playlists_update_handler",
-    "build_playlists_update_tool_descriptor",
+    "build_playlists_insert_contract",
+    "build_playlists_insert_handler",
+    "build_playlists_insert_tool_descriptor",
     "build_playlists_list_contract",
     "build_playlists_list_handler",
     "build_playlists_list_tool_descriptor",
-    "map_playlists_insert_result",
+    "build_playlists_update_contract",
+    "build_playlists_update_handler",
+    "build_playlists_update_tool_descriptor",
     "map_playlists_delete_result",
-    "map_playlists_update_result",
+    "map_playlists_insert_result",
     "map_playlists_list_result",
-    "validate_playlists_insert_arguments",
+    "map_playlists_update_result",
     "validate_playlists_delete_arguments",
-    "validate_playlists_update_arguments",
+    "validate_playlists_insert_arguments",
     "validate_playlists_list_arguments",
+    "validate_playlists_update_arguments",
 ]

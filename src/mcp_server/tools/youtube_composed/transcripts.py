@@ -12,7 +12,10 @@ from mcp_server.tools.youtube_common.captions import (
     build_captions_download_handler,
     build_captions_list_handler,
 )
-from mcp_server.tools.youtube_common.conventions import safe_upstream_error_message, sanitize_error_details
+from mcp_server.tools.youtube_common.conventions import (
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
 from mcp_server.tools.youtube_composed.families import get_family
 
 FAMILY_SCAFFOLDING = get_family("transcripts")
@@ -163,7 +166,7 @@ def validate_transcripts_get_transcript_arguments(arguments: dict[str, Any]) -> 
         raise TranscriptsGetTranscriptToolError("transcripts_getTranscript arguments must be an object", category="invalid_parameters", details={"field": "arguments"})
     unexpected = set(arguments) - {"videoId", "language"}
     if unexpected:
-        raise TranscriptsGetTranscriptToolError("transcripts_getTranscript received an unsupported field", category="invalid_parameters", details={"field": sorted(unexpected)[0]})
+        raise TranscriptsGetTranscriptToolError("transcripts_getTranscript received an unsupported field", category="invalid_parameters", details={"field": min(unexpected)})
     video_id = arguments.get("videoId")
     if not isinstance(video_id, str) or not video_id.strip():
         raise TranscriptsGetTranscriptToolError("transcripts_getTranscript requires a non-empty videoId", category="invalid_parameters", details={"field": "videoId"})
@@ -191,7 +194,7 @@ def validate_transcripts_list_languages_arguments(arguments: dict[str, Any]) -> 
         raise TranscriptsListLanguagesToolError(
             "transcripts_listLanguages received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected)[0]},
+            details={"field": min(unexpected)},
         )
     video_id = arguments.get("videoId")
     if not isinstance(video_id, str) or not video_id.strip():
@@ -221,7 +224,7 @@ def validate_transcripts_get_timestamped_captions_arguments(arguments: dict[str,
         raise TranscriptsGetTimestampedCaptionsToolError(
             "transcripts_getTimestampedCaptions received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected)[0]},
+            details={"field": min(unexpected)},
         )
     video_id = arguments.get("videoId")
     if not isinstance(video_id, str) or not video_id.strip():
@@ -261,7 +264,7 @@ def validate_transcripts_search_transcript_arguments(arguments: dict[str, Any]) 
         raise TranscriptsSearchTranscriptToolError(
             "transcripts_searchTranscript received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected)[0]},
+            details={"field": min(unexpected)},
         )
     video_id = arguments.get("videoId")
     if not isinstance(video_id, str) or not video_id.strip():

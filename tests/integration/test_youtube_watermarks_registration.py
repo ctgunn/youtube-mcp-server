@@ -13,7 +13,6 @@ from mcp_server.tools.youtube_common.watermarks import (
     build_watermarks_unset_tool_descriptor,
 )
 
-
 VALID_WATERMARKS_SET_ARGS = {
     "channelId": "UC123",
     "body": {

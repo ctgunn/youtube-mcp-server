@@ -1,11 +1,11 @@
-# ruff: noqa: F405
 """Response normalizers for video categories resources."""
 
 from __future__ import annotations
 
 import json
 
-from mcp_server.integrations.resources.response_normalizers.base import *  # noqa: F403
+from mcp_server.integrations.resources.response_normalizers.base import *
+
 
 def _video_categories_list_payload(
     execution: RequestExecution,

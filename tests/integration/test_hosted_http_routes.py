@@ -156,7 +156,7 @@ class HostedHTTPRoutesIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(list_response.status, 200)
         list_payload = list_response.payload["result"]["tools"]
-        fetch_tool = [tool for tool in list_payload if tool["name"] == "fetch"][0]
+        fetch_tool = next(tool for tool in list_payload if tool["name"] == "fetch")
         self.assertEqual(fetch_tool["inputSchema"]["required"], ["id"])
 
         search_response = execute_hosted_request(

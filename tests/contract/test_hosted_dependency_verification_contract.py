@@ -5,7 +5,11 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.deploy import HostedRevisionRecord, run_hosted_verification, serialize_verification_run
+from mcp_server.deploy import (
+    HostedRevisionRecord,
+    run_hosted_verification,
+    serialize_verification_run,
+)
 
 
 class HostedDependencyVerificationContractTests(unittest.TestCase):
@@ -124,7 +128,7 @@ class HostedDependencyVerificationContractTests(unittest.TestCase):
 
         run = run_hosted_verification(self._revision(), requester=requester)
         payload = serialize_verification_run(run)
-        failing = [check for check in payload["checks"] if check["result"] == "fail"][0]
+        failing = next(check for check in payload["checks"] if check["result"] == "fail")
         self.assertEqual(failing["failureLayer"], "secret_access")
         self.assertIn("remediation", failing)
 

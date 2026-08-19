@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from mcp_server.integrations.auth import AuthContext
+from mcp_server.integrations.resources.consumers.base import ConsumerMixinBase
 
 
-class WatermarksConsumerMixin:
+class WatermarksConsumerMixin(ConsumerMixinBase):
     """Provide higher-layer summaries for watermarks resources."""
 
     def set_watermark_summary(

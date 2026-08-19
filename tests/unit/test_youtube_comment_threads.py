@@ -223,7 +223,9 @@ def _valid_comment_threads_insert_arguments() -> dict:
 
 def test_commentThreads_insert_schema_preserves_top_level_create_inputs():
     """Expose the upstream-like request fields for ``commentThreads_insert``."""
-    from mcp_server.tools.youtube_common.comment_threads import COMMENT_THREADS_INSERT_INPUT_SCHEMA
+    from mcp_server.tools.youtube_common.comment_threads import (
+        COMMENT_THREADS_INSERT_INPUT_SCHEMA,
+    )
 
     properties = COMMENT_THREADS_INSERT_INPUT_SCHEMA["properties"]
 
@@ -234,7 +236,9 @@ def test_commentThreads_insert_schema_preserves_top_level_create_inputs():
 
 def test_validate_commentThreads_insert_arguments_accepts_top_level_request():
     """Accept authorized top-level comment-thread creation arguments."""
-    from mcp_server.tools.youtube_common.comment_threads import validate_comment_threads_insert_arguments
+    from mcp_server.tools.youtube_common.comment_threads import (
+        validate_comment_threads_insert_arguments,
+    )
 
     target = validate_comment_threads_insert_arguments(_valid_comment_threads_insert_arguments())
 
@@ -243,7 +247,9 @@ def test_validate_commentThreads_insert_arguments_accepts_top_level_request():
 
 def test_map_commentThreads_insert_result_preserves_created_item_parts_and_target():
     """Map upstream insert results into a safe near-raw created-thread result."""
-    from mcp_server.tools.youtube_common.comment_threads import map_comment_threads_insert_result
+    from mcp_server.tools.youtube_common.comment_threads import (
+        map_comment_threads_insert_result,
+    )
 
     result = map_comment_threads_insert_result(
         {"id": "thread-video-123", "snippet": {"videoId": "video-123"}},
@@ -261,7 +267,9 @@ def test_map_commentThreads_insert_result_preserves_created_item_parts_and_targe
 
 def test_commentThreads_insert_handler_invokes_wrapper_for_top_level_request():
     """Execute one valid top-level create request through the descriptor handler."""
-    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.comment_threads import (
+        build_comment_threads_insert_tool_descriptor,
+    )
 
     class FakeWrapper:
         """Capture wrapper call arguments for ``commentThreads_insert``."""

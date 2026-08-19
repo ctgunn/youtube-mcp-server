@@ -15,14 +15,17 @@ from mcp_server.integrations.resources.playlist_images import (
     build_playlist_images_update_wrapper,
 )
 from mcp_server.integrations.retry import RetryPolicy
-from mcp_server.tools.youtube_common.contracts import AuthMode, AvailabilityState, YouTubeToolContract
+from mcp_server.tools.youtube_common.contracts import (
+    AuthMode,
+    AvailabilityState,
+    YouTubeToolContract,
+)
 from mcp_server.tools.youtube_common.conventions import (
     ResponseBoundary,
     ResponseBoundaryKind,
     safe_upstream_error_message,
     sanitize_error_details,
 )
-
 
 PLAYLIST_IMAGES_ALLOWED_MIME_TYPES = ("image/jpeg", "image/png", "application/octet-stream")
 

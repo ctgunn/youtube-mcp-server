@@ -1,9 +1,9 @@
-# ruff: noqa: F405
 """Channel Sections resource-family wrappers for Layer 1 YouTube integrations."""
 
 from __future__ import annotations
 
-from mcp_server.integrations.resources.base import *  # noqa: F403
+from mcp_server.integrations.resources.base import *
+
 
 @dataclass(frozen=True)
 class ChannelSectionsListWrapper(RepresentativeEndpointWrapper):
@@ -283,12 +283,12 @@ BUILDER_FUNCTIONS = {
 
 __all__ = [
     "BUILDER_FUNCTIONS",
+    "FAMILY_NAME",
+    "RESOURCE_NAMES",
     "ChannelSectionsDeleteWrapper",
     "ChannelSectionsInsertWrapper",
     "ChannelSectionsListWrapper",
     "ChannelSectionsUpdateWrapper",
-    "FAMILY_NAME",
-    "RESOURCE_NAMES",
     "build_channel_sections_delete_wrapper",
     "build_channel_sections_insert_wrapper",
     "build_channel_sections_list_wrapper",

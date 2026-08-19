@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import json
 import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, TextIO
 
 
@@ -77,7 +77,7 @@ def classify_endpoint(path: str) -> str:
 def runtime_event(event_name: str, status: str, details: dict[str, Any] | None = None) -> dict[str, Any]:
     """Build a structured runtime event payload."""
     payload = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "severity": "INFO" if status == "success" else "ERROR",
         "event": event_name,
         "status": status,
@@ -109,7 +109,7 @@ def integration_execution_event(
     :return: Structured integration execution event.
     """
     payload = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "severity": "INFO" if status == "success" else "ERROR",
         "event": "integration.execution",
         "requestId": request_id,
@@ -129,7 +129,7 @@ def integration_execution_event(
 def _should_redact_key(key: str) -> bool:
     """Return whether a field name should be redacted in logs."""
     normalized = str(key).strip().lower().replace("-", "_")
-    return normalized in {"authorization", "mcp_auth_token", "youtube_api_key"} or normalized.endswith("_token") or normalized.endswith("_api_key")
+    return normalized in {"authorization", "mcp_auth_token", "youtube_api_key"} or normalized.endswith(("_token", "_api_key"))
 
 
 def _sanitize_event_payload(value: Any, *, key: str | None = None) -> Any:
@@ -212,7 +212,7 @@ class InMemoryObservability:
         self._latencies.setdefault(latency_key, []).append(max(float(latency_ms), 0.0))
 
         event = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "severity": "INFO" if outcome == "success" else "ERROR",
             "requestId": context.request_id,
             "path": context.path,
@@ -229,7 +229,7 @@ class InMemoryObservability:
     def emit_security_decision(self, decision: dict[str, Any]) -> None:
         """Record a structured security decision event."""
         event = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "severity": "INFO" if decision.get("decision") == "accepted" else "ERROR",
             "event": "security.decision",
             "requestId": decision.get("requestId"),
@@ -246,8 +246,9 @@ class InMemoryObservability:
             event["browserFlow"] = decision.get("browserFlow")
         if decision.get("requestMethod"):
             event["requestMethod"] = decision.get("requestMethod")
-        if decision.get("requestHeaders"):
-            event["requestHeaders"] = list(decision.get("requestHeaders"))
+        request_headers = decision.get("requestHeaders")
+        if isinstance(request_headers, (list, tuple)):
+            event["requestHeaders"] = list(request_headers)
         self._logs.append(event)
         self._emit_runtime_event(event)
 
@@ -255,7 +256,7 @@ class InMemoryObservability:
         """Record a structured session lifecycle decision event."""
         session_outcome = decision.get("sessionOutcome")
         event = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "severity": "INFO" if session_outcome in {"continued", "initialize_succeeded"} else "ERROR",
             "event": "session.decision",
             "requestId": decision.get("requestId"),

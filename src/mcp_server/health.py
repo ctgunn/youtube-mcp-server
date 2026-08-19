@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from mcp_server.config import StartupValidationResult
 
 
 def _now_iso() -> str:
     """Return the current UTC timestamp in ISO 8601 format."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 @dataclass

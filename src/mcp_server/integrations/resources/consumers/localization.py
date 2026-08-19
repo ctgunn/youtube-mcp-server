@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from mcp_server.integrations.auth import AuthContext
+from mcp_server.integrations.resources.consumers.base import ConsumerMixinBase
 
 
-class LocalizationConsumerMixin:
+class LocalizationConsumerMixin(ConsumerMixinBase):
     """Provide higher-layer summaries for localization resources."""
 
     def fetch_i18n_languages_summary(

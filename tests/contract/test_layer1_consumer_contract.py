@@ -8,21 +8,29 @@ import mcp_server.integrations.wrappers as wrappers_module
 from mcp_server.integrations.auth import AuthContext, AuthMode, CredentialBundle
 from mcp_server.integrations.consumer import RepresentativeHigherLayerConsumer
 from mcp_server.integrations.contracts import EndpointMetadata, EndpointRequestShape
-from mcp_server.integrations.errors import NormalizedUpstreamError, normalize_upstream_error
+from mcp_server.integrations.errors import (
+    NormalizedUpstreamError,
+    normalize_upstream_error,
+)
 from mcp_server.integrations.executor import IntegrationExecutor
 from mcp_server.integrations.retry import RetryPolicy
 from mcp_server.integrations.wrappers import (
     RepresentativeEndpointWrapper,
     build_activities_list_wrapper,
+    build_captions_delete_wrapper,
+    build_captions_download_wrapper,
+    build_captions_insert_wrapper,
+    build_captions_list_wrapper,
+    build_captions_update_wrapper,
     build_channel_banners_insert_wrapper,
     build_channel_sections_delete_wrapper,
     build_channel_sections_insert_wrapper,
     build_channel_sections_list_wrapper,
     build_channel_sections_update_wrapper,
-    build_comment_threads_insert_wrapper,
-    build_comment_threads_list_wrapper,
     build_channels_list_wrapper,
     build_channels_update_wrapper,
+    build_comment_threads_insert_wrapper,
+    build_comment_threads_list_wrapper,
     build_comments_delete_wrapper,
     build_comments_insert_wrapper,
     build_comments_list_wrapper,
@@ -36,27 +44,22 @@ from mcp_server.integrations.wrappers import (
     build_playlist_images_delete_wrapper,
     build_playlist_images_insert_wrapper,
     build_playlist_images_list_wrapper,
+    build_playlist_images_update_wrapper,
     build_playlist_items_delete_wrapper,
     build_playlist_items_insert_wrapper,
     build_playlist_items_list_wrapper,
     build_playlist_items_update_wrapper,
-    build_playlist_images_update_wrapper,
     build_playlists_delete_wrapper,
     build_playlists_insert_wrapper,
+    build_playlists_list_wrapper,
+    build_playlists_update_wrapper,
     build_search_list_wrapper,
     build_subscriptions_delete_wrapper,
     build_subscriptions_insert_wrapper,
     build_subscriptions_list_wrapper,
-    build_videos_list_wrapper,
-    build_playlists_update_wrapper,
-    build_playlists_list_wrapper,
-    build_video_categories_list_wrapper,
     build_video_abuse_report_reasons_list_wrapper,
-    build_captions_delete_wrapper,
-    build_captions_download_wrapper,
-    build_captions_insert_wrapper,
-    build_captions_list_wrapper,
-    build_captions_update_wrapper,
+    build_video_categories_list_wrapper,
+    build_videos_list_wrapper,
 )
 
 

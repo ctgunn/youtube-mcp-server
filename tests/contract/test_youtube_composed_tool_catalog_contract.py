@@ -112,7 +112,11 @@ def test_ranking_filtering_and_composition_rules_are_metadata_ready():
 
 def test_each_planned_name_maps_to_one_family_and_source_area():
     """Map every planned public name to exactly one family and source module."""
-    from mcp_server.tools.youtube_composed import PLANNED_TOOL_NAMES, get_family, get_family_for_tool_name
+    from mcp_server.tools.youtube_composed import (
+        PLANNED_TOOL_NAMES,
+        get_family,
+        get_family_for_tool_name,
+    )
 
     seen = {}
     for tool_name in PLANNED_TOOL_NAMES:

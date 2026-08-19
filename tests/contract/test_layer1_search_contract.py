@@ -47,7 +47,9 @@ class Layer1SearchContractTests(unittest.TestCase):
     def test_search_list_wrapper_supports_channel_type_only_for_channel_search(self):
         """Expose and validate the bounded ``channelType`` refinement."""
         from mcp_server.integrations.resources.search import build_search_list_wrapper
-        from mcp_server.integrations.resources.validators.search import _require_search_list_arguments
+        from mcp_server.integrations.resources.validators.search import (
+            _require_search_list_arguments,
+        )
 
         wrapper = build_search_list_wrapper()
 

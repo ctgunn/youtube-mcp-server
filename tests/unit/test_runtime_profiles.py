@@ -4,7 +4,12 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.config import PROFILE_REQUIREMENTS, SUPPORTED_PROFILES, load_hosted_runtime_settings, validate_runtime_config
+from mcp_server.config import (
+    PROFILE_REQUIREMENTS,
+    SUPPORTED_PROFILES,
+    load_hosted_runtime_settings,
+    validate_runtime_config,
+)
 
 
 class RuntimeProfileTests(unittest.TestCase):

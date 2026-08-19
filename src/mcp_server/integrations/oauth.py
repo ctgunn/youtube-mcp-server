@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -59,7 +59,7 @@ class OAuthCredentialProvider:
         self._client_secret = client_secret
         self._opener = opener or urlopen
         self._timeout_seconds = timeout_seconds
-        self._now = now or (lambda: datetime.now(timezone.utc))
+        self._now = now or (lambda: datetime.now(UTC))
         self._cached_access_token: str | None = None
         self._expires_at: datetime | None = None
 
@@ -135,7 +135,7 @@ class OAuthCredentialProvider:
         if not isinstance(access_token, str) or not access_token.strip():
             raise OAuthCredentialRefreshError("YouTube OAuth token renewal returned no access token.")
         try:
-            lifetime_seconds = max(int(expires_in), 1)
+            lifetime_seconds = max(int(str(expires_in)), 1)
         except (TypeError, ValueError):
             lifetime_seconds = 300
         self._cached_access_token = access_token.strip()
@@ -145,6 +145,8 @@ class OAuthCredentialProvider:
 
 class RenewableOAuthToken(str):
     """Present an on-demand OAuth credential through legacy string token seams."""
+
+    _provider: OAuthCredentialProvider
 
     def __new__(cls, provider: OAuthCredentialProvider):
         """Create a non-secret truthy sentinel for legacy token checks.

@@ -8,9 +8,18 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from mcp_server.tools.youtube_common.conventions import safe_upstream_error_message, sanitize_error_details
-from mcp_server.tools.youtube_common.playlist_items import PlaylistItemsListToolError, build_playlist_items_list_handler
-from mcp_server.tools.youtube_common.playlists import PlaylistsListToolError, build_playlists_list_handler
+from mcp_server.tools.youtube_common.conventions import (
+    safe_upstream_error_message,
+    sanitize_error_details,
+)
+from mcp_server.tools.youtube_common.playlist_items import (
+    PlaylistItemsListToolError,
+    build_playlist_items_list_handler,
+)
+from mcp_server.tools.youtube_common.playlists import (
+    PlaylistsListToolError,
+    build_playlists_list_handler,
+)
 from mcp_server.tools.youtube_composed.families import get_family
 
 FAMILY_SCAFFOLDING = get_family("playlists")
@@ -445,7 +454,7 @@ def validate_playlists_get_playlist_arguments(arguments: dict[str, Any]) -> dict
         raise PlaylistsGetPlaylistToolError(
             "playlists_getPlaylist received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected_fields)[0]},
+            details={"field": min(unexpected_fields)},
         )
     playlist_id = arguments.get("playlistId")
     if not isinstance(playlist_id, str) or not playlist_id.strip():
@@ -475,7 +484,7 @@ def validate_playlists_get_playlist_items_arguments(arguments: dict[str, Any]) -
         raise PlaylistsGetPlaylistItemsToolError(
             "playlists_getPlaylistItems received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected_fields)[0]},
+            details={"field": min(unexpected_fields)},
         )
     playlist_id = arguments.get("playlistId")
     if not isinstance(playlist_id, str) or not playlist_id.strip():
@@ -545,7 +554,7 @@ def validate_playlists_get_video_transcripts_arguments(arguments: dict[str, Any]
         raise PlaylistsGetVideoTranscriptsToolError(
             "playlists_getVideoTranscripts received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected_fields)[0]},
+            details={"field": min(unexpected_fields)},
         )
     playlist_id = arguments.get("playlistId")
     if not isinstance(playlist_id, str) or not playlist_id.strip():
@@ -599,7 +608,7 @@ def validate_playlists_search_items_arguments(arguments: dict[str, Any]) -> dict
         raise PlaylistsSearchItemsToolError(
             "playlists_searchItems received an unsupported field",
             category="invalid_parameters",
-            details={"field": sorted(unexpected_fields)[0]},
+            details={"field": min(unexpected_fields)},
         )
     playlist_id = arguments.get("playlistId")
     if not isinstance(playlist_id, str) or not playlist_id.strip():
@@ -1377,7 +1386,9 @@ def build_playlists_get_video_transcripts_handler(
     """
     selected_playlist_items = playlist_items or build_playlist_items_list_handler()
     if timestamped_captions is None:
-        from mcp_server.tools.youtube_composed.transcripts import build_transcripts_get_timestamped_captions_handler
+        from mcp_server.tools.youtube_composed.transcripts import (
+            build_transcripts_get_timestamped_captions_handler,
+        )
 
         timestamped_captions = build_transcripts_get_timestamped_captions_handler()
 

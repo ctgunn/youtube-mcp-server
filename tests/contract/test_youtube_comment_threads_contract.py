@@ -259,7 +259,9 @@ def test_commentThreads_insert_contract_exposes_identity_quota_auth_and_schema()
 
 def test_commentThreads_insert_descriptor_matches_contract_and_schema():
     """Build a dispatcher descriptor that matches the insert contract."""
-    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.comment_threads import (
+        build_comment_threads_insert_tool_descriptor,
+    )
 
     descriptor = build_comment_threads_insert_tool_descriptor()
 
@@ -273,7 +275,9 @@ def test_commentThreads_insert_descriptor_matches_contract_and_schema():
 
 def test_commentThreads_insert_contract_documents_created_thread_result_shape():
     """Require top-level creation to preserve near-raw comment-thread fields."""
-    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_insert_tool_descriptor
+    from mcp_server.tools.youtube_common.comment_threads import (
+        build_comment_threads_insert_tool_descriptor,
+    )
 
     result = build_comment_threads_insert_tool_descriptor()["handler"](
         {
@@ -300,7 +304,9 @@ def test_commentThreads_insert_contract_documents_created_thread_result_shape():
 
 def test_commentThreads_insert_metadata_documents_cost_oauth_delegation_and_boundaries():
     """Expose caller-facing cost, auth, delegation, response, and scope boundaries."""
-    from mcp_server.tools.youtube_common.comment_threads import build_comment_threads_insert_contract
+    from mcp_server.tools.youtube_common.comment_threads import (
+        build_comment_threads_insert_contract,
+    )
 
     metadata = build_comment_threads_insert_contract().to_tool_metadata()
     metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])

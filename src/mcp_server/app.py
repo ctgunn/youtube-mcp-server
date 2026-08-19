@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Callable, Mapping, TextIO
+from collections.abc import Callable, Mapping
+from typing import Any, TextIO
 
 from mcp_server.config import (
     ConfigValidationError,

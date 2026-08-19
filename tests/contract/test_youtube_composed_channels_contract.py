@@ -3,7 +3,9 @@
 
 def test_channel_details_metadata_is_concrete_and_bounded():
     """Require executable discovery metadata for bounded channel enrichment."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_metadata,
+    )
 
     metadata = build_channels_get_channel_metadata()
 
@@ -16,7 +18,9 @@ def test_channel_details_metadata_is_concrete_and_bounded():
 
 def test_channel_details_contract_exposes_schema_provenance_and_safe_errors():
     """Require the public schema and caller-safe discovery facts."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_tool_descriptor,
+    )
 
     descriptor = build_channels_get_channel_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -44,7 +48,9 @@ def test_channel_details_contract_exposes_schema_provenance_and_safe_errors():
 
 def test_channel_details_contract_discloses_public_contact_and_classification_limits():
     """Require explicit heuristic provenance, basis, and uncertainty guidance."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_metadata,
+    )
 
     metadata = build_channels_get_channel_metadata()
     fields = {field["fieldName"]: field for field in metadata["responseFields"]}
@@ -60,7 +66,9 @@ def test_channel_details_contract_discloses_public_contact_and_classification_li
 
 def test_channel_details_contract_discloses_safe_partial_enrichment_behavior():
     """Require caller-visible partial and unavailable enrichment rules."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channel_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channel_metadata,
+    )
 
     metadata = build_channels_get_channel_metadata()
 
@@ -71,7 +79,9 @@ def test_channel_details_contract_discloses_safe_partial_enrichment_behavior():
 
 def test_channel_statistics_contract_exposes_concrete_single_channel_schema_and_boundary():
     """Require executable discovery metadata for public channel statistics."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_statistics_tool_descriptor,
+    )
 
     descriptor = build_channels_get_statistics_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -91,7 +101,9 @@ def test_channel_statistics_contract_exposes_concrete_single_channel_schema_and_
 
 def test_channel_statistics_contract_documents_hidden_and_unavailable_metric_states():
     """Require source-aware state and provenance disclosure for statistics."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_statistics_metadata,
+    )
 
     metadata = build_channels_get_statistics_metadata()
     fields = {field["fieldName"]: field for field in metadata["responseFields"]}
@@ -107,7 +119,9 @@ def test_channel_statistics_contract_documents_hidden_and_unavailable_metric_sta
 
 def test_channel_statistics_contract_documents_the_safe_error_taxonomy():
     """Require all caller-visible channel-statistics error categories."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_statistics_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_statistics_metadata,
+    )
 
     metadata = build_channels_get_statistics_metadata()
 
@@ -124,7 +138,9 @@ def test_channel_statistics_contract_documents_the_safe_error_taxonomy():
 
 def test_batch_channel_details_contract_exposes_bounded_ordered_schema():
     """Require the public batch schema, defaults, and bounded discovery facts."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channels_tool_descriptor,
+    )
 
     descriptor = build_channels_get_channels_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -141,7 +157,9 @@ def test_batch_channel_details_contract_exposes_bounded_ordered_schema():
 
 def test_batch_channel_details_contract_discloses_selection_and_enrichment_states():
     """Require explicit detail selection and default-on enrichment guidance."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channels_metadata,
+    )
 
     metadata = build_channels_get_channels_metadata()
 
@@ -154,7 +172,9 @@ def test_batch_channel_details_contract_discloses_selection_and_enrichment_state
 
 def test_batch_channel_details_contract_discloses_independent_safe_outcomes():
     """Require item-local unavailable and partial-outcome guidance."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_get_channels_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_get_channels_metadata,
+    )
 
     metadata = build_channels_get_channels_metadata()
 
@@ -166,7 +186,9 @@ def test_batch_channel_details_contract_discloses_independent_safe_outcomes():
 
 def test_channel_search_contract_exposes_concrete_query_only_schema_and_boundary():
     """Require executable discovery metadata for public channel search."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_channels_tool_descriptor,
+    )
 
     descriptor = build_channels_search_channels_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -184,7 +206,9 @@ def test_channel_search_contract_exposes_concrete_query_only_schema_and_boundary
 
 def test_channel_search_contract_discloses_conditional_public_enrichment_and_heuristics():
     """Require public disclosure of refinement dependencies and limits."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_channels_metadata,
+    )
 
     metadata = build_channels_search_channels_metadata()
     fields = {field["fieldName"]: field for field in metadata["responseFields"]}
@@ -198,7 +222,9 @@ def test_channel_search_contract_discloses_conditional_public_enrichment_and_heu
 
 def test_channel_search_contract_discloses_all_ranking_and_tie_semantics():
     """Require caller-visible deterministic ranking semantics."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_channels_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_channels_metadata,
+    )
 
     metadata = build_channels_search_channels_metadata()
 
@@ -215,7 +241,9 @@ def test_channel_search_contract_discloses_all_ranking_and_tie_semantics():
 
 def test_creator_discovery_contract_exposes_bounded_composite_schema():
     """Require executable public metadata for creator discovery."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_find_creators_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_find_creators_tool_descriptor,
+    )
 
     descriptor = build_channels_find_creators_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -236,7 +264,9 @@ def test_creator_discovery_contract_exposes_bounded_composite_schema():
 
 def test_creator_discovery_contract_discloses_provenance_heuristics_and_ranking():
     """Require provenance, heuristic limitations, and deterministic ranking metadata."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_find_creators_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_find_creators_metadata,
+    )
 
     metadata = build_channels_find_creators_metadata()
     fields = {field["fieldName"]: field for field in metadata["responseFields"]}
@@ -252,7 +282,9 @@ def test_creator_discovery_contract_discloses_provenance_heuristics_and_ranking(
 
 def test_channels_list_videos_contract_exposes_bounded_source_ordered_public_listing():
     """Require concrete discovery metadata for public uploads-collection listing."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_list_videos_tool_descriptor,
+    )
 
     descriptor = build_channels_list_videos_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -276,7 +308,9 @@ def test_channels_list_videos_contract_exposes_bounded_source_ordered_public_lis
 
 def test_channels_list_videos_contract_discloses_provenance_ordering_and_safe_empty_policy():
     """Require caller-visible source order, provenance, and empty-result guidance."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_list_videos_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_list_videos_metadata,
+    )
 
     metadata = build_channels_list_videos_metadata()
     fields = {field["fieldName"]: field for field in metadata["responseFields"]}
@@ -303,7 +337,9 @@ def test_channels_list_playlists_contract_exposes_the_bounded_two_read_listing()
 
     :return: ``None`` after validating public schema and metadata.
     """
-    from mcp_server.tools.youtube_composed.channels import build_channels_list_playlists_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_list_playlists_tool_descriptor,
+    )
 
     descriptor = build_channels_list_playlists_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -319,7 +355,9 @@ def test_channels_list_playlists_contract_exposes_the_bounded_two_read_listing()
 
 def test_channels_search_content_contract_exposes_direct_channel_search():
     """Require the executable public schema and direct-search boundary."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_content_tool_descriptor,
+    )
 
     descriptor = build_channels_search_content_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -335,7 +373,9 @@ def test_channels_search_content_contract_exposes_direct_channel_search():
 
 def test_channels_search_content_contract_discloses_provenance_and_safe_outcomes():
     """Require direct-search, provenance, and safe-error disclosure."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_metadata
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_content_metadata,
+    )
 
     metadata = build_channels_search_content_metadata()
     fields = {field["fieldName"]: field for field in metadata["responseFields"]}
@@ -350,7 +390,9 @@ def test_channels_search_content_contract_discloses_provenance_and_safe_outcomes
 
 def test_channels_search_content_contract_exposes_bounded_direct_order_controls():
     """Require exact public defaults and upstream-order disclosure."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_content_tool_descriptor,
+    )
 
     descriptor = build_channels_search_content_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -364,7 +406,9 @@ def test_channels_search_content_contract_exposes_bounded_direct_order_controls(
 
 def test_channels_search_content_contract_discloses_optional_language_relevance():
     """Require language preference to remain an optional relevance-only input."""
-    from mcp_server.tools.youtube_composed.channels import build_channels_search_content_tool_descriptor
+    from mcp_server.tools.youtube_composed.channels import (
+        build_channels_search_content_tool_descriptor,
+    )
 
     descriptor = build_channels_search_content_tool_descriptor()
     metadata = descriptor["metadata"]

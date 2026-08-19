@@ -1,4 +1,3 @@
-# ruff: noqa: F405
 """Response normalizers for videos resources."""
 
 from __future__ import annotations
@@ -7,7 +6,8 @@ import json
 from typing import Any
 
 from mcp_server.integrations.executor import RequestExecution
-from mcp_server.integrations.resources.response_normalizers.base import *  # noqa: F403
+from mcp_server.integrations.resources.response_normalizers.base import *
+
 
 def _videos_insert_payload(
     execution: RequestExecution,

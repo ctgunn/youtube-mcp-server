@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import re
-from typing import Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from mcp_server.security import HostedSecuritySettings, parse_allowed_origins
 
@@ -110,7 +110,7 @@ class YouTubeLiveRuntimeSettings:
 
         :return: Safe diagnostics containing configuration state but no secrets.
         """
-        details = {
+        details: dict[str, object] = {
             "apiKeyConfigured": self.has_api_key,
             "oauthTokenConfigured": self.has_oauth_token,
             "oauthLifecycle": "refreshable" if self.has_oauth_refresh_configuration else ("static" if self.oauth_token else "notConfigured"),
@@ -203,7 +203,7 @@ class HostedRuntimeSettings:
     secret_access_mode: str
     secret_reference_names: tuple[str, ...]
     security: HostedSecuritySettings
-    session: "HostedSessionSettings"
+    session: HostedSessionSettings
 
 
 @dataclass(frozen=True)
@@ -220,7 +220,7 @@ class HostedSessionSettings:
 
 def _now_iso() -> str:
     """Return the current UTC timestamp in ISO 8601 format."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _value(env: Mapping[str, str], key: str) -> str | None:

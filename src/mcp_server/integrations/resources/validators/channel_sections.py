@@ -1,11 +1,11 @@
-# ruff: noqa: F405
 """Validation helpers for channel sections resource wrappers."""
 
 from __future__ import annotations
 
 from mcp_server.integrations.contracts import require_mapping_fields
-from mcp_server.integrations.resources.constants import *  # noqa: F403
-from mcp_server.integrations.resources.validators.base import *  # noqa: F403
+from mcp_server.integrations.resources.constants import *
+from mcp_server.integrations.resources.validators.base import *
+
 
 def _validate_channel_sections_body(
     arguments: dict[str, object],
@@ -47,9 +47,8 @@ def _validate_channel_sections_body(
         raise ValueError("body.snippet.channelId is required")
 
     title = snippet.get("title")
-    if section_type in _CHANNEL_SECTIONS_TITLE_REQUIRED_TYPES:
-        if not isinstance(title, str) or not title.strip():
-            raise ValueError(f"{section_type} requires body.snippet.title")
+    if section_type in _CHANNEL_SECTIONS_TITLE_REQUIRED_TYPES and (not isinstance(title, str) or not title.strip()):
+        raise ValueError(f"{section_type} requires body.snippet.title")
 
     content_details = body.get("contentDetails")
     if section_type in _CHANNEL_SECTIONS_PLAYLIST_TYPES:
@@ -104,7 +103,7 @@ def _require_channel_sections_update_body(arguments: dict[str, object]) -> None:
     _validate_channel_sections_body(arguments, require_existing_id=True)
 
 __all__ = [
-    "_validate_channel_sections_body",
     "_require_channel_sections_insert_body",
     "_require_channel_sections_update_body",
+    "_validate_channel_sections_body",
 ]

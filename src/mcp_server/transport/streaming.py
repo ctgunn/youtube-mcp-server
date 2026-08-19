@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta, timezone
 import json
 import uuid
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime, timedelta
 
 from mcp_server.config import HostedSessionSettings
-from mcp_server.transport.session_store import BaseSessionStore, InMemorySessionStore, SessionStoreStatus, create_session_store
+from mcp_server.transport.session_store import (
+    BaseSessionStore,
+    InMemorySessionStore,
+    SessionStoreStatus,
+    create_session_store,
+)
 
 SSE_CONTENT_TYPE = "text/event-stream"
 JSON_CONTENT_TYPE = "application/json"
@@ -19,7 +24,7 @@ SUPPORTED_MCP_PROTOCOL_VERSIONS = ("2025-11-25",)
 
 def _timestamp() -> str:
     """Return the current UTC timestamp in ISO 8601 format."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _add_seconds(timestamp: str, seconds: int) -> str:
@@ -31,7 +36,7 @@ def _is_past(timestamp: str | None) -> bool:
     """Return whether an ISO timestamp is in the past."""
     if not timestamp:
         return False
-    return datetime.fromisoformat(timestamp) <= datetime.now(timezone.utc)
+    return datetime.fromisoformat(timestamp) <= datetime.now(UTC)
 
 
 def generate_session_id() -> str:
@@ -111,7 +116,7 @@ class StreamManager:
         self._replay_ttl_seconds = replay_ttl_seconds
 
     @classmethod
-    def from_session_settings(cls, settings: HostedSessionSettings) -> "StreamManager":
+    def from_session_settings(cls, settings: HostedSessionSettings) -> StreamManager:
         """Build a stream manager from hosted session settings."""
         return cls(
             store=create_session_store(backend=settings.backend, store_url=settings.store_url),
@@ -225,11 +230,15 @@ class StreamManager:
         if origin_method == "GET":
             for stream_id in reversed(session.stream_ids):
                 stream = self._load_stream_optional(stream_id)
-                if stream and stream.origin_method == "GET" and stream.state in {"open", "idle", "reconnecting"}:
-                    if not _is_past(stream.replay_window_ends_at):
-                        stream.state = "open"
-                        self._store.save_stream(stream.stream_id, self._stream_record(stream))
-                        return stream
+                if (
+                    stream
+                    and stream.origin_method == "GET"
+                    and stream.state in {"open", "idle", "reconnecting"}
+                    and not _is_past(stream.replay_window_ends_at)
+                ):
+                    stream.state = "open"
+                    self._store.save_stream(stream.stream_id, self._stream_record(stream))
+                    return stream
 
         stream = StreamChannel(
             stream_id=uuid.uuid4().hex,

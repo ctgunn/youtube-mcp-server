@@ -3,14 +3,14 @@
 
 def test_package_imports():
     """Confirm the shared Layer 3 package can be imported."""
-    import mcp_server.tools.youtube_composed as youtube_composed
+    from mcp_server.tools import youtube_composed
 
     assert youtube_composed is not None
 
 
 def test_package_boundary_avoids_execution_dependencies():
     """Keep Layer 3 shared scaffolding free of concrete execution dependencies."""
-    import mcp_server.tools.youtube_composed as youtube_composed
+    from mcp_server.tools import youtube_composed
 
     forbidden_modules = ("fastapi", "uvicorn", "redis", "subprocess", "urllib")
 
@@ -39,7 +39,11 @@ def test_validate_tool_name_rejects_invalid_or_redundant_prefixes():
     """Reject public names outside the grouped Layer 3 catalog."""
     import pytest
 
-    from mcp_server.tools.youtube_composed import ToolContractError, ToolFamily, validate_tool_name
+    from mcp_server.tools.youtube_composed import (
+        ToolContractError,
+        ToolFamily,
+        validate_tool_name,
+    )
 
     with pytest.raises(ToolContractError):
         validate_tool_name("youtube_videos_getVideo")
@@ -56,7 +60,10 @@ def test_shared_parameter_convention_requires_bounds_for_result_limits():
     import pytest
 
     from mcp_server.tools.youtube_composed import ToolContractError
-    from mcp_server.tools.youtube_composed.conventions import Requiredness, SharedParameterConvention
+    from mcp_server.tools.youtube_composed.conventions import (
+        Requiredness,
+        SharedParameterConvention,
+    )
 
     convention = SharedParameterConvention(
         name="maxResults",
@@ -88,7 +95,10 @@ def test_shared_parameter_convention_requires_bounds_for_result_limits():
 
 def test_date_parameter_convention_declares_iso8601_validation():
     """Require date-filter conventions to declare ISO 8601 validation behavior."""
-    from mcp_server.tools.youtube_composed.conventions import Requiredness, SharedParameterConvention
+    from mcp_server.tools.youtube_composed.conventions import (
+        Requiredness,
+        SharedParameterConvention,
+    )
 
     convention = SharedParameterConvention(
         name="publishedAfter",
@@ -125,7 +135,12 @@ def test_implemented_and_unimplemented_family_modules_remain_cohesive():
 
     :return: ``None`` after validating the current concrete family inventory.
     """
-    from mcp_server.tools.youtube_composed import channels, playlists, transcripts, videos
+    from mcp_server.tools.youtube_composed import (
+        channels,
+        playlists,
+        transcripts,
+        videos,
+    )
 
     assert callable(videos.build_videos_get_video_handler)
     assert callable(channels.build_channels_get_channel_handler)

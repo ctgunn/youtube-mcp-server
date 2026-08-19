@@ -6,7 +6,10 @@ import pytest
 
 from mcp_server.integrations.errors import NormalizedUpstreamError
 from mcp_server.tools.dispatcher import InMemoryToolDispatcher
-from mcp_server.tools.youtube_common.members import MembersListToolError, build_members_list_tool_descriptor
+from mcp_server.tools.youtube_common.members import (
+    MembersListToolError,
+    build_members_list_tool_descriptor,
+)
 
 
 def _register_members_list(**descriptor_kwargs) -> InMemoryToolDispatcher:

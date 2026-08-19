@@ -7,7 +7,12 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.deploy import deployment_input_from_iac_outputs, execute_deploy_command, load_json_artifact, serialize_deployment_run
+from mcp_server.deploy import (
+    deployment_input_from_iac_outputs,
+    execute_deploy_command,
+    load_json_artifact,
+    serialize_deployment_run,
+)
 
 
 class HostedDeploymentHandoffIntegrationTests(unittest.TestCase):

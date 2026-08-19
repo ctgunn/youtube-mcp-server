@@ -6,7 +6,9 @@ def test_playlist_details_metadata_is_concrete_and_exposes_one_input_schema():
 
     :return: ``None`` after validating the concrete descriptor shape.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_tool_descriptor
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_playlist_tool_descriptor,
+    )
 
     descriptor = build_playlists_get_playlist_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -28,7 +30,9 @@ def test_playlist_details_contract_documents_fields_provenance_and_scope():
 
     :return: ``None`` after validating response metadata.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_metadata
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_playlist_metadata,
+    )
 
     metadata = build_playlists_get_playlist_metadata()
     fields = {field["fieldName"]: field for field in metadata["responseFields"]}
@@ -59,7 +63,9 @@ def test_playlist_details_contract_documents_safe_categories_without_unsafe_meta
 
     :return: ``None`` after validating safe discovery metadata.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_metadata
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_playlist_metadata,
+    )
 
     metadata = build_playlists_get_playlist_metadata()
 
@@ -81,7 +87,9 @@ def test_playlist_video_transcripts_contract_documents_language_and_safe_partial
 
     :return: ``None`` after validating public recovery and safety details.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_video_transcripts_metadata
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_video_transcripts_metadata,
+    )
 
     metadata = build_playlists_get_video_transcripts_metadata()
 
@@ -105,7 +113,9 @@ def test_playlist_items_contract_is_concrete_and_documents_bounded_source_ordere
 
     :return: ``None`` after validating the public descriptor and metadata.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_items_tool_descriptor
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_playlist_items_tool_descriptor,
+    )
 
     descriptor = build_playlists_get_playlist_items_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -134,7 +144,9 @@ def test_playlist_items_contract_documents_provenance_limits_and_safe_categories
 
     :return: ``None`` after validating safe public metadata.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_playlist_items_metadata
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_playlist_items_metadata,
+    )
 
     metadata = build_playlists_get_playlist_items_metadata()
     fields = {field["fieldName"]: field for field in metadata["responseFields"]}
@@ -160,7 +172,9 @@ def test_playlist_search_contract_is_concrete_and_documents_composite_bounded_se
 
     :return: ``None`` after validating strict inputs, coverage, matching, and safe errors.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_search_items_tool_descriptor
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_search_items_tool_descriptor,
+    )
 
     descriptor = build_playlists_search_items_tool_descriptor()
     metadata = descriptor["metadata"]
@@ -203,7 +217,9 @@ def test_playlist_video_transcripts_contract_is_concrete_and_bounded():
 
     :return: ``None`` after validating schema, metadata, provenance, and safe limits.
     """
-    from mcp_server.tools.youtube_composed.playlists import build_playlists_get_video_transcripts_tool_descriptor
+    from mcp_server.tools.youtube_composed.playlists import (
+        build_playlists_get_video_transcripts_tool_descriptor,
+    )
 
     descriptor = build_playlists_get_video_transcripts_tool_descriptor()
     metadata = descriptor["metadata"]
