@@ -23,9 +23,9 @@
 
 - [X] T002 Declare the `dev` dependency group and configure pytest, Ruff, and the `src/mcp_server` mypy baseline in `/Users/ctgunn/Projects/youtube-mcp-server/pyproject.toml`
 - [X] T003 Add deterministic `lint`, `typecheck`, `test`, and serial `quality` targets that invoke the declared tools in `/Users/ctgunn/Projects/youtube-mcp-server/Makefile`
-- [ ] T004 Repair all errors reported by `make typecheck` within `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/` without broadening the type-check scope beyond the approved baseline
-- [ ] T005 Add or update complete reStructuredText docstrings for every Python function modified by T004 and every new/modified test method in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_ci_quality_commands_contract.py`
-- [ ] T006 Run the T001 contract test, make the command surface pass, and refactor duplicated configuration/target wording while preserving `make lint`, `make typecheck`, `make test`, and `make quality` in `/Users/ctgunn/Projects/youtube-mcp-server/pyproject.toml` and `/Users/ctgunn/Projects/youtube-mcp-server/Makefile`
+- [X] T004 Repair all errors reported by `make typecheck` within `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/` without broadening the type-check scope beyond the approved baseline
+- [X] T005 Add or update complete reStructuredText docstrings for every Python function modified by T004 and every new/modified test method in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_ci_quality_commands_contract.py`
+- [X] T006 Run the T001 contract test, make the command surface pass, and refactor duplicated configuration/target wording while preserving `make lint`, `make typecheck`, `make test`, and `make quality` in `/Users/ctgunn/Projects/youtube-mcp-server/pyproject.toml` and `/Users/ctgunn/Projects/youtube-mcp-server/Makefile`
 
 **Checkpoint**: The declared toolchain installs from a clean checkout and the four canonical commands are defined. User stories can now proceed.
 
@@ -39,20 +39,20 @@
 
 ### Red: Failing Tests for User Story 1
 
-- [ ] T007 [P] [US1] Add failing PR-workflow contract coverage, with reStructuredText docstrings on new test methods, for the `pull_request` trigger, exact check names, no skip filters, no secrets, and canonical command use in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_ci_pull_request_quality_contract.py`
-- [ ] T008 [P] [US1] Add failing unit coverage, with reStructuredText docstrings on new test methods, for active-rule validation, latest-revision checks, source identity, and safe JSON failures in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_github_quality_gate_verifier.py`
+- [X] T007 [P] [US1] Add failing PR-workflow contract coverage, with reStructuredText docstrings on new test methods, for the `pull_request` trigger, exact check names, no skip filters, no secrets, and canonical command use in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_ci_pull_request_quality_contract.py`
+- [X] T008 [P] [US1] Add failing unit coverage, with reStructuredText docstrings on new test methods, for active-rule validation, latest-revision checks, source identity, and safe JSON failures in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_github_quality_gate_verifier.py`
 
 ### Green: Implementation for User Story 1
 
-- [ ] T009 [US1] Create the unprivileged PR-only workflow with separately named `lint`, `typecheck`, and `tests` jobs that use canonical targets and no deployment context in `/Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/quality.yml`
-- [ ] T010 [US1] Implement a read-only, machine-readable `main` ruleset/branch-protection verifier that rejects missing, stale, bypassed, or incorrectly sourced required checks in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_github_quality_gate.py`
-- [ ] T011 [US1] Add complete reStructuredText docstrings for all new or modified functions and test methods in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_github_quality_gate.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_github_quality_gate_verifier.py`
-- [ ] T012 [US1] Document the exact active-`main` ruleset settings, the branch-protection fallback prohibition on divergent policies, the read-only verifier command, and controlled PR evidence procedure in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
-- [ ] T013 [US1] Apply and read back the active `main` ruleset (or equivalent documented branch-protection fallback) with an authorized administrator using `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_github_quality_gate.py` and record the safe verification procedure in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
+- [X] T009 [US1] Create the unprivileged PR-only workflow with separately named `lint`, `typecheck`, and `tests` jobs that use canonical targets and no deployment context in `/Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/quality.yml`
+- [X] T010 [US1] Implement a read-only, machine-readable `main` ruleset/branch-protection verifier that rejects missing, stale, bypassed, or incorrectly sourced required checks in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_github_quality_gate.py`
+- [X] T011 [US1] Add complete reStructuredText docstrings for all new or modified functions and test methods in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_github_quality_gate.py` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_github_quality_gate_verifier.py`
+- [X] T012 [US1] Document the exact active-`main` ruleset settings, the branch-protection fallback prohibition on divergent policies, the read-only verifier command, and controlled PR evidence procedure in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
+- [X] T013 [US1] Apply and read back the active `main` ruleset (or equivalent documented branch-protection fallback) with an authorized administrator using `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_github_quality_gate.py` and record the safe verification procedure in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
 
 ### Refactor: User Story 1
 
-- [ ] T014 [US1] Run the User Story 1 contract and verifier tests, remove duplicated check-name/policy definitions, and keep the workflow, verifier, tests, and runbook aligned in `/Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/quality.yml`, `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_github_quality_gate.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_ci_pull_request_quality_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_github_quality_gate_verifier.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
+- [X] T014 [US1] Run the User Story 1 contract and verifier tests, remove duplicated check-name/policy definitions, and keep the workflow, verifier, tests, and runbook aligned in `/Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/quality.yml`, `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_github_quality_gate.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_ci_pull_request_quality_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_github_quality_gate_verifier.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
 
 **Checkpoint**: User Story 1 is independently complete when the three named checks and active external policy block non-passing latest revisions.
 
@@ -66,17 +66,17 @@
 
 ### Red: Failing Tests for User Story 2
 
-- [ ] T015 [P] [US2] Add failing documentation integration coverage, with reStructuredText docstrings on new test methods, for clean-checkout installation, four canonical commands, local-versus-hosted separation, safe prerequisite guidance, and release-evidence instructions in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_quality_gate_docs.py`
+- [X] T015 [P] [US2] Add failing documentation integration coverage, with reStructuredText docstrings on new test methods, for clean-checkout installation, four canonical commands, local-versus-hosted separation, safe prerequisite guidance, and release-evidence instructions in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_quality_gate_docs.py`
 
 ### Green: Implementation for User Story 2
 
-- [ ] T016 [US2] Update the local engineering and hosted release sections with one clean-checkout install path, canonical quality commands, prerequisites, safe missing-input handling, source/image/deployment/verification evidence, and local-versus-hosted boundaries in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
-- [ ] T017 [US2] Add or update complete reStructuredText docstrings for every new or modified Python test method in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_quality_gate_docs.py`
-- [ ] T018 [US2] Reproduce the documented local procedure in a clean checkout, update ambiguous README wording discovered during the run, and run the User Story 2 documentation integration test in `/Users/ctgunn/Projects/youtube-mcp-server/README.md` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_quality_gate_docs.py`
+- [X] T016 [US2] Update the local engineering and hosted release sections with one clean-checkout install path, canonical quality commands, prerequisites, safe missing-input handling, source/image/deployment/verification evidence, and local-versus-hosted boundaries in `/Users/ctgunn/Projects/youtube-mcp-server/README.md`
+- [X] T017 [US2] Add or update complete reStructuredText docstrings for every new or modified Python test method in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_quality_gate_docs.py`
+- [X] T018 [US2] Reproduce the documented local procedure in a clean checkout, update ambiguous README wording discovered during the run, and run the User Story 2 documentation integration test in `/Users/ctgunn/Projects/youtube-mcp-server/README.md` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_quality_gate_docs.py`
 
 ### Refactor: User Story 2
 
-- [ ] T019 [US2] Consolidate duplicate install, quality, and release instructions while preserving the tested procedure in `/Users/ctgunn/Projects/youtube-mcp-server/README.md` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_quality_gate_docs.py`
+- [X] T019 [US2] Consolidate duplicate install, quality, and release instructions while preserving the tested procedure in `/Users/ctgunn/Projects/youtube-mcp-server/README.md` and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_quality_gate_docs.py`
 
 **Checkpoint**: User Story 2 is independently complete when a clean-checkout maintainer can follow the documented procedure without an undocumented repository step.
 
@@ -90,23 +90,23 @@
 
 ### Red: Failing Tests for User Story 3
 
-- [ ] T020 [P] [US3] Add failing release-guard contract coverage, with reStructuredText docstrings on new test methods, for `make quality`, preflight ordering, immutable revision/image provenance, and secret-safe artifact fields in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_ci_release_guard_contract.py`
-- [ ] T021 [P] [US3] Add failing unit coverage, with reStructuredText docstrings on new test methods, for quality-state eligibility, SHA/digest mismatch rejection, preflight categories, and secret-free provenance serialization in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_ci_release_provenance.py`
-- [ ] T022 [P] [US3] Add failing end-to-end workflow-shape coverage, with reStructuredText docstrings on new test methods, proving both deployment paths stop before build/deploy after a bad gate and preserve one resolved revision in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_release_guard_workflows.py`
+- [X] T020 [P] [US3] Add failing release-guard contract coverage, with reStructuredText docstrings on new test methods, for `make quality`, preflight ordering, immutable revision/image provenance, and secret-safe artifact fields in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_ci_release_guard_contract.py`
+- [X] T021 [P] [US3] Add failing unit coverage, with reStructuredText docstrings on new test methods, for quality-state eligibility, SHA/digest mismatch rejection, preflight categories, and secret-free provenance serialization in `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_ci_release_provenance.py`
+- [X] T022 [P] [US3] Add failing end-to-end workflow-shape coverage, with reStructuredText docstrings on new test methods, proving both deployment paths stop before build/deploy after a bad gate and preserve one resolved revision in `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_release_guard_workflows.py`
 
 ### Green: Implementation for User Story 3
 
-- [ ] T023 [US3] Extend release provenance and safe preflight state validation/serialization for quality statuses, full source SHA, immutable image digest, deployment revision, and verification outcome in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
-- [ ] T024 [US3] Update the deployment entrypoint to validate and persist non-secret release provenance while deploying the digest-qualified image in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh`
-- [ ] T025 [US3] Add complete reStructuredText docstrings for every new or modified Python function and test method in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_ci_release_provenance.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_release_guard_workflows.py`
-- [ ] T026 [US3] Change the Cloud Build primary path to resolve the checkout's full SHA, run safe preflight and `make quality` before later stages, resolve the image digest, deploy that digest, and publish non-secret provenance evidence in `/Users/ctgunn/Projects/youtube-mcp-server/cloudbuild.yaml`
-- [ ] T027 [US3] Change the manual GitHub fallback to resolve the actual checked-out SHA rather than trust a mutable dispatch ref, run the same preflight and `make quality` gate, deploy a digest-qualified image, and upload the provenance evidence in `/Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml`
-- [ ] T028 [US3] Update existing deployment-pipeline expectations from inline lint/test commands to the canonical quality gate and add provenance/order assertions in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_pipeline_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_assets.py`
+- [X] T023 [US3] Extend release provenance and safe preflight state validation/serialization for quality statuses, full source SHA, immutable image digest, deployment revision, and verification outcome in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`
+- [X] T024 [US3] Update the deployment entrypoint to validate and persist non-secret release provenance while deploying the digest-qualified image in `/Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh`
+- [X] T025 [US3] Add complete reStructuredText docstrings for every new or modified Python function and test method in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/unit/test_ci_release_provenance.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_ci_release_guard_workflows.py`
+- [X] T026 [US3] Change the Cloud Build primary path to resolve the checkout's full SHA, run safe preflight and `make quality` before later stages, resolve the image digest, deploy that digest, and publish non-secret provenance evidence in `/Users/ctgunn/Projects/youtube-mcp-server/cloudbuild.yaml`
+- [X] T027 [US3] Change the manual GitHub fallback to resolve the actual checked-out SHA rather than trust a mutable dispatch ref, run the same preflight and `make quality` gate, deploy a digest-qualified image, and upload the provenance evidence in `/Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml`
+- [X] T028 [US3] Update existing deployment-pipeline expectations from inline lint/test commands to the canonical quality gate and add provenance/order assertions in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_pipeline_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_assets.py`
 - [ ] T029 [US3] Run the authorized non-production fallback release and a controlled failing-gate exercise according to `/Users/ctgunn/Projects/youtube-mcp-server/specs/401-ci-quality-gates/quickstart.md`, confirming safe SHA/digest/deployment/verification evidence and no downstream action after failure
 
 ### Refactor: User Story 3
 
-- [ ] T030 [US3] Run all User Story 3 unit, contract, and integration tests; remove duplicate provenance or quality-stage logic while preserving the `quality_gate -> image_publish -> infrastructure_reconcile -> terraform_output_export -> deploy -> hosted_verification` contract in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`, `/Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh`, `/Users/ctgunn/Projects/youtube-mcp-server/cloudbuild.yaml`, and `/Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml`
+- [X] T030 [US3] Run all User Story 3 unit, contract, and integration tests; remove duplicate provenance or quality-stage logic while preserving the `quality_gate -> image_publish -> infrastructure_reconcile -> terraform_output_export -> deploy -> hosted_verification` contract in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`, `/Users/ctgunn/Projects/youtube-mcp-server/scripts/deploy_cloud_run.sh`, `/Users/ctgunn/Projects/youtube-mcp-server/cloudbuild.yaml`, and `/Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml`
 
 **Checkpoint**: User Story 3 is independently complete when both supported deployment paths block before later stages on any ineligible gate/provenance condition and link a passing release to one SHA and image digest.
 
@@ -116,10 +116,10 @@
 
 **Purpose**: Verify the feature as one secure, maintainable delivery surface.
 
-- [ ] T031 [P] Add cross-path regression coverage, with reStructuredText docstrings on new test methods, that rejects secret-bearing workflow/artifact output and PR deployment credentials in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_ci_quality_gate_security_contract.py`
-- [ ] T032 Review every changed Python function and test method for complete reStructuredText docstrings and update omissions in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`, `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_github_quality_gate.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/`
-- [ ] T033 Run `make lint`, `make typecheck`, and `make quality`; fix all reported failures in `/Users/ctgunn/Projects/youtube-mcp-server/pyproject.toml`, `/Users/ctgunn/Projects/youtube-mcp-server/Makefile`, `/Users/ctgunn/Projects/youtube-mcp-server/src/`, `/Users/ctgunn/Projects/youtube-mcp-server/scripts/`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/`
-- [ ] T034 Run the final `python -m pytest` full repository suite after all code changes and fix every failure before completion in `/Users/ctgunn/Projects/youtube-mcp-server/tests/`
+- [X] T031 [P] Add cross-path regression coverage, with reStructuredText docstrings on new test methods, that rejects secret-bearing workflow/artifact output and PR deployment credentials in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_ci_quality_gate_security_contract.py`
+- [X] T032 Review every changed Python function and test method for complete reStructuredText docstrings and update omissions in `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/deploy.py`, `/Users/ctgunn/Projects/youtube-mcp-server/scripts/verify_github_quality_gate.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/`
+- [X] T033 Run `make lint`, `make typecheck`, and `make quality`; fix all reported failures in `/Users/ctgunn/Projects/youtube-mcp-server/pyproject.toml`, `/Users/ctgunn/Projects/youtube-mcp-server/Makefile`, `/Users/ctgunn/Projects/youtube-mcp-server/src/`, `/Users/ctgunn/Projects/youtube-mcp-server/scripts/`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/`
+- [X] T034 Run the final `python -m pytest` full repository suite after all code changes and fix every failure before completion in `/Users/ctgunn/Projects/youtube-mcp-server/tests/`
 
 ---
 

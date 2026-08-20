@@ -91,7 +91,7 @@ source .venv/bin/activate
 
 ```bash
 python3 -m pip install --upgrade pip
-python3 -m pip install -e .
+python3 -m pip install -e '.[dev]'
 ```
 
 ### 4. Review the local environment file
@@ -765,6 +765,54 @@ not complete until the full repository test suite has been run after the final
 code changes and every test is passing. All new or modified Python functions
 must include reStructuredText docstrings before review and merge.
 
+### Pull-request quality gate
+
+From a clean checkout, create and activate a Python 3.11 virtual environment,
+then install the declared development tools:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
+make quality
+```
+
+`make quality` runs linting, static type checking, and the full automated test
+suite in order. Use `make lint`, `make typecheck`, or `make test` when working
+on one category; a non-passing result must be corrected before merge or a
+supported release.
+
+The checked-in `.github/workflows/quality.yml` workflow runs for pull requests
+targeting `main` and reports three distinct GitHub Actions checks: `lint`,
+`typecheck`, and `tests`. It has read-only repository permission and no
+deployment credentials, path filters, or privileged pull-request trigger.
+
+An authorized repository administrator must configure exactly one active
+governance mechanism for `main`: an active GitHub ruleset (preferred) or an
+equivalent classic branch-protection rule. It must require pull requests, the
+GitHub-Actions-sourced `lint`, `typecheck`, and `tests` checks, an up-to-date
+branch, and no normal maintainer bypass. Do not enable both mechanisms with
+different settings.
+
+Record read-only policy and latest-revision check evidence without logs or
+credentials, then verify it locally:
+
+```bash
+python scripts/verify_github_quality_gate.py \
+  --policy-file artifacts/main-quality-policy.json \
+  --checks-file artifacts/current-pr-checks.json
+```
+
+The policy evidence must contain only enforcement state, required check names,
+up-to-date and bypass settings. The check evidence must contain the resolved
+head SHA plus each check name, status, conclusion, and `github-actions` source.
+The verifier emits safe JSON and exits nonzero for missing, stale, cancelled,
+failed, skipped, pending, incorrectly sourced, or otherwise ineligible checks.
+
+For governance confirmation, open one normal pull request and controlled lint,
+typecheck, and test failures. After each update, confirm the newest revision is
+blocked until all three exact checks pass. Repository ruleset creation and
+read-back require authorized administrator access and are external prerequisites.
+
 ## Runtime configuration profiles
 
 - `MCP_ENVIRONMENT` is required and must be one of `dev`, `staging`, or `prod`.
@@ -992,16 +1040,38 @@ automation. The GitHub Actions workflow is a manual fallback, and it is
 intentionally `workflow_dispatch` only so it does not race with the Cloud Build
 trigger on `main`.
 
+### Release quality and evidence procedure
+
+Use a clean checkout with the declared `.[dev]` tools to run local validation;
+use Cloud Build or the manually dispatched hosted workflow only for an
+authorized hosted release. A hosted release starts by resolving the actual
+checked-out **full commit SHA**, performing a **safe preflight** that reports
+only missing non-secret prerequisites, and running `make quality`. Automation
+must never build, publish, reconcile infrastructure, or deploy after a failed,
+cancelled, missing, skipped, or pending quality result.
+
+After image publication, the workflow resolves the **immutable image digest**
+and deploys that digest-qualified image. The non-secret release-provenance
+record links the full commit SHA, image digest, quality statuses, preflight
+result, deployment record/provider revision, and verification pass/fail result.
+Do not put credential values, environment dumps, bearer tokens, API keys, or
+raw secret-manager output in command examples, logs, or evidence artifacts.
+
+If a prerequisite is absent, correct the named configuration, identity,
+artifact-destination, or secret-reference-access category before retrying. The
+safe preflight intentionally stops before deployment and never asks an operator
+to supply a secret value as diagnostic evidence.
+
 Both automation paths keep the same repository-managed rollout path intact:
 
-1. validate bootstrap prerequisites
-2. run `pytest` and `ruff check .`
-3. build and publish the current image
-4. run `terraform -chdir=infrastructure/gcp apply`
-5. export Terraform outputs to `artifacts/gcp-foundation-outputs.json`
-6. deploy through `scripts/deploy_cloud_run.sh`
-7. verify through `scripts/verify_cloud_run_foundation.py`
-8. upload the deployment and verification artifacts
+1. resolve and record the full checked-out source SHA
+2. perform safe preflight validation of non-secret configuration and identity prerequisites
+3. run the canonical `make quality` gate
+4. build, publish, and resolve an immutable digest-qualified image
+5. run `terraform -chdir=infrastructure/gcp apply`
+6. export Terraform outputs to `artifacts/gcp-foundation-outputs.json`
+7. deploy the digest-qualified image through `scripts/deploy_cloud_run.sh`
+8. verify through `scripts/verify_cloud_run_foundation.py`, then publish source, image, provenance, deployment, and verification artifacts
 
 For environments that require durable hosted session connectivity, managed
 network bootstrap is part of step 4. In other words, network reconciliation
@@ -1062,6 +1132,8 @@ values even when the workflow is fully automated.
 The workflow publishes these artifacts for each push-driven hosted rollout:
 
 - `artifacts/image-reference.txt`
+- `artifacts/source-revision.txt`
+- `artifacts/release-provenance.json`
 - `artifacts/gcp-foundation-outputs.json`
 - `artifacts/cloud-run-deployment.json`
 - `artifacts/cloud-run-verification.json`
