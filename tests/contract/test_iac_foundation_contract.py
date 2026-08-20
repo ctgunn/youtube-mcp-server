@@ -59,6 +59,10 @@ class IaCFoundationContractTests(unittest.TestCase):
             self.assertIn(pattern, ignore)
 
     def test_local_dependency_assets_define_redis_backed_workflow(self):
+        """Require checked-in local templates to describe the Redis workflow.
+
+        :return: ``None`` after validating tracked local dependency assets.
+        """
         compose = Path("infrastructure/local/compose.yaml").read_text()
         readme = Path("infrastructure/local/README.md").read_text()
         env_example = Path("infrastructure/local/.env.example").read_text()

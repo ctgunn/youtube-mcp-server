@@ -17,7 +17,11 @@ class LocalRuntimeEntrypointIntegrationTests(unittest.TestCase):
         self.assertIn("Hosted deployment-only inputs", content)
 
     def test_local_files_distinguish_baseline_defaults_from_hosted_like_overrides(self):
-        env_local = Path(".env.local").read_text()
+        """Use the tracked baseline template instead of private local config.
+
+        :return: ``None`` after checking local and hosted-like example boundaries.
+        """
+        env_local = Path(".env.local.example").read_text()
         local_env_example = Path("infrastructure/local/.env.example").read_text()
         self.assertIn("Baseline local runtime defaults", env_local)
         self.assertIn("Hosted-like local overrides", env_local)

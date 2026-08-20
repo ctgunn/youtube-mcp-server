@@ -94,9 +94,16 @@ python3 -m pip install --upgrade pip
 python3 -m pip install -e '.[dev]'
 ```
 
-### 4. Review the local environment file
+### 4. Create and review the local environment file
 
-The local runtime path reads defaults from `.env.local`.
+The local runtime path reads defaults from the ignored `.env.local` file. Create
+it from the committed, secret-free template before your first local start:
+
+```bash
+cp .env.local.example .env.local
+```
+
+Set any local credentials only in `.env.local`; do not commit that file.
 
 For the first run, the important ideas are:
 
