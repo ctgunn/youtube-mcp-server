@@ -67,8 +67,12 @@ from mcp_server.deploy import (
     merge_deployment_values,
     deployment_input_from_mapping,
     execute_deploy_command,
+    release_provenance_from_mapping,
     serialize_deployment_run,
+    validate_release_provenance,
+    write_release_provenance,
 )
+from dataclasses import replace
 import json
 import os
 import sys
@@ -81,11 +85,28 @@ if infra_outputs_file:
         iac_outputs_to_mapping(load_iac_outputs_file(infra_outputs_file)),
         values,
     )
+provenance_file = values.get("RELEASE_PROVENANCE_FILE", "").strip()
+provenance = None
+if provenance_file:
+    provenance = release_provenance_from_mapping(values)
+    provenance_failures = validate_release_provenance(provenance)
+    if provenance_failures:
+        print(
+            "Release provenance validation failed: "
+            + "; ".join(provenance_failures),
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 settings = deployment_input_from_mapping(values)
 record = execute_deploy_command(
     settings,
     gcloud_bin=os.environ.get("GCLOUD_BIN", "gcloud"),
 )
+if provenance is not None:
+    write_release_provenance(
+        provenance_file,
+        replace(provenance, deployment_revision=record.revision_name),
+    )
 payload = json.dumps(serialize_deployment_run(record))
 output_path = values.get("DEPLOYMENT_RECORD_FILE", "").strip()
 if output_path:

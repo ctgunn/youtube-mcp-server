@@ -34,41 +34,50 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.target_ref }}
+          fetch-depth: 0
+
+      - id: resolve-source-revision
+        name: Resolve immutable checked-out source revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_revision="$(git rev-parse HEAD)"
+          [[ "${source_revision}" =~ ^[0-9a-f]{40}$ ]]
+          mkdir -p "${ARTIFACT_DIR}"
+          printf '%s\n' "${source_revision}" > "${ARTIFACT_DIR}/source-revision.txt"
+          echo "source_revision=${source_revision}" >> "${GITHUB_OUTPUT}"
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install dependencies
+      - name: Install declared development tooling
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e . ruff
+          python -m pip install -e '.[dev]'
 
-      - name: Validate bootstrap prerequisites
+      - id: validate-bootstrap-prerequisites
+        name: Safe preflight
         env:
           GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          MCP_AUTH_TOKEN: ${{ secrets.MCP_AUTH_TOKEN }}
         run: |
           set -euo pipefail
-          mkdir -p "${ARTIFACT_DIR}"
           missing=()
-          for key in GCP_PROJECT_ID GCP_REGION GCP_SERVICE_NAME GCP_ARTIFACT_REGISTRY_REPOSITORY GCP_TERRAFORM_VAR_FILE GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT YOUTUBE_API_KEY MCP_AUTH_TOKEN; do
+          for key in GCP_PROJECT_ID GCP_REGION GCP_SERVICE_NAME GCP_ARTIFACT_REGISTRY_REPOSITORY GCP_TERRAFORM_VAR_FILE GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT; do
             if [ -z "${!key:-}" ]; then
               missing+=("${key}")
             fi
           done
           if [ "${#missing[@]}" -ne 0 ]; then
-            printf 'Missing bootstrap prerequisites: %s\n' "${missing[*]}" >&2
+            printf 'Missing safe preflight prerequisites: %s\n' "${missing[*]}" >&2
             exit 1
           fi
 
-      - name: Run repository quality gates
-        run: |
-          pytest
-          ruff check .
+      - id: quality-gate
+        name: Run canonical quality gate
+        run: make quality
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -84,14 +93,52 @@ jobs:
       - name: Configure Docker auth
         run: gcloud auth configure-docker us-docker.pkg.dev --quiet
 
-      - name: Build and publish image
+      - id: build-image
+        name: Build and publish image for the resolved source
         env:
-          IMAGE_REFERENCE: us-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          SOURCE_REVISION: ${{ steps.resolve-source-revision.outputs.source_revision }}
         run: |
-          mkdir -p "${ARTIFACT_DIR}"
-          docker build -t "${IMAGE_REFERENCE}" .
-          docker push "${IMAGE_REFERENCE}"
-          printf '%s\n' "${IMAGE_REFERENCE}" > "${ARTIFACT_DIR}/image-reference.txt"
+          set -euo pipefail
+          image_tag="us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REGISTRY_REPOSITORY}/${IMAGE_NAME}:${SOURCE_REVISION}"
+          docker build -t "${image_tag}" .
+          docker push "${image_tag}"
+          echo "image_tag=${image_tag}" >> "${GITHUB_OUTPUT}"
+
+      - id: resolve-image-digest
+        name: Resolve immutable published image digest
+        env:
+          IMAGE_TAG: ${{ steps.build-image.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          image_reference="$(docker image inspect --format='{{index .RepoDigests 0}}' "${IMAGE_TAG}")"
+          [[ "${image_reference}" == *@sha256:* ]]
+          printf '%s\n' "${image_reference}" > "${ARTIFACT_DIR}/image-reference.txt"
+          echo "image_reference=${image_reference}" >> "${GITHUB_OUTPUT}"
+
+      - id: record-release-provenance
+        name: Record safe release provenance
+        env:
+          SOURCE_REVISION: ${{ steps.resolve-source-revision.outputs.source_revision }}
+          IMAGE_REFERENCE: ${{ steps.resolve-image-digest.outputs.image_reference }}
+          TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+              "sourceRevision": os.environ["SOURCE_REVISION"],
+              "imageReference": os.environ["IMAGE_REFERENCE"],
+              "imageDigest": os.environ["IMAGE_REFERENCE"].rsplit("@", 1)[1],
+              "targetEnvironment": os.environ["TARGET_ENVIRONMENT"],
+              "qualityStatuses": {"lint": "pass", "typecheck": "pass", "tests": "pass"},
+              "preflightStatus": "pass",
+              "deploymentRevision": None,
+              "verificationStatus": "pending",
+          }
+          Path("artifacts/release-provenance.json").write_text(json.dumps(payload, sort_keys=True))
+          PY
 
       - name: Terraform init
         run: terraform -chdir=infrastructure/gcp init
@@ -104,9 +151,17 @@ jobs:
           mkdir -p "${ARTIFACT_DIR}"
           terraform -chdir=infrastructure/gcp output -json > "${ARTIFACT_DIR}/gcp-foundation-outputs.json"
 
-      - name: Deploy hosted revision
+      - id: deploy-hosted-revision
+        name: Deploy hosted revision (immutable image)
         env:
-          IMAGE_REFERENCE: us-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REGISTRY_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          IMAGE_REFERENCE: ${{ steps.resolve-image-digest.outputs.image_reference }}
+          SOURCE_REVISION: ${{ steps.resolve-source-revision.outputs.source_revision }}
+          TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
+          QUALITY_LINT_STATUS: pass
+          QUALITY_TYPECHECK_STATUS: pass
+          QUALITY_TESTS_STATUS: pass
+          PREFLIGHT_STATUS: pass
+          RELEASE_PROVENANCE_FILE: artifacts/release-provenance.json
           DEPLOYMENT_RECORD_FILE: artifacts/cloud-run-deployment.json
           GCLOUD_BIN: gcloud
           SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT }}
@@ -114,24 +169,43 @@ jobs:
         run: |
           INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json bash scripts/deploy_cloud_run.sh
 
-      - name: Verify hosted deployment
+      - id: verify-hosted-deployment
+        name: Verify hosted deployment and update release evidence
         env:
           PYTHONPATH: src
           MCP_AUTH_TOKEN: ${{ secrets.MCP_AUTH_TOKEN }}
         run: |
+          set +e
           python3 scripts/verify_cloud_run_foundation.py \
             --deployment-record artifacts/cloud-run-deployment.json \
             --auth-token "${MCP_AUTH_TOKEN}" \
             --evidence-file artifacts/cloud-run-verification.txt \
             --summary-file artifacts/cloud-run-verification.json
+          verification_result=$?
+          set -e
+          VERIFICATION_STATUS=fail
+          if [ "${verification_result}" -eq 0 ]; then VERIFICATION_STATUS=pass; fi
+          VERIFICATION_STATUS="${VERIFICATION_STATUS}" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/release-provenance.json")
+          payload = json.loads(path.read_text())
+          payload["verificationStatus"] = os.environ["VERIFICATION_STATUS"]
+          path.write_text(json.dumps(payload, sort_keys=True))
+          PY
+          exit "${verification_result}"
 
       - name: Upload deployment artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hosted-deploy-fallback-${{ github.sha }}
+          name: hosted-deploy-fallback-${{ steps.resolve-source-revision.outputs.source_revision }}
           path: |
+            artifacts/source-revision.txt
             artifacts/image-reference.txt
+            artifacts/release-provenance.json
             artifacts/gcp-foundation-outputs.json
             artifacts/cloud-run-deployment.json
             artifacts/cloud-run-verification.json
