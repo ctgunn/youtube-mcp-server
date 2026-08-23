@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -351,6 +352,121 @@ WORKFLOW_STAGE_ORDER = (
     "deploy",
     "hosted_verification",
 )
+
+
+QUALITY_STATUS_VALUES = frozenset({"pending", "pass", "fail", "cancelled", "missing"})
+REQUIRED_QUALITY_CHECKS = ("lint", "typecheck", "tests")
+_FULL_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+_IMAGE_DIGEST_PATTERN = re.compile(r"@sha256:[0-9a-f]{64}$")
+
+
+@dataclass(frozen=True)
+class ReleaseProvenance:
+    """Capture safe immutable source-to-deployment release evidence.
+
+    The record deliberately stores secret reference names nowhere: its fields
+    are limited to source, image, target, quality, and deployment outcomes.
+    """
+
+    source_revision: str
+    image_reference: str
+    target_environment: str
+    quality_statuses: Mapping[str, str]
+    preflight_status: str
+    deployment_revision: str | None = None
+    verification_status: str = "pending"
+
+
+def validate_release_provenance(
+    provenance: ReleaseProvenance,
+    *,
+    expected_source_revision: str | None = None,
+) -> tuple[str, ...]:
+    """Return eligibility failures for a safe release-provenance record.
+
+    :param provenance: Immutable release identity and gate statuses to check.
+    :param expected_source_revision: Optional checkout SHA that must match.
+    :return: Human-safe category failures; never secret values.
+    """
+    failures: list[str] = []
+    source_revision = provenance.source_revision.strip()
+    if not _FULL_SHA_PATTERN.fullmatch(source_revision):
+        failures.append("source_revision must be a full lowercase commit SHA")
+    if expected_source_revision and source_revision != expected_source_revision.strip():
+        failures.append("source_revision does not match the resolved checkout")
+    if not _IMAGE_DIGEST_PATTERN.search(provenance.image_reference.strip()):
+        failures.append("image_reference must be qualified by an immutable sha256 digest")
+    if not provenance.target_environment.strip():
+        failures.append("target_environment is required")
+    for check_name in REQUIRED_QUALITY_CHECKS:
+        status = provenance.quality_statuses.get(check_name, "missing")
+        if status not in QUALITY_STATUS_VALUES:
+            failures.append(f"{check_name} has an invalid quality status")
+        elif status != "pass":
+            failures.append(f"{check_name} quality status is {status}")
+    if provenance.preflight_status != "pass":
+        failures.append("preflight status is not pass")
+    if provenance.verification_status not in QUALITY_STATUS_VALUES:
+        failures.append("verification status is invalid")
+    return tuple(failures)
+
+
+def serialize_release_provenance(provenance: ReleaseProvenance) -> dict[str, object]:
+    """Serialize non-secret provenance into the release artifact contract.
+
+    :param provenance: The release evidence to serialize.
+    :return: JSON-safe provenance data without configuration or credential values.
+    """
+    image_reference = provenance.image_reference.strip()
+    image_digest = image_reference.rsplit("@", maxsplit=1)[-1] if "@" in image_reference else ""
+    return {
+        "sourceRevision": provenance.source_revision.strip(),
+        "imageReference": image_reference,
+        "imageDigest": image_digest,
+        "targetEnvironment": provenance.target_environment.strip(),
+        "qualityStatuses": {
+            check_name: provenance.quality_statuses.get(check_name, "missing")
+            for check_name in REQUIRED_QUALITY_CHECKS
+        },
+        "preflightStatus": provenance.preflight_status,
+        "deploymentRevision": provenance.deployment_revision,
+        "verificationStatus": provenance.verification_status,
+    }
+
+
+def release_provenance_from_mapping(values: Mapping[str, object]) -> ReleaseProvenance:
+    """Build release provenance from environment-style safe workflow values.
+
+    :param values: Non-secret source, image, environment, and status values.
+    :return: The normalized release-provenance record.
+    """
+    return ReleaseProvenance(
+        source_revision=str(values.get("SOURCE_REVISION", "")).strip(),
+        image_reference=str(values.get("IMAGE_REFERENCE", "")).strip(),
+        target_environment=str(values.get("TARGET_ENVIRONMENT", values.get("MCP_ENVIRONMENT", ""))).strip(),
+        quality_statuses={
+            check_name: str(values.get(f"QUALITY_{check_name.upper()}_STATUS", "missing")).strip()
+            for check_name in REQUIRED_QUALITY_CHECKS
+        },
+        preflight_status=str(values.get("PREFLIGHT_STATUS", "missing")).strip(),
+        deployment_revision=str(values.get("DEPLOYMENT_REVISION", "")).strip() or None,
+        verification_status=str(values.get("VERIFICATION_STATUS", "pending")).strip(),
+    )
+
+
+def write_release_provenance(path: str | Path, provenance: ReleaseProvenance) -> None:
+    """Write validated non-secret release provenance to a JSON artifact.
+
+    :param path: Artifact destination controlled by the release workflow.
+    :param provenance: Release evidence that must already be eligible to deploy.
+    :raises ValueError: If immutable source, image, or gate evidence is invalid.
+    """
+    failures = validate_release_provenance(provenance)
+    if failures:
+        raise ValueError("; ".join(failures))
+    artifact_path = Path(path)
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_path.write_text(json.dumps(serialize_release_provenance(provenance), sort_keys=True))
 
 
 @dataclass(frozen=True)

@@ -94,6 +94,47 @@ class CloudRunDeploymentAssetsIntegrationTests(unittest.TestCase):
         self.assertEqual(stdout_payload["revisionName"], file_payload["revisionName"])
         self.assertEqual(file_payload["serviceUrl"], "https://example-service.run.app")
 
+    def test_deploy_script_persists_safe_digest_qualified_release_provenance(self):
+        """Require deployment to attach its revision to eligible release evidence.
+
+        :return: ``None`` after validating the safe provenance artifact handoff.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_gcloud = Path(tmp) / "fake-gcloud"
+            fake_gcloud.write_text(
+                "#!/usr/bin/env bash\n"
+                "printf '%s' '{\"status\":{\"latestReadyRevisionName\":\"youtube-mcp-server-00008\",\"url\":\"https://example-service.run.app\"}}'\n"
+            )
+            fake_gcloud.chmod(0o755)
+            provenance = Path(tmp) / "release-provenance.json"
+            env = self._env(str(fake_gcloud))
+            env.update(
+                {
+                    "IMAGE_REFERENCE": "us-docker.pkg.dev/project/app/image@sha256:" + "b" * 64,
+                    "SOURCE_REVISION": "a" * 40,
+                    "TARGET_ENVIRONMENT": "staging",
+                    "QUALITY_LINT_STATUS": "pass",
+                    "QUALITY_TYPECHECK_STATUS": "pass",
+                    "QUALITY_TESTS_STATUS": "pass",
+                    "PREFLIGHT_STATUS": "pass",
+                    "RELEASE_PROVENANCE_FILE": str(provenance),
+                }
+            )
+            completed = subprocess.run(
+                ["bash", "scripts/deploy_cloud_run.sh"],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+
+            payload = json.loads(provenance.read_text())
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(payload["sourceRevision"], "a" * 40)
+        self.assertEqual(payload["imageDigest"], "sha256:" + "b" * 64)
+        self.assertEqual(payload["deploymentRevision"], "youtube-mcp-server-00008")
+        self.assertNotIn("MCP_AUTH_TOKEN", str(payload))
+
     def test_docker_assets_include_required_patterns(self):
         dockerfile = Path("Dockerfile").read_text()
         dockerignore = Path(".dockerignore").read_text()
@@ -104,9 +145,15 @@ class CloudRunDeploymentAssetsIntegrationTests(unittest.TestCase):
             self.assertIn(pattern, dockerignore)
 
     def test_workflow_asset_list_includes_deploy_and_verify_artifacts(self):
+        """Require both workflows to retain deployment evidence artifact paths.
+
+        :return: ``None`` after checking the supported deployment assets.
+        """
         workflow = Path(".github/workflows/hosted-deploy.yml").read_text()
         cloudbuild = Path("cloudbuild.yaml").read_text()
         for artifact in (
+            "artifacts/source-revision.txt",
+            "artifacts/release-provenance.json",
             "artifacts/gcp-foundation-outputs.json",
             "artifacts/cloud-run-deployment.json",
             "artifacts/cloud-run-verification.json",
