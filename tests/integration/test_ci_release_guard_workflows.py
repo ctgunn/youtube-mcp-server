@@ -32,3 +32,18 @@ class CiReleaseGuardWorkflowTests(unittest.TestCase):
             gate_end = content.index("quality-gate")
             image_start = content.index("build-image")
             self.assertLess(gate_end, image_start, workflow_path)
+
+    def test_release_workflows_target_the_configured_registry_region(self) -> None:
+        """Require each release path to derive its registry hostname from region.
+
+        :return: ``None`` after checking registry-host configuration.
+        :raises AssertionError: If a workflow targets a different registry location.
+        """
+        expected_hosts = {
+            Path("cloudbuild.yaml"): "${_GCP_REGION}-docker.pkg.dev",
+            Path(".github/workflows/hosted-deploy.yml"): "${GCP_REGION}-docker.pkg.dev",
+        }
+        for workflow_path, expected_host in expected_hosts.items():
+            content = workflow_path.read_text()
+            self.assertIn(expected_host, content, workflow_path)
+            self.assertNotIn("us-docker.pkg.dev", content, workflow_path)

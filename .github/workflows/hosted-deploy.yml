@@ -91,7 +91,7 @@ jobs:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
       - name: Configure Docker auth
-        run: gcloud auth configure-docker us-docker.pkg.dev --quiet
+        run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
 
       - id: build-image
         name: Build and publish image for the resolved source
@@ -99,7 +99,7 @@ jobs:
           SOURCE_REVISION: ${{ steps.resolve-source-revision.outputs.source_revision }}
         run: |
           set -euo pipefail
-          image_tag="us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REGISTRY_REPOSITORY}/${IMAGE_NAME}:${SOURCE_REVISION}"
+          image_tag="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REGISTRY_REPOSITORY}/${IMAGE_NAME}:${SOURCE_REVISION}"
           docker build -t "${image_tag}" .
           docker push "${image_tag}"
           echo "image_tag=${image_tag}" >> "${GITHUB_OUTPUT}"
