@@ -30,7 +30,7 @@ output "public_invocation_intent" {
 
 output "secret_reference_names" {
   description = "Secret references passed to scripts/deploy_cloud_run.sh."
-  value       = sort(keys(google_secret_manager_secret.runtime))
+  value       = var.secret_names
 }
 
 output "mcp_secret_access_mode" {
@@ -40,7 +40,7 @@ output "mcp_secret_access_mode" {
 
 output "mcp_secret_reference_names" {
   description = "Runtime secret reference names exposed to the hosted deployment workflow."
-  value       = sort(keys(google_secret_manager_secret.runtime))
+  value       = var.secret_names
 }
 
 output "mcp_auth_required" {
