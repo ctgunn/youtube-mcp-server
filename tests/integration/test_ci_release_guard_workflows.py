@@ -47,3 +47,15 @@ class CiReleaseGuardWorkflowTests(unittest.TestCase):
             content = workflow_path.read_text()
             self.assertIn(expected_host, content, workflow_path)
             self.assertNotIn("us-docker.pkg.dev", content, workflow_path)
+
+    def test_hosted_deploy_installs_terraform_before_invoking_it(self) -> None:
+        """Require the fallback runner to provision Terraform before its use.
+
+        :return: ``None`` after validating Terraform setup ordering.
+        :raises AssertionError: If the workflow invokes Terraform without setup.
+        """
+        workflow_path = Path(".github/workflows/hosted-deploy.yml")
+        content = workflow_path.read_text()
+        setup_start = content.index("hashicorp/setup-terraform@v3")
+        init_start = content.index("terraform -chdir=infrastructure/gcp init")
+        self.assertLess(setup_start, init_start, workflow_path)
