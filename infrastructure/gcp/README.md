@@ -85,8 +85,9 @@ These inputs are doing three jobs:
 
 ## Provisioning workflow
 
-1. Initialize Terraform:
-   `terraform -chdir=infrastructure/gcp init`
+1. Create a private, versioned GCS bucket for Terraform state and export its
+   name as `GCP_TERRAFORM_STATE_BUCKET`. Initialize Terraform with:
+   `terraform -chdir=infrastructure/gcp init -backend-config="bucket=${GCP_TERRAFORM_STATE_BUCKET}" -backend-config="prefix=youtube-mcp-server/staging"`
 2. Review the plan:
    `terraform -chdir=infrastructure/gcp plan -var-file=staging.tfvars`
 3. Apply the changes:
@@ -97,6 +98,12 @@ These inputs are doing three jobs:
 This workflow creates the infrastructure foundation first. It does not replace
 the application deployment step. After Terraform runs, you still deploy the
 current application image with `scripts/deploy_cloud_run.sh`.
+
+The GCS backend is shared state for authorized operators and deployment
+automation. Do not commit local `terraform.tfstate` files or grant the Cloud
+Run runtime service account access to the state bucket. Before adopting the
+backend from an existing local state file, make a backup and run `terraform init
+-migrate-state` with the same backend configuration.
 
 ## Terraform-managed hosted network layer
 
