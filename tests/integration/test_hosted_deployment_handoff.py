@@ -16,6 +16,21 @@ from mcp_server.deploy import (
 
 
 class HostedDeploymentHandoffIntegrationTests(unittest.TestCase):
+    def test_existing_secret_references_and_public_intent_survive_iac_handoff(self):
+        """Require Terraform-owned deployment values to win over shell fallbacks.
+
+        :return: ``None`` after validating handoff ownership markers.
+        :raises AssertionError: If existing secrets or public intent are lost.
+        """
+        outputs = Path("infrastructure/gcp/outputs.tf").read_text()
+        deploy_script = Path("scripts/deploy_cloud_run.sh").read_text()
+
+        self.assertEqual(outputs.count("value       = var.secret_names"), 2)
+        self.assertNotIn(
+            'export PUBLIC_INVOCATION_INTENT="${PUBLIC_INVOCATION_INTENT:-private_only}"',
+            deploy_script,
+        )
+
     def test_iac_outputs_can_drive_deploy_command_inputs(self):
         settings = deployment_input_from_iac_outputs(
             {
