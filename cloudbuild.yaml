@@ -61,7 +61,7 @@ steps:
     entrypoint: bash
     args:
       - -lc
-      - gcloud auth configure-docker us-docker.pkg.dev --quiet
+      - gcloud auth configure-docker "${_GCP_REGION}-docker.pkg.dev" --quiet
 
   - id: build-image
     name: gcr.io/cloud-builders/docker
@@ -71,7 +71,7 @@ steps:
       - |
         set -euo pipefail
         source_revision="$(cat artifacts/source-revision.txt)"
-        image_tag="us-docker.pkg.dev/${PROJECT_ID}/${_GCP_ARTIFACT_REGISTRY_REPOSITORY}/${_IMAGE_NAME}:${source_revision}"
+        image_tag="${_GCP_REGION}-docker.pkg.dev/${PROJECT_ID}/${_GCP_ARTIFACT_REGISTRY_REPOSITORY}/${_IMAGE_NAME}:${source_revision}"
         docker build -t "${image_tag}" .
         printf '%s\n' "${image_tag}" > artifacts/image-tag.txt
 
