@@ -59,3 +59,20 @@ class CiReleaseGuardWorkflowTests(unittest.TestCase):
         setup_start = content.index("hashicorp/setup-terraform@v3")
         init_start = content.index("terraform -chdir=infrastructure/gcp init")
         self.assertLess(setup_start, init_start, workflow_path)
+
+    def test_hosted_deploy_uses_remote_state_and_a_dedicated_deployer(self) -> None:
+        """Require GitHub deployment to use remote state and a non-runtime identity.
+
+        :return: ``None`` after checking state and identity handoff markers.
+        :raises AssertionError: If state or identity handling can cause unsafe drift.
+        """
+        workflow_path = Path(".github/workflows/hosted-deploy.yml")
+        content = workflow_path.read_text()
+        versions = Path("infrastructure/gcp/versions.tf").read_text()
+
+        self.assertIn("GCP_TERRAFORM_STATE_BUCKET", content)
+        self.assertIn('backend-config="bucket=${GCP_TERRAFORM_STATE_BUCKET}"', content)
+        self.assertIn('backend "gcs" {}', versions)
+        self.assertIn("GCP_DEPLOYER_SERVICE_ACCOUNT", content)
+        self.assertIn("service_account: ${{ secrets.GCP_DEPLOYER_SERVICE_ACCOUNT }}", content)
+        self.assertNotIn("SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT }}", content)

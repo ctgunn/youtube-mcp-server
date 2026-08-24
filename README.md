@@ -454,8 +454,18 @@ environment, including:
 Initialize Terraform:
 
 ```bash
-terraform -chdir=infrastructure/gcp init
+export GCP_TERRAFORM_STATE_BUCKET=YOUR_TERRAFORM_STATE_BUCKET
+terraform -chdir=infrastructure/gcp init \
+  -backend-config="bucket=${GCP_TERRAFORM_STATE_BUCKET}" \
+  -backend-config="prefix=youtube-mcp-server/staging"
 ```
+
+The bucket is private Terraform state storage, not application data. Create it
+before initialization with uniform bucket-level access and object versioning.
+Treat its contents as sensitive operational data and grant write access only to
+the dedicated deployment identity and authorized operators. If you already have
+local state, back it up and use `terraform init -migrate-state` with the same
+backend configuration before any plan or apply.
 
 Review the plan:
 
@@ -1098,14 +1108,15 @@ These one-time bootstrap inputs remain outside the recurring automated
 deployment run.
 
 - repository automation can authenticate to GCP through
-  `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`
+  `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOYER_SERVICE_ACCOUNT`; this
+  deployer identity is distinct from the Cloud Run runtime identity
 - repository variables provide `GCP_PROJECT_ID`, `GCP_REGION`,
   `GCP_SERVICE_NAME`, `GCP_ARTIFACT_REGISTRY_REPOSITORY`, and
-  `GCP_TERRAFORM_VAR_FILE`
+  `GCP_TERRAFORM_VAR_FILE`, plus `GCP_TERRAFORM_STATE_BUCKET`
 - the target environment already contains operator-managed secret values for
   `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`
-- the Artifact Registry repository and Terraform variable file already exist
-  for the target environment
+- the Artifact Registry repository, Terraform variable file, and versioned
+  private Terraform state bucket already exist for the target environment
 
 If any bootstrap prerequisite is missing, the workflow fails before it reports
 a hosted deployment result.

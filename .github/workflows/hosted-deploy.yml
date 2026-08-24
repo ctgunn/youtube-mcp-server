@@ -23,6 +23,7 @@ env:
   GCP_SERVICE_NAME: ${{ vars.GCP_SERVICE_NAME }}
   GCP_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY }}
   GCP_TERRAFORM_VAR_FILE: ${{ vars.GCP_TERRAFORM_VAR_FILE }}
+  GCP_TERRAFORM_STATE_BUCKET: ${{ vars.GCP_TERRAFORM_STATE_BUCKET }}
   IMAGE_NAME: youtube-mcp-server
   ARTIFACT_DIR: artifacts
 
@@ -61,11 +62,11 @@ jobs:
         name: Safe preflight
         env:
           GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          GCP_DEPLOYER_SERVICE_ACCOUNT: ${{ secrets.GCP_DEPLOYER_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
           missing=()
-          for key in GCP_PROJECT_ID GCP_REGION GCP_SERVICE_NAME GCP_ARTIFACT_REGISTRY_REPOSITORY GCP_TERRAFORM_VAR_FILE GCP_WORKLOAD_IDENTITY_PROVIDER GCP_SERVICE_ACCOUNT; do
+          for key in GCP_PROJECT_ID GCP_REGION GCP_SERVICE_NAME GCP_ARTIFACT_REGISTRY_REPOSITORY GCP_TERRAFORM_VAR_FILE GCP_TERRAFORM_STATE_BUCKET GCP_WORKLOAD_IDENTITY_PROVIDER GCP_DEPLOYER_SERVICE_ACCOUNT; do
             if [ -z "${!key:-}" ]; then
               missing+=("${key}")
             fi
@@ -83,7 +84,7 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SERVICE_ACCOUNT }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
@@ -144,7 +145,10 @@ jobs:
           PY
 
       - name: Terraform init
-        run: terraform -chdir=infrastructure/gcp init
+        run: |
+          terraform -chdir=infrastructure/gcp init -input=false \
+            -backend-config="bucket=${GCP_TERRAFORM_STATE_BUCKET}" \
+            -backend-config="prefix=youtube-mcp-server/${GCP_TERRAFORM_VAR_FILE%.tfvars}"
 
       - name: Reconcile managed network bootstrap and infrastructure
         run: terraform -chdir=infrastructure/gcp apply -auto-approve -var-file="${GCP_TERRAFORM_VAR_FILE}"
@@ -167,7 +171,6 @@ jobs:
           RELEASE_PROVENANCE_FILE: artifacts/release-provenance.json
           DEPLOYMENT_RECORD_FILE: artifacts/cloud-run-deployment.json
           GCLOUD_BIN: gcloud
-          SERVICE_ACCOUNT_EMAIL: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           MCP_AUTH_TOKEN: ${{ secrets.MCP_AUTH_TOKEN }}
         run: |
           INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json bash scripts/deploy_cloud_run.sh
