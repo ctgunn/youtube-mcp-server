@@ -104,6 +104,41 @@ output "mcp_session_replay_ttl_seconds" {
   value       = var.session_replay_ttl_seconds
 }
 
+output "mcp_rate_limit_identified_requests_per_minute" {
+  description = "Hosted identified-caller admission limit."
+  value       = var.rate_limit_identified_requests_per_minute
+}
+
+output "mcp_rate_limit_anonymous_requests_per_minute" {
+  description = "Hosted anonymous admission limit."
+  value       = var.rate_limit_anonymous_requests_per_minute
+}
+
+output "mcp_rate_limit_window_seconds" {
+  description = "Hosted admission window."
+  value       = var.rate_limit_window_seconds
+}
+
+output "mcp_result_cache_enabled" {
+  description = "Whether public result reuse is enabled."
+  value       = var.result_cache_enabled
+}
+
+output "mcp_result_cache_max_freshness_seconds" {
+  description = "Maximum public result reuse lifetime."
+  value       = var.result_cache_max_freshness_seconds
+}
+
+output "mcp_alerting_enabled" {
+  description = "Whether bounded alert state is enabled."
+  value       = var.alerting_enabled
+}
+
+output "mcp_hardening_alert_policy_ids" {
+  description = "Monitoring policy identifiers for bounded MCP incident alerts."
+  value       = google_monitoring_alert_policy.mcp_hardening_incident[*].name
+}
+
 output "min_instances" {
   description = "Minimum instance count."
   value       = var.min_instances

@@ -204,6 +204,7 @@ class HostedRuntimeSettings:
     secret_reference_names: tuple[str, ...]
     security: HostedSecuritySettings
     session: HostedSessionSettings
+    hardening: ProductionHardeningSettings
 
 
 @dataclass(frozen=True)
@@ -216,6 +217,74 @@ class HostedSessionSettings:
     session_ttl_seconds: int
     replay_ttl_seconds: int
     connectivity_model: str = "local_process"
+
+
+@dataclass(frozen=True)
+class RateLimitSettings:
+    """Store validated settings for public tool admission control.
+
+    :param identified_requests_per_minute: Per-credential/default caller limit.
+    :param anonymous_requests_per_minute: Conservative limit without identity.
+    :param window_seconds: Rolling policy window in seconds.
+    :param backend: State backend name.
+    :param store_url: Optional shared state connection URL.
+    """
+
+    identified_requests_per_minute: int = 60
+    anonymous_requests_per_minute: int = 10
+    window_seconds: int = 60
+    backend: str = "memory"
+    store_url: str | None = None
+
+
+@dataclass(frozen=True)
+class ResultCacheSettings:
+    """Store validated settings for safe public result reuse.
+
+    :param enabled: Whether eligible results may be reused.
+    :param backend: State backend name.
+    :param store_url: Optional shared state connection URL.
+    :param max_freshness_seconds: Maximum permitted entry freshness.
+    :param policy_version: Namespace/version boundary for entries.
+    """
+
+    enabled: bool = True
+    backend: str = "memory"
+    store_url: str | None = None
+    max_freshness_seconds: int = 300
+    policy_version: str = "v1"
+
+
+@dataclass(frozen=True)
+class AlertingSettings:
+    """Store validated bounded operational alerting settings.
+
+    :param enabled: Whether the evaluator emits incident state.
+    :param backend: State backend name.
+    :param store_url: Optional shared state connection URL.
+    :param minimum_sample_count: Requests required for one evaluation.
+    :param error_rate_percent: Error-rate threshold for an incident.
+    """
+
+    enabled: bool = False
+    backend: str = "memory"
+    store_url: str | None = None
+    minimum_sample_count: int = 20
+    error_rate_percent: int = 5
+
+
+@dataclass(frozen=True)
+class ProductionHardeningSettings:
+    """Group non-secret production-hardening settings for one runtime.
+
+    :param rate_limit: Admission-control configuration.
+    :param result_cache: Public result-reuse configuration.
+    :param alerting: Bounded alert-evaluator configuration.
+    """
+
+    rate_limit: RateLimitSettings
+    result_cache: ResultCacheSettings
+    alerting: AlertingSettings
 
 
 def _now_iso() -> str:
@@ -246,6 +315,73 @@ def _csv_values(env: Mapping[str, str], key: str) -> tuple[str, ...]:
     if raw is None:
         return ()
     return tuple(item for item in (part.strip() for part in raw.split(",")) if item)
+
+
+def _positive_int(env: Mapping[str, str], key: str, default: int, *, maximum: int | None = None) -> int:
+    """Read a bounded positive integer setting.
+
+    :param env: Environment mapping that supplies the value.
+    :param key: Environment key to read.
+    :param default: Value used for a blank setting.
+    :param maximum: Optional inclusive upper bound.
+    :return: Parsed positive value.
+    :raises ValueError: If the configured value is outside its bounds.
+    """
+    raw = _value(env, key)
+    value = default if raw is None else int(raw)
+    if value <= 0 or (maximum is not None and value > maximum):
+        raise ValueError(key)
+    return value
+
+
+def _hardening_backend(env: Mapping[str, str], key: str, default: str) -> str:
+    """Normalize one hardening state backend value.
+
+    :param env: Environment mapping that supplies the value.
+    :param key: Environment key to read.
+    :param default: Backend used when no explicit value is configured.
+    :return: ``memory`` or ``redis``.
+    :raises ValueError: If an unsupported backend is configured.
+    """
+    backend = (_value(env, key) or default).lower()
+    if backend not in {"memory", "redis"}:
+        raise ValueError(key)
+    return backend
+
+
+def load_production_hardening_settings(env: Mapping[str, str]) -> ProductionHardeningSettings:
+    """Load validated non-secret production-hardening settings.
+
+    :param env: Environment-style mapping to parse without mutation.
+    :return: Admission, result-cache, and alerting settings.
+    :raises ValueError: If a policy value is outside its safe bounds.
+    """
+    environment = _value(env, "MCP_ENVIRONMENT") or "dev"
+    session_url = _value(env, "MCP_SESSION_STORE_URL")
+    default_backend = "redis" if session_url and session_url.startswith("redis") else "memory"
+    return ProductionHardeningSettings(
+        rate_limit=RateLimitSettings(
+            identified_requests_per_minute=_positive_int(env, "MCP_RATE_LIMIT_IDENTIFIED_REQUESTS_PER_MINUTE", 60),
+            anonymous_requests_per_minute=_positive_int(env, "MCP_RATE_LIMIT_ANONYMOUS_REQUESTS_PER_MINUTE", 10),
+            window_seconds=_positive_int(env, "MCP_RATE_LIMIT_WINDOW_SECONDS", 60),
+            backend=_hardening_backend(env, "MCP_RATE_LIMIT_BACKEND", default_backend),
+            store_url=_value(env, "MCP_RATE_LIMIT_STORE_URL") or session_url,
+        ),
+        result_cache=ResultCacheSettings(
+            enabled=_bool_value(env, "MCP_RESULT_CACHE_ENABLED", default=True),
+            backend=_hardening_backend(env, "MCP_RESULT_CACHE_BACKEND", default_backend),
+            store_url=_value(env, "MCP_RESULT_CACHE_STORE_URL") or session_url,
+            max_freshness_seconds=_positive_int(env, "MCP_RESULT_CACHE_MAX_FRESHNESS_SECONDS", 300, maximum=300),
+            policy_version=_value(env, "MCP_RESULT_CACHE_POLICY_VERSION") or "v1",
+        ),
+        alerting=AlertingSettings(
+            enabled=_bool_value(env, "MCP_ALERTING_ENABLED", default=environment in {"staging", "prod"}),
+            backend=_hardening_backend(env, "MCP_ALERTING_BACKEND", default_backend),
+            store_url=_value(env, "MCP_ALERTING_STORE_URL") or session_url,
+            minimum_sample_count=_positive_int(env, "MCP_ALERTING_MINIMUM_SAMPLE_COUNT", 20),
+            error_rate_percent=_positive_int(env, "MCP_ALERTING_ERROR_RATE_PERCENT", 5, maximum=100),
+        ),
+    )
 
 
 def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSettings:
@@ -293,6 +429,7 @@ def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSetting
             session_ttl_seconds=session_ttl_seconds,
             replay_ttl_seconds=replay_ttl_seconds,
         ),
+        hardening=load_production_hardening_settings(env),
     )
 
 
@@ -333,6 +470,26 @@ def validate_runtime_config(env: Mapping[str, str]) -> StartupValidationResult:
                 failures.append(ValidationFailure(key, "must be a positive integer"))
         except ValueError:
             failures.append(ValidationFailure(key, "must be a positive integer"))
+
+    for key, default, maximum in (
+        ("MCP_RATE_LIMIT_IDENTIFIED_REQUESTS_PER_MINUTE", 60, None),
+        ("MCP_RATE_LIMIT_ANONYMOUS_REQUESTS_PER_MINUTE", 10, None),
+        ("MCP_RATE_LIMIT_WINDOW_SECONDS", 60, None),
+        ("MCP_RESULT_CACHE_MAX_FRESHNESS_SECONDS", 300, 300),
+        ("MCP_ALERTING_MINIMUM_SAMPLE_COUNT", 20, None),
+        ("MCP_ALERTING_ERROR_RATE_PERCENT", 5, 100),
+    ):
+        try:
+            _positive_int(env, key, default, maximum=maximum)
+        except (TypeError, ValueError):
+            failures.append(ValidationFailure(key, "must be a valid bounded hardening setting"))
+    session_url = _value(env, "MCP_SESSION_STORE_URL")
+    default_backend = "redis" if session_url and session_url.startswith("redis") else "memory"
+    for key in ("MCP_RATE_LIMIT_BACKEND", "MCP_RESULT_CACHE_BACKEND", "MCP_ALERTING_BACKEND"):
+        try:
+            _hardening_backend(env, key, default_backend)
+        except ValueError:
+            failures.append(ValidationFailure(key, "must be one of memory or redis"))
 
     return StartupValidationResult(
         is_valid=(len(failures) == 0),

@@ -20,6 +20,7 @@ DEFAULT_BROWSER_EXPOSED_RESPONSE_HEADERS = (
     "MCP-Session-Id",
     "MCP-Protocol-Version",
     "X-Stream-Id",
+    "MCP-Cache-Status",
 )
 
 MCP_APPLICATION_SECURITY_CATEGORIES = (
@@ -65,6 +66,18 @@ class CredentialEvaluation:
     token_state: str
     environment_scope: str | None
     safe_fingerprint: str | None = None
+
+
+@dataclass(frozen=True)
+class HardeningCallerIdentity:
+    """Describe the safe internal caller bucket used by hardening policies.
+
+    :param key: Non-secret internal bucket key.
+    :param identified: Whether a validated credential supplied the key.
+    """
+
+    key: str
+    identified: bool
 
 
 @dataclass(frozen=True)
@@ -335,6 +348,22 @@ def evaluate_credential(
         environment_scope=environment,
         safe_fingerprint=_fingerprint(token),
     )
+
+
+def resolve_hardening_caller_identity(
+    request_headers: Mapping[str, str], settings: HostedSecuritySettings, *, environment: str
+) -> HardeningCallerIdentity:
+    """Resolve a credential-safe admission bucket for one hosted request.
+
+    :param request_headers: Normalized request headers after security checks.
+    :param settings: Hosted authentication settings.
+    :param environment: Runtime environment used during credential evaluation.
+    :return: Validated credential fingerprint bucket or anonymous bucket.
+    """
+    credential = evaluate_credential(request_headers, settings, environment=environment)
+    if credential.token_state == "valid" and credential.safe_fingerprint:
+        return HardeningCallerIdentity(key=f"credential:{credential.safe_fingerprint}", identified=True)
+    return HardeningCallerIdentity(key="anonymous", identified=False)
 
 
 def evaluate_security_request(

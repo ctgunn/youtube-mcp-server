@@ -13,6 +13,7 @@ from mcp_server.config import (
     load_hosted_runtime_settings,
     load_youtube_live_runtime_settings,
 )
+from mcp_server.hardening import build_hardening_dependencies
 from mcp_server.health import initialize_runtime_lifecycle
 from mcp_server.transport.http import MCPHTTPTransport
 
@@ -63,6 +64,7 @@ def create_app(
     """
     runtime_env = dict(os.environ if env is None else env)
     runtime_settings = load_hosted_runtime_settings(runtime_env)
+    hardening = build_hardening_dependencies(runtime_settings.hardening)
     youtube_runtime_settings = load_youtube_live_runtime_settings(runtime_env)
     try:
         validation = ensure_runtime_config(runtime_env)
@@ -82,4 +84,5 @@ def create_app(
         runtime_stderr=runtime_stderr,
         youtube_runtime_settings=youtube_runtime_settings,
         youtube_opener=youtube_opener,
+        hardening=hardening,
     )

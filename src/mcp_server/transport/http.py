@@ -180,6 +180,7 @@ class MCPHTTPTransport:
         youtube_runtime: ConfiguredYouTubeRuntime | None = None,
         youtube_runtime_settings: YouTubeLiveRuntimeSettings | None = None,
         youtube_opener: Callable[..., Any] | None = None,
+        hardening=None,
     ):
         """Initialize the local in-process transport facade.
 
@@ -194,8 +195,10 @@ class MCPHTTPTransport:
         :param youtube_runtime: Optional explicit live runtime dependency.
         :param youtube_runtime_settings: Optional settings used to build the configured live runtime.
         :param youtube_opener: Optional controlled opener for tests or local development.
+        :param hardening: Optional validated internal production-hardening dependencies.
         """
         self.observability = InMemoryObservability(runtime_stdout=runtime_stdout, runtime_stderr=runtime_stderr)
+        self.hardening = hardening
         selected_youtube_runtime = youtube_runtime
         if selected_youtube_runtime is None and youtube_runtime_settings is not None:
             selected_youtube_runtime = build_configured_youtube_runtime(
@@ -206,6 +209,7 @@ class MCPHTTPTransport:
         self.dispatcher = dispatcher or InMemoryToolDispatcher(
             server_metadata=server_metadata,
             youtube_runtime=selected_youtube_runtime,
+            result_cache=getattr(hardening, "result_cache", None),
         )
         session_settings = runtime_settings.session if runtime_settings is not None else None
         self.stream_manager = (
@@ -271,6 +275,11 @@ class MCPHTTPTransport:
             if isinstance(mcp_payload, dict) and not mcp_payload.get("id"):
                 mcp_payload = {**mcp_payload, "id": context.request_id}
             response = route_mcp_request(mcp_payload, self.dispatcher)
+            if context.method_name == "tools/call":
+                self.observability.emit_hardening_event(
+                    "result_cache",
+                    {"status": getattr(self.dispatcher, "last_cache_status", "bypass")},
+                )
 
         outcome = "success"
         if isinstance(response, dict) and ("error" in response or response.get("status") == "not_ready"):
@@ -281,6 +290,26 @@ class MCPHTTPTransport:
             outcome=outcome,
             latency_ms=(perf_counter() - started_at) * 1000.0,
         )
+        if (
+            path == "/mcp"
+            and context.method_name == "tools/call"
+            and self.hardening is not None
+        ):
+            category = response.get("error", {}).get("data", {}).get("category") if isinstance(response, dict) else None
+            hardening_outcome = (
+                "upstream_failure"
+                if category in {"unavailable_source", "resource_missing"}
+                else "service_failure"
+                if outcome == "error"
+                else "success"
+            )
+            tool_class = "transcript_heavy" if any(token in (context.tool_name or "").lower() for token in ("transcript", "caption")) else "simple_cached"
+            for incident in self.hardening.alert_evaluator.observe(
+                tool_class,
+                hardening_outcome,
+                (perf_counter() - started_at) * 1000.0,
+            ):
+                self.observability.emit_hardening_event("alert_incident", incident)
         return response
 
     def queue_server_event(self, session_id: str, payload: dict) -> None:

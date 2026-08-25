@@ -23,6 +23,7 @@ from mcp_server.security import (
     browser_response_headers,
     evaluate_browser_preflight,
     evaluate_security_request,
+    resolve_hardening_caller_identity,
 )
 from mcp_server.transport.http import (
     JSON_CONTENT_TYPE,
@@ -541,6 +542,37 @@ def execute_hosted_request(
             ),
         )
 
+    if request_method == "tools/call" and getattr(transport, "hardening", None) is not None:
+        identity = resolve_hardening_caller_identity(
+            request_headers,
+            security_settings,
+            environment=transport.runtime_settings.environment,
+        )
+        decision = transport.hardening.rate_limiter.admit(identity.key, identified=identity.identified)
+        transport.observability.emit_hardening_event(
+            "admission",
+            {"decision": "accepted" if decision.accepted else "rejected", "callerClass": decision.caller_class},
+        )
+        if not decision.accepted:
+            response = _request_error(
+                "rate_limited",
+                "Too many requests. Retry after the indicated delay.",
+                request_id=payload.get("id"),
+                details={"retryable": True, "retryAfterSeconds": decision.retry_after_seconds},
+            )
+            extra_headers = _combine_headers(
+                allowed_browser_headers,
+                {
+                    MCP_SESSION_ID_HEADER: session_id,
+                    MCP_PROTOCOL_VERSION_HEADER: protocol_version,
+                    "Retry-After": str(decision.retry_after_seconds),
+                    "MCP-Cache-Status": "bypass",
+                },
+            )
+            stream, events = transport.stream_manager.build_post_response_stream(session_id, str(payload.get("id")), response)
+            extra_headers["X-Stream-Id"] = stream.stream_id
+            return _sse_result(200, encode_sse(events), extra_headers=extra_headers)
+
     response = transport.handle(path, payload)
     extra_headers = _combine_headers(
         allowed_browser_headers,
@@ -550,6 +582,7 @@ def execute_hosted_request(
         },
     )
     if request_method == "tools/call":
+        extra_headers["MCP-Cache-Status"] = getattr(transport.dispatcher, "last_cache_status", "bypass")
         stream, events = transport.stream_manager.build_post_response_stream(session_id, str(payload.get("id")), response)
         extra_headers["X-Stream-Id"] = stream.stream_id
         return _sse_result(200, encode_sse(events), extra_headers=extra_headers)

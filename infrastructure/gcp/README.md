@@ -255,6 +255,22 @@ at runtime if:
 - the session durability mode says shared state is required but the platform is
   not actually providing it
 
+## Production hardening alerts
+
+OPS-402 creates bounded application incident metrics and a Monitoring alert
+policy when `alerting_enabled` is true. Before applying Terraform, an operator
+must create and verify the intended Monitoring notification channel outside this
+repository, then supply its resource identifier through
+`alert_notification_channel_ids`. Do not put a webhook, chat token, or email
+secret in Cloud Run environment variables or Terraform state.
+
+The standard `hosted-deploy` workflow reconciles these Terraform resources,
+deploys the application image, and runs hosted verification. Use a
+non-production channel to exercise a sustained incident before enabling a new
+production channel. The alert policy emits one open incident per bounded
+condition; the application holds recovery until 15 minutes of normal eligible
+observations.
+
 ## Public invocation intent
 
 - Set `public_invocation_intent=public_remote_mcp` when the environment is intended for trusted public remote MCP consumers.

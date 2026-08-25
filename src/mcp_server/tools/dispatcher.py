@@ -153,7 +153,7 @@ def normalize_tool_name(name: str) -> str:
 class InMemoryToolDispatcher:
     """Maintain an in-memory registry of MCP tools and handlers."""
 
-    def __init__(self, tools=None, server_metadata=None, youtube_runtime: ConfiguredYouTubeRuntime | None = None):
+    def __init__(self, tools=None, server_metadata=None, youtube_runtime: ConfiguredYouTubeRuntime | None = None, result_cache=None):
         """Initialize the dispatcher with baseline or caller-provided tools.
 
         :param tools: Optional explicit registry entries used by tests.
@@ -163,6 +163,8 @@ class InMemoryToolDispatcher:
         self._tools: dict[str, dict[str, Any]] = {}
         self._server_metadata = self._normalize_server_metadata(server_metadata)
         self._youtube_runtime = youtube_runtime
+        self._result_cache = result_cache
+        self.last_cache_status = "bypass"
 
         initial_tools = tools if tools is not None else self._baseline_tool_definitions()
 
@@ -584,7 +586,14 @@ class InMemoryToolDispatcher:
                 raise ValueError(f"arguments must satisfy one of the required combinations: {', '.join(required_sets)}")
 
     def call_tool(self, tool_name: str, arguments=None):
-        """Validate and invoke a registered tool handler."""
+        """Validate and invoke a registered tool handler.
+
+        :param tool_name: Public tool name selected by an MCP caller.
+        :param arguments: Optional JSON-compatible invocation arguments.
+        :return: Cached or freshly evaluated handler result.
+        :raises KeyError: If no registered tool has the supplied name.
+        :raises ValueError: If arguments do not satisfy the tool schema.
+        """
         arguments = arguments or {}
         if not isinstance(arguments, dict):
             raise ValueError("arguments must be an object")
@@ -599,7 +608,19 @@ class InMemoryToolDispatcher:
             raise RuntimeError("Tool handler missing")
 
         self._validate_arguments(entry.get("validationInputSchema", entry.get("inputSchema", {})), arguments)
-        return handler(arguments)
+        if self._result_cache is not None:
+            cached = self._result_cache.get(entry["name"], arguments)
+            if cached is not None:
+                self.last_cache_status = "hit"
+                return cached
+            self.last_cache_status = self._result_cache.status_for(entry["name"], arguments)
+        else:
+            self.last_cache_status = "bypass"
+        result = handler(arguments)
+        if self._result_cache is not None:
+            self._result_cache.put(entry["name"], arguments, result)
+            self._result_cache.invalidate_related(entry["name"])
+        return result
 
     def _server_ping_payload(self):
         """Build the payload returned by the built-in ping tool."""

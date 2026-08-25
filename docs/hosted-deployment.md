@@ -8,6 +8,14 @@ and Terraform-managed networking.
 For Terraform inputs, resource topology, recovery commands, and provider
 details, use the [GCP infrastructure README](../infrastructure/gcp/README.md).
 
+## Production hardening inputs
+
+The same `hosted-deploy` workflow deploys OPS-402. Before production rollout,
+review the Terraform variables for rate limits, public-result reuse, and
+`alerting_enabled`; supply only pre-verified Monitoring resource identifiers in
+`alert_notification_channel_ids`. Notification endpoint values and verification
+remain operator-managed and must not be injected into the application runtime.
+
 ## One-time bootstrap prerequisites
 
 Before the first deployment, an operator must create or configure:

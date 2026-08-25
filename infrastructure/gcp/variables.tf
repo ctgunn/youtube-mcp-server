@@ -135,6 +135,60 @@ variable "session_connectivity_model" {
   default     = "direct_vpc_egress"
 }
 
+variable "hardening_backend" {
+  description = "Shared backend used by hosted admission, cache, and alert state."
+  type        = string
+  default     = "redis"
+}
+
+variable "rate_limit_identified_requests_per_minute" {
+  description = "Default identified-caller public tool invocation limit."
+  type        = number
+  default     = 60
+}
+
+variable "rate_limit_anonymous_requests_per_minute" {
+  description = "Default anonymous public tool invocation limit."
+  type        = number
+  default     = 10
+}
+
+variable "rate_limit_window_seconds" {
+  description = "Rolling admission window in seconds."
+  type        = number
+  default     = 60
+}
+
+variable "result_cache_enabled" {
+  description = "Whether explicitly eligible public results may be reused."
+  type        = bool
+  default     = true
+}
+
+variable "result_cache_max_freshness_seconds" {
+  description = "Maximum public result-cache freshness, capped at five minutes."
+  type        = number
+  default     = 300
+}
+
+variable "alerting_enabled" {
+  description = "Whether bounded application alert state is emitted."
+  type        = bool
+  default     = true
+}
+
+variable "alert_notification_channel_ids" {
+  description = "Pre-verified operator-managed Monitoring notification channel resource identifiers."
+  type        = list(string)
+  default     = []
+}
+
+variable "alert_runbook_url" {
+  description = "Safe operator runbook URL included in alert documentation."
+  type        = string
+  default     = "https://example.invalid/youtube-mcp-server/runbook"
+}
+
 variable "managed_network_name" {
   description = "Optional override for the Terraform-managed VPC network name used by the hosted durable-session path."
   type        = string
