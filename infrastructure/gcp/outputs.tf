@@ -80,13 +80,13 @@ output "mcp_session_network_reference" {
 }
 
 output "mcp_session_subnet_reference" {
-  description = "Terraform-managed subnet reference used by the hosted durable-session path."
-  value       = google_compute_subnetwork.hosted.id
+  description = "Terraform-managed Direct VPC egress subnet reference used by the hosted durable-session path."
+  value       = google_compute_subnetwork.direct_vpc_egress.id
 }
 
-output "mcp_session_connector_reference" {
-  description = "Terraform-managed Cloud Run connectivity resource reference for the durable-session path."
-  value       = google_vpc_access_connector.cloud_run.id
+output "mcp_session_egress_reference" {
+  description = "Terraform-managed Direct VPC egress resource reference for the durable-session path."
+  value       = google_compute_subnetwork.direct_vpc_egress.id
 }
 
 output "mcp_session_durability_required" {

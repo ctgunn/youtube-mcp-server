@@ -420,7 +420,7 @@ defaults unless you need to tune behavior:
 - `MCP_SESSION_CONNECTIVITY_MODEL`: provider-specific connectivity path to the
   session backend. Common values:
   `local_process` for local-only execution,
-  `serverless_vpc_connector` for the hosted GCP durable-session path.
+  `direct_vpc_egress` for the hosted GCP durable-session path.
 - `MCP_SESSION_DURABILITY_REQUIRED`: boolean flag indicating whether hosted
   deployment should require durable sessions.
 - `MCP_SESSION_TTL_SECONDS`: hosted session lifetime in seconds.
@@ -447,7 +447,7 @@ environment, including:
 - service name and environment
 - public invocation intent
 - allowed origins
-- managed VPC, subnet, and VPC connector names/CIDRs for durable sessions
+- managed VPC, subnet, and Direct VPC egress subnet names/CIDRs for durable sessions
 
 ### 7. Provision the hosted infrastructure
 
@@ -849,7 +849,7 @@ read-back require authorized administrator access and are external prerequisites
 - `MCP_SECRET_ACCESS_MODE` documents how the hosted runtime receives secret-backed configuration.
 - `MCP_SECRET_REFERENCE_NAMES` records the secret references expected to be available to the hosted runtime.
 - `MCP_SESSION_CONNECTIVITY_MODEL` documents the provider-specific connectivity path used to reach the durable session backend.
-- The Terraform-managed hosted network layer now provisions the VPC network, subnet, and session connector reference used by the supported GCP durable-session path.
+- The Terraform-managed hosted network layer now provisions the VPC network, dedicated Direct VPC egress subnet, and session egress reference used by the supported GCP durable-session path.
 - `MCP_SESSION_DURABILITY_REQUIRED` forces `/ready` to fail unless a healthy shared session backend is available.
 - `MCP_SESSION_TTL_SECONDS` controls how long an inactive hosted session remains reusable.
 
@@ -921,7 +921,7 @@ Required deployment inputs:
 
 When you use the supported GCP Terraform path, deployment evidence also carries
 the managed hosted-network references exported by infrastructure reconciliation.
-That includes the session connector reference and the managed network
+That includes the session egress reference and the managed network
 references needed for deployment review and hosted verification.
 
 Execute the deployment workflow with explicit revision settings:
@@ -943,7 +943,7 @@ MCP_ALLOWED_ORIGINS=https://chat.openai.com \
 MCP_ALLOW_ORIGINLESS_CLIENTS=true \
 MCP_SESSION_BACKEND=redis \
 MCP_SESSION_STORE_URL=redis://REDIS_HOST:6379/0 \
-MCP_SESSION_CONNECTIVITY_MODEL=serverless_vpc_connector \
+MCP_SESSION_CONNECTIVITY_MODEL=direct_vpc_egress \
 MCP_SESSION_DURABILITY_REQUIRED=true \
 MIN_INSTANCES=0 \
 MAX_INSTANCES=2 \
@@ -992,7 +992,7 @@ MCP_ALLOWED_ORIGINS=https://chat.openai.com \
 MCP_ALLOW_ORIGINLESS_CLIENTS=true \
 MCP_SESSION_BACKEND=redis \
 MCP_SESSION_STORE_URL=redis://REDIS_HOST:6379/0 \
-MCP_SESSION_CONNECTIVITY_MODEL=serverless_vpc_connector \
+MCP_SESSION_CONNECTIVITY_MODEL=direct_vpc_egress \
 MCP_SESSION_DURABILITY_REQUIRED=true \
 MIN_INSTANCES=0 \
 MAX_INSTANCES=2 \
@@ -1042,7 +1042,7 @@ When hosted verification reports `SECRET_ACCESS_UNAVAILABLE` or
 `SECRET_REFERENCE_MISSING`, inspect the Cloud Run runtime service account,
 `MCP_SECRET_ACCESS_MODE`, and `MCP_SECRET_REFERENCE_NAMES` first. When hosted
 verification reports a session-connectivity failure, inspect
-`MCP_SESSION_CONNECTIVITY_MODEL`, the exported session connector reference, the
+`MCP_SESSION_CONNECTIVITY_MODEL`, the exported session egress reference, the
 managed session network reference, and the Redis backend reference first.
 
 ## Automated hosted deployment

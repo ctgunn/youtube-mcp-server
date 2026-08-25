@@ -50,7 +50,7 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         self.assertIn("INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json", content)
         self.assertIn("MCP_SESSION_CONNECTIVITY_MODEL", content)
         self.assertIn("Terraform-managed hosted network layer", content)
-        self.assertIn("session connector reference", content)
+        self.assertIn("session egress reference", content)
 
     def test_env_example_contains_hosted_deploy_inputs(self):
         content = Path(".env.example").read_text()

@@ -71,8 +71,8 @@ Copy [`terraform.tfvars.example`](./terraform.tfvars.example) to a local, untrac
 - `managed_network_name`
 - `managed_subnet_name`
 - `managed_subnet_cidr`
-- `managed_vpc_connector_name`
-- `managed_vpc_connector_cidr`
+- `managed_direct_vpc_subnet_name`
+- `managed_direct_vpc_subnet_cidr`
 - `session_durability_required`
 - `session_ttl_seconds`
 - `session_replay_ttl_seconds`
@@ -112,17 +112,13 @@ network resources directly from Terraform. That managed hosted network layer
 includes:
 
 - a managed VPC network for the hosted durable-session path
-- a managed subnet for that hosted path
-- a Serverless VPC Access connector used by Cloud Run to reach the durable
-  session backend
+- a dedicated `/26` Direct VPC egress subnet for Cloud Run
 - the authorized network relationship used by the Redis session backend
 
-Operators no longer need to pre-create the supported VPC network, subnet, or
-Serverless VPC Access connector manually for this path.
-
-If you set `managed_vpc_connector_name` yourself, it must satisfy GCP's
-connector ID rules: `^[a-z][-a-z0-9]{0,23}[a-z0-9]$`. The checked-in example
-uses `ytmcp-stg-connector` to stay within that limit.
+Operators no longer need to pre-create the supported VPC network or Direct VPC
+egress subnet manually for this path. Direct VPC egress removes the managed
+connector fleet and gives Cloud Run instances addresses from the dedicated
+subnet.
 
 ## Expected outputs
 
@@ -145,7 +141,7 @@ The apply step exports values that map directly into the deployment workflow:
 - `mcp_session_connectivity_model`
 - `mcp_session_network_reference`
 - `mcp_session_subnet_reference`
-- `mcp_session_connector_reference`
+- `mcp_session_egress_reference`
 - `mcp_session_durability_required`
 - `mcp_session_ttl_seconds`
 - `mcp_session_replay_ttl_seconds`
@@ -234,12 +230,12 @@ For operators, the first failure boundary should stay readable:
 
 - The Cloud Run runtime service account is the runtime identity that reads required secret-backed configuration.
 - `secret_access_mode=secret_manager_env` declares that the hosted runtime receives `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN` from Secret Manager-backed environment injection rather than plain-text environment values.
-- the Terraform-managed hosted network layer creates the managed VPC network, subnet, and Serverless VPC Access connector used by the durable-session path.
-- the exported session connector reference identifies the Cloud Run attachment path used to reach the durable session backend.
+- the Terraform-managed hosted network layer creates the managed VPC network, subnet, and Direct VPC egress attachment used by the durable-session path.
+- the exported session egress reference identifies the Direct VPC subnet Cloud Run uses to reach the durable session backend.
 - the exported session network reference identifies the managed network that is permitted to reach the Redis session backend.
-- `session_connectivity_model=serverless_vpc_connector` is the expected provider-specific connectivity model for durable hosted session support.
+- `session_connectivity_model=direct_vpc_egress` is the expected provider-specific connectivity model for durable hosted session support.
 
-If hosted verification reports a secret-access failure, review the runtime service account bindings and secret reference names first. If it reports a session-connectivity failure, review the exported session connector reference, session network reference, and Redis backend path first.
+If hosted verification reports a secret-access failure, review the runtime service account bindings and secret reference names first. If it reports a session-connectivity failure, review the exported session egress reference, session network reference, and Redis backend path first.
 
 This wiring matters because the server can look correct in code but still fail
 at runtime if:

@@ -101,10 +101,10 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
             secret_access_mode="secret_manager_env",
             session_backend="redis",
             session_store_url="memory://verify-shared",
-            session_connectivity_model="serverless_vpc_connector",
+            session_connectivity_model="direct_vpc_egress",
             session_network_reference="projects/project-id/global/networks/youtube-mcp-server-staging-network",
             session_subnet_reference="projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet",
-            session_connector_reference="projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector",
+            session_egress_reference="projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress",
         )
 
     def test_ready_app_passes_full_hosted_verification(self):
@@ -115,7 +115,7 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
                 "MCP_ALLOWED_ORIGINS": "http://localhost:3000",
                 "MCP_SESSION_BACKEND": "memory",
                 "MCP_SESSION_STORE_URL": "memory://verify-shared",
-                "MCP_SESSION_CONNECTIVITY_MODEL": "serverless_vpc_connector",
+                "MCP_SESSION_CONNECTIVITY_MODEL": "direct_vpc_egress",
                 "MCP_SESSION_DURABILITY_REQUIRED": "true",
             }
         )
@@ -180,7 +180,7 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
         self.assertIn("checkName: secret-access", content)
         self.assertIn("checkName: session-connectivity", content)
         self.assertIn("sessionNetworkReference: projects/project-id/global/networks/youtube-mcp-server-staging-network", content)
-        self.assertIn("sessionConnectorReference: projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector", content)
+        self.assertIn("sessionEgressReference: projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress", content)
         self.assertIn("failureLayer:", content)
         self.assertIn("requestReachedApplication:", content)
 
@@ -204,7 +204,7 @@ class CloudRunVerificationFlowIntegrationTests(unittest.TestCase):
                 "MCP_SECRET_REFERENCE_NAMES": "YOUTUBE_API_KEY,MCP_AUTH_TOKEN",
                 "MCP_SESSION_BACKEND": "memory",
                 "MCP_SESSION_STORE_URL": "memory://verify-shared-2",
-                "MCP_SESSION_CONNECTIVITY_MODEL": "serverless_vpc_connector",
+                "MCP_SESSION_CONNECTIVITY_MODEL": "direct_vpc_egress",
                 "MCP_SESSION_DURABILITY_REQUIRED": "true",
             }
         )

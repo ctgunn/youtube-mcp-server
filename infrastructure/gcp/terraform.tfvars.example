@@ -17,12 +17,12 @@ mcp_allowed_origins          = "https://chat.openai.com"
 mcp_allow_originless_clients = true
 
 session_backend              = "redis"
-session_connectivity_model   = "serverless_vpc_connector"
+session_connectivity_model   = "direct_vpc_egress"
 managed_network_name         = "youtube-mcp-server-staging-network"
 managed_subnet_name          = "youtube-mcp-server-staging-subnet"
 managed_subnet_cidr          = "10.8.0.0/28"
-managed_vpc_connector_name   = "ytmcp-stg-connector"
-managed_vpc_connector_cidr   = "10.8.1.0/28"
+managed_direct_vpc_subnet_name = "youtube-mcp-server-staging-direct-egress"
+managed_direct_vpc_subnet_cidr = "10.8.2.0/26"
 session_durability_required  = true
 session_ttl_seconds          = 1800
 session_replay_ttl_seconds   = 300

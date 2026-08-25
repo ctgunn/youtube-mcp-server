@@ -20,10 +20,10 @@ class IaCFoundationWorkflowsIntegrationTests(unittest.TestCase):
             "mcp_allow_originless_clients": {"value": True},
             "mcp_session_backend": {"value": "redis"},
             "mcp_session_store_url": {"value": "redis://10.0.0.3:6379/0"},
-            "mcp_session_connectivity_model": {"value": "serverless_vpc_connector"},
+            "mcp_session_connectivity_model": {"value": "direct_vpc_egress"},
             "mcp_session_network_reference": {"value": "projects/project-id/global/networks/youtube-mcp-server-staging-network"},
-            "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet"},
-            "mcp_session_connector_reference": {"value": "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector"},
+            "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress"},
+            "mcp_session_egress_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress"},
             "mcp_session_durability_required": {"value": True},
             "mcp_session_ttl_seconds": {"value": 1800},
             "mcp_session_replay_ttl_seconds": {"value": 300},
@@ -69,11 +69,11 @@ class IaCFoundationWorkflowsIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(
             payload["runtimeSettings"]["sessionSubnetReference"],
-            "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet",
+            "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress",
         )
         self.assertEqual(
-            payload["runtimeSettings"]["sessionConnectorReference"],
-            "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector",
+            payload["runtimeSettings"]["sessionEgressReference"],
+            "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress",
         )
 
     def test_gcp_readme_describes_plan_apply_and_handoff(self):
@@ -85,7 +85,7 @@ class IaCFoundationWorkflowsIntegrationTests(unittest.TestCase):
         self.assertIn("INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json", content)
         self.assertIn("Terraform-managed hosted network layer", content)
         self.assertIn("managed VPC network", content)
-        self.assertIn("Serverless VPC Access connector", content)
+        self.assertIn("Direct VPC egress", content)
 
     def test_readme_distinguishes_minimal_local_from_hosted_like_local(self):
         content = Path("README.md").read_text()

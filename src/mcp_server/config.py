@@ -264,7 +264,7 @@ def load_hosted_runtime_settings(env: Mapping[str, str]) -> HostedRuntimeSetting
     secret_access_mode = (_value(env, "MCP_SECRET_ACCESS_MODE") or ("secret_manager_env" if secret_reference_names else "env_only")).lower()
     session_store_url = _value(env, "MCP_SESSION_STORE_URL")
     session_backend = (_value(env, "MCP_SESSION_BACKEND") or ("redis" if session_store_url and session_store_url.startswith("redis") else "memory")).lower()
-    session_connectivity_model = (_value(env, "MCP_SESSION_CONNECTIVITY_MODEL") or ("serverless_vpc_connector" if session_backend == "redis" else "local_process")).lower()
+    session_connectivity_model = (_value(env, "MCP_SESSION_CONNECTIVITY_MODEL") or ("direct_vpc_egress" if session_backend == "redis" else "local_process")).lower()
     session_durability_required = _bool_value(env, "MCP_SESSION_DURABILITY_REQUIRED", default=False)
     session_ttl_seconds = int(_value(env, "MCP_SESSION_TTL_SECONDS") or "1800")
     replay_ttl_seconds = int(_value(env, "MCP_SESSION_REPLAY_TTL_SECONDS") or "300")

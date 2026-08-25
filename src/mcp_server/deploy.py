@@ -45,7 +45,7 @@ class DeploymentInputSet:
     timeout_seconds: int
     session_network_reference: str = ""
     session_subnet_reference: str = ""
-    session_connector_reference: str = ""
+    session_egress_reference: str = ""
 
     def validate(self) -> list[str]:
         """Validate the deployment input set and return any failure messages."""
@@ -89,8 +89,8 @@ class DeploymentInputSet:
                 failures.append("session_network_reference is required when MCP_SESSION_BACKEND=redis")
             if not _clean_env_value(self.session_subnet_reference):
                 failures.append("session_subnet_reference is required when MCP_SESSION_BACKEND=redis")
-            if not _clean_env_value(self.session_connector_reference):
-                failures.append("session_connector_reference is required when MCP_SESSION_BACKEND=redis")
+            if not _clean_env_value(self.session_egress_reference):
+                failures.append("session_egress_reference is required when MCP_SESSION_BACKEND=redis")
         return failures
 
 
@@ -135,7 +135,7 @@ def deployment_input_from_mapping(values: Mapping[str, object]) -> DeploymentInp
         secret_references=secret_refs,
         session_network_reference=str(values.get("MCP_SESSION_NETWORK_REFERENCE", "")).strip(),
         session_subnet_reference=str(values.get("MCP_SESSION_SUBNET_REFERENCE", "")).strip(),
-        session_connector_reference=str(values.get("MCP_SESSION_CONNECTOR_REFERENCE", "")).strip(),
+        session_egress_reference=str(values.get("MCP_SESSION_EGRESS_REFERENCE", "")).strip(),
         config_values=config_values,
         min_instances=int(str(values.get("MIN_INSTANCES", 0))),
         max_instances=int(str(values.get("MAX_INSTANCES", 1))),
@@ -173,10 +173,10 @@ IAC_OUTPUT_ALIASES = {
         "mcp_session_subnet_reference",
         "session_subnet_reference",
     ),
-    "MCP_SESSION_CONNECTOR_REFERENCE": (
-        "MCP_SESSION_CONNECTOR_REFERENCE",
-        "mcp_session_connector_reference",
-        "session_connector_reference",
+    "MCP_SESSION_EGRESS_REFERENCE": (
+        "MCP_SESSION_EGRESS_REFERENCE",
+        "mcp_session_egress_reference",
+        "session_egress_reference",
     ),
     "MCP_SESSION_DURABILITY_REQUIRED": (
         "MCP_SESSION_DURABILITY_REQUIRED",
@@ -325,7 +325,7 @@ class RuntimeSettingsSnapshot:
     session_connectivity_model: str = "local_process"
     session_network_reference: str = ""
     session_subnet_reference: str = ""
-    session_connector_reference: str = ""
+    session_egress_reference: str = ""
 
 
 @dataclass(frozen=True)
@@ -555,7 +555,7 @@ def snapshot_runtime_settings(settings: DeploymentInputSet) -> RuntimeSettingsSn
         session_connectivity_model=settings.config_values.get("MCP_SESSION_CONNECTIVITY_MODEL") or "local_process",
         session_network_reference=settings.session_network_reference,
         session_subnet_reference=settings.session_subnet_reference,
-        session_connector_reference=settings.session_connector_reference,
+        session_egress_reference=settings.session_egress_reference,
         min_instances=settings.min_instances,
         max_instances=settings.max_instances,
         concurrency=settings.concurrency,
@@ -589,7 +589,7 @@ def serialize_deployment_run(record: DeploymentRunRecord) -> dict:
             "sessionConnectivityModel": record.runtime_settings.session_connectivity_model,
             "sessionNetworkReference": record.runtime_settings.session_network_reference,
             "sessionSubnetReference": record.runtime_settings.session_subnet_reference,
-            "sessionConnectorReference": record.runtime_settings.session_connector_reference,
+            "sessionEgressReference": record.runtime_settings.session_egress_reference,
             "minInstances": record.runtime_settings.min_instances,
             "maxInstances": record.runtime_settings.max_instances,
             "concurrency": record.runtime_settings.concurrency,
@@ -820,7 +820,7 @@ class HostedRevisionRecord:
     session_connectivity_model: str | None = None
     session_network_reference: str | None = None
     session_subnet_reference: str | None = None
-    session_connector_reference: str | None = None
+    session_egress_reference: str | None = None
 
 
 @dataclass(frozen=True)
@@ -851,7 +851,7 @@ class HostedVerificationRun:
     checks: tuple[VerificationCheckResult, ...]
     session_network_reference: str | None = None
     session_subnet_reference: str | None = None
-    session_connector_reference: str | None = None
+    session_egress_reference: str | None = None
 
 
 def serialize_verification_run(run: HostedVerificationRun) -> dict:
@@ -864,7 +864,7 @@ def serialize_verification_run(run: HostedVerificationRun) -> dict:
         "overallResult": run.overall_result,
         "sessionNetworkReference": run.session_network_reference,
         "sessionSubnetReference": run.session_subnet_reference,
-        "sessionConnectorReference": run.session_connector_reference,
+        "sessionEgressReference": run.session_egress_reference,
         "checks": [
             {
                 "checkName": item.check_name,
@@ -1117,7 +1117,7 @@ def run_hosted_verification(
             tuple(checks),
             revision.session_network_reference,
             revision.session_subnet_reference,
-            revision.session_connector_reference,
+            revision.session_egress_reference,
         )
 
     def _append(check_name: str, payload: dict, expected: Callable[[dict], bool], summary: str) -> bool:
@@ -1169,7 +1169,7 @@ def run_hosted_verification(
             "sessionConnectivityModel": revision.session_connectivity_model,
             "sessionNetworkReference": revision.session_network_reference,
             "sessionSubnetReference": revision.session_subnet_reference,
-            "sessionConnectorReference": revision.session_connector_reference,
+            "sessionEgressReference": revision.session_egress_reference,
         }
         deployment_ok = bool(revision.runtime_identity)
         if revision.secret_access_mode == "secret_manager_env":
@@ -1181,7 +1181,7 @@ def run_hosted_verification(
                 and bool(revision.session_connectivity_model)
                 and bool(revision.session_network_reference)
                 and bool(revision.session_subnet_reference)
-                and bool(revision.session_connector_reference)
+                and bool(revision.session_egress_reference)
             )
         if not _append(
             "deployment-evidence",
@@ -1581,7 +1581,7 @@ def write_verification_evidence(destination: str | Path, run: HostedVerification
         f"overallResult: {payload['overallResult']}",
         f"sessionNetworkReference: {payload['sessionNetworkReference']}",
         f"sessionSubnetReference: {payload['sessionSubnetReference']}",
-        f"sessionConnectorReference: {payload['sessionConnectorReference']}",
+        f"sessionEgressReference: {payload['sessionEgressReference']}",
         "checks:",
     ]
     for check in payload["checks"]:

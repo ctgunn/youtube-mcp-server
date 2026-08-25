@@ -1,9 +1,9 @@
 locals {
-  managed_network_name       = var.managed_network_name != "" ? var.managed_network_name : "${var.service_name}-${var.environment}-network"
-  managed_subnet_name        = var.managed_subnet_name != "" ? var.managed_subnet_name : "${var.service_name}-${var.environment}-subnet"
-  managed_vpc_connector_name = var.managed_vpc_connector_name != "" ? var.managed_vpc_connector_name : "${substr("${var.service_name}-${var.environment}", 0, 20)}-conn"
-  existing_secret_names      = toset(compact(split(",", lookup(data.external.secret_inventory.result, "existing_secret_names", ""))))
-  missing_secret_names       = toset([for name in var.secret_names : name if !contains(local.existing_secret_names, name)])
+  managed_network_name           = var.managed_network_name != "" ? var.managed_network_name : "${var.service_name}-${var.environment}-network"
+  managed_subnet_name            = var.managed_subnet_name != "" ? var.managed_subnet_name : "${var.service_name}-${var.environment}-subnet"
+  managed_direct_vpc_subnet_name = var.managed_direct_vpc_subnet_name != "" ? var.managed_direct_vpc_subnet_name : "${var.service_name}-${var.environment}-direct-egress"
+  existing_secret_names          = toset(compact(split(",", lookup(data.external.secret_inventory.result, "existing_secret_names", ""))))
+  missing_secret_names           = toset([for name in var.secret_names : name if !contains(local.existing_secret_names, name)])
   runtime_env = {
     MCP_ENVIRONMENT                 = var.environment
     MCP_SECRET_ACCESS_MODE          = var.secret_access_mode
@@ -62,11 +62,12 @@ resource "google_cloud_run_v2_service" "service" {
     timeout                          = "${var.timeout_seconds}s"
     max_instance_request_concurrency = var.concurrency
 
-    dynamic "vpc_access" {
-      for_each = var.session_connectivity_model == "serverless_vpc_connector" ? [google_vpc_access_connector.cloud_run.id] : []
-      content {
-        connector = vpc_access.value
-        egress    = "ALL_TRAFFIC"
+    vpc_access {
+      egress = "ALL_TRAFFIC"
+
+      network_interfaces {
+        network    = google_compute_network.hosted.id
+        subnetwork = google_compute_subnetwork.direct_vpc_egress.id
       }
     }
 

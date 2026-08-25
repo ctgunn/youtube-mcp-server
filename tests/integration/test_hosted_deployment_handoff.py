@@ -42,8 +42,8 @@ class HostedDeploymentHandoffIntegrationTests(unittest.TestCase):
                 "secret_reference_names": {"value": ["YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"]},
                 "public_invocation_intent": {"value": "public_remote_mcp"},
                 "mcp_session_network_reference": {"value": "projects/project-id/global/networks/youtube-mcp-server-staging-network"},
-                "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet"},
-                "mcp_session_connector_reference": {"value": "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector"},
+                "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress"},
+                "mcp_session_egress_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress"},
                 "min_instances": {"value": 0},
                 "max_instances": {"value": 2},
                 "concurrency": {"value": 20},
@@ -55,8 +55,8 @@ class HostedDeploymentHandoffIntegrationTests(unittest.TestCase):
         self.assertEqual(settings.service_name, "youtube-mcp-server")
         self.assertEqual(settings.secret_references, ("YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"))
         self.assertEqual(
-            settings.session_connector_reference,
-            "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector",
+            settings.session_egress_reference,
+            "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress",
         )
 
     def test_deployment_record_written_by_deploy_helper_can_be_reloaded_as_workflow_artifact(self):
@@ -70,8 +70,8 @@ class HostedDeploymentHandoffIntegrationTests(unittest.TestCase):
                 "secret_reference_names": {"value": ["YOUTUBE_API_KEY", "MCP_AUTH_TOKEN"]},
                 "public_invocation_intent": {"value": "public_remote_mcp"},
                 "mcp_session_network_reference": {"value": "projects/project-id/global/networks/youtube-mcp-server-staging-network"},
-                "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet"},
-                "mcp_session_connector_reference": {"value": "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector"},
+                "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress"},
+                "mcp_session_egress_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress"},
                 "min_instances": {"value": 0},
                 "max_instances": {"value": 2},
                 "concurrency": {"value": 20},

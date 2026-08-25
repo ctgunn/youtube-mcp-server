@@ -132,7 +132,7 @@ variable "session_replay_ttl_seconds" {
 variable "session_connectivity_model" {
   description = "Provider-specific connectivity model used by Cloud Run to reach the durable session backend."
   type        = string
-  default     = "serverless_vpc_connector"
+  default     = "direct_vpc_egress"
 }
 
 variable "managed_network_name" {
@@ -159,33 +159,16 @@ variable "managed_subnet_cidr" {
   default     = "10.8.0.0/28"
 }
 
-variable "managed_vpc_connector_name" {
-  description = "Optional override for the Terraform-managed Serverless VPC Access connector name."
+variable "managed_direct_vpc_subnet_name" {
+  description = "Optional override for the Terraform-managed Direct VPC egress subnet name."
   type        = string
   default     = ""
-
-  validation {
-    condition     = var.managed_vpc_connector_name == "" || can(regex("^[a-z][-a-z0-9]{0,23}[a-z0-9]$", var.managed_vpc_connector_name))
-    error_message = "managed_vpc_connector_name must match ^[a-z][-a-z0-9]{0,23}[a-z0-9]$ when set."
-  }
 }
 
-variable "managed_vpc_connector_cidr" {
-  description = "CIDR range reserved for the Terraform-managed Serverless VPC Access connector."
+variable "managed_direct_vpc_subnet_cidr" {
+  description = "CIDR range reserved for the Terraform-managed Direct VPC egress subnet; Cloud Run requires a /26 or larger subnet."
   type        = string
-  default     = "10.8.1.0/28"
-}
-
-variable "managed_vpc_connector_min_throughput" {
-  description = "Minimum throughput for the Terraform-managed Serverless VPC Access connector."
-  type        = number
-  default     = 200
-}
-
-variable "managed_vpc_connector_max_throughput" {
-  description = "Maximum throughput for the Terraform-managed Serverless VPC Access connector."
-  type        = number
-  default     = 300
+  default     = "10.8.2.0/26"
 }
 
 variable "redis_memory_size_gb" {
