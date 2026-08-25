@@ -283,6 +283,21 @@ class InMemoryObservability:
         """Build and emit a runtime event in one call."""
         self._emit_runtime_event(runtime_event(event_name, status, details))
 
+    def emit_hardening_event(self, event_name: str, details: dict[str, str | int | bool]) -> None:
+        """Record one bounded, credential-free production-hardening event.
+
+        :param event_name: Finite policy event name such as an admission decision.
+        :param details: Pre-classified bounded fields that contain no request data.
+        :return: ``None`` after the event is retained and emitted.
+        :raises ValueError: If a caller attempts to emit an unsafe event shape.
+        """
+        forbidden = {"requestId", "caller", "token", "authorization", "arguments", "cacheKey"}
+        if forbidden.intersection(details):
+            raise ValueError("hardening events must not include request or credential fields")
+        event = runtime_event(f"hardening.{event_name}", "success", dict(details))
+        event["requestId"] = None
+        self._emit_runtime_event(event)
+
     def record_integration_execution(self, event: dict[str, Any]) -> None:
         """Record one internal integration execution event.
 

@@ -12,6 +12,7 @@ from mcp_server.security import (
     evaluate_origin,
     evaluate_security_request,
     parse_requested_headers,
+    resolve_hardening_caller_identity,
 )
 
 
@@ -52,6 +53,15 @@ class HostedSecurityPolicyTests(unittest.TestCase):
 
         valid = evaluate_credential({"authorization": "Bearer secret-token"}, self.settings, environment="dev")
         self.assertEqual(valid.token_state, "valid")
+
+    def test_validated_credential_becomes_non_secret_hardening_identity(self):
+        identity = resolve_hardening_caller_identity(
+            {"authorization": "Bearer secret-token"},
+            self.settings,
+            environment="dev",
+        )
+        self.assertTrue(identity.identified)
+        self.assertNotIn("secret-token", identity.key)
 
     def test_security_decision_categories(self):
         origin_denied = evaluate_security_request(

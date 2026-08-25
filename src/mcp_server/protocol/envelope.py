@@ -31,6 +31,7 @@ ERROR_CODE_BY_CATEGORY = {
     "origin_denied": -32003,
     "authorization_denied": -32003,
     "transport_not_supported": -32004,
+    "rate_limited": -32005,
 }
 
 

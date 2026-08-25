@@ -17,6 +17,15 @@ locals {
     MCP_SESSION_DURABILITY_REQUIRED = tostring(var.session_durability_required)
     MCP_SESSION_TTL_SECONDS         = tostring(var.session_ttl_seconds)
     MCP_SESSION_REPLAY_TTL_SECONDS  = tostring(var.session_replay_ttl_seconds)
+    MCP_RATE_LIMIT_IDENTIFIED_REQUESTS_PER_MINUTE = tostring(var.rate_limit_identified_requests_per_minute)
+    MCP_RATE_LIMIT_ANONYMOUS_REQUESTS_PER_MINUTE  = tostring(var.rate_limit_anonymous_requests_per_minute)
+    MCP_RATE_LIMIT_WINDOW_SECONDS                 = tostring(var.rate_limit_window_seconds)
+    MCP_RATE_LIMIT_BACKEND                        = var.hardening_backend
+    MCP_RESULT_CACHE_ENABLED                      = tostring(var.result_cache_enabled)
+    MCP_RESULT_CACHE_BACKEND                      = var.hardening_backend
+    MCP_RESULT_CACHE_MAX_FRESHNESS_SECONDS        = tostring(var.result_cache_max_freshness_seconds)
+    MCP_ALERTING_ENABLED                          = tostring(var.alerting_enabled)
+    MCP_ALERTING_BACKEND                          = var.hardening_backend
   }
 }
 

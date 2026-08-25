@@ -50,7 +50,9 @@ This directory is mostly responsible for layers 2 and 3.
 
 ## Required inputs
 
-Copy [`terraform.tfvars.example`](./terraform.tfvars.example) to a local, untracked `.tfvars` file and supply:
+Copy [`terraform.tfvars.example`](./terraform.tfvars.example) to the
+environment var-file selected by the GitHub `GCP_TERRAFORM_VAR_FILE` variable
+(for example, `staging.tfvars`) and supply:
 
 - `project_id`
 - `region`
@@ -63,6 +65,12 @@ Copy [`terraform.tfvars.example`](./terraform.tfvars.example) to a local, untrac
 - `max_instances`
 - `concurrency`
 - `timeout_seconds`
+
+The selected environment var-file is passed to Terraform by the hosted release
+workflow after repository checkout. Commit it only when it contains safe
+resource configuration; never include secrets. Set `alert_runbook_url` there
+to the real operator runbook. The `example.invalid` value in the example file
+is deliberately not a deployable runbook URL.
 - `mcp_auth_required`
 - `mcp_allowed_origins`
 - `mcp_allow_originless_clients`
@@ -254,6 +262,22 @@ at runtime if:
 - Cloud Run cannot reach the Redis-backed session store
 - the session durability mode says shared state is required but the platform is
   not actually providing it
+
+## Production hardening alerts
+
+OPS-402 creates bounded application incident metrics and a Monitoring alert
+policy when `alerting_enabled` is true. Before applying Terraform, an operator
+must create and verify the intended Monitoring notification channel outside this
+repository, then supply its resource identifier through
+`alert_notification_channel_ids`. Do not put a webhook, chat token, or email
+secret in Cloud Run environment variables or Terraform state.
+
+The standard `hosted-deploy` workflow reconciles these Terraform resources,
+deploys the application image, and runs hosted verification. Use a
+non-production channel to exercise a sustained incident before enabling a new
+production channel. The alert policy emits one open incident per bounded
+condition; the application holds recovery until 15 minutes of normal eligible
+observations.
 
 ## Public invocation intent
 

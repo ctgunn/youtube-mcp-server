@@ -27,6 +27,16 @@ session_durability_required  = true
 session_ttl_seconds          = 1800
 session_replay_ttl_seconds   = 300
 
+hardening_backend = "redis"
+rate_limit_identified_requests_per_minute = 60
+rate_limit_anonymous_requests_per_minute  = 10
+rate_limit_window_seconds                 = 60
+result_cache_enabled                      = true
+result_cache_max_freshness_seconds        = 300
+alerting_enabled                          = true
+alert_notification_channel_ids             = []
+alert_runbook_url                          = "https://example.invalid/youtube-mcp-server/runbook"
+
 secret_names = [
   "YOUTUBE_API_KEY",
   "MCP_AUTH_TOKEN",
