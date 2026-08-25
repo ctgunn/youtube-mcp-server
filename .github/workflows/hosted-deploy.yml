@@ -185,7 +185,21 @@ jobs:
             -backend-config="prefix=youtube-mcp-server/${GCP_TERRAFORM_VAR_FILE%.tfvars}"
 
       - name: Reconcile managed network bootstrap and infrastructure
-        run: terraform -chdir=infrastructure/gcp apply -auto-approve -var-file="${GCP_TERRAFORM_VAR_FILE}"
+        shell: bash
+        run: |
+          set -euo pipefail
+          metric_propagation_error='Cannot find metric(s) that match type = "logging.googleapis.com/user/mcp_hardening_incident"'
+          apply_log="$(mktemp)"
+          for attempt in {1..10}; do
+            if terraform -chdir=infrastructure/gcp apply -auto-approve -var-file="${GCP_TERRAFORM_VAR_FILE}" 2>&1 | tee "${apply_log}"; then
+              exit 0
+            fi
+            if ! grep -Fq "${metric_propagation_error}" "${apply_log}" || [[ "${attempt}" -eq 10 ]]; then
+              exit 1
+            fi
+            printf '%s\n' "Logging metric is still propagating; retrying Terraform apply in 60 seconds (attempt ${attempt}/10)." >&2
+            sleep 60
+          done
 
       - name: Export Terraform outputs
         run: |

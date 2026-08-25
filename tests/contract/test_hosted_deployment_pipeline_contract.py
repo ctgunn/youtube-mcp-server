@@ -37,6 +37,7 @@ class HostedDeploymentPipelineContractTests(unittest.TestCase):
             "make quality",
             "logging.logMetrics.create",
             "monitoring.alertPolicies.create",
+            "Logging metric is still propagating",
             "resolve-source-revision",
             "release-provenance.json",
         ):
