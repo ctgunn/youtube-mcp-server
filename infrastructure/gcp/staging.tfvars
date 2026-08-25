@@ -27,6 +27,12 @@ session_durability_required    = true
 session_ttl_seconds            = 1800
 session_replay_ttl_seconds     = 300
 
+alerting_enabled = true
+alert_notification_channel_ids = [
+  "projects/project-78870e9f-2b9f-4053-907/notificationChannels/10119693972086030055",
+]
+alert_runbook_url = "https://github.com/ctgunn/youtube-mcp-server/blob/main/docs/runbooks/production-hardening.md"
+
 secret_names = [
   "YOUTUBE_API_KEY",
   "MCP_AUTH_TOKEN",

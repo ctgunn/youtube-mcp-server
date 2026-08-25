@@ -35,6 +35,8 @@ class HostedDeploymentPipelineContractTests(unittest.TestCase):
             "bash scripts/deploy_cloud_run.sh",
             "python3 scripts/verify_cloud_run_foundation.py",
             "make quality",
+            "logging.logMetrics.create",
+            "monitoring.alertPolicies.create",
             "resolve-source-revision",
             "release-provenance.json",
         ):

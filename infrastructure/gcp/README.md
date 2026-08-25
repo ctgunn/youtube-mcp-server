@@ -272,6 +272,11 @@ repository, then supply its resource identifier through
 `alert_notification_channel_ids`. Do not put a webhook, chat token, or email
 secret in Cloud Run environment variables or Terraform state.
 
+The GitHub deployer service account must have `roles/logging.configWriter` and
+`roles/monitoring.alertPolicyEditor`. The hosted release workflow checks the
+required permissions before Terraform applies changes and reports any missing
+permission by name.
+
 The standard `hosted-deploy` workflow reconciles these Terraform resources,
 deploys the application image, and runs hosted verification. Use a
 non-production channel to exercise a sustained incident before enabling a new
