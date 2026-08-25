@@ -16,6 +16,20 @@ review the Terraform variables for rate limits, public-result reuse, and
 `alert_notification_channel_ids`. Notification endpoint values and verification
 remain operator-managed and must not be injected into the application runtime.
 
+Set the runbook location in the environment Terraform var-file that the release
+workflow selects. For example, when the GitHub repository variable
+`GCP_TERRAFORM_VAR_FILE` is `staging.tfvars`, add the following safe value to
+`infrastructure/gcp/staging.tfvars`:
+
+```hcl
+alert_runbook_url = "https://runbooks.example.com/youtube-mcp-server/production-hardening"
+```
+
+The `example.invalid` value in `terraform.tfvars.example` is intentionally only
+a non-routable template placeholder. The selected environment var-file is read
+by Terraform during the workflow, so it must be committed with the release
+configuration (and must contain no secrets).
+
 ## One-time bootstrap prerequisites
 
 Before the first deployment, an operator must create or configure:
