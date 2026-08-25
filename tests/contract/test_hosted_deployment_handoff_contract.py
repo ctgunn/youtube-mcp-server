@@ -26,8 +26,8 @@ class HostedDeploymentHandoffContractTests(unittest.TestCase):
                 "service_name": {"value": "youtube-mcp-server"},
                 "service_account_email": {"value": "svc@example.iam.gserviceaccount.com"},
                 "mcp_session_network_reference": {"value": "projects/project-id/global/networks/youtube-mcp-server-staging-network"},
-                "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-subnet"},
-                "mcp_session_connector_reference": {"value": "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector"},
+                "mcp_session_subnet_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress"},
+                "mcp_session_egress_reference": {"value": "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress"},
             }
         )
         self.assertEqual(payload["PROJECT_ID"], "project-id")
@@ -38,8 +38,8 @@ class HostedDeploymentHandoffContractTests(unittest.TestCase):
             "projects/project-id/global/networks/youtube-mcp-server-staging-network",
         )
         self.assertEqual(
-            payload["MCP_SESSION_CONNECTOR_REFERENCE"],
-            "projects/project-id/locations/us-central1/connectors/youtube-mcp-server-staging-connector",
+            payload["MCP_SESSION_EGRESS_REFERENCE"],
+            "projects/project-id/regions/us-central1/subnetworks/youtube-mcp-server-staging-direct-egress",
         )
 
     def test_load_json_artifact_reads_deployment_record_handoff(self):

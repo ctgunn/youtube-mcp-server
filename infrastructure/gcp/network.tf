@@ -10,11 +10,9 @@ resource "google_compute_subnetwork" "hosted" {
   network       = google_compute_network.hosted.id
 }
 
-resource "google_vpc_access_connector" "cloud_run" {
-  name           = local.managed_vpc_connector_name
-  region         = var.region
-  network        = google_compute_network.hosted.name
-  ip_cidr_range  = var.managed_vpc_connector_cidr
-  min_throughput = var.managed_vpc_connector_min_throughput
-  max_throughput = var.managed_vpc_connector_max_throughput
+resource "google_compute_subnetwork" "direct_vpc_egress" {
+  name          = local.managed_direct_vpc_subnet_name
+  ip_cidr_range = var.managed_direct_vpc_subnet_cidr
+  region        = var.region
+  network       = google_compute_network.hosted.id
 }

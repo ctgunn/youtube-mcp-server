@@ -79,7 +79,7 @@ class DeploymentObservabilityContractTests(unittest.TestCase):
                 "sessionConnectivityModel",
                 "sessionNetworkReference",
                 "sessionSubnetReference",
-                "sessionConnectorReference",
+                "sessionEgressReference",
                 "minInstances",
                 "maxInstances",
                 "concurrency",

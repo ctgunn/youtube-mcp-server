@@ -23,7 +23,7 @@ class RuntimeSessionConnectivityContractTests(unittest.TestCase):
         self.assertIn("MCP_SESSION_CONNECTIVITY_MODEL", readme)
         self.assertIn("MCP_SESSION_STORE_URL", readme)
         self.assertIn("Terraform-managed hosted network layer", readme)
-        self.assertIn("session connector reference", readme)
+        self.assertIn("session egress reference", readme)
 
 
 if __name__ == "__main__":
