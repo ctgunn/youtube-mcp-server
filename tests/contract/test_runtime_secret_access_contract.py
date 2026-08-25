@@ -19,9 +19,13 @@ class RuntimeSecretAccessContractTests(unittest.TestCase):
         self.assertIn("Secret values must never appear", content)
 
     def test_operator_docs_call_out_runtime_secret_access_inputs(self):
-        readme = Path("README.md").read_text()
-        self.assertIn("MCP_SECRET_ACCESS_MODE", readme)
-        self.assertIn("MCP_SECRET_REFERENCE_NAMES", readme)
+        """Require the architecture guide to name secret-reference inputs.
+
+        :return: ``None`` after checking secret-access documentation.
+        """
+        content = Path("docs/architecture.md").read_text()
+        self.assertIn("MCP_SECRET_ACCESS_MODE", content)
+        self.assertIn("MCP_SECRET_REFERENCE_NAMES", content)
 
 
 if __name__ == "__main__":

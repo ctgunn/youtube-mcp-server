@@ -90,7 +90,11 @@ class DeploymentObservabilityContractTests(unittest.TestCase):
         )
 
     def test_automated_workflow_docs_describe_deploy_and_verify_artifacts(self):
-        content = Path("README.md").read_text()
+        """Require hosted recovery guidance to preserve release evidence names.
+
+        :return: ``None`` after checking deployment-artifact documentation.
+        """
+        content = Path("docs/hosted-deployment.md").read_text()
         for expected in (
             "artifacts/cloud-run-deployment.json",
             "artifacts/cloud-run-verification.json",

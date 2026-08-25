@@ -18,9 +18,13 @@ class CloudRunPublicAccessContractTests(unittest.TestCase):
         self.assertIn("MCP bearer-token authentication determines whether a reachable caller may use protected `/mcp` routes.", content)
 
     def test_operator_docs_call_out_public_invocation_intent(self):
-        readme = Path("README.md").read_text()
-        self.assertIn("PUBLIC_INVOCATION_INTENT", readme)
-        self.assertIn("public_remote_mcp", readme)
+        """Require engineering guidance to state the public invocation policy.
+
+        :return: ``None`` after checking public-access documentation.
+        """
+        content = Path("docs/engineering.md").read_text()
+        self.assertIn("PUBLIC_INVOCATION_INTENT", content)
+        self.assertIn("public_remote_mcp", content)
 
 
 if __name__ == "__main__":

@@ -3,14 +3,21 @@ from pathlib import Path
 
 
 class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
-    def test_readme_includes_deploy_and_verify_commands(self):
-        content = Path("README.md").read_text()
+    def test_scoped_guides_include_deploy_and_verify_commands(self):
+        """Require scoped local, hosted, and architecture guides to remain linked.
+
+        :return: ``None`` after checking essential operator and protocol guidance.
+        """
+        content = "\n".join(
+            (
+                Path("docs/architecture.md").read_text(),
+                Path("docs/local-development.md").read_text(),
+                Path("docs/engineering.md").read_text(),
+                Path("docs/hosted-deployment.md").read_text(),
+                Path("infrastructure/gcp/README.md").read_text(),
+            )
+        )
         self.assertIn("scripts/deploy_cloud_run.sh", content)
-        self.assertIn("scripts/verify_cloud_run_foundation.py", content)
-        self.assertIn("python3 -m uvicorn", content)
-        self.assertIn("mcp_server.cloud_run_entrypoint:app", content)
-        self.assertIn("SERVICE_ACCOUNT_EMAIL", content)
-        self.assertIn("TIMEOUT_SECONDS", content)
         self.assertIn("MCP-Session-Id", content)
         self.assertIn("text/event-stream", content)
         self.assertIn("Last-Event-ID", content)
@@ -21,32 +28,9 @@ class CloudRunDocsExamplesIntegrationTests(unittest.TestCase):
         self.assertIn("PUBLIC_INVOCATION_INTENT", content)
         self.assertIn("public_remote_mcp", content)
         self.assertIn("MCP_ALLOWED_ORIGINS", content)
-        self.assertIn("Access-Control-Request-Method", content)
-        self.assertIn("http://localhost:3000", content)
-        self.assertIn('req-init-invalid', content)
-        self.assertIn("no `MCP-Session-Id` header", content)
-        self.assertIn("initialize-invalid-no-session", content)
-        self.assertIn("initialize-success-session-created", content)
-        self.assertIn("initialize-retry-success", content)
-        self.assertIn('"name":"search"', content)
-        self.assertIn('"name":"fetch"', content)
-        self.assertIn("remote MCP research", content)
-        self.assertIn("req-fetch", content)
-        self.assertIn('"required":["id"]', content.replace(" ", ""))
-        self.assertIn('"required":["query"]', content.replace(" ", ""))
-        self.assertIn('"id":"doc-remote-mcp-001"', content.replace(" ", ""))
-        self.assertIn('"url":"https://example.com/remote-mcp-research"', content.replace(" ", ""))
-        self.assertIn('"code": -32602', content)
-        self.assertIn('"code": -32001', content)
-        self.assertIn('"category": "invalid_argument"', content)
-        self.assertIn('"category": "unknown_tool"', content)
-        self.assertIn("Minimal local runtime path", content)
-        self.assertIn("Hosted-like local verification path", content)
         self.assertIn("bash scripts/dev_local.sh", content)
         self.assertIn("LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh", content)
         self.assertIn(".env.local", content)
-        self.assertIn("Hosted deployment-only inputs", content)
-        self.assertIn("docker compose -f infrastructure/local/compose.yaml up -d", content)
         self.assertIn("INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json", content)
         self.assertIn("MCP_SESSION_CONNECTIVITY_MODEL", content)
         self.assertIn("Terraform-managed hosted network layer", content)

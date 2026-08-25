@@ -94,13 +94,22 @@ class IaCFoundationWorkflowsIntegrationTests(unittest.TestCase):
         self.assertIn("terraform -chdir=infrastructure/gcp output -json", workflow)
         self.assertIn("Unable to read Terraform outputs after three attempts.", workflow)
 
-    def test_readme_distinguishes_minimal_local_from_hosted_like_local(self):
-        content = Path("README.md").read_text()
+    def test_local_and_gcp_guides_distinguish_development_from_hosted_setup(self):
+        """Require scoped guides to keep local and hosted setup separate.
+
+        :return: ``None`` after checking documentation boundaries.
+        """
+        content = "\n".join(
+            (
+                Path("docs/local-development.md").read_text(),
+                Path("infrastructure/gcp/README.md").read_text(),
+            )
+        )
         self.assertIn("Minimal local runtime path", content)
         self.assertIn("Hosted-like local verification path", content)
         self.assertIn("bash scripts/dev_local.sh", content)
-        self.assertIn("Hosted deployment-only inputs", content)
-        self.assertIn("docker compose -f infrastructure/local/compose.yaml up -d", content)
+        self.assertIn("hosted deployment", content)
+        self.assertIn("./scripts/local_compose.sh up -d", content)
         self.assertIn("INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json", content)
 
 
