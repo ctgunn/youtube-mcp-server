@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import unittest
-import json
 
 sys.path.insert(0, os.path.abspath("src"))
 

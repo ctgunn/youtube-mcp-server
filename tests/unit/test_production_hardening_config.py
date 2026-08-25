@@ -8,7 +8,10 @@ import unittest
 
 sys.path.insert(0, os.path.abspath("src"))
 
-from mcp_server.config import load_production_hardening_settings, validate_runtime_config
+from mcp_server.config import (
+    load_production_hardening_settings,
+    validate_runtime_config,
+)
 
 
 class ProductionHardeningConfigTests(unittest.TestCase):
