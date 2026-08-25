@@ -87,6 +87,13 @@ class IaCFoundationWorkflowsIntegrationTests(unittest.TestCase):
         self.assertIn("managed VPC network", content)
         self.assertIn("Direct VPC egress", content)
 
+    def test_hosted_deploy_retries_transient_terraform_output_reads(self):
+        """Require a bounded retry before the workflow fails output handoff."""
+        workflow = Path(".github/workflows/hosted-deploy.yml").read_text()
+        self.assertIn("for attempt in 1 2 3", workflow)
+        self.assertIn("terraform -chdir=infrastructure/gcp output -json", workflow)
+        self.assertIn("Unable to read Terraform outputs after three attempts.", workflow)
+
     def test_readme_distinguishes_minimal_local_from_hosted_like_local(self):
         content = Path("README.md").read_text()
         self.assertIn("Minimal local runtime path", content)
