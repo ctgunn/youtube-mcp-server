@@ -1,5 +1,9 @@
 # Implementation Plan: Automated Hosted Deployment Orchestration
 
+> **Current deployment note (2026-08-25):** The Cloud Build topology in this
+> historical plan is archived and inactive. The supported release path is the
+> manually dispatched GitHub Actions workflow.
+
 **Branch**: `025-hosted-deploy-orchestration` | **Date**: 2026-03-30 | **Spec**: [spec.md](~/Projects/youtube-mcp-server/specs/025-hosted-deploy-orchestration/spec.md)
 **Input**: Feature specification from `/specs/025-hosted-deploy-orchestration/spec.md`
 

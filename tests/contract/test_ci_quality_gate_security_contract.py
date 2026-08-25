@@ -28,18 +28,18 @@ class CiQualityGateSecurityContractTests(unittest.TestCase):
     def test_release_preflight_and_provenance_avoid_runtime_secret_values(self) -> None:
         """Keep secret values out of preflight and public release evidence.
 
-        :return: ``None`` after checking safe boundaries in both release workflows.
+        :return: ``None`` after checking the supported workflow's safe boundary.
         :raises AssertionError: If a preflight accepts a runtime secret value.
         """
-        for workflow_path in (Path("cloudbuild.yaml"), Path(".github/workflows/hosted-deploy.yml")):
-            content = workflow_path.read_text()
-            preflight = content.split("validate-bootstrap-prerequisites", maxsplit=1)[1].split(
-                "quality-gate", maxsplit=1
-            )[0]
-            self.assertNotIn("YOUTUBE_API_KEY", preflight, workflow_path)
-            self.assertNotIn("MCP_AUTH_TOKEN", preflight, workflow_path)
-            provenance = content.split("record-release-provenance", maxsplit=1)[-1].split(
-                "deploy-hosted-revision", maxsplit=1
-            )[0]
-            self.assertNotIn("MCP_AUTH_TOKEN", provenance, workflow_path)
-            self.assertNotIn("YOUTUBE_API_KEY", provenance, workflow_path)
+        workflow_path = Path(".github/workflows/hosted-deploy.yml")
+        content = workflow_path.read_text()
+        preflight = content.split("validate-bootstrap-prerequisites", maxsplit=1)[1].split(
+            "quality-gate", maxsplit=1
+        )[0]
+        self.assertNotIn("YOUTUBE_API_KEY", preflight, workflow_path)
+        self.assertNotIn("MCP_AUTH_TOKEN", preflight, workflow_path)
+        provenance = content.split("record-release-provenance", maxsplit=1)[-1].split(
+            "deploy-hosted-revision", maxsplit=1
+        )[0]
+        self.assertNotIn("MCP_AUTH_TOKEN", provenance, workflow_path)
+        self.assertNotIn("YOUTUBE_API_KEY", provenance, workflow_path)

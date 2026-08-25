@@ -1,5 +1,11 @@
 # Research: CI/CD Quality Gates
 
+> **Implementation update (2026-08-25):** The Cloud Build decision recorded
+> below was superseded after its triggers were disabled. The configuration is
+> archived, and the manually dispatched GitHub Actions workflow is the single
+> supported hosted release path. The retained Cloud Build discussion is
+> historical context, not an instruction to restore that path.
+
 ## Decision 1: Use one canonical quality command with three independent checks
 
 **Decision**: Declare a reproducible development toolchain in the project configuration and expose `make lint`, `make typecheck`, `make test`, and `make quality`. Use `pytest`, Ruff, and mypy; mypy checks `src/mcp_server` as the initial checked-in type-validation boundary. The PR workflow exposes three separate, stable jobs named exactly `lint`, `typecheck`, and `tests`; the two deployment workflows invoke `make quality` before later release stages.

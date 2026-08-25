@@ -271,11 +271,9 @@ gcloud config set project YOUR_PROJECT_ID
 ```bash
 gcloud services enable \
   run.googleapis.com \
-  cloudbuild.googleapis.com \
   artifactregistry.googleapis.com \
   secretmanager.googleapis.com \
   redis.googleapis.com \
-  vpcaccess.googleapis.com \
   compute.googleapis.com \
   iam.googleapis.com
 ```
@@ -482,84 +480,40 @@ terraform -chdir=infrastructure/gcp apply -var-file=staging.tfvars
 This hosted infrastructure step is what creates and wires the platform around
 the app, including the Cloud Run foundation, durable-session Redis path, and
 the managed network resources needed for the supported GCP session-connectivity
-model.
+model. Routine releases perform this reconciliation through the GitHub Actions
+workflow below. Use a direct `terraform apply` only for deliberate bootstrap or
+recovery work, then immediately run the supported release workflow so the
+application image and verification evidence are restored.
 
-### 8. Export the Terraform outputs for the deploy handoff
+### 8. Run the supported hosted release workflow
 
-```bash
-mkdir -p artifacts
-terraform -chdir=infrastructure/gcp output -json > artifacts/gcp-foundation-outputs.json
-```
+GitHub Actions is the supported hosted deployment path. In GitHub, open
+**Actions** → **hosted-deploy** → **Run workflow**, then select:
 
-### 9. Build and push the container image
+- **Use workflow from**: `main`
+- **target_ref**: `main` (or the exact reviewed commit/ref to release)
+- **target_environment**: `staging`
 
-Authenticate Docker to Artifact Registry:
+The workflow resolves the actual checked-out full commit SHA, runs safe
+preflight and `make quality`, builds and deploys an immutable image digest,
+reconciles Terraform, retries transient Terraform-output reads, and runs hosted
+verification. It never prints or stores secret values in evidence.
 
-```bash
-gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
-```
+After completion, download the `hosted-deploy-<source-sha>` artifact from the
+workflow run. It contains the source revision, immutable image reference,
+release provenance, Terraform outputs, deployment record, and verification
+result. Do not treat the release as complete until the workflow and hosted
+verification both pass.
 
-Build the image:
+### 9. Break-glass operator procedure
 
-```bash
-docker build -t us-central1-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001 .
-```
-
-Push it:
-
-```bash
-docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001
-```
-
-### 10. Deploy the application through the repository deploy script
-
-```bash
-set -a
-source .env
-set +a
-INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json \
-IMAGE_REFERENCE=us-central1-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:manual-001 \
-DEPLOYMENT_RECORD_FILE=artifacts/cloud-run-deployment.json \
-bash scripts/deploy_cloud_run.sh
-```
-
-This is the supported application rollout path. It uses the Terraform outputs
-as the handoff from infrastructure reconciliation into Cloud Run deployment.
-The deploy script does not load `.env` on its own, so source it first if you
-want the operator-managed deployment inputs from step 5 to participate in the
-deploy command.
-
-### 11. Verify the hosted deployment
-
-```bash
-PYTHONPATH=src python3 scripts/verify_cloud_run_foundation.py \
-  --deployment-record artifacts/cloud-run-deployment.json \
-  --auth-token "YOUR_REAL_MCP_AUTH_TOKEN" \
-  --evidence-file artifacts/cloud-run-verification.txt \
-  --summary-file artifacts/cloud-run-verification.json
-```
-
-Do not treat the deployment as complete until hosted verification passes.
-
-### 12. Enable push-triggered deployment after the manual path works once
-
-The repository now defines the primary automated rollout in `cloudbuild.yaml`.
-Once the manual path above works:
-
-- create or update your Cloud Build trigger for `main`
-- point it at `cloudbuild.yaml`
-- set the required substitutions for project, region, service name, Artifact
-  Registry repository, Terraform var file, and service account
-- ensure the Cloud Build service account can manage the infrastructure and read
-  the required secret references
-
-After that, a push to `main` should run:
-
-1. tests and lint
-2. image build and publish
-3. Terraform apply
-4. deploy through `scripts/deploy_cloud_run.sh`
-5. hosted verification through `scripts/verify_cloud_run_foundation.py`
+The repository scripts remain available for authorized recovery work when the
+GitHub Actions workflow is unavailable. This is not the routine release path.
+Run `make quality` first, deploy only an immutable image reference in the form
+`IMAGE@sha256:...`, preserve the Terraform-output, deployment, and verification
+artifacts, and never source, print, or commit secret values as release evidence.
+See [`infrastructure/gcp/README.md`](infrastructure/gcp/README.md) for the
+Terraform handoff details.
 
 ## 100 Ft View
 
@@ -1045,23 +999,24 @@ verification reports a session-connectivity failure, inspect
 `MCP_SESSION_CONNECTIVITY_MODEL`, the exported session egress reference, the
 managed session network reference, and the Redis backend reference first.
 
-## Automated hosted deployment
+## Hosted deployment workflow
 
-Push-triggered hosted deployment is primarily defined in `cloudbuild.yaml`.
-Cloud Build is the primary auto-deploy path for pushes to `main` when your GCP
-trigger is configured to use that file.
+The manually dispatched GitHub Actions workflow at
+`.github/workflows/hosted-deploy.yml` is the supported hosted release path.
+It is intentionally `workflow_dispatch` only: a release is an explicit,
+reviewed operator action rather than an automatic side effect of every merge to
+`main`.
 
-The GitHub Actions workflow at `.github/workflows/hosted-deploy.yml` is a
-manual fallback for operators and open source users who prefer GitHub-hosted
-automation. The GitHub Actions workflow is a manual fallback, and it is
-intentionally `workflow_dispatch` only so it does not race with the Cloud Build
-trigger on `main`.
+The former Cloud Build configuration is retained only in
+[`docs/archive/cloudbuild.yaml`](docs/archive/cloudbuild.yaml) as a deprecated
+historical record. Its triggers are disabled and must not be re-enabled without
+an explicit replacement design and validation.
 
 ### Release quality and evidence procedure
 
 Use a clean checkout with the declared `.[dev]` tools to run local validation;
-use Cloud Build or the manually dispatched hosted workflow only for an
-authorized hosted release. A hosted release starts by resolving the actual
+use the manually dispatched hosted workflow only for an authorized hosted
+release. A hosted release starts by resolving the actual
 checked-out **full commit SHA**, performing a **safe preflight** that reports
 only missing non-secret prerequisites, and running `make quality`. Automation
 must never build, publish, reconcile infrastructure, or deploy after a failed,
@@ -1079,7 +1034,7 @@ artifact-destination, or secret-reference-access category before retrying. The
 safe preflight intentionally stops before deployment and never asks an operator
 to supply a secret value as diagnostic evidence.
 
-Both automation paths keep the same repository-managed rollout path intact:
+The hosted workflow keeps this repository-managed rollout path intact:
 
 1. resolve and record the full checked-out source SHA
 2. perform safe preflight validation of non-secret configuration and identity prerequisites
@@ -1099,10 +1054,10 @@ The workflow does not replace the repository deployment logic with a direct
 image-only Cloud Run update. Terraform outputs remain the handoff between
 infrastructure reconciliation and application rollout.
 
-### Push-triggered deployment bootstrap prerequisites
+### Hosted deployment prerequisites
 
-Before trusting a push to `main` as a hosted deployment trigger, confirm these
-one-time bootstrap prerequisites:
+Before dispatching `hosted-deploy`, confirm these one-time bootstrap
+prerequisites:
 
 These one-time bootstrap inputs remain outside the recurring automated
 deployment run.
@@ -1130,10 +1085,10 @@ The failure boundary is intentional and should remain operator-visible:
 - later deploy or hosted verification failures happen only after those earlier
   gates succeed.
 
-For the primary path, configure your existing Cloud Build trigger for `main` to
-read `cloudbuild.yaml`. Use the GitHub Actions workflow only when you want a
-manual fallback run or a community-managed alternative outside your primary GCP
-trigger.
+To start the release, use **Actions** → **hosted-deploy** → **Run workflow**.
+Use `main` for both the selected workflow source and `target_ref` unless you
+are intentionally releasing a specific reviewed revision. Use `staging` for the
+current hosted environment label.
 
 ### Secret boundary for automated deployment
 
@@ -1147,7 +1102,7 @@ values even when the workflow is fully automated.
 
 ### Hosted deployment artifacts
 
-The workflow publishes these artifacts for each push-driven hosted rollout:
+The workflow publishes these artifacts for each hosted rollout:
 
 - `artifacts/image-reference.txt`
 - `artifacts/source-revision.txt`

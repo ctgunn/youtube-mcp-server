@@ -1,5 +1,9 @@
 # Research: Automated Hosted Deployment Orchestration
 
+> **Current deployment note (2026-08-25):** The Cloud Build decisions below are
+> historical. Its triggers are disabled and the configuration is archived; the
+> manually dispatched GitHub Actions workflow is the supported release path.
+
 ## Implementation Targets
 
 - One checked-in workflow definition must orchestrate the existing Terraform, deployment, and hosted verification path instead of replacing any part of it.

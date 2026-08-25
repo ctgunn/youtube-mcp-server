@@ -9,44 +9,40 @@ from pathlib import Path
 class CiReleaseGuardWorkflowTests(unittest.TestCase):
     """Verify release workflow paths preserve one immutable release identity."""
 
-    def test_both_workflows_pass_provenance_to_deploy_and_upload_it(self) -> None:
+    def test_hosted_workflow_passes_provenance_to_deploy_and_uploads_it(self) -> None:
         """Require the digest-qualified release record to flow through deployment.
 
         :return: ``None`` after checking release evidence handoff markers.
         :raises AssertionError: If a workflow omits deploy provenance evidence.
         """
-        for workflow_path in (Path("cloudbuild.yaml"), Path(".github/workflows/hosted-deploy.yml")):
-            content = workflow_path.read_text()
-            self.assertIn("IMAGE_REFERENCE", content, workflow_path)
-            self.assertIn("RELEASE_PROVENANCE_FILE", content, workflow_path)
-            self.assertIn("artifacts/release-provenance.json", content, workflow_path)
+        workflow_path = Path(".github/workflows/hosted-deploy.yml")
+        content = workflow_path.read_text()
+        self.assertIn("IMAGE_REFERENCE", content, workflow_path)
+        self.assertIn("RELEASE_PROVENANCE_FILE", content, workflow_path)
+        self.assertIn("artifacts/release-provenance.json", content, workflow_path)
 
     def test_failing_gate_has_no_image_stage_before_it(self) -> None:
-        """Require each workflow to place image publication after all blockers.
+        """Require the hosted workflow to place image publication after blockers.
 
         :return: ``None`` after validating gate-before-image ordering.
         :raises AssertionError: If a build stage can run before quality validation.
         """
-        for workflow_path in (Path("cloudbuild.yaml"), Path(".github/workflows/hosted-deploy.yml")):
-            content = workflow_path.read_text()
-            gate_end = content.index("quality-gate")
-            image_start = content.index("build-image")
-            self.assertLess(gate_end, image_start, workflow_path)
+        workflow_path = Path(".github/workflows/hosted-deploy.yml")
+        content = workflow_path.read_text()
+        gate_end = content.index("quality-gate")
+        image_start = content.index("build-image")
+        self.assertLess(gate_end, image_start, workflow_path)
 
-    def test_release_workflows_target_the_configured_registry_region(self) -> None:
-        """Require each release path to derive its registry hostname from region.
+    def test_hosted_workflow_targets_the_configured_registry_region(self) -> None:
+        """Require the hosted release path to derive its registry hostname from region.
 
         :return: ``None`` after checking registry-host configuration.
         :raises AssertionError: If a workflow targets a different registry location.
         """
-        expected_hosts = {
-            Path("cloudbuild.yaml"): "${_GCP_REGION}-docker.pkg.dev",
-            Path(".github/workflows/hosted-deploy.yml"): "${GCP_REGION}-docker.pkg.dev",
-        }
-        for workflow_path, expected_host in expected_hosts.items():
-            content = workflow_path.read_text()
-            self.assertIn(expected_host, content, workflow_path)
-            self.assertNotIn("us-docker.pkg.dev", content, workflow_path)
+        workflow_path = Path(".github/workflows/hosted-deploy.yml")
+        content = workflow_path.read_text()
+        self.assertIn("${GCP_REGION}-docker.pkg.dev", content, workflow_path)
+        self.assertNotIn("us-docker.pkg.dev", content, workflow_path)
 
     def test_hosted_deploy_installs_terraform_before_invoking_it(self) -> None:
         """Require the fallback runner to provision Terraform before its use.

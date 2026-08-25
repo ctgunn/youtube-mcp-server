@@ -2,20 +2,23 @@
 
 ## Purpose
 
-Define the required behavior of the checked-in deployment automation that deploys the hosted MCP service.
+Define the required behavior of the manually dispatched GitHub Actions
+deployment automation that deploys the hosted MCP service.
 
 ## Actors
 
 - Operator relying on the repository to deploy the hosted service
 - Maintainer reviewing deployment automation changes in version control
-- Workflow runner executing the deployment stages for the intended branch
+- Workflow runner executing the deployment stages for an explicitly selected revision
 
 ## Trigger Contract
 
-- `cloudbuild.yaml` is the primary automatic deployment definition for qualifying pushes to the intended deployment branch.
-- `.github/workflows/hosted-deploy.yml` is a manual fallback workflow and must not automatically deploy the same `main` push by default.
-- Each qualifying push produces at most one automatic deployment workflow run for the pushed revision.
-- Non-qualifying pushes must not start the primary hosted deployment workflow.
+- `.github/workflows/hosted-deploy.yml` is the supported deployment workflow and
+  is explicitly dispatched by an authorized operator.
+- The workflow resolves the actual checked-out revision selected by the
+  operator; it must not automatically deploy `main` pushes by default.
+- `docs/archive/cloudbuild.yaml` is deprecated and its disabled Cloud Build
+  triggers must not be treated as a second deployment owner.
 
 ## Ordered Stages
 
@@ -44,15 +47,15 @@ The workflow must execute these stages in order:
 
 ## Required Inputs
 
-- intended deployment branch name
-- deployable image reference for the pushed revision
+- intended deployment revision
+- deployable image reference for the resolved revision
 - infrastructure reconciliation inputs for the target environment
 - operator-managed secret values already populated in the target environment
 - repository access needed to publish workflow artifacts
 
 ## Required Outputs
 
-- one deployment workflow result for the pushed revision
+- one deployment workflow result for the resolved revision
 - one infrastructure-output artifact for the deploy stage
 - one deployment record artifact emitted by the deploy stage
 - one hosted verification evidence artifact emitted by the verification stage
@@ -76,5 +79,5 @@ The workflow must execute these stages in order:
 
 - If the deploy stage bypasses Terraform-output handoff or the repository deploy script, the contract is violated.
 - If the workflow reports success without hosted verification evidence, the contract is violated.
-- If a qualifying push results in multiple independent hosted deployment runs for the same revision without explicit operator intent, the contract is violated.
+- If a hosted deployment runs without explicit operator intent, the contract is violated.
 - If artifacts are missing or unusable after a reported successful run, the workflow result is incomplete.

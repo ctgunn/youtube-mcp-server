@@ -5,6 +5,11 @@
 **Status**: Draft  
 **Input**: User description: "Read the requirements/PRD.md to get an overview of the project and its goals for context. The, work on the requirements for FND-025, as outlined in requirements/spec-kit-seed.md."
 
+> **Current deployment note (2026-08-25):** The push-triggered Cloud Build
+> topology described by this historical feature is no longer active. Cloud Build
+> triggers are disabled and the configuration is archived. The supported hosted
+> release is the manually dispatched GitHub Actions workflow.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Deploy the Hosted Platform from a Branch Push (Priority: P1)

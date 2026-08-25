@@ -150,16 +150,19 @@ The apply step exports values that map directly into the deployment workflow:
 - `concurrency`
 - `timeout_seconds`
 
-## Deployment handoff
+## Deployment handoff (break-glass only)
 
-After exporting the Terraform outputs:
+The routine hosted release is the GitHub Actions workflow documented below. If
+an authorized operator must perform recovery outside that workflow, first run
+`make quality`, export the Terraform outputs, and deploy an immutable image
+digest rather than a mutable tag:
 
 ```bash
 set -a
 source .env
 set +a
 INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json \
-IMAGE_REFERENCE=us-central1-docker.pkg.dev/my-gcp-project/apps/youtube-mcp-server:build-20260322-01 \
+IMAGE_REFERENCE=us-central1-docker.pkg.dev/my-gcp-project/apps/youtube-mcp-server@sha256:IMAGE_DIGEST \
 bash scripts/deploy_cloud_run.sh
 ```
 
@@ -171,20 +174,27 @@ The handoff is intentional:
 - the deploy script consumes those values and rolls out the MCP server image
 - deployment evidence preserves the managed hosted-network references needed for review and verification
 
-## Push-triggered deployment bootstrap
+Complete hosted verification and preserve the Terraform-output, deployment, and
+verification artifacts before considering a break-glass release complete.
 
-FND-025 adds two checked-in automation entrypoints that share the same
-Terraform-to-deploy-to-verify chain:
+## Hosted deployment workflow
 
-- `cloudbuild.yaml` for the primary Cloud Build trigger on `main`
-- `.github/workflows/hosted-deploy.yml` for a manual GitHub Actions fallback
+The manually dispatched GitHub Actions workflow at
+`.github/workflows/hosted-deploy.yml` is the supported hosted release path. In
+GitHub, open **Actions** → **hosted-deploy** → **Run workflow** and select
+`main` for the workflow source and `target_ref`, plus `staging` for the target
+environment unless you intentionally release a reviewed alternative revision.
 
-The Cloud Build trigger should be treated as the primary production path when
-you already deploy from GCP. The GitHub Actions fallback exists so maintainers
-and open source users can still run the same repository-managed deployment flow
-without discarding that work.
+The workflow performs the complete Terraform-to-deploy-to-verify chain using a
+single resolved commit SHA and immutable image digest. It retries transient
+Terraform-output reads, uploads reviewable artifacts, and remains the source of
+truth for the final hosted verification result.
 
-Both paths still depend on one-time bootstrap work:
+[`docs/archive/cloudbuild.yaml`](../../docs/archive/cloudbuild.yaml) is a
+deprecated historical record only. The Cloud Build triggers are disabled; do
+not create or re-enable a trigger using that file.
+
+The GitHub Actions workflow depends on one-time bootstrap work:
 
 - repository automation needs GCP authentication through workload identity
 - repository variables must identify the project, region, service name, image
@@ -213,7 +223,7 @@ hosted path. The remaining one-time bootstrap inputs are non-network prerequisit
 such as workflow access, Terraform environment inputs, and operator-managed secret
 values.
 
-If the push-triggered workflow fails before deploy, inspect bootstrap
+If the hosted workflow fails before deploy, inspect bootstrap
 prerequisites first. If it fails after deploy, inspect the generated deployment
 record and hosted verification artifacts before re-running the workflow.
 

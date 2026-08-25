@@ -23,12 +23,12 @@ class HostedDeploymentPipelineContractTests(unittest.TestCase):
         ):
             self.assertIn(expected, content)
 
-    def test_cloud_build_file_declares_required_stage_commands(self):
-        """Require Cloud Build to use canonical quality and deployment commands.
+    def test_github_workflow_declares_required_stage_commands(self):
+        """Require GitHub Actions to use canonical quality and deployment commands.
 
-        :return: ``None`` after validating the checked-in Cloud Build contract.
+        :return: ``None`` after validating the checked-in hosted workflow contract.
         """
-        content = Path("cloudbuild.yaml").read_text()
+        content = Path(".github/workflows/hosted-deploy.yml").read_text()
         for expected in (
             "terraform -chdir=infrastructure/gcp apply",
             "terraform -chdir=infrastructure/gcp output -json",
@@ -40,8 +40,8 @@ class HostedDeploymentPipelineContractTests(unittest.TestCase):
         ):
             self.assertIn(expected, content)
 
-    def test_github_workflow_is_manual_fallback(self):
-        """Require the manual fallback to share the guarded release contract.
+    def test_github_workflow_is_supported_manual_release(self):
+        """Require the manual release workflow to share the guarded release contract.
 
         :return: ``None`` after validating fallback-only workflow behavior.
         """

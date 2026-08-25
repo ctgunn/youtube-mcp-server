@@ -1,5 +1,9 @@
 # Research: Automated Hosted Network Bootstrap Reconciliation
 
+> **Current deployment note (2026-08-25):** The Cloud Build decisions below are
+> historical. Its triggers are disabled and the configuration is archived; the
+> manually dispatched GitHub Actions workflow is the supported release path.
+
 ## Implementation Targets
 
 - Preserve the current repository-managed Terraform-to-deploy-to-verify chain instead of creating a separate network bootstrap path.

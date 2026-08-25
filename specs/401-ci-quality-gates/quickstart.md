@@ -52,13 +52,25 @@ Open a pull request to `main`. Verify that the PR-only workflow receives no depl
 
 Use the existing hosted deployment prerequisites and non-production setup documented in the root README. Required account access, GCP project setup, Terraform inputs, workflow identity, and secret-reference setup remain external prerequisites; they must be configured before a release attempt. Never copy their values into this document, workflow logs, or artifacts.
 
-For either Cloud Build (primary automatic path) or the GitHub Actions manual fallback:
+For the supported manually dispatched GitHub Actions workflow:
 
-1. Resolve and record the actual checked-out full commit SHA.
-2. Confirm safe preflight passes and reports only non-secret prerequisite categories.
-3. Confirm `make quality` passes for that SHA before image build/publish, Terraform, or deployment begins.
-4. Confirm the published image is resolved to an immutable digest and that safe release evidence links the SHA and digest.
-5. Confirm the existing deployment record identifies the provider revision and the hosted verification record reports pass/fail.
+1. In GitHub, open **Actions** → **hosted-deploy** → **Run workflow**.
+2. Select `main` for the workflow source and `target_ref` unless releasing a
+   specific reviewed revision; select `staging` for the target environment.
+3. Confirm the workflow artifact named `hosted-deploy-<source-sha>` is
+   available after the run.
+
+Then confirm that the workflow:
+
+1. resolves and records the actual checked-out full commit SHA;
+2. passes safe preflight with only non-secret prerequisite categories;
+3. passes `make quality` for that SHA before image build/publish, Terraform, or deployment begins;
+4. resolves the published image to an immutable digest and records safe evidence linking the SHA and digest; and
+5. records the provider revision and pass/fail hosted verification result.
+
+The former Cloud Build configuration is archived and deprecated. Its triggers
+must remain disabled unless a future, explicitly approved deployment design
+replaces this workflow.
 
 For a controlled negative run, introduce a quality/preflight/provenance failure in an isolated non-production exercise. Confirm the workflow stops before the prohibited downstream stage and reports a safe category rather than a credential value.
 

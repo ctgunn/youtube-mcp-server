@@ -145,12 +145,11 @@ class CloudRunDeploymentAssetsIntegrationTests(unittest.TestCase):
             self.assertIn(pattern, dockerignore)
 
     def test_workflow_asset_list_includes_deploy_and_verify_artifacts(self):
-        """Require both workflows to retain deployment evidence artifact paths.
+        """Require the hosted workflow to retain deployment evidence artifact paths.
 
         :return: ``None`` after checking the supported deployment assets.
         """
         workflow = Path(".github/workflows/hosted-deploy.yml").read_text()
-        cloudbuild = Path("cloudbuild.yaml").read_text()
         for artifact in (
             "artifacts/source-revision.txt",
             "artifacts/release-provenance.json",
@@ -160,9 +159,13 @@ class CloudRunDeploymentAssetsIntegrationTests(unittest.TestCase):
             "artifacts/cloud-run-verification.txt",
         ):
             self.assertIn(artifact, workflow)
-            self.assertIn(artifact, cloudbuild)
 
-    def test_github_workflow_is_manual_fallback_not_main_push_owner(self):
+    def test_github_workflow_is_manual_release_not_main_push_owner(self):
+        """Require hosted releases to remain explicitly dispatched.
+
+        :return: ``None`` after checking the workflow trigger.
+        :raises AssertionError: If the workflow becomes a push-triggered release.
+        """
         workflow = Path(".github/workflows/hosted-deploy.yml").read_text()
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotIn("push:\n    branches:\n      - main", workflow)
