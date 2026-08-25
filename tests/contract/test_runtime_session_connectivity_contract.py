@@ -19,11 +19,20 @@ class RuntimeSessionConnectivityContractTests(unittest.TestCase):
         self.assertIn("hosted session continuation flow", content)
 
     def test_operator_docs_call_out_session_connectivity_inputs(self):
-        readme = Path("README.md").read_text()
-        self.assertIn("MCP_SESSION_CONNECTIVITY_MODEL", readme)
-        self.assertIn("MCP_SESSION_STORE_URL", readme)
-        self.assertIn("Terraform-managed hosted network layer", readme)
-        self.assertIn("session egress reference", readme)
+        """Require the GCP runbook to cover durable-session infrastructure inputs.
+
+        :return: ``None`` after checking session-connectivity documentation.
+        """
+        content = "\n".join(
+            (
+                Path("docs/architecture.md").read_text(),
+                Path("infrastructure/gcp/README.md").read_text(),
+            )
+        )
+        self.assertIn("MCP_SESSION_CONNECTIVITY_MODEL", content)
+        self.assertIn("MCP_SESSION_STORE_URL", content)
+        self.assertIn("Terraform-managed hosted network layer", content)
+        self.assertIn("session egress reference", content)
 
 
 if __name__ == "__main__":

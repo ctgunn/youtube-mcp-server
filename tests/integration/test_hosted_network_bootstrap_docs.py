@@ -3,8 +3,12 @@ from pathlib import Path
 
 
 class HostedNetworkBootstrapDocsIntegrationTests(unittest.TestCase):
-    def test_root_readme_documents_managed_network_bootstrap_boundary(self):
-        content = Path("README.md").read_text()
+    def test_hosted_guide_documents_managed_network_bootstrap_boundary(self):
+        """Require the scoped hosted guide to describe the network boundary.
+
+        :return: ``None`` after checking bootstrap failure guidance.
+        """
+        content = Path("docs/hosted-deployment.md").read_text()
         for expected in (
             "managed network bootstrap",
             "network reconciliation happens before deploy",

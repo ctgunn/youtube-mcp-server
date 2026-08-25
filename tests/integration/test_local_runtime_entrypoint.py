@@ -3,18 +3,26 @@ from pathlib import Path
 
 
 class LocalRuntimeEntrypointIntegrationTests(unittest.TestCase):
-    def test_readme_promotes_script_as_canonical_local_entrypoint(self):
-        content = Path("README.md").read_text()
+    def test_local_guide_promotes_script_as_canonical_local_entrypoint(self):
+        """Require local guidance to name the repository-owned entry point.
+
+        :return: ``None`` after checking the local runtime procedure.
+        """
+        content = Path("docs/local-development.md").read_text()
         self.assertIn("bash scripts/dev_local.sh", content)
         self.assertIn(".env.local", content)
         self.assertIn("local runtime defaults", content)
-        self.assertIn("Local runtime verification", content)
+        self.assertIn("Local MCP verification", content)
 
-    def test_readme_keeps_minimal_local_outside_cloud_prerequisites(self):
-        content = Path("README.md").read_text()
+    def test_local_guide_keeps_minimal_local_outside_cloud_prerequisites(self):
+        """Require local guidance to keep cloud setup out of the fast path.
+
+        :return: ``None`` after checking the minimal local boundary.
+        """
+        content = Path("docs/local-development.md").read_text()
         self.assertIn("Minimal local runtime path", content)
         self.assertIn("does not require cloud provisioning", content)
-        self.assertIn("Hosted deployment-only inputs", content)
+        self.assertIn("hosted deployment", content)
 
     def test_local_files_distinguish_baseline_defaults_from_hosted_like_overrides(self):
         """Use the tracked baseline template instead of private local config.

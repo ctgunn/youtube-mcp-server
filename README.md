@@ -1,1366 +1,185 @@
 # youtube-mcp-server
-An MCP-compliant server that wraps the YouTube Data API and exposes searchable tools for use in OpenAI Agent Builder workflows. The current primary hosted provider adapter targets Google Cloud Run, while the shared platform contract keeps the hosted deployment model portable across providers.
 
-## What this is
+An MCP-compliant server that wraps the YouTube Data API and exposes tools for
+remote MCP clients, including OpenAI Agent Builder workflows. The current
+hosted provider adapter runs on Google Cloud Run; the shared platform contract
+keeps the overall model portable.
 
-At a high level, this repository contains a remote MCP server. Other
-applications do not import this code directly. Instead, they connect to the
-hosted HTTP endpoint, send MCP messages to `/mcp`, discover the available
-tools, and call those tools over the network.
+## Start here
 
-Today the server includes:
+This is the repository's getting-started page. Choose the path that matches
+what you want to do first.
 
-- baseline server tools such as `server_ping`, `server_info`, and `server_list_tools`
-- foundational retrieval tools such as `search` and `fetch`
-- hosted session management for streamable MCP over HTTP
-- health, readiness, security, and observability behavior for Cloud Run-style hosting
+| Goal | Start here | Outcome |
+| --- | --- | --- |
+| Explore, develop, or test locally | [Run locally](#run-locally) | A local MCP endpoint with no cloud account required |
+| Test durable sessions locally | [Hosted-like local path](#test-hosted-like-sessions-locally) | The local server plus Redis in a container |
+| Operate your own hosted instance | [Deploy your fork to GCP](#deploy-your-fork-to-gcp) | Cloud Run, durable session storage, and GitHub Actions releases |
+| Understand the system before changing it | [Architecture guide](./docs/architecture.md) | The request lifecycle and module responsibilities |
 
-If you are new to the repository, the sections below explain the server in the
-same layered way a human would usually learn it: from very high level down to
-the request-by-request details.
+## Run locally
 
-## How to read this README
+### Prerequisites
 
-This README is intentionally layered.
-
-If you are trying to get the server running for the first time, start with the
-setup sections immediately below:
-
-- `Setup from scratch: local` gets the server running on your machine as fast
-  as possible.
-- `Setup from scratch: hosted on GCP` walks through the first full hosted
-  deployment path end to end.
-
-After that, come back to the architecture sections when you want to understand
-how the server actually works.
-
-You can think about the architecture at five levels:
-
-- 100 ft: what the server is for
-- 30 ft: how another application uses it
-- 10 ft: which modules are responsible for which jobs
-- ground level: what happens during a real request
-- underground: where sessions, streams, validation, and tool execution actually live
-
-The rest of this README keeps the detailed deployment and verification material
-that already existed, but this section is intended to make the big picture much
-easier to follow first.
-
-## Setup From Scratch: Local
-
-Use this path when you want to run the MCP server on your own machine for
-development or manual testing before pushing code.
-
-### What you need
-
-- `python3` 3.11 or newer
+- Python 3.11 or newer
 - `pip`
 - `make`
-- one supported compose command if you want the hosted-like Redis-backed path:
-  `docker compose`, `docker-compose`, `podman compose`, or `podman-compose`
+- A YouTube Data API key only when calling live YouTube tools
 
-These tools must already be installed on your machine before you start.
-
-Recommended install paths:
-
-- `python3`: use your platform package manager or the official Python installer.
-  On macOS with Homebrew: `brew install python@3.11`
-- `pip`: usually included with Python 3. If not, install Python again using the
-  official installer or your package manager.
-- `make`: usually preinstalled on macOS. If not, install the Xcode Command Line
-  Tools with `xcode-select --install`
-- `docker compose`: easiest path for most users is Docker Desktop, which
-  includes both `docker` and `docker compose`
-- `podman compose`: use Podman if you prefer it over Docker; install it from
-  your platform package manager or the official installer
-
-### 1. Open the repository
+Create an isolated environment and install the project:
 
 ```bash
-cd ~/Projects/youtube-mcp-server
-```
-
-### 2. Create and activate a virtual environment
-
-```bash
+git clone https://github.com/<your-account>/youtube-mcp-server.git
+cd youtube-mcp-server
 python3 -m venv .venv
 source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
+cp .env.example .env.local
 ```
 
-### 3. Install the project
+Edit `.env.local` for your machine. It is private configuration and must never
+be committed. Add `YOUTUBE_API_KEY` only when you need live API calls.
+
+Run the full quality gate, then start the server:
 
 ```bash
-python3 -m pip install --upgrade pip
-python3 -m pip install -e '.[dev]'
-```
-
-### 4. Create and review the local environment file
-
-The local runtime path reads defaults from the ignored `.env.local` file. Create
-it from the committed, secret-free template before your first local start:
-
-```bash
-cp .env.local.example .env.local
-```
-
-Set any local credentials only in `.env.local`; do not commit that file.
-
-For the first run, the important ideas are:
-
-- local development uses `MCP_ENVIRONMENT=dev`
-- the default local path uses `MCP_SESSION_BACKEND=memory`
-- the default local path does not require hosted cloud infrastructure
-
-### 5. Start the server locally
-
-The simplest local startup command is:
-
-```bash
-make dev
-```
-
-That command uses `scripts/dev_local.sh`, loads `.env.local`, and starts the
-ASGI app locally.
-
-### 6. Verify that the local server is healthy
-
-In a second terminal:
-
-```bash
-curl -i http://127.0.0.1:8080/health
-curl -i http://127.0.0.1:8080/ready
-```
-
-You want both endpoints to return `200`.
-
-### 7. Verify the MCP handshake locally
-
-Initialize:
-
-```bash
-curl -i \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":"req-init","method":"initialize","params":{"clientInfo":{"name":"local-test","version":"1.0.0"}}}' \
-  http://127.0.0.1:8080/mcp
-```
-
-Copy the returned `MCP-Session-Id` header, then use it to list tools:
-
-```bash
-curl -i \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -H 'MCP-Session-Id: YOUR_SESSION_ID' \
-  -d '{"jsonrpc":"2.0","id":"req-list","method":"tools/list","params":{}}' \
-  http://127.0.0.1:8080/mcp
-```
-
-Then call a baseline tool:
-
-```bash
-curl -i \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -H 'MCP-Session-Id: YOUR_SESSION_ID' \
-  -d '{"jsonrpc":"2.0","id":"req-call","method":"tools/call","params":{"name":"server_ping","arguments":{}}}' \
-  http://127.0.0.1:8080/mcp
-```
-
-### 8. Run the hosted-like local path when you need Redis-backed sessions
-
-This path is useful when you want local behavior that is closer to hosted
-session durability.
-
-If `make dev` is still running, stop that in-memory local server first with
-`Ctrl+C` before switching modes. `make dev-down` only stops the Redis
-containers used by the hosted-like path; it does not stop the server process
-started by `make dev`.
-
-Start the local Redis dependency:
-
-```bash
-docker compose -f infrastructure/local/compose.yaml up -d
-./scripts/local_compose.sh up -d
-```
-
-Start the app in hosted-like mode:
-
-```bash
-make dev-hosted
-```
-
-When you are done:
-
-```bash
-make dev-down
-```
-
-This hosted-like local path keeps the same app entrypoint while switching the
-session backend to Redis-backed settings under local control.
-
-## Setup From Scratch: Hosted On GCP
-
-Use this path when you want a real hosted MCP endpoint that other applications
-can reach over the network.
-
-### What you need
-
-- `gcloud`
-- `terraform`
-- `docker`
-- `python3`
-- a Google Cloud account with billing enabled
-- a GCP project you can administer, or permission to create one
-
-These tools must already be installed on your machine before you start.
-
-Recommended install paths:
-
-- `gcloud`: install the Google Cloud CLI. On macOS with Homebrew:
-  `brew install --cask google-cloud-sdk`
-- `terraform`: install the HashiCorp Terraform CLI. On macOS with Homebrew:
-  `brew tap hashicorp/tap && brew install hashicorp/tap/terraform`
-- `docker`: easiest path for most users is Docker Desktop, which also includes
-  `docker compose`
-- `python3`: use your platform package manager or the official Python installer.
-  On macOS with Homebrew: `brew install python@3.11`
-
-After installing them, verify they are on your `PATH`:
-
-```bash
-gcloud version
-terraform version
-docker --version
-python3 --version
-```
-
-Before you start the hosted path, make sure you have already done the Google
-Cloud account-level setup outside this repository:
-
-- create or sign in to your Google Cloud account
-- enable billing for that account
-- create a GCP project you want to use for this deployment
-
-### 0. Create or choose the GCP project
-
-If you already have a project, note its project ID and continue to the next
-step.
-
-If you still need to create one, you can do that in the Google Cloud Console
-or with `gcloud`:
-
-```bash
-gcloud projects create YOUR_PROJECT_ID --name="youtube-mcp-server"
-gcloud config set project YOUR_PROJECT_ID
-```
-
-If Google Cloud prompts you to attach a billing account, complete that in the
-console before continuing.
-
-### 1. Authenticate to Google Cloud
-
-```bash
-gcloud auth login
-gcloud auth application-default login
-gcloud config set project YOUR_PROJECT_ID
-```
-
-### 2. Enable the required Google Cloud APIs
-
-```bash
-gcloud services enable \
-  run.googleapis.com \
-  artifactregistry.googleapis.com \
-  secretmanager.googleapis.com \
-  redis.googleapis.com \
-  compute.googleapis.com \
-  iam.googleapis.com
-```
-
-### 3. Create the Artifact Registry repository if you do not already have one
-
-```bash
-gcloud artifacts repositories create apps \
-  --repository-format=docker \
-  --location=us-central1
-```
-
-### 4. Create the runtime secrets in Secret Manager
-
-The hosted runtime expects operator-managed secret values for:
-
-- `YOUTUBE_API_KEY`
-- `YOUTUBE_OAUTH_TOKEN` when OAuth-required YouTube operations are enabled
-- `MCP_AUTH_TOKEN`
-
-Use the following guidance for those values:
-
-- `YOUTUBE_API_KEY` should be your real YouTube Data API key from Google Cloud.
-  Create it in the Google Cloud Console under APIs & Services > Credentials
-  after enabling the YouTube Data API for your project.
-- `YOUTUBE_OAUTH_TOKEN` is an optional static OAuth access token for
-  OAuth-required YouTube operations. For a hosted deployment, prefer the
-  renewable `YOUTUBE_OAUTH_REFRESH_TOKEN`, `YOUTUBE_OAUTH_CLIENT_ID`, and
-  `YOUTUBE_OAUTH_CLIENT_SECRET` secret set. The server exchanges that set at
-  Google's token endpoint and caches only the access token in memory. Keep all
-  OAuth values in Secret Manager, never in tool input, logs, errors, or
-  committed files.
-- `MCP_AUTH_TOKEN` is not issued by Google Cloud and is not generated by this
-  repository. It is a shared bearer secret that you choose and manage.
-- Hosted callers must send that exact `MCP_AUTH_TOKEN` value in
-  `Authorization: Bearer ...` when calling the protected `/mcp` endpoint.
-- `MCP_AUTH_TOKEN` should be a long, random, high-entropy string. Do not use
-  memorable phrases, repository values, or credentials reused from other
-  systems.
-
-One simple way to generate `MCP_AUTH_TOKEN` locally is:
-
-```bash
-openssl rand -base64 32
-```
-
-If `openssl` is not convenient in your environment, this Python alternative is
-equivalent:
-
-```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(32))"
-```
-
-Create them if this is your first setup:
-
-```bash
-printf 'YOUR_REAL_YOUTUBE_API_KEY' | gcloud secrets create YOUTUBE_API_KEY --data-file=-
-printf 'YOUR_REAL_MCP_AUTH_TOKEN' | gcloud secrets create MCP_AUTH_TOKEN --data-file=-
-# Create only when OAuth-required YouTube operations are enabled:
-printf 'YOUR_REAL_YOUTUBE_OAUTH_TOKEN' | gcloud secrets create YOUTUBE_OAUTH_TOKEN --data-file=-
-```
-
-If they already exist, add new versions instead:
-
-```bash
-printf 'YOUR_REAL_YOUTUBE_API_KEY' | gcloud secrets versions add YOUTUBE_API_KEY --data-file=-
-printf 'YOUR_REAL_MCP_AUTH_TOKEN' | gcloud secrets versions add MCP_AUTH_TOKEN --data-file=-
-# Update only when OAuth-required YouTube operations are enabled:
-printf 'YOUR_REAL_YOUTUBE_OAUTH_TOKEN' | gcloud secrets versions add YOUTUBE_OAUTH_TOKEN --data-file=-
-```
-
-### 5. Review the deployment operator inputs
-
-The repository root `.env` is the operator-oriented deployment input file for
-the supported Cloud Run path. Review and set the values you actually intend to
-deploy, especially:
-
-- `PROJECT_ID`: the GCP project ID that owns the Cloud Run service, secrets,
-  and other hosted resources.
-- `REGION`: the GCP region for the hosted deployment, such as `us-central1`.
-- `SERVICE_NAME`: the Cloud Run service name to deploy.
-- `SERVICE_ACCOUNT_EMAIL`: the runtime service account email used by Cloud Run.
-  In this repository, Terraform creates that service account from
-  `service_account_name` in `infrastructure/gcp/*.tfvars`, and you can read the
-  resulting email with
-  `terraform -chdir=infrastructure/gcp output service_account_email` after
-  apply. Before Terraform runs, you can usually predict the value as
-  `SERVICE_ACCOUNT_NAME@PROJECT_ID.iam.gserviceaccount.com`. For example, if
-  `service_account_name="youtube-mcp-server"` and `PROJECT_ID="my-gcp-project"`,
-  the runtime email will usually be
-  `youtube-mcp-server@my-gcp-project.iam.gserviceaccount.com`.
-- `IMAGE_REFERENCE`: the container image to deploy, for example
-  `us-central1-docker.pkg.dev/YOUR_PROJECT_ID/apps/youtube-mcp-server:TAG`.
-- `MCP_ENVIRONMENT`: runtime profile for the deployed service. Allowed values:
-  `dev`, `staging`, `prod`.
-  `dev`: local or low-friction validation profile; auth may be relaxed unless
-  explicitly configured.
-  `staging`: pre-production hosted profile; requires `YOUTUBE_API_KEY` and
-  `MCP_AUTH_TOKEN`.
-  `prod`: production hosted profile; same required secrets as `staging`.
-- `PUBLIC_INVOCATION_INTENT`: whether the Cloud Run service is intentionally
-  reachable by trusted remote MCP clients. Allowed values:
-  `public_remote_mcp`, `private_only`.
-  `public_remote_mcp`: intended for reachable remote MCP access.
-  `private_only`: do not treat the service as part of the public remote MCP
-  path.
-- `MCP_ALLOWED_ORIGINS`: comma-separated browser origin allowlist for protected
-  `/mcp` requests, for example `https://chat.openai.com`. This matters for
-  browser-based callers that send an `Origin` header.
-- `SECRET_REFERENCES`: comma-separated Secret Manager secret names injected into
-  the runtime. For `staging` and `prod`, include both `YOUTUBE_API_KEY` and
-  `MCP_AUTH_TOKEN`; add either `YOUTUBE_OAUTH_TOKEN` or the complete renewable
-  OAuth secret set (`YOUTUBE_OAUTH_REFRESH_TOKEN`, `YOUTUBE_OAUTH_CLIENT_ID`,
-  `YOUTUBE_OAUTH_CLIENT_SECRET`) when OAuth-required operations are enabled.
-
-Other operator inputs in `.env` are usually fine to keep at the example
-defaults unless you need to tune behavior:
-
-- `MIN_INSTANCES`, `MAX_INSTANCES`, `CONCURRENCY`, `TIMEOUT_SECONDS`: Cloud Run
-  scaling and request handling settings.
-- `MCP_AUTH_REQUIRED`: optional boolean override for bearer-token enforcement.
-  Leave blank to use profile defaults. Accepted true-like values are
-  `1`, `true`, `yes`, `on`; anything else is treated as false.
-- `MCP_ALLOW_ORIGINLESS_CLIENTS`: boolean control for non-browser clients that
-  do not send `Origin`. Accepted true-like values are `1`, `true`, `yes`, `on`.
-- `MCP_SECRET_ACCESS_MODE`: how the runtime receives secret-backed config. In
-  the hosted GCP path this is typically `secret_manager_env`.
-- `MCP_SECRET_REFERENCE_NAMES`: comma-separated secret names mirrored into the
-  runtime configuration. This should match `SECRET_REFERENCES` for hosted
-  deploys.
-- `MCP_SESSION_BACKEND`: hosted session backend. Common values:
-  `memory` for local-only or single-process validation,
-  `redis` for durable hosted sessions across instances.
-- `MCP_SESSION_STORE_URL`: required when `MCP_SESSION_BACKEND=redis`; points to
-  the shared session store. For the Terraform-managed GCP path, it is normal
-  for this to be blank in `.env` before infrastructure exists. Terraform
-  creates the Redis instance and exports `mcp_session_store_url`, which this
-  repository can consume later through
-  `INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json` after running
-  `terraform -chdir=infrastructure/gcp output -json > artifacts/gcp-foundation-outputs.json`.
-  The generated value follows the pattern `redis://REDIS_HOST:6379/0`.
-- `MCP_SESSION_CONNECTIVITY_MODEL`: provider-specific connectivity path to the
-  session backend. Common values:
-  `local_process` for local-only execution,
-  `direct_vpc_egress` for the hosted GCP durable-session path.
-- `MCP_SESSION_DURABILITY_REQUIRED`: boolean flag indicating whether hosted
-  deployment should require durable sessions.
-- `MCP_SESSION_TTL_SECONDS`: hosted session lifetime in seconds.
-- `MCP_SESSION_REPLAY_TTL_SECONDS`: replay event retention window in seconds for
-  reconnect flows.
-- `INFRA_OUTPUTS_FILE`: optional Terraform `output -json` handoff file. When
-  set, the deploy workflow merges values such as `SERVICE_ACCOUNT_EMAIL`,
-  `MCP_SESSION_STORE_URL`, and the session network references from Terraform
-  outputs, so you do not need to copy them into `.env` by hand.
-
-For a real remote MCP deployment, `MCP_ENVIRONMENT=staging` and
-`PUBLIC_INVOCATION_INTENT=public_remote_mcp` are the usual starting point.
-
-### 6. Create the Terraform variable file for your environment
-
-```bash
-cp infrastructure/gcp/terraform.tfvars.example infrastructure/gcp/staging.tfvars
-```
-
-Then edit `infrastructure/gcp/staging.tfvars` with the real values for your
-environment, including:
-
-- project and region
-- service name and environment
-- public invocation intent
-- allowed origins
-- managed VPC, subnet, and Direct VPC egress subnet names/CIDRs for durable sessions
-
-### 7. Provision the hosted infrastructure
-
-Initialize Terraform:
-
-```bash
-export GCP_TERRAFORM_STATE_BUCKET=YOUR_TERRAFORM_STATE_BUCKET
-terraform -chdir=infrastructure/gcp init \
-  -backend-config="bucket=${GCP_TERRAFORM_STATE_BUCKET}" \
-  -backend-config="prefix=youtube-mcp-server/staging"
-```
-
-The bucket is private Terraform state storage, not application data. Create it
-before initialization with uniform bucket-level access and object versioning.
-Treat its contents as sensitive operational data and grant write access only to
-the dedicated deployment identity and authorized operators. If you already have
-local state, back it up and use `terraform init -migrate-state` with the same
-backend configuration before any plan or apply.
-
-Review the plan:
-
-```bash
-terraform -chdir=infrastructure/gcp plan -var-file=staging.tfvars
-```
-
-Apply the infrastructure:
-
-```bash
-terraform -chdir=infrastructure/gcp apply -var-file=staging.tfvars
-```
-
-This hosted infrastructure step is what creates and wires the platform around
-the app, including the Cloud Run foundation, durable-session Redis path, and
-the managed network resources needed for the supported GCP session-connectivity
-model. Routine releases perform this reconciliation through the GitHub Actions
-workflow below. Use a direct `terraform apply` only for deliberate bootstrap or
-recovery work, then immediately run the supported release workflow so the
-application image and verification evidence are restored.
-
-### 8. Run the supported hosted release workflow
-
-GitHub Actions is the supported hosted deployment path. In GitHub, open
-**Actions** → **hosted-deploy** → **Run workflow**, then select:
-
-- **Use workflow from**: `main`
-- **target_ref**: `main` (or the exact reviewed commit/ref to release)
-- **target_environment**: `staging`
-
-The workflow resolves the actual checked-out full commit SHA, runs safe
-preflight and `make quality`, builds and deploys an immutable image digest,
-reconciles Terraform, retries transient Terraform-output reads, and runs hosted
-verification. It never prints or stores secret values in evidence.
-
-After completion, download the `hosted-deploy-<source-sha>` artifact from the
-workflow run. It contains the source revision, immutable image reference,
-release provenance, Terraform outputs, deployment record, and verification
-result. Do not treat the release as complete until the workflow and hosted
-verification both pass.
-
-### 9. Break-glass operator procedure
-
-The repository scripts remain available for authorized recovery work when the
-GitHub Actions workflow is unavailable. This is not the routine release path.
-Run `make quality` first, deploy only an immutable image reference in the form
-`IMAGE@sha256:...`, preserve the Terraform-output, deployment, and verification
-artifacts, and never source, print, or commit secret values as release evidence.
-See [`infrastructure/gcp/README.md`](infrastructure/gcp/README.md) for the
-Terraform handoff details.
-
-## 100 Ft View
-
-This server is a network-accessible toolbox.
-
-An MCP-capable client such as OpenAI or another remote MCP consumer talks to
-your server over HTTP. The client asks:
-
-- who are you?
-- what tools do you have?
-- please run this tool for me
-
-Your server answers those questions using the MCP protocol.
-
-In practical terms, the server has four main responsibilities:
-
-1. Start with the correct runtime configuration.
-2. Accept HTTP requests on `/health`, `/ready`, and `/mcp`.
-3. Maintain MCP session state so a client can continue talking to the same logical session.
-4. Route tool requests to Python handlers and return MCP-shaped results.
-
-## 30 Ft View
-
-Another application uses this server through a hosted MCP flow:
-
-1. The client sends `initialize` to `POST /mcp`.
-2. If the request is allowed and valid, the server returns MCP capabilities and
-   an `MCP-Session-Id` header.
-3. The client reuses that session ID on later requests such as `tools/list` and
-   `tools/call`.
-4. The server validates the request, finds the correct tool, runs it, and
-   returns a result in MCP format.
-5. If the client needs replay or stream continuation, it can reconnect with the
-   same session using `GET /mcp` and `Last-Event-ID`.
-
-The most important thing to remember is that clients interact with this server
-through HTTP plus JSON-RPC/MCP messages. They are not calling Python functions
-directly.
-
-## 10 Ft View
-
-These modules are the main moving parts:
-
-- [src/mcp_server/cloud_run_entrypoint.py](~/Projects/youtube-mcp-server/src/mcp_server/cloud_run_entrypoint.py)
-  This is the hosted front door. It receives raw HTTP requests and turns them
-  into hosted MCP behavior.
-- [src/mcp_server/app.py](~/Projects/youtube-mcp-server/src/mcp_server/app.py)
-  This creates the transport object and loads runtime configuration.
-- [src/mcp_server/config.py](~/Projects/youtube-mcp-server/src/mcp_server/config.py)
-  This reads environment variables and defines runtime settings such as auth,
-  session backend, TTLs, and readiness expectations.
-- [src/mcp_server/transport/http.py](~/Projects/youtube-mcp-server/src/mcp_server/transport/http.py)
-  This classifies requests, owns hosted route behavior, and routes `/mcp`
-  payloads into the MCP protocol layer.
-- [src/mcp_server/security.py](~/Projects/youtube-mcp-server/src/mcp_server/security.py)
-  This decides whether a request is allowed based on bearer auth, origin
-  handling, and browser preflight rules.
-- [src/mcp_server/transport/streaming.py](~/Projects/youtube-mcp-server/src/mcp_server/transport/streaming.py)
-  This manages sessions, streams, replay windows, and SSE payload encoding.
-- [src/mcp_server/protocol/methods.py](~/Projects/youtube-mcp-server/src/mcp_server/protocol/methods.py)
-  This implements the MCP methods supported by the server, such as
-  `initialize`, `tools/list`, and `tools/call`.
-- [src/mcp_server/tools/dispatcher.py](~/Projects/youtube-mcp-server/src/mcp_server/tools/dispatcher.py)
-  This is the registry and dispatcher for tools.
-- [src/mcp_server/tools/retrieval.py](~/Projects/youtube-mcp-server/src/mcp_server/tools/retrieval.py)
-  This is one current tool module that implements `search` and `fetch`.
-- [src/mcp_server/transport/session_store.py](~/Projects/youtube-mcp-server/src/mcp_server/transport/session_store.py)
-  This defines where hosted session state is stored: in memory or in Redis.
-
-## Ground Level: One Request Lifecycle
-
-Here is the normal happy-path lifecycle for a hosted client:
-
-1. Cloud Run receives an HTTPS request.
-2. The ASGI entrypoint in `cloud_run_entrypoint.py` passes the request to
-   `execute_hosted_request(...)`.
-3. The request is classified by path, method, content type, and body shape.
-4. `/health` and `/ready` are answered directly by the hosted transport.
-5. `/mcp` requests go through security checks first.
-6. If the MCP method is `initialize`, the protocol layer validates it and the
-   server creates a new session only if initialize succeeds.
-7. The server returns an `MCP-Session-Id`, which the client must reuse on later
-   requests.
-8. Follow-up `tools/list` and `tools/call` requests are routed through the
-   dispatcher.
-9. The dispatcher validates tool arguments against the published schema and
-   calls the correct Python handler.
-10. The result is wrapped into an MCP response and returned as JSON or
-    streamable HTTP/SSE depending on the flow.
-
-## Underground: What lives under the surface
-
-The server has a few pieces of hidden plumbing that matter a lot:
-
-### Sessions
-
-- A successful `initialize` creates a hosted MCP session.
-- The session ID is returned in the `MCP-Session-Id` response header.
-- Follow-up requests must include that header.
-- If a session is missing or expired, the request fails and the client is
-  expected to initialize again.
-
-### Session storage
-
-Session state can live in one of two places:
-
-- memory: useful for local development and simple single-process workflows
-- Redis: useful for durable/shared hosted session continuity
-
-The session backend is selected by `MCP_SESSION_BACKEND` and
-`MCP_SESSION_STORE_URL`.
-
-### Streaming and replay
-
-This server supports streamable HTTP MCP behavior:
-
-- a client can ask for `text/event-stream`
-- the server can return SSE instead of a plain JSON body
-- the client can reconnect with `Last-Event-ID`
-- the server can replay missed events as long as they are still within the
-  replay window
-
-The replay window is controlled by `MCP_SESSION_REPLAY_TTL_SECONDS`.
-
-### Tool discovery and execution
-
-Each tool has:
-
-- a name
-- a description
-- an `inputSchema`
-- a Python handler
-
-That means a client can discover tools dynamically through `tools/list`, then
-construct a valid `tools/call` request without knowing Python details.
-
-## Short Example
-
-In plain language, a client does something like this:
-
-1. Send `initialize`.
-2. Receive capabilities and `MCP-Session-Id`.
-3. Send `tools/list`.
-4. Read the published tool schemas.
-5. Send `tools/call` for a tool such as `search` or `fetch`.
-6. Receive the tool result in MCP format.
-
-That is the core of how this server works. The sections below cover the exact
-runtime configuration, deployment, verification, and hosted contract details.
-
-## Local dependency bootstrap
-
-The setup sections above are the recommended first-time path. This section and
-the ones that follow are the deeper runtime and operator reference details.
-
-Install the hosted runtime dependencies from the repository root:
-
-```bash
-python3 -m pip install -e .
-```
-
-## Minimal local runtime path
-
-Use the minimal local runtime path when you only need local development and do
-not need Redis-backed session durability. `bash scripts/dev_local.sh` is the
-canonical local startup entry point, and it loads the local runtime defaults
-from `.env.local` automatically.
-
-```bash
+make quality
 bash scripts/dev_local.sh
 ```
 
-This path does not require cloud provisioning or local infrastructure under
-`infrastructure/`, and it remains outside any provider adapter prerequisites in the shared platform contract.
-
-Local runtime verification:
-
-- `.env.local` is the dedicated local runtime defaults file for this path.
-- The script fails immediately if `.env.local` is missing and tells you to restore the local runtime defaults file.
-- Successful startup means the app is running with the baseline local profile and no hosted deployment-only inputs.
-
-Hosted deployment-only inputs remain in hosted deployment documentation and `.env.example`; they are not required for the minimal local runtime path.
-
-## Hosted-like local verification path
-
-Use the hosted-like local verification path when you need to exercise the same
-Redis-backed session settings used by the hosted deployment without provisioning
-cloud infrastructure first:
+In another terminal, verify the process:
 
 ```bash
-docker compose -f infrastructure/local/compose.yaml up -d
-./scripts/local_compose.sh up -d
+curl http://127.0.0.1:8080/health
+curl http://127.0.0.1:8080/ready
 ```
 
+The minimal local runtime path does not require cloud provisioning, Docker, or
+Redis. For MCP examples and local troubleshooting, read the
+[local development guide](./docs/local-development.md).
+
+## Test hosted-like sessions locally
+
+Use this optional path only when you need Redis-backed durable-session testing,
+reconnect behavior, event replay, or hosted readiness behavior:
+
 ```bash
+./scripts/local_compose.sh up -d
 LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh
 ```
 
-When finished:
+Stop Redis when finished:
 
 ```bash
 ./scripts/local_compose.sh down
 ```
 
-These local and hosted-like local workflows are execution modes of the shared platform contract. They remain separate from the primary hosted provider adapter and any future provider adapter.
-
-Hosted-like local verification keeps the same startup entry point but changes the local session profile:
-
-- baseline local values still come from `.env.local`
-- hosted-like local overrides are documented in `infrastructure/local/.env.example`
-- the Redis bootstrap path must be running before `LOCAL_SESSION_MODE=hosted bash scripts/dev_local.sh`
-- if the durable-session dependency is unavailable, start `docker compose -f infrastructure/local/compose.yaml up -d` or `./scripts/local_compose.sh up -d` and retry
-
-## Engineering workflow
-
-Feature specification, planning, and implementation in this repository follow a
-mandatory Red-Green-Refactor TDD workflow. Every feature plan and task list
-must include explicit failing-test, minimal-pass, and refactor phases. Work is
-not complete until the full repository test suite has been run after the final
-code changes and every test is passing. All new or modified Python functions
-must include reStructuredText docstrings before review and merge.
-
-### Pull-request quality gate
-
-From a clean checkout, create and activate a Python 3.11 virtual environment,
-then install the declared development tools:
-
-```bash
-python -m pip install --upgrade pip
-python -m pip install -e '.[dev]'
-make quality
-```
-
-`make quality` runs linting, static type checking, and the full automated test
-suite in order. Use `make lint`, `make typecheck`, or `make test` when working
-on one category; a non-passing result must be corrected before merge or a
-supported release.
-
-The checked-in `.github/workflows/quality.yml` workflow runs for pull requests
-targeting `main` and reports three distinct GitHub Actions checks: `lint`,
-`typecheck`, and `tests`. It has read-only repository permission and no
-deployment credentials, path filters, or privileged pull-request trigger.
-
-An authorized repository administrator must configure exactly one active
-governance mechanism for `main`: an active GitHub ruleset (preferred) or an
-equivalent classic branch-protection rule. It must require pull requests, the
-GitHub-Actions-sourced `lint`, `typecheck`, and `tests` checks, an up-to-date
-branch, and no normal maintainer bypass. Do not enable both mechanisms with
-different settings.
-
-Record read-only policy and latest-revision check evidence without logs or
-credentials, then verify it locally:
-
-```bash
-python scripts/verify_github_quality_gate.py \
-  --policy-file artifacts/main-quality-policy.json \
-  --checks-file artifacts/current-pr-checks.json
-```
-
-The policy evidence must contain only enforcement state, required check names,
-up-to-date and bypass settings. The check evidence must contain the resolved
-head SHA plus each check name, status, conclusion, and `github-actions` source.
-The verifier emits safe JSON and exits nonzero for missing, stale, cancelled,
-failed, skipped, pending, incorrectly sourced, or otherwise ineligible checks.
-
-For governance confirmation, open one normal pull request and controlled lint,
-typecheck, and test failures. After each update, confirm the newest revision is
-blocked until all three exact checks pass. Repository ruleset creation and
-read-back require authorized administrator access and are external prerequisites.
-
-## Runtime configuration profiles
-
-- `MCP_ENVIRONMENT` is required and must be one of `dev`, `staging`, or `prod`.
-- Startup fails fast when required profile configuration is missing or invalid.
-- `YOUTUBE_API_KEY` is required for `staging` and `prod`.
-- OAuth-required tools are independently capability-gated. Supply either
-  `YOUTUBE_OAUTH_TOKEN` for a short-lived/static setup or the complete
-  `YOUTUBE_OAUTH_REFRESH_TOKEN`, `YOUTUBE_OAUTH_CLIENT_ID`, and
-  `YOUTUBE_OAUTH_CLIENT_SECRET` set for renewable hosted credentials. `/ready`
-  reports API-key and OAuth capability availability without exposing secrets.
-- `MCP_AUTH_TOKEN` is required for `staging` and `prod` hosted MCP access and
-  acts as the shared bearer secret for protected `/mcp` requests.
-- `MCP_ALLOWED_ORIGINS` defines the browser origin allowlist for protected `/mcp` requests.
-- `MCP_ALLOW_ORIGINLESS_CLIENTS` controls whether non-browser callers without `Origin` can proceed to authentication checks.
-- `MCP_SESSION_BACKEND` selects the hosted session backend (`memory` for local-only or shared-memory tests, `redis` for durable hosted deployments).
-- `MCP_SESSION_STORE_URL` points at the shared durable session backend when hosted session durability is required.
-- `MCP_SECRET_ACCESS_MODE` documents how the hosted runtime receives secret-backed configuration.
-- `MCP_SECRET_REFERENCE_NAMES` records the secret references expected to be available to the hosted runtime.
-- `MCP_SESSION_CONNECTIVITY_MODEL` documents the provider-specific connectivity path used to reach the durable session backend.
-- The Terraform-managed hosted network layer now provisions the VPC network, dedicated Direct VPC egress subnet, and session egress reference used by the supported GCP durable-session path.
-- `MCP_SESSION_DURABILITY_REQUIRED` forces `/ready` to fail unless a healthy shared session backend is available.
-- `MCP_SESSION_TTL_SECONDS` controls how long an inactive hosted session remains reusable.
-
-### Live YouTube verification
-
-The regular test suite uses fakes and never contacts Google. After injecting a
-real restricted API key, run the explicit read-only smoke check to prove the
-deployed credential and outbound network path work end to end:
-
-```bash
-RUN_YOUTUBE_LIVE_SMOKE=1 YOUTUBE_API_KEY='your-key' python3 scripts/verify_youtube_live.py
-```
-
-It calls only `i18nLanguages.list` and prints a count, never a credential or
-raw API response. The matching pytest check is likewise opt-in:
-`RUN_YOUTUBE_LIVE_SMOKE=1 python3 -m pytest tests/integration/test_youtube_live_smoke.py`.
-- `MCP_SESSION_REPLAY_TTL_SECONDS` controls how long reconnect replay history is retained for `Last-Event-ID` resume flows.
-- `GET /health` returns liveness (`{"status":"ok"}`).
-- `GET /ready` returns readiness based on startup config/secret validation.
-
-## Browser-originated hosted MCP access
-
-- Browser-originated access is explicitly supported only for `/mcp`.
-- Approved browser clients must pass preflight before sending authenticated hosted MCP requests.
-- Successful browser preflight for `/mcp` returns `Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, and `Access-Control-Allow-Headers`.
-- Successful approved-origin `/mcp` responses expose `MCP-Session-Id`, `MCP-Protocol-Version`, and `X-Stream-Id` so browser clients can continue hosted MCP flows.
-- Denied origins and unsupported browser request patterns fail explicitly instead of relying on implicit browser blocking.
-
-Representative browser preflight example:
-
-```bash
-curl -i -X OPTIONS \
-  -H 'Origin: http://localhost:3000' \
-  -H 'Access-Control-Request-Method: POST' \
-  -H 'Access-Control-Request-Headers: authorization, content-type' \
-  https://YOUR_SERVICE_URL/mcp
-```
-
-## Cloud Run foundation deployment
-
-If you are deploying for the first time, follow `Setup From Scratch: Hosted On
-GCP` earlier in this README first. This section is the lower-level hosted
-deployment reference.
-
-The hosted deployment steps below describe the current primary hosted provider adapter. FND-020 preserves these steps while separating them from the provider-neutral application deployment model.
-
-Required deployment inputs:
-
-- `PROJECT_ID`
-- `REGION`
-- `SERVICE_NAME`
-- `IMAGE_REFERENCE`
-- `SERVICE_ACCOUNT_EMAIL`
-- `MCP_SERVER_IMPLEMENTATION` (`uvicorn`)
-- `MCP_ASGI_APP` (`mcp_server.cloud_run_entrypoint:app`)
-- `MCP_SECRET_ACCESS_MODE` (`secret_manager_env` for Cloud Run hosted secret injection)
-- `MCP_SECRET_REFERENCE_NAMES` (comma-separated runtime secret references, normally matching `SECRET_REFERENCES`)
-- `PUBLIC_INVOCATION_INTENT` (`public_remote_mcp` for trusted public remote MCP environments, `private_only` otherwise)
-- `MCP_ENVIRONMENT`
-- `MCP_AUTH_REQUIRED`
-- `MCP_ALLOWED_ORIGINS`
-- `MCP_ALLOW_ORIGINLESS_CLIENTS`
-- `MIN_INSTANCES`
-- `MAX_INSTANCES`
-- `CONCURRENCY`
-- `TIMEOUT_SECONDS`
-- `SECRET_REFERENCES` (`YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN` are required for `staging` and `prod`)
-- `INFRA_OUTPUTS_FILE` (optional Terraform `output -json` handoff file for pre-provisioned infrastructure)
-
-When you use the supported GCP Terraform path, deployment evidence also carries
-the managed hosted-network references exported by infrastructure reconciliation.
-That includes the session egress reference and the managed network
-references needed for deployment review and hosted verification.
-
-Execute the deployment workflow with explicit revision settings:
-
-```bash
-PROJECT_ID=example-project \
-REGION=us-central1 \
-SERVICE_NAME=youtube-mcp-server \
-IMAGE_REFERENCE=us-central1-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
-SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com \
-MCP_SERVER_IMPLEMENTATION=uvicorn \
-MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \
-MCP_SECRET_ACCESS_MODE=secret_manager_env \
-MCP_SECRET_REFERENCE_NAMES=YOUTUBE_API_KEY,MCP_AUTH_TOKEN \
-PUBLIC_INVOCATION_INTENT=public_remote_mcp \
-MCP_ENVIRONMENT=staging \
-MCP_AUTH_REQUIRED=true \
-MCP_ALLOWED_ORIGINS=https://chat.openai.com \
-MCP_ALLOW_ORIGINLESS_CLIENTS=true \
-MCP_SESSION_BACKEND=redis \
-MCP_SESSION_STORE_URL=redis://REDIS_HOST:6379/0 \
-MCP_SESSION_CONNECTIVITY_MODEL=direct_vpc_egress \
-MCP_SESSION_DURABILITY_REQUIRED=true \
-MIN_INSTANCES=0 \
-MAX_INSTANCES=2 \
-CONCURRENCY=20 \
-TIMEOUT_SECONDS=180 \
-SECRET_REFERENCES=YOUTUBE_API_KEY,MCP_AUTH_TOKEN \
-bash scripts/deploy_cloud_run.sh
-```
-
-If you provisioned the hosted platform through the Terraform workflow in
-`infrastructure/gcp/`, you can pass the exported outputs file directly into the
-deployment workflow instead of retyping the provisioned values:
-
-```bash
-set -a
-source .env
-set +a
-INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json \
-IMAGE_REFERENCE=us-central1-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
-bash scripts/deploy_cloud_run.sh
-```
-
-The deployment workflow now returns a JSON deployment record containing the
-deployment outcome, revision name, hosted service URL, public invocation
-intent, published connection point, and runtime settings summary. Save that
-record and use it as the handoff into hosted verification.
-The runtime settings summary includes `serverImplementation=uvicorn` and
-`appModule=mcp_server.cloud_run_entrypoint:app`.
-
-Example:
-
-```bash
-PROJECT_ID=example-project \
-REGION=us-central1 \
-SERVICE_NAME=youtube-mcp-server \
-IMAGE_REFERENCE=us-central1-docker.pkg.dev/example-project/apps/youtube-mcp-server:sha \
-SERVICE_ACCOUNT_EMAIL=youtube-mcp-server@example-project.iam.gserviceaccount.com \
-MCP_SERVER_IMPLEMENTATION=uvicorn \
-MCP_ASGI_APP=mcp_server.cloud_run_entrypoint:app \
-MCP_SECRET_ACCESS_MODE=secret_manager_env \
-MCP_SECRET_REFERENCE_NAMES=YOUTUBE_API_KEY,MCP_AUTH_TOKEN \
-PUBLIC_INVOCATION_INTENT=public_remote_mcp \
-MCP_ENVIRONMENT=staging \
-MCP_AUTH_REQUIRED=true \
-MCP_ALLOWED_ORIGINS=https://chat.openai.com \
-MCP_ALLOW_ORIGINLESS_CLIENTS=true \
-MCP_SESSION_BACKEND=redis \
-MCP_SESSION_STORE_URL=redis://REDIS_HOST:6379/0 \
-MCP_SESSION_CONNECTIVITY_MODEL=direct_vpc_egress \
-MCP_SESSION_DURABILITY_REQUIRED=true \
-MIN_INSTANCES=0 \
-MAX_INSTANCES=2 \
-CONCURRENCY=20 \
-TIMEOUT_SECONDS=180 \
-SECRET_REFERENCES=YOUTUBE_API_KEY,MCP_AUTH_TOKEN \
-bash scripts/deploy_cloud_run.sh > artifacts/cloud-run-deployment.json
-```
-
-Verify the hosted foundation revision after deployment:
-
-```bash
-PYTHONPATH=src python3 scripts/verify_cloud_run_foundation.py \
-  --deployment-record artifacts/cloud-run-deployment.json \
-  --auth-token "$MCP_AUTH_TOKEN" \
-  --evidence-file artifacts/cloud-run-verification.txt
-```
-
-Set `PUBLIC_INVOCATION_INTENT=public_remote_mcp` only for environments that
-should be intentionally reachable by trusted remote MCP consumers. Use
-`PUBLIC_INVOCATION_INTENT=private_only` for environments that should remain
-outside the public remote MCP workflow. Public invocation intent does not
-replace `Authorization: Bearer ...`; it only determines whether the hosted
-Cloud Run service is intentionally reachable.
-
-Operator diagnosis now follows two layers:
-
-- `cloud_platform`: the public `reachability` probe failed before the request reached the hosted MCP application.
-- `mcp_application`: the hosted service was reachable, but the protected `/mcp` request failed due to bearer-token or browser-origin rules.
-
-The hosted verifier now exercises the streamable MCP transport rather than the
-older bare `POST /mcp` flow. It performs `initialize`, captures the returned
-`MCP-Session-Id`, reuses that session for subsequent `POST` and `GET` MCP
-requests, validates reconnect behavior with `Last-Event-ID`, and accepts both
-`application/json` and `text/event-stream` responses as required by the hosted
-transport contract. Covered hosted MCP failures now use numeric `error.code`
-values and stable `error.data.category` details rather than legacy string-style
-top-level error codes. It now records a public `reachability` check before
-`liveness`, `readiness`, and authenticated `/mcp` verification so operators can
-separate Cloud Run public access from MCP-layer authentication.
-It also records `deployment-evidence`, `secret-access`, and
-`session-connectivity` checks so operators can distinguish missing runtime
-secret access from missing durable session connectivity before session
-continuation is attempted.
-
-When hosted verification reports `SECRET_ACCESS_UNAVAILABLE` or
-`SECRET_REFERENCE_MISSING`, inspect the Cloud Run runtime service account,
-`MCP_SECRET_ACCESS_MODE`, and `MCP_SECRET_REFERENCE_NAMES` first. When hosted
-verification reports a session-connectivity failure, inspect
-`MCP_SESSION_CONNECTIVITY_MODEL`, the exported session egress reference, the
-managed session network reference, and the Redis backend reference first.
-
-## Hosted deployment workflow
-
-The manually dispatched GitHub Actions workflow at
-`.github/workflows/hosted-deploy.yml` is the supported hosted release path.
-It is intentionally `workflow_dispatch` only: a release is an explicit,
-reviewed operator action rather than an automatic side effect of every merge to
-`main`.
-
-The former Cloud Build configuration is retained only in
-[`docs/archive/cloudbuild.yaml`](docs/archive/cloudbuild.yaml) as a deprecated
-historical record. Its triggers are disabled and must not be re-enabled without
-an explicit replacement design and validation.
-
-### Release quality and evidence procedure
-
-Use a clean checkout with the declared `.[dev]` tools to run local validation;
-use the manually dispatched hosted workflow only for an authorized hosted
-release. A hosted release starts by resolving the actual
-checked-out **full commit SHA**, performing a **safe preflight** that reports
-only missing non-secret prerequisites, and running `make quality`. Automation
-must never build, publish, reconcile infrastructure, or deploy after a failed,
-cancelled, missing, skipped, or pending quality result.
-
-After image publication, the workflow resolves the **immutable image digest**
-and deploys that digest-qualified image. The non-secret release-provenance
-record links the full commit SHA, image digest, quality statuses, preflight
-result, deployment record/provider revision, and verification pass/fail result.
-Do not put credential values, environment dumps, bearer tokens, API keys, or
-raw secret-manager output in command examples, logs, or evidence artifacts.
-
-If a prerequisite is absent, correct the named configuration, identity,
-artifact-destination, or secret-reference-access category before retrying. The
-safe preflight intentionally stops before deployment and never asks an operator
-to supply a secret value as diagnostic evidence.
-
-The hosted workflow keeps this repository-managed rollout path intact:
-
-1. resolve and record the full checked-out source SHA
-2. perform safe preflight validation of non-secret configuration and identity prerequisites
-3. run the canonical `make quality` gate
-4. build, publish, and resolve an immutable digest-qualified image
-5. run `terraform -chdir=infrastructure/gcp apply`
-6. export Terraform outputs to `artifacts/gcp-foundation-outputs.json`
-7. deploy the digest-qualified image through `scripts/deploy_cloud_run.sh`
-8. verify through `scripts/verify_cloud_run_foundation.py`, then publish source, image, provenance, deployment, and verification artifacts
-
-For environments that require durable hosted session connectivity, managed
-network bootstrap is part of step 4. In other words, network reconciliation
-happens before deploy and remains inside the same reviewed automation path.
-Stated directly: network reconciliation happens before deploy for the supported hosted path.
-
-The workflow does not replace the repository deployment logic with a direct
-image-only Cloud Run update. Terraform outputs remain the handoff between
-infrastructure reconciliation and application rollout.
-
-### Hosted deployment prerequisites
-
-Before dispatching `hosted-deploy`, confirm these one-time bootstrap
-prerequisites:
-
-These one-time bootstrap inputs remain outside the recurring automated
-deployment run.
-
-- repository automation can authenticate to GCP through
-  `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOYER_SERVICE_ACCOUNT`; this
-  deployer identity is distinct from the Cloud Run runtime identity
-- repository variables provide `GCP_PROJECT_ID`, `GCP_REGION`,
-  `GCP_SERVICE_NAME`, `GCP_ARTIFACT_REGISTRY_REPOSITORY`, and
-  `GCP_TERRAFORM_VAR_FILE`, plus `GCP_TERRAFORM_STATE_BUCKET`
-- the target environment already contains operator-managed secret values for
-  `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`
-- the Artifact Registry repository, Terraform variable file, and versioned
-  private Terraform state bucket already exist for the target environment
-
-If any bootstrap prerequisite is missing, the workflow fails before it reports
-a hosted deployment result.
-
-The failure boundary is intentional and should remain operator-visible:
-
-- `bootstrap_input_failure` means one-time bootstrap inputs were missing before
-  hosted reconciliation could start.
-- `network_reconcile_failure` means managed network bootstrap failed during
-  infrastructure reconciliation.
-- later deploy or hosted verification failures happen only after those earlier
-  gates succeed.
-
-To start the release, use **Actions** → **hosted-deploy** → **Run workflow**.
-Use `main` for both the selected workflow source and `target_ref` unless you
-are intentionally releasing a specific reviewed revision. Use `staging` for the
-current hosted environment label.
-
-### Secret boundary for automated deployment
-
-Repository automation is allowed to wire secret references, authenticate to the
-cloud environment, export infrastructure outputs, deploy the hosted revision,
-and run hosted verification.
-
-Repository automation is not allowed to create, print, rotate, or commit secret
-values. `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN` remain operator-managed secret
-values even when the workflow is fully automated.
-
-### Hosted deployment artifacts
-
-The workflow publishes these artifacts for each hosted rollout:
-
-- `artifacts/image-reference.txt`
-- `artifacts/source-revision.txt`
-- `artifacts/release-provenance.json`
-- `artifacts/gcp-foundation-outputs.json`
-- `artifacts/cloud-run-deployment.json`
-- `artifacts/cloud-run-verification.json`
-- `artifacts/cloud-run-verification.txt`
-
-Treat `artifacts/cloud-run-deployment.json` as the handoff from deploy to
-verification and `artifacts/cloud-run-verification.json` as the final release
-gate summary.
-
-Manual streamable MCP verification examples:
-
-Rejected initialize requests must not return `MCP-Session-Id` and must not create
-usable hosted continuation state:
-
-```bash
-curl -i \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
-  -d '{"jsonrpc":"2.0","id":"req-init-invalid","method":"initialize","params":{}}' \
-  https://YOUR_SERVICE_URL/mcp
-```
-
-Expected result: invalid initialize error with no `MCP-Session-Id` header.
-
-```bash
-curl -i \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
-  -d '{"jsonrpc":"2.0","id":"req-init","method":"initialize","params":{"clientInfo":{"name":"manual","version":"1.0.0"}}}' \
-  https://YOUR_SERVICE_URL/mcp
-```
-
-Use the returned `MCP-Session-Id` for subsequent requests:
-
-```bash
-curl -i \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
-  -H 'MCP-Session-Id: SESSION_ID' \
-  -d '{"jsonrpc":"2.0","id":"req-call","method":"tools/call","params":{"name":"server_ping","arguments":{}}}' \
-  https://YOUR_SERVICE_URL/mcp
-```
-
-Successful hosted JSON responses now use protocol-native MCP bodies:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "req-call",
-  "result": {
-    "content": [
-      {
-        "type": "text",
-        "text": "{\"status\":\"ok\",\"timestamp\":\"...\"}",
-        "structuredContent": {
-          "status": "ok",
-          "timestamp": "..."
-        }
-      }
-    ],
-    "isError": false
-  }
-}
-```
-
-Representative hosted failure responses now use numeric MCP error codes:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "req-invalid",
-  "error": {
-    "code": -32602,
-    "message": "arguments must be an object",
-    "data": {
-      "category": "invalid_argument"
-    }
-  }
-}
-```
-
-Representative hosted resource-missing failures use the shared numeric mapping:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "req-missing-tool",
-  "error": {
-    "code": -32001,
-    "message": "Tool not found.",
-    "data": {
-      "category": "unknown_tool",
-      "toolName": "missing_tool"
-    }
-  }
-}
-```
-
-Tool discovery responses now include complete baseline tool metadata, including
-`inputSchema`, so hosted MCP clients can construct valid calls from `tools/list`
-without separate tool documentation.
-
-Representative hosted `tools/list` output still includes the deep research
-tools used in earlier foundation slices:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "req-list",
-  "result": {
-    "tools": [
-      {
-        "name":"search",
-        "description":"Search the retrieval corpus for relevant documents.",
-        "inputSchema":{"type":"object","required":["query"],"properties":{"query":{"type":"string","minLength":1}},"additionalProperties":false}
-      },
-      {
-        "name":"fetch",
-        "description":"Fetch the full contents of a previously identified document.",
-        "inputSchema":{"type":"object","required":["id"],"properties":{"id":{"type":"string","minLength":1}},"additionalProperties":false}
-      }
-    ]
-  }
-}
-```
-
-For retrieval-contract completeness work, hosted discovery is expected to be
-strong enough that clients can build:
-
-- a valid `search` request from the published `query` schema
-- a valid `fetch` request from the published `id` schema
-- an explicit invalid legacy-shape request that proves the compatibility boundary
-
-Hosted session durability verification expects the hosted tool catalog to
-remain discoverable and then validates session continuation through the same
-protected MCP entrypoint.
-
-Representative hosted `POST` continuation example:
-
-```bash
-curl -i \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
-  -H 'MCP-Session-Id: SESSION_ID' \
-  -d '{"jsonrpc":"2.0","id":"req-search","method":"tools/call","params":{"name":"search","arguments":{"query":"remote MCP research"}}}' \
-  https://YOUR_SERVICE_URL/mcp
-```
-
-Representative hosted `fetch` examples derived from discovery:
-
-```bash
-curl -i \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
-  -H 'MCP-Session-Id: SESSION_ID' \
-  -d '{"jsonrpc":"2.0","id":"req-fetch","method":"tools/call","params":{"name":"fetch","arguments":{"id":"doc-remote-mcp-001"}}}' \
-  https://YOUR_SERVICE_URL/mcp
-```
-
-Representative successful retrieval payload:
-
-```json
-{
-  "id":"doc-remote-mcp-001",
-  "url":"https://example.com/remote-mcp-research",
-  "content": [
-    {
-      "type": "text",
-      "text": "{\"id\":\"doc-remote-mcp-001\",\"title\":\"Remote MCP Research Workflows\",\"text\":\"Remote MCP research workflows depend on discoverable tools and stable document retrieval.\",\"url\":\"https://example.com/remote-mcp-research\",\"metadata\":{\"sourceName\":\"Example Research\"}}"
-    }
-  ]
-}
-```
-
-Representative unsupported legacy-shape example:
-
-```bash
-curl -i \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
-  -H 'MCP-Session-Id: SESSION_ID' \
-  -d '{"jsonrpc":"2.0","id":"req-fetch-legacy","method":"tools/call","params":{"name":"fetch","arguments":{"resourceId":"res_remote_mcp_001"}}}' \
-  https://YOUR_SERVICE_URL/mcp
-```
-
-Representative hosted reconnect example:
-
-```bash
-curl -i \
-  -H 'Accept: text/event-stream' \
-  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
-  -H 'MCP-Session-Id: SESSION_ID' \
-  -H 'Last-Event-ID: STREAM_EVENT_ID' \
-  https://YOUR_SERVICE_URL/mcp
-```
-
-Open or resume an SSE stream without a replay cursor:
-
-```bash
-curl -i \
-  -H 'Accept: text/event-stream' \
-  -H 'Authorization: Bearer YOUR_MCP_AUTH_TOKEN' \
-  -H 'MCP-Session-Id: SESSION_ID' \
-  -H 'Last-Event-ID: STREAM_EVENT_ID' \
-  https://YOUR_SERVICE_URL/mcp
-```
-
-Protected `/mcp` requests now follow these hosted security rules:
-
-- Browser callers that send `Origin` must match `MCP_ALLOWED_ORIGINS`.
-- Non-browser callers may omit `Origin` only when `MCP_ALLOW_ORIGINLESS_CLIENTS=true`.
-- Protected `/mcp` requests must send `Authorization: Bearer ...`.
-- Missing auth returns `401`, denied origin returns `403`, and malformed security headers return `400`.
-
-You can still provide `--service-url`, `--revision-name`, `--service-name`,
-`--runtime-identity`, `--min-instances`, `--max-instances`, `--concurrency`,
-and `--timeout-seconds` directly when a deployment record file is not available.
-
-Hosted runtime requests emit structured JSON log events to runtime stdout/stderr
-with `timestamp`, `severity`, `requestId`, `path`, `status`, `latencyMs`, and
-`toolName` when the request reaches tool dispatch.
-
-Start the migrated hosted runtime locally with the ASGI entrypoint:
-
-```bash
-PYTHONPATH=src python3 -m uvicorn mcp_server.cloud_run_entrypoint:app --host 0.0.0.0 --port 8080
-```
-
-The verification output must record pass/fail results for:
-
-- `reachability`
-- `liveness`
-- `readiness`
-- `initialize-invalid-no-session`
-- `initialize-success-session-created`
-- `initialize-retry-success`
-- `initialize`
-- `list-tools`
-- `search-tool-call-openai`
-- `fetch-tool-call-openai`
-- `search-tool-call-empty`
-- `fetch-tool-call-legacy-shape`
-- `fetch-tool-call-missing`
-- `session-post-continuation`
-- `session-get-continuation`
-- `session-reconnect`
-- `session-invalid`
-- `browser-preflight-approved`
-- `browser-request-approved`
-- `browser-origin-denied`
-- `browser-request-unsupported`
+This remains local verification—Cloud Run, GCP IAM, and public reachability
+are not involved. See the [local infrastructure README](./infrastructure/local/README.md)
+for the full hosted-like local verification path.
+
+## Deploy your fork to GCP
+
+Forking copies the workflow definition, but a first deployment needs one-time
+configuration in **your** GitHub repository and **your** GCP project. This is
+intentional: project identity, Terraform state, and secret values do not belong
+in this source repository.
+
+### 1. Fork and enable Actions
+
+1. Fork this repository to an account or organization you control.
+2. Open the fork's **Actions** tab and enable Actions if GitHub prompts you.
+3. Use the fork's default branch—normally `main`—as the release branch.
+
+`hosted-deploy` is manually dispatched by design. A hosted release is an
+explicit, reviewed operator action rather than an automatic effect of a push.
+
+### 2. Create the GCP bootstrap resources
+
+In your GCP project, create the following once:
+
+1. A private, versioned GCS bucket for Terraform state.
+2. A regional Artifact Registry Docker repository.
+3. A GitHub OIDC Workload Identity Pool/provider restricted to your fork, plus
+   a deployer service account that it may impersonate.
+4. Least-privilege access for that deployer to publish images, read/write
+   Terraform state, reconcile the infrastructure, deploy Cloud Run, and manage
+   runtime Secret Manager access bindings.
+5. Secret Manager secret values for `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`.
+
+The release workflow manages the Cloud Run foundation, durable Redis session
+path, and managed network bootstrap after these prerequisites exist. It does
+not create your state bucket, image repository, identity federation, or secret
+values.
+
+### 3. Configure `staging.tfvars`
+
+Replace the checked-in values in `infrastructure/gcp/staging.tfvars` with your
+own project ID, region, service name, allowed browser origin, and managed
+network names/CIDRs. The file may be committed only when it contains
+non-sensitive resource configuration—never API keys, tokens, passwords, or
+secret values.
+
+### 4. Configure GitHub Actions
+
+In the fork, open **Settings** → **Secrets and variables** → **Actions**.
+
+Add repository variables:
+
+| Variable | Value |
+| --- | --- |
+| `GCP_PROJECT_ID` | Your GCP project ID |
+| `GCP_REGION` | Your Artifact Registry and Cloud Run region |
+| `GCP_SERVICE_NAME` | The service name from `staging.tfvars` |
+| `GCP_ARTIFACT_REGISTRY_REPOSITORY` | Your Artifact Registry Docker repository |
+| `GCP_TERRAFORM_VAR_FILE` | Normally `staging.tfvars` |
+| `GCP_TERRAFORM_STATE_BUCKET` | Your private, versioned Terraform state bucket |
+
+Add repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | The full Workload Identity Provider resource name |
+| `GCP_DEPLOYER_SERVICE_ACCOUNT` | The deployer service-account email address |
+
+Keep `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN` in GCP Secret Manager. The
+supported workflow uses short-lived identity federation, so do not create or
+store a downloadable service-account key in GitHub or the repository.
+
+### 5. Run the first release
+
+In GitHub, open **Actions** → **hosted-deploy** → **Run workflow**. Select
+`main` as both the workflow source and `target_ref`, then choose `staging` as
+the target environment unless you are deliberately releasing another reviewed
+revision.
+
+The workflow runs safe preflight and `make quality`, publishes an immutable
+image, reconciles Terraform, deploys Cloud Run, and runs hosted verification.
+After it succeeds, download `hosted-deploy-<source-sha>` and keep the source
+revision, image digest, Terraform outputs, deployment record, and verification
+result as release evidence.
+
+For detailed Terraform inputs, GCP roles, network/Redis behavior, and
+break-glass recovery, continue with the
+[hosted deployment guide](./docs/hosted-deployment.md) and the
+[GCP infrastructure README](./infrastructure/gcp/README.md).
+
+## Documentation map
+
+| Document | Use it for |
+| --- | --- |
+| [docs/local-development.md](./docs/local-development.md) | Local runtime, MCP verification, test commands, and hosted-like local sessions |
+| [docs/architecture.md](./docs/architecture.md) | System design, request lifecycle, transport, tools, sessions, and runtime behavior |
+| [docs/engineering.md](./docs/engineering.md) | Quality rules, pull-request checks, contributor standards, and runtime-security configuration |
+| [docs/hosted-deployment.md](./docs/hosted-deployment.md) | GitHub Actions releases, bootstrap boundaries, evidence, failure handling, and break-glass recovery |
+| [infrastructure/local/README.md](./infrastructure/local/README.md) | Redis-backed local dependency setup and troubleshooting |
+| [infrastructure/gcp/README.md](./infrastructure/gcp/README.md) | Terraform inputs, GCP resources, Secret Manager, Redis, networking, and provider-specific operations |
+| [requirements/PRD.md](./requirements/PRD.md) | Product goals, boundaries, and roadmap context |
+| [requirements/spec-kit-seed.md](./requirements/spec-kit-seed.md) | Feature-slice catalog and SpecKit branch numbering |
+| [requirements/tool-specs.md](./requirements/tool-specs.md) | YouTube tool inventory and detailed tool-level requirements |
+| [docs/archive/README.md](./docs/archive/README.md) | Historical material only; not operational guidance |
+
+The root README should stay focused on first use and finding the right guide.
+Put detailed operational or technical reference material in the scoped document
+that owns it.

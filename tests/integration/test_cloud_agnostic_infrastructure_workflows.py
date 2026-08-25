@@ -13,13 +13,23 @@ class CloudAgnosticInfrastructureWorkflowTests(unittest.TestCase):
         ):
             self.assertIn(expected, content)
 
-    def test_root_readme_links_shared_contract_to_hosted_and_local_modes(self):
-        content = Path("README.md").read_text()
+    def test_scoped_guides_link_shared_contract_to_hosted_and_local_modes(self):
+        """Require the scoped guides to preserve local and hosted boundaries.
+
+        :return: ``None`` after checking documentation ownership.
+        """
+        content = "\n".join(
+            (
+                Path("README.md").read_text(),
+                Path("docs/local-development.md").read_text(),
+                Path("docs/architecture.md").read_text(),
+            )
+        )
         for expected in (
             "shared platform contract",
-            "primary hosted provider adapter",
-            "Minimal local runtime path",
-            "Hosted-like local verification path",
+            "hosted provider adapter",
+            "Minimal local runtime",
+            "Hosted-like local",
             "provider adapter",
             "bash scripts/dev_local.sh",
         ):

@@ -3,20 +3,20 @@ from pathlib import Path
 
 
 class HostedDeploymentBootstrapDocsIntegrationTests(unittest.TestCase):
-    def test_root_readme_documents_github_actions_and_cloud_build_deprecation(self):
-        """Require the root runbook to name the current release topology.
+    def test_hosted_guide_documents_github_actions_and_cloud_build_deprecation(self):
+        """Require the scoped hosted guide to name the current release topology.
 
         :return: ``None`` after checking deployment ownership documentation.
         :raises AssertionError: If retired Cloud Build returns as the primary path.
         """
-        content = Path("README.md").read_text()
+        content = Path("docs/hosted-deployment.md").read_text()
         for expected in (
-            "Hosted deployment workflow",
-            "GitHub Actions workflow",
-            "Cloud Build configuration",
+            "Hosted deployment",
+            "GitHub Actions",
+            "Cloud Build",
             "deprecated",
-            "Hosted deployment prerequisites",
-            "operator-managed secret values",
+            "One-time bootstrap prerequisites",
+            "Secret Manager",
         ):
             self.assertIn(expected, content)
 
