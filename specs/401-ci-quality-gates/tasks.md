@@ -102,7 +102,7 @@
 - [X] T026 [US3] Change the Cloud Build primary path to resolve the checkout's full SHA, run safe preflight and `make quality` before later stages, resolve the image digest, deploy that digest, and publish non-secret provenance evidence in `/Users/ctgunn/Projects/youtube-mcp-server/cloudbuild.yaml`
 - [X] T027 [US3] Change the manual GitHub fallback to resolve the actual checked-out SHA rather than trust a mutable dispatch ref, run the same preflight and `make quality` gate, deploy a digest-qualified image, and upload the provenance evidence in `/Users/ctgunn/Projects/youtube-mcp-server/.github/workflows/hosted-deploy.yml`
 - [X] T028 [US3] Update existing deployment-pipeline expectations from inline lint/test commands to the canonical quality gate and add provenance/order assertions in `/Users/ctgunn/Projects/youtube-mcp-server/tests/contract/test_hosted_deployment_pipeline_contract.py`, `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_hosted_deployment_workflow.py`, and `/Users/ctgunn/Projects/youtube-mcp-server/tests/integration/test_cloud_run_deployment_assets.py`
-- [ ] T029 [US3] Run the authorized non-production fallback release and a controlled failing-gate exercise according to `/Users/ctgunn/Projects/youtube-mcp-server/specs/401-ci-quality-gates/quickstart.md`, confirming safe SHA/digest/deployment/verification evidence and no downstream action after failure
+- [X] T029 [US3] Run the authorized non-production fallback release and a controlled failing-gate exercise according to `/Users/ctgunn/Projects/youtube-mcp-server/specs/401-ci-quality-gates/quickstart.md`, confirming safe SHA/digest/deployment/verification evidence and no downstream action after failure
 
 ### Refactor: User Story 3
 

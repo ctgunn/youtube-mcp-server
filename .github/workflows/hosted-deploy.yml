@@ -155,8 +155,22 @@ jobs:
 
       - name: Export Terraform outputs
         run: |
+          set -euo pipefail
           mkdir -p "${ARTIFACT_DIR}"
-          terraform -chdir=infrastructure/gcp output -json > "${ARTIFACT_DIR}/gcp-foundation-outputs.json"
+          output_path="${ARTIFACT_DIR}/gcp-foundation-outputs.json"
+          temporary_output_path="${output_path}.tmp"
+          for attempt in 1 2 3; do
+            if terraform -chdir=infrastructure/gcp output -json > "${temporary_output_path}"; then
+              mv "${temporary_output_path}" "${output_path}"
+              exit 0
+            fi
+            rm -f "${temporary_output_path}"
+            if [ "${attempt}" -lt 3 ]; then
+              sleep $((attempt * 5))
+            fi
+          done
+          printf '%s\n' 'Unable to read Terraform outputs after three attempts.' >&2
+          exit 1
 
       - id: deploy-hosted-revision
         name: Deploy hosted revision (immutable image)
