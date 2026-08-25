@@ -105,7 +105,9 @@ In your GCP project, create the following once:
    a deployer service account that it may impersonate.
 4. Least-privilege access for that deployer to publish images, read/write
    Terraform state, reconcile the infrastructure, deploy Cloud Run, and manage
-   runtime Secret Manager access bindings.
+   runtime Secret Manager access bindings. OPS-402 additionally requires
+   `roles/logging.configWriter` and `roles/monitoring.alertPolicyEditor` to
+   create application metrics and alert policies.
 5. Secret Manager secret values for `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`.
 
 The release workflow manages the Cloud Run foundation, durable Redis session

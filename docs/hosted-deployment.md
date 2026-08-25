@@ -41,7 +41,9 @@ Before the first deployment, an operator must create or configure:
    a deployer service account that the provider may impersonate.
 5. Least-privilege service-account access for Artifact Registry, Terraform
    state, infrastructure reconciliation, Cloud Run, and Secret Manager access
-   bindings.
+   bindings. For OPS-402, the GitHub deployer must also have
+   `roles/logging.configWriter` and `roles/monitoring.alertPolicyEditor` so it
+   can create the Logging metric and Monitoring alert policy.
 6. Secret Manager values for `YOUTUBE_API_KEY` and `MCP_AUTH_TOKEN`.
 7. A reviewed, secret-free `infrastructure/gcp/staging.tfvars` file that names
    the GCP project, service, browser origin, and managed network resources.

@@ -91,6 +91,40 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
+      - name: Verify deployer Monitoring permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_permissions=(
+            logging.logMetrics.create
+            monitoring.alertPolicies.create
+          )
+          access_token="$(gcloud auth print-access-token)"
+          permission_response="$(curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer ${access_token}" \
+            --header 'Content-Type: application/json' \
+            --data '{"permissions":["logging.logMetrics.create","monitoring.alertPolicies.create"]}' \
+            "https://cloudresourcemanager.googleapis.com/v1/projects/${GCP_PROJECT_ID}:testIamPermissions")"
+          export permission_response
+          missing_permissions="$(python3 - <<'PY'
+          import json
+          import os
+
+          required = {
+              "logging.logMetrics.create",
+              "monitoring.alertPolicies.create",
+          }
+          granted = set(json.loads(os.environ["permission_response"]).get("permissions", []))
+          print(" ".join(sorted(required - granted)))
+          PY
+          )"
+          if [[ -n "${missing_permissions}" ]]; then
+            printf '%s\n' "The GitHub deployer is missing required Monitoring permissions: ${missing_permissions}" >&2
+            printf '%s\n' 'Grant roles/logging.configWriter and roles/monitoring.alertPolicyEditor to the GitHub deployer service account, then rerun hosted-deploy.' >&2
+            exit 1
+          fi
+
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
 
