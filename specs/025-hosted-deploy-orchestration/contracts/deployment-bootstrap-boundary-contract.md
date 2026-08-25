@@ -2,15 +2,15 @@
 
 ## Purpose
 
-Define the one-time prerequisites and responsibility boundary that must exist before push-triggered hosted deployment can run safely.
+Define the one-time prerequisites and responsibility boundary that must exist
+before a manually dispatched hosted deployment can run safely.
 
 ## Actors
 
 - Operator preparing the hosted environment and repository automation
 - Maintainer documenting and reviewing deployment prerequisites
-- Workflow runner consuming prepared prerequisites during deployment
-- Cloud Build trigger consuming `cloudbuild.yaml` as the primary automatic deployment path
-- GitHub Actions operator using `.github/workflows/hosted-deploy.yml` as a manual fallback
+- GitHub Actions workflow runner consuming prepared prerequisites during deployment
+- GitHub Actions operator using `.github/workflows/hosted-deploy.yml` as the supported release path
 
 ## Bootstrap Prerequisites
 
@@ -59,7 +59,7 @@ The documented bootstrap set must identify, at minimum:
 
 ## Workflow Guarantees
 
-- A first-time operator can identify which prerequisites must be completed before push-triggered deployment is expected to pass.
+- A first-time operator can identify which prerequisites must be completed before the hosted release workflow is expected to pass.
 - Reviewers can distinguish infrastructure-managed secret wiring from operator-managed secret value population.
 - A successful deployment run implies that bootstrap prerequisites were satisfied well enough for infrastructure reconciliation, rollout, and hosted verification to complete.
 

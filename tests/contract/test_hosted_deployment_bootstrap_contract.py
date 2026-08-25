@@ -22,16 +22,19 @@ class HostedDeploymentBootstrapContractTests(unittest.TestCase):
         ):
             self.assertIn(expected, content)
 
-    def test_cloud_build_contains_non_secret_bootstrap_checks(self):
-        content = Path("cloudbuild.yaml").read_text()
+    def test_github_workflow_contains_non_secret_bootstrap_checks(self):
+        """Require the supported workflow to preflight safe prerequisite names.
+
+        :return: ``None`` after checking the non-secret preflight boundary.
+        :raises AssertionError: If preflight stops checking required identifiers.
+        """
+        content = Path(".github/workflows/hosted-deploy.yml").read_text()
         for expected in (
             "validate-bootstrap-prerequisites",
             "GCP_PROJECT_ID",
             "GCP_REGION",
             "GCP_WORKLOAD_IDENTITY_PROVIDER",
-            "GCP_SERVICE_ACCOUNT",
-            "YOUTUBE_API_KEY",
-            "MCP_AUTH_TOKEN",
+            "GCP_DEPLOYER_SERVICE_ACCOUNT",
         ):
             self.assertIn(expected, content)
 

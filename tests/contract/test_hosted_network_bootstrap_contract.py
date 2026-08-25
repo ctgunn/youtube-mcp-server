@@ -4,12 +4,13 @@ from pathlib import Path
 
 class HostedNetworkBootstrapContractTests(unittest.TestCase):
     def test_pipeline_contract_requires_managed_network_reconcile_before_deploy(self):
+        """Require the documented GitHub workflow to retain network ordering."""
         content = Path(
             "specs/028-hosted-network-bootstrap/contracts/hosted-network-bootstrap-pipeline-contract.md"
         ).read_text()
         for expected in (
-            "cloudbuild.yaml",
             ".github/workflows/hosted-deploy.yml",
+            "docs/archive/cloudbuild.yaml",
             "managed hosted network layer",
             "infrastructure_reconcile",
             "deploy",

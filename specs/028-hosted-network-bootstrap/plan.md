@@ -1,5 +1,9 @@
 # Implementation Plan: Automated Hosted Network Bootstrap Reconciliation
 
+> **Current deployment note (2026-08-25):** The Cloud Build topology in this
+> historical plan is archived and inactive. The supported release path is the
+> manually dispatched GitHub Actions workflow.
+
 **Branch**: `028-hosted-network-bootstrap` | **Date**: 2026-03-31 | **Spec**: [spec.md](~/Projects/youtube-mcp-server/specs/028-hosted-network-bootstrap/spec.md)
 **Input**: Feature specification from `/specs/028-hosted-network-bootstrap/spec.md`
 

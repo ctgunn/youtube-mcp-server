@@ -11,8 +11,13 @@ from mcp_server.deploy import iac_outputs_to_mapping, load_json_artifact
 
 
 class HostedDeploymentHandoffContractTests(unittest.TestCase):
-    def test_cloud_build_uses_terraform_output_handoff_and_not_direct_image_only_update(self):
-        content = Path("cloudbuild.yaml").read_text()
+    def test_github_workflow_uses_terraform_output_handoff_and_not_direct_image_only_update(self):
+        """Require the supported workflow to use the repository handoff.
+
+        :return: ``None`` after checking deploy handoff commands.
+        :raises AssertionError: If the workflow bypasses repository deployment logic.
+        """
+        content = Path(".github/workflows/hosted-deploy.yml").read_text()
         self.assertIn("INFRA_OUTPUTS_FILE=artifacts/gcp-foundation-outputs.json", content)
         self.assertIn("bash scripts/deploy_cloud_run.sh", content)
         self.assertNotIn("gcloud run deploy $SERVICE_NAME", content)

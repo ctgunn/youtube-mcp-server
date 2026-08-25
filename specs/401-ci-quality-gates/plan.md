@@ -5,7 +5,13 @@
 
 ## Summary
 
-Deliver OPS-401 by making repository quality an explicit, reusable gate: a pull-request workflow reports separate stable `lint`, `typecheck`, and `tests` outcomes; an active GitHub ruleset for `main` requires those outcomes for the current revision; and both supported deployment paths run the same canonical quality command before any build, publish, infrastructure, or deploy stage. The work will add declared, reproducible development tooling and concise operator guidance for clean-checkout validation, release provenance, and safe prerequisite failures. It will extend the existing Cloud Build primary deployment path and GitHub Actions manual fallback without changing the MCP runtime or creating another deployment route.
+Deliver OPS-401 by making repository quality an explicit, reusable gate: a pull-request workflow reports separate stable `lint`, `typecheck`, and `tests` outcomes; an active GitHub ruleset for `main` requires those outcomes for the current revision; and the supported GitHub Actions release workflow runs the same canonical quality command before any build, publish, infrastructure, or deploy stage. The work adds declared, reproducible development tooling and concise operator guidance for clean-checkout validation, release provenance, and safe prerequisite failures without changing the MCP runtime or creating another deployment route.
+
+**Implementation update (2026-08-25)**: Cloud Build triggers are disabled and
+`cloudbuild.yaml` is archived. The manually dispatched GitHub Actions workflow
+is now the single supported hosted release path. Historical references below to
+Cloud Build describe the original design and do not authorize re-enabling that
+archived path.
 
 Canonical terms: **quality command**, **quality evaluation**, **required check**, **protected revision**, **release provenance**, **preflight**, **deployment record**, and **verification record**.
 
@@ -16,11 +22,11 @@ Canonical terms: **quality command**, **quality evaluation**, **required check**
 **Storage**: No new runtime storage. Checked-in workflow/configuration/documentation files, an externally configured GitHub `main` ruleset, and existing file-based image, deployment, and verification evidence artifacts  
 **Testing**: `python -m pytest` for the full repository suite; `make lint`, `make typecheck`, `make test`, and `make quality` for canonical quality commands; focused unit, integration, and contract tests for workflow shape, provenance, gate ordering, and documentation  
 **Documentation Style**: Markdown runbooks and contracts; every new or changed Python function, including test helpers, must have a complete reStructuredText docstring documenting purpose, inputs, outputs, relevant raised errors, and side effects  
-**Target Platform**: GitHub pull requests targeting `main`; Cloud Build as the primary push-triggered GCP deployment path; GitHub Actions as the manually dispatched fallback; local Python 3.11 developer environment  
+**Target Platform**: GitHub pull requests targeting `main`; GitHub Actions as the manually dispatched GCP hosted release path; local Python 3.11 developer environment
 **Project Type**: Python web service with checked-in CI/CD automation, GCP deployment tooling, and an external repository-governance policy  
 **Performance Goals**: Every PR revision receives all three quality outcomes before it is eligible to merge; no supported deployment begins build/publish/reconcile/deploy after a non-passing quality evaluation; an authorized operator reproduces the documented non-production release and verification procedure within the spec's 30-minute target, excluding declared external provisioning  
 **Constraints**: The `main` ruleset is repository configuration outside the worktree and must be documented and verified read-only; check names must be stable, unique, and GitHub-Actions-sourced; no path/commit-message filters may skip a required PR workflow; type checking is initially scoped to `src/mcp_server` to establish a reliable checked-in baseline without expanding OPS-401 into a legacy type-remediation project; deployment must bind quality evidence, source commit, image digest, and verification evidence to one revision; secrets must never appear in commands, reports, artifacts, or diagnostics  
-**Scale/Scope**: One canonical quality command surface, three required PR checks, one `main` governance rule, one primary Cloud Build path, one GitHub Actions fallback path, one non-production reproducibility procedure, and no public MCP contract changes
+**Scale/Scope**: One canonical quality command surface, three required PR checks, one `main` governance rule, one GitHub Actions hosted release path, one non-production reproducibility procedure, and no public MCP contract changes
 
 ## Constitution Check
 
@@ -60,9 +66,9 @@ specs/401-ci-quality-gates/
 .github/
 └── workflows/
     ├── quality.yml           # New PR quality workflow
-    └── hosted-deploy.yml     # Existing manual deployment fallback
+    └── hosted-deploy.yml     # Supported manual hosted release workflow
 
-cloudbuild.yaml               # Existing primary automatic deployment workflow
+docs/archive/cloudbuild.yaml  # Deprecated historical Cloud Build configuration
 Makefile                      # Canonical quality commands
 pyproject.toml                # Declared development tools and their configuration
 README.md                     # Local-quality and hosted-release runbook
@@ -80,7 +86,7 @@ tests/
 └── unit/
 ```
 
-**Structure Decision**: Keep the existing single Python service, Cloud Build primary pipeline, GitHub Actions fallback, deployment script, verification script, and artifact model. Add one PR-only quality workflow and one canonical local command surface. Prefer declarative workflow and Makefile changes; add a small Python helper only if necessary to create/validate non-secret provenance or preflight records, with reStructuredText docstrings and direct unit coverage.
+**Structure Decision**: Keep the existing single Python service, GitHub Actions hosted release workflow, deployment script, verification script, and artifact model. Archive the disabled Cloud Build configuration. Add one PR-only quality workflow and one canonical local command surface. Prefer declarative workflow and Makefile changes; add a small Python helper only if necessary to create/validate non-secret provenance or preflight records, with reStructuredText docstrings and direct unit coverage.
 
 ## Implementation Phases
 
@@ -99,7 +105,7 @@ tests/
 ### Phase 2 - Implementation Planning Preview
 
 - **Red**: Start implementation with failing workflow, contract, and integration tests for each missing PR check, a missing/cancelled/failing result, a stale or mismatched revision, a deployment gate bypass, and stale/missing operator instructions.
-- **Green**: Add the minimum declared development-tool setup; canonical Make targets; PR-only workflow; Cloud Build and GitHub fallback use of the canonical command; non-secret preflight/provenance evidence; `main` ruleset setup/verification guidance; and README runbook updates needed to make the tests pass.
+- **Green**: Add the minimum declared development-tool setup; canonical Make targets; PR-only workflow; GitHub Actions use of the canonical command; non-secret preflight/provenance evidence; `main` ruleset setup/verification guidance; and README runbook updates needed to make the tests pass.
 - **Refactor**: Collapse duplicated quality commands into the canonical target, remove redundant workflow/documentation wording, verify any new or changed Python functions have reStructuredText docstrings, then run `make lint`, `make typecheck`, and the required final full suite `python -m pytest`.
 
 ## User Story Delivery Strategy
@@ -119,14 +125,14 @@ tests/
 ### User Story 3 - Guard Automated Deployments
 
 - **Red**: Add failing workflow/integration coverage proving a non-passing quality result, absent type check, mismatched requested ref, or missing preflight prerequisite can reach image publication, infrastructure reconciliation, or deployment.
-- **Green**: Route Cloud Build and GitHub Actions fallback through the canonical quality command after resolving the exact checkout commit and before all later stages. Validate safe prerequisite categories, record quality/revision/image provenance without secrets, and stop the workflow before build/deploy on a failing, cancelled, or incomplete quality outcome.
+- **Green**: Route GitHub Actions through the canonical quality command after resolving the exact checkout commit and before all later stages. Validate safe prerequisite categories, record quality/revision/image provenance without secrets, and stop the workflow before build/deploy on a failing, cancelled, or incomplete quality outcome.
 - **Refactor**: Align primary and fallback stage ordering and evidence names, leave no second deployment path or duplicated quality sequence, then run the final full suite.
 
 ## Coverage Strategy
 
 - **Unit coverage**: Validate any introduced provenance, preflight, check-state, or mismatch helpers; assert that their serialized data contains names/statuses but never secrets. Every new or modified test/helper function carries a reStructuredText docstring.
 - **Contract coverage**: Lock the quality command names, PR workflow trigger/forbidden skip filters, exact required ruleset settings, release provenance fields, quality-before-deploy order, and secret-safe failure descriptions in the two contract documents.
-- **Integration coverage**: Read and validate the PR workflow, Cloud Build pipeline, GitHub fallback workflow, Make targets, project tool declaration, and README as one delivery surface. Verify a failed/missing/cancelled quality status and a revision/digest mismatch stop later release stages.
+- **Integration coverage**: Read and validate the PR workflow, GitHub hosted-release workflow, Make targets, project tool declaration, and README as one delivery surface. Verify a failed/missing/cancelled quality status and a revision/digest mismatch stop later release stages.
 - **Manual governance coverage**: From an authorized repository administrator account, inspect the active `main` ruleset or documented branch-protection fallback and perform one passing PR plus controlled lint, typecheck, and test failures. Confirm the current head (or merge-queue revision when enabled) is blocked until all exact check names pass.
 - **Regression coverage**: Preserve the existing FND-025/FND-028 ordered `quality_gate -> image_publish -> infrastructure_reconcile -> terraform_output_export -> deploy -> hosted_verification` contract, FND-008 deployment/verification records, secret boundary, local-first workflow, and public MCP behavior.
 - **Completion commands**: `make lint`; `make typecheck`; and, after the final code change, `python -m pytest` (the constitution-required full repository suite). A passing `make quality` is retained as the canonical combined evidence command.
@@ -135,7 +141,7 @@ tests/
 
 - **Observability**: Each quality check reports its own stable result for the evaluated commit. Release evidence associates quality outcomes, resolved commit, immutable image digest, deployment revision, and verification result; a failure identifies its stage and safe remediation class.
 - **Security**: PR validation uses `pull_request` rather than a privileged pull-request trigger and receives no deployment credentials. Ruleset verification is read-only. Preflight reports only missing prerequisite names/categories. Workflows, docs, and artifacts must never print, persist, or accept secret values as evidence.
-- **Simplicity**: One canonical quality command backs local, PR, primary deployment, and fallback deployment use cases. Cloud Build remains the automatic deployment owner; GitHub Actions remains manual fallback. The feature does not add a separate CI service, image-only deploy path, runtime endpoint, database, or public MCP tool.
+- **Simplicity**: One canonical quality command backs local, PR, and hosted-release use cases. GitHub Actions is the manually dispatched hosted release owner. The feature does not add a separate CI service, image-only deploy path, runtime endpoint, database, or public MCP tool.
 
 ## Post-Design Constitution Check
 

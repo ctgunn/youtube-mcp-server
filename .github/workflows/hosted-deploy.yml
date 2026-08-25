@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       target_ref:
-        description: Git ref to deploy with the fallback workflow
+        description: Git ref to deploy with the hosted release workflow
         required: false
         default: main
       target_environment:
-        description: Hosted environment label for the fallback workflow
+        description: Hosted environment label for the release workflow
         required: false
         default: staging
 
@@ -221,7 +221,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hosted-deploy-fallback-${{ steps.resolve-source-revision.outputs.source_revision }}
+          name: hosted-deploy-${{ steps.resolve-source-revision.outputs.source_revision }}
           path: |
             artifacts/source-revision.txt
             artifacts/image-reference.txt

@@ -1,3 +1,9 @@
+# DEPRECATED: Cloud Build triggers for this repository are disabled.
+#
+# This file is retained only as an archived record of the previous deployment
+# configuration. Do not create or re-enable a trigger that uses it. The
+# supported hosted release path is the manually dispatched GitHub Actions
+# workflow at .github/workflows/hosted-deploy.yml.
 steps:
   - id: resolve-source-revision
     name: python:3.11

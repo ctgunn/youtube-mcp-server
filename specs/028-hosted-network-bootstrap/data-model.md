@@ -5,7 +5,7 @@
 - **Purpose**: Represents one end-to-end execution of the reviewed hosted deployment chain for a specific revision and environment.
 - **Fields**:
   - `revision_ref`: source revision being deployed
-  - `automation_surface`: `cloud_build_primary` or `github_actions_fallback`
+  - `automation_surface`: `github_actions_manual`
   - `target_environment`: hosted environment identifier such as `staging` or `prod`
   - `stage_order`: ordered list of expected workflow stages
   - `overall_result`: `pass`, `fail`, or `incomplete`
@@ -95,8 +95,7 @@
 
 - **Purpose**: Captures the documented line between what the checked-in hosted deployment chain reconciles automatically and what remains outside the recurring run.
 - **Fields**:
-  - `primary_pipeline`: automatic hosted deployment surface
-  - `fallback_pipeline`: manual fallback surface
+- `release_workflow`: manually dispatched hosted deployment surface
   - `automation_managed_scope`: recurring responsibilities owned by the pipeline
   - `externally_managed_scope`: one-time prerequisites outside the recurring pipeline
   - `local_path_excluded`: whether local execution is kept outside hosted bootstrap requirements

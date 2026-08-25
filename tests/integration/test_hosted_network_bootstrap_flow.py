@@ -13,13 +13,16 @@ from mcp_server.deploy import (
 
 
 class HostedNetworkBootstrapFlowIntegrationTests(unittest.TestCase):
-    def test_cloud_build_declares_managed_network_reconcile_before_deploy(self):
-        content = Path("cloudbuild.yaml").read_text()
-        reconcile_marker = "Reconcile managed network bootstrap and infrastructure"
-        deploy_marker = "Deploy hosted revision"
-        self.assertIn(reconcile_marker, content)
-        self.assertIn(deploy_marker, content)
-        self.assertLess(content.index(reconcile_marker), content.index(deploy_marker))
+    def test_cloud_build_configuration_is_archived_and_deprecated(self):
+        """Require the retired Cloud Build configuration to stay non-operational.
+
+        :return: ``None`` after checking archive placement and deprecation text.
+        :raises AssertionError: If an active root Cloud Build configuration returns.
+        """
+        archived_path = Path("docs/archive/cloudbuild.yaml")
+        self.assertFalse(Path("cloudbuild.yaml").exists())
+        self.assertTrue(archived_path.exists())
+        self.assertIn("DEPRECATED", archived_path.read_text())
 
     def test_github_workflow_declares_managed_network_reconcile_before_deploy(self):
         content = Path(".github/workflows/hosted-deploy.yml").read_text()

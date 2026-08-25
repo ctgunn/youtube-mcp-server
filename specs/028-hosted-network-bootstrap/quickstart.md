@@ -12,22 +12,24 @@ Expected outcome: local development remains available without any hosted bootstr
 
 ## 2. Prepare the One-Time Hosted Bootstrap Inputs
 
-Use this path when you are preparing a hosted environment for automated deployment.
+Use this path when you are preparing a hosted environment for a manually
+dispatched hosted release.
 
-1. Confirm the primary automatic pipeline and manual fallback are both configured for the target environment.
+1. Confirm the `hosted-deploy` GitHub Actions workflow is configured for the target environment.
 2. Prepare the repository and cloud access prerequisites required by automation.
 3. Provide the environment-specific Terraform variable file used by the hosted environment.
 4. Confirm required operator-managed secret values already exist for the target environment.
 
 Expected outcome: the remaining external prerequisites are explicit and limited to one-time setup rather than recurring hosted network provisioning.
 
-## 3. Validate the Automatic Hosted Deployment Chain
+## 3. Validate the Hosted Deployment Chain
 
-Use this path when you want to confirm the automatic hosted pipeline still reflects the reviewed deployment contract.
+Use this path when you want to confirm the hosted workflow still reflects the
+reviewed deployment contract.
 
-1. Review `cloudbuild.yaml` as the primary push-triggered pipeline.
+1. Review `.github/workflows/hosted-deploy.yml` as the supported hosted release workflow.
 2. Confirm the stage order still includes quality gates, image publish, infrastructure reconcile, Terraform output export, deploy, and hosted verification.
-3. Confirm the fallback workflow under `.github/workflows/hosted-deploy.yml` preserves the same repository-managed handoff.
+3. Confirm that `docs/archive/cloudbuild.yaml` is marked deprecated and no Cloud Build trigger is enabled.
 
 Expected outcome: the reviewed automation surfaces show one consistent Terraform-to-deploy-to-verify chain.
 
@@ -35,7 +37,7 @@ Expected outcome: the reviewed automation surfaces show one consistent Terraform
 
 Use this path when the target hosted environment is ready for automated rollout.
 
-1. Trigger the primary automatic pipeline through the supported revision flow.
+1. Open **Actions** → **hosted-deploy** → **Run workflow** and select the reviewed source revision and target environment.
 2. Confirm the infrastructure reconciliation stage completes before deploy starts.
 3. Confirm Terraform outputs are exported and passed into the deploy step.
 4. Confirm the deploy step emits a deployment record and hosted verification runs afterward.

@@ -1,4 +1,4 @@
-# Quickstart: Automated Hosted Deployment Orchestration
+# Quickstart: Hosted Deployment Orchestration
 
 ## 1. Preserve the Local Development Path
 
@@ -7,13 +7,13 @@ Use this path when you are changing application behavior but are not preparing a
 1. Run the existing local developer workflow.
 2. Use repository tests and local verification before touching hosted deployment automation.
 
-Expected outcome: local development and verification remain supported without requiring a push to the deployment branch.
+Expected outcome: local development and verification remain supported without a hosted deployment release.
 
 ## 2. Complete One-Time Hosted Bootstrap
 
-Use this path before relying on push-triggered hosted deployment for the first time.
+Use this path before relying on the hosted release workflow for the first time.
 
-1. Prepare the intended deployment branch for hosted rollout automation.
+1. Configure the repository variables, secrets, and GitHub Actions workload identity described in the root README.
 2. Prepare the hosted cloud access and image-publication prerequisites for the target environment.
 3. Provision the hosted infrastructure foundation through the versioned infrastructure path.
 4. Populate the required secret values through the operator-managed secret process.
@@ -21,43 +21,34 @@ Use this path before relying on push-triggered hosted deployment for the first t
 
 Expected outcome: the target environment has the prerequisites needed for infrastructure reconciliation, application rollout, and hosted verification.
 
-## 3. Validate the Manual Deployment Chain Before Automating It
+## 3. Validate the Repository Deployment Chain
 
-Use this path to confirm the repository deployment chain works end to end before depending on push-triggered automation.
+Use this path to confirm that the repository deployment chain and hosted
+verification remain understood before dispatching a release.
 
 1. Reconcile infrastructure and export deployment-ready outputs.
 2. Deploy the current application revision through `scripts/deploy_cloud_run.sh`.
 3. Save the deployment record emitted by the deploy stage.
 4. Run `scripts/verify_cloud_run_foundation.py` against that deployment record.
 
-Expected outcome: operators confirm the repository deploy-and-verify chain works for the target environment before the workflow automates it.
+Expected outcome: operators understand the Terraform-to-deploy-to-verify chain
+that the workflow executes.
 
-## 4. Trigger Push-Driven Hosted Deployment
+## 4. Run the Hosted Deployment Workflow
 
-Use this path once bootstrap is complete and the manual chain is proven.
+Use this path once bootstrap is complete.
 
-1. Commit the desired infrastructure and application changes.
-2. Push the revision to the intended deployment branch (`main`) so the existing Cloud Build trigger runs `cloudbuild.yaml`.
-3. Observe one Cloud Build deployment run for that pushed revision.
+1. Merge the reviewed revision to `main`.
+2. Open **Actions** → **hosted-deploy** → **Run workflow**.
+3. Select `main` for the workflow source and `target_ref`, plus `staging` for the target environment unless an approved alternative revision is intended.
 4. Review the generated artifacts for `artifacts/gcp-foundation-outputs.json`, `artifacts/cloud-run-deployment.json`, `artifacts/cloud-run-verification.json`, and `artifacts/cloud-run-verification.txt`.
 
 Expected outcome: one repository-managed workflow reconciles infrastructure, deploys the current revision, verifies the hosted endpoint, and reports success only if the verification gate passes.
 
-## 5. Run the GitHub Actions Fallback
+The former Cloud Build file is archived in `docs/archive/cloudbuild.yaml`; its
+triggers are disabled and it is not a supported release route.
 
-Use this path when Cloud Build is unavailable or when an open source operator
-prefers GitHub-hosted automation.
-
-1. Open the `hosted-deploy` workflow in GitHub Actions.
-2. Trigger `workflow_dispatch` manually.
-3. Provide the target ref and environment inputs if you need something other than the defaults.
-4. Review the uploaded fallback artifacts after the run completes.
-
-Expected outcome: the fallback workflow runs the same repository-managed
-Terraform-to-deploy-to-verify path without taking ownership of automatic `main`
-push deployment.
-
-## 6. Diagnose a Failed Deployment Run
+## 5. Diagnose a Failed Deployment Run
 
 Use this path when the workflow fails and you need to determine the blocking stage quickly.
 

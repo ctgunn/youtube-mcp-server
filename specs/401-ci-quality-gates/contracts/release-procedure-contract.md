@@ -2,16 +2,22 @@
 
 ## Purpose
 
-Define the supported local, automatic, and fallback release behavior for OPS-401. This contract preserves the existing Cloud Build, Terraform, deploy-script, and hosted-verification paths while preventing quality or provenance failures from reaching a deployment stage.
+Define the supported local and hosted release behavior for OPS-401. This
+contract preserves the GitHub Actions, Terraform, deploy-script, and
+hosted-verification path while preventing quality or provenance failures from
+reaching a deployment stage.
 
 ## Supported Paths
 
 | Path | Owner | Required behavior |
 |---|---|---|
 | Local quality validation | Maintainer | Installs declared development tooling and runs `make quality` from a clean checkout. |
-| Primary automated release | Cloud Build | Runs for the externally configured `main` trigger and remains the primary automatic owner. |
-| Manual fallback release | GitHub Actions | Remains explicitly dispatched by an authorized operator and resolves the actual checked-out revision before quality evaluation. |
+| Hosted release | GitHub Actions | Is explicitly dispatched by an authorized operator and resolves the actual checked-out revision before quality evaluation. |
 | Manual operator release/verification | Authorized operator | Uses the existing documented GCP/Terraform, deployment-script, and verification-script procedures with valid non-production inputs. |
+
+The former Cloud Build configuration is archived under
+`docs/archive/cloudbuild.yaml`. Its triggers are disabled and it is not a
+supported release path.
 
 ## Ordered Release Gate
 
