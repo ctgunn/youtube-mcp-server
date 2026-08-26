@@ -2885,6 +2885,80 @@ Dependencies:
 - `YT-157`, `YT-158`, `YT-159`, `YT-160`
 - `OPS-403`
 
+### OPS-405: Layer 4 Remote MCP Read-Only Live Smoke
+Suggested branch: `feature/ops-405-remote-live-smoke`
+
+Description:
+Add an operator-triggered, credential-gated smoke workflow that connects to a
+running remote MCP server over its public MCP transport, initializes a session,
+discovers the deployed catalog through `tools/list`, and invokes an explicit
+allowlist of safe read-only tools through `tools/call`. Each selected tool must
+exercise the configured server's real YouTube API execution path; this is the
+end-to-end complement to OPS-403's deterministic local-route suite and
+OPS-404's configured-runtime matrix.
+
+Primary stories:
+- As an operator, I can point one opt-in command at a running MCP server and
+  receive an individually reported live result for every approved read-only
+  tool that is present in that server's discovered catalog.
+- As a maintainer, I can prove that a deployed MCP endpoint, its session and
+  authentication behavior, its selected tool handlers, and the live YouTube
+  API path work together without attempting any write-capable operation.
+- As a security reviewer, I can verify that the remote smoke workflow does not
+  log or report its MCP credential, YouTube credential, raw authorization
+  headers, request secrets, or full upstream response bodies.
+
+Acceptance criteria:
+- The workflow requires an explicit live-smoke enablement flag, a configured
+  remote MCP endpoint, and the MCP authentication material required by that
+  endpoint; it fails closed with a clear, credential-safe message when any
+  prerequisite is absent.
+- The workflow uses the remote server's public MCP transport: it performs
+  `initialize`, retains the returned session when required by the transport,
+  obtains the inventory from `tools/list`, and invokes tools with `tools/call`.
+  It must not instantiate an in-process application or dispatcher as a
+  substitute for the target server.
+- The workflow selects only an explicitly maintained allowlist of documented,
+  API-key-capable, read-only public tools. It must not infer eligibility solely
+  from a tool name or a generic read-like metadata value.
+- The allowlist contains no create, update, delete, upload, download, rate,
+  report-abuse, moderation, subscription, owner-only, OAuth-required, or
+  credential-sensitive operation. A discovered tool absent from the allowlist
+  is reported as intentionally excluded, not invoked.
+- Each selected tool has a reviewed live-safe fixture using public reference
+  inputs only. The workflow reports one outcome per selected discovered tool:
+  successful structured MCP content, a documented expected safe availability
+  error, or an actionable failure. Successful endpoint-backed results that
+  expose `endpoint` agree with discovery metadata's `upstream.operationKey`.
+- The workflow enforces bounded request count and timeout behavior, redacts
+  credential-bearing values from console output and persisted evidence, and
+  never emits raw upstream response bodies or request headers.
+- The command is opt-in and is excluded from ordinary PR checks, `make test`,
+  `make quality`, and automated hosted deployment gates. Operators may run it
+  manually against an approved staging or production endpoint after deployment.
+- The README documents the distinction among deterministic `make test-tools`,
+  configured-runtime verification, the existing local live smoke, and this
+  remote MCP live smoke workflow, including its quota and upstream-availability
+  implications.
+
+Test plan:
+- Add deterministic tests for the remote smoke client with a controlled remote
+  MCP responder that verifies initialize/session/list/call construction,
+  allowlist filtering, excluded-tool reporting, per-tool result classification,
+  timeout handling, and credential redaction without network access.
+- Add an explicit, environment-gated manual smoke command that targets a remote
+  MCP URL and runs only the reviewed allowlist through the actual public MCP
+  transport.
+- Run the focused remote-smoke tests, the OPS-403 catalog suite, the OPS-404
+  configured-runtime suite, and the full repository suite before merge. Run
+  the real remote smoke only after an approved deployment and never as a CI
+  gate.
+
+Dependencies:
+- `FND-009`, `FND-010`, `FND-013`, `FND-021`
+- `YT-157`, `YT-158`, `YT-159`, `YT-160`
+- `OPS-403`, `OPS-404`
+
 ## 4. Suggested Delivery Order
 1. `FND-001`
 2. `FND-002`
@@ -2940,6 +3014,7 @@ Dependencies:
 52. `OPS-402`
 53. `OPS-403`
 54. `OPS-404`
+55. `OPS-405`
 
 ## 5. Story Template for SpecKit
 Use this structure per feature slice:
