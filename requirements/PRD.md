@@ -185,12 +185,46 @@ This phase establishes a working MCP server before any YouTube tools are added.
   - `OPS-402` supplies production hardening through rate limiting, caching policy, and operational alerting for sustained errors and latency
   - it proves `tools/list` discovery and `tools/call` dispatch for every tool in the default registry
   - it uses safe deterministic fixtures for mutations and explicit expected-error fixtures where the no-runtime path must not fabricate unavailable remote data
+  - `OPS-403` supplies deterministic, credential-free public-route catalog coverage for every default tool
+  - `OPS-404` supplies configured-runtime capability verification and an opt-in live YouTube smoke boundary
+  - `OPS-405` supplies an operator-triggered remote live smoke workflow that connects to a running MCP server, discovers its actual catalog, and invokes only explicitly approved read-only tools against the live YouTube API
 - Initial scope decision:
   - Layer 1 is required for implementation support.
   - Layer 2 is part of the public v1 tool surface.
   - Layer 3 is also part of the public v1 tool surface.
   - Layer 2 and Layer 3 serve different user needs and are both first-class public layers.
   - Layer 4 is required as the release-verification layer for the public catalog, but is not exposed as a client-facing capability layer.
+  - Remote live smoke verification is opt-in and operator-triggered; it is not a normal pull-request check or an automated deployment gate because it requires real credentials, consumes external quota, and depends on upstream availability.
+
+### 6.1.1 Layer 4 Remote MCP Read-Only Live Smoke
+- An operator MUST be able to explicitly authorize a smoke workflow that
+  connects to an already running remote MCP server, authenticates using the
+  server's supported MCP authentication mechanism, initializes an MCP session,
+  discovers the server's active tool catalog, and invokes approved tools through
+  the public MCP transport.
+- The smoke workflow MUST exercise the remote server's configured live YouTube
+  execution path. It MUST NOT replace the remote connection with an in-process
+  application, dispatcher, representative fixture result, or controlled local
+  transport.
+- The smoke workflow MUST use a reviewed explicit allowlist of public,
+  API-key-capable, read-only tools and live-safe public reference inputs. Tool
+  eligibility MUST NOT be inferred only from a name, a `list` suffix, or generic
+  read-like metadata because read operations can still be OAuth-, owner-, or
+  resource-sensitive.
+- The allowlist MUST exclude all mutations and sensitive operations, including
+  creates, updates, deletes, uploads, downloads, ratings, abuse reports,
+  moderation, subscriptions, OAuth-required calls, and owner-only calls. A
+  discovered but unapproved tool MUST be reported as excluded and MUST NOT be
+  invoked.
+- The workflow MUST report a separate outcome for every selected discovered
+  tool, distinguish a successful structured result from a documented safe
+  availability failure, enforce bounded requests and timeouts, and redact
+  credentials, authorization headers, raw upstream bodies, and secret-bearing
+  inputs from all output and evidence.
+- The remote smoke workflow MUST remain manually triggered and opt-in. It MUST
+  be documented with its target-endpoint, authentication, quota, and
+  upstream-availability prerequisites, and MUST NOT run as a standard PR check
+  or automated deployment gate.
 
 ### 6.2 Layer 1 Integration Requirements
 - The Layer 1 integration layer MUST serve as the internal endpoint-wrapper layer for the documented YouTube Data API v3 surface used by this product.

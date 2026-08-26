@@ -59,6 +59,31 @@ The minimal local runtime path does not require cloud provisioning, Docker, or
 Redis. For MCP examples and local troubleshooting, read the
 [local development guide](./docs/local-development.md).
 
+## Verify the default MCP tool catalog
+
+Run the deterministic Layer 4 catalog check when changing default tool
+registration, metadata, dispatch, or local fixtures:
+
+```bash
+make test-tools
+```
+
+It discovers the catalog through the public MCP `tools/list` route and calls
+every discovered tool through `tools/call`. The check uses no credential, makes
+no outbound YouTube request, and performs no destructive external mutation.
+It is a release-verification check for the default catalog, not proof that a
+configured runtime can access YouTube.
+
+Run the complete repository test suite with:
+
+```bash
+make test
+```
+
+The credential-gated live smoke test is separate and opt-in. It is read-only,
+requires `RUN_YOUTUBE_LIVE_SMOKE=1` and a real `YOUTUBE_API_KEY`, and must not
+be included in `make test-tools`.
+
 ## Test hosted-like sessions locally
 
 Use this optional path only when you need Redis-backed durable-session testing,

@@ -10,7 +10,7 @@ dev-down:
 
 PYTHON ?= python3
 
-.PHONY: lint typecheck test quality
+.PHONY: lint typecheck test test-tools quality
 
 lint:
 	$(PYTHON) -m ruff check .
@@ -20,6 +20,9 @@ typecheck:
 
 test:
 	$(PYTHON) -m pytest
+
+test-tools:
+	PYTHONPATH=src $(PYTHON) -m pytest tests/integration/test_mcp_tool_catalog_endpoints.py
 
 quality:
 	$(MAKE) lint
