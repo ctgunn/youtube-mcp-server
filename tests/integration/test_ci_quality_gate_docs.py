@@ -37,6 +37,21 @@ class CiQualityGateDocumentationTests(unittest.TestCase):
         ):
             self.assertIn(required_text, content)
 
+    def test_readme_documents_deterministic_catalog_verification_boundary(self) -> None:
+        """Require focused tool-catalog and separate live-verification guidance.
+
+        :return: ``None`` after validating README command-boundary content.
+        :raises AssertionError: If the README omits required operator guidance.
+        """
+        content = Path("README.md").read_text()
+        for required_text in (
+            "make test-tools",
+            "make test",
+            "live smoke",
+            "credential",
+        ):
+            self.assertIn(required_text, content)
+
 
 if __name__ == "__main__":
     unittest.main()
