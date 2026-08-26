@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the internal wrapper contract for YouTube Data API `videoAbuseReportReasons.list` so maintainers can review localized abuse-reason lookup behavior, API-key access expectations, quota visibility, and normalized result boundaries before implementation details are inspected.
+Define the internal wrapper contract for YouTube Data API `videoAbuseReportReasons.list` so maintainers can review localized abuse-reason lookup behavior, OAuth authorization requirements, quota visibility, and normalized result boundaries before implementation details are inspected.
 
 The representative implementation for this contract remains under `/Users/ctgunn/Projects/youtube-mcp-server/src/mcp_server/integrations/`.
 
@@ -11,7 +11,7 @@ The representative implementation for this contract remains under `/Users/ctgunn
 - Internal-only Layer 1 wrapper behavior for `videoAbuseReportReasons.list`
 - Maintainer-visible endpoint identity and quota cost (`1`)
 - Deterministic request boundary for supported `part` plus `hl` lookups
-- API-key behavior for localized abuse-reason retrieval
+- OAuth-authorized behavior for localized abuse-reason retrieval
 - Reviewable localization guidance for downstream reuse
 - Normalized success and failure boundaries suitable for later Layer 2 and Layer 3 video-reporting work
 
@@ -27,7 +27,7 @@ The `videoAbuseReportReasons.list` wrapper must expose:
 - `http_method`
 - `path_shape`
 - `request_shape`
-- `auth_mode` as API-key access
+- `auth_mode` as `oauth_required`
 - `quota_cost` as `1`
 - maintainer-facing notes describing localization usage, request boundaries, and empty-result interpretation
 
@@ -57,7 +57,7 @@ The wrapper must preserve source operation, quota visibility, and display-langua
 
 The feature must prove that maintainers can:
 
-- identify `videoAbuseReportReasons.list` identity, quota cost, and API-key access in one review pass
+- identify `videoAbuseReportReasons.list` identity, quota cost, and OAuth authorization requirement in one review pass
 - determine the supported `part` plus `hl` request boundary without reading implementation code
 - understand the localization usage and empty-result interpretation for downstream reuse
 - determine that public Layer 2 exposure is outside this slice

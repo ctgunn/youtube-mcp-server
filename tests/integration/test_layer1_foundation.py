@@ -713,8 +713,8 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             executor,
             arguments={"part": "snippet", "hl": "en_US"},
             auth_context=AuthContext(
-                mode=AuthMode.API_KEY,
-                credentials=CredentialBundle(api_key="key-123"),
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
             ),
         )
 
@@ -732,8 +732,8 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
             executor,
             arguments={"part": "snippet", "hl": "en_US"},
             auth_context=AuthContext(
-                mode=AuthMode.API_KEY,
-                credentials=CredentialBundle(api_key="key-123"),
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
             ),
         )
 
@@ -752,8 +752,8 @@ class Layer1FoundationIntegrationTests(unittest.TestCase):
                 executor,
                 arguments={"part": "snippet"},
                 auth_context=AuthContext(
-                    mode=AuthMode.API_KEY,
-                    credentials=CredentialBundle(api_key="key-123"),
+                    mode=AuthMode.OAUTH_REQUIRED,
+                    credentials=CredentialBundle(oauth_token="oauth-123"),
                 ),
             )
 

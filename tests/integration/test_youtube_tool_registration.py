@@ -492,7 +492,7 @@ def test_default_registry_includes_executable_video_abuse_report_reasons_list_to
 
     assert metadata["upstream"]["operationKey"] == "videoAbuseReportReasons.list"
     assert metadata["quotaCost"] == 1
-    assert metadata["authMode"] == "api_key"
+    assert metadata["authMode"] == "oauth_required"
     assert metadata["availabilityState"] == "active"
     assert metadata["inputContract"]["required"] == ["part", "hl"]
     assert metadata["responseConvention"]["resultKind"] == "list"
@@ -505,7 +505,7 @@ def test_default_registry_includes_executable_video_abuse_report_reasons_list_to
     assert result["endpoint"] == "videoAbuseReportReasons.list"
     assert result["quotaCost"] == 1
     assert result["localization"] == {"hl": "en"}
-    assert result["auth"] == {"mode": "api_key"}
+    assert result["auth"] == {"mode": "oauth_required"}
 
 
 def test_default_registry_includes_executable_videoCategories_list_tool():

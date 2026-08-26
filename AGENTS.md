@@ -238,6 +238,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - Redis-compatible shared ephemeral state for hosted rate-limit windows, result-cache entries, and alert state; process-local in-memory equivalents for local development and deterministic tests; GCP logging/monitoring configuration stored as versioned Terraform files (402-production-hardening)
 - Python 3.11 + Python standard library; existing MCP transport, protocol router, and in-memory tool dispatcher; pytest; Make (403-layer4-tool-catalog)
 - N/A — fixture definitions and per-run coverage state remain in test-process memory (403-layer4-tool-catalog)
+- Python 3.11 + Python standard library; existing MCP transport and protocol router; existing configured YouTube runtime; pytest; Make (404-layer4-runtime-verification)
+- N/A — matrix cases, captured request facts, allowlist entries, and reports remain in process memory (404-layer4-runtime-verification)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -258,9 +260,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 404-layer4-runtime-verification: Added Python 3.11 + Python standard library; existing MCP transport and protocol router; existing configured YouTube runtime; pytest; Make
 - 403-layer4-tool-catalog: Added Python 3.11 + Python standard library; existing MCP transport, protocol router, and in-memory tool dispatcher; pytest; Make
 - 402-production-hardening: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Redis client, Python standard library, Terraform Google provider
-- 401-ci-quality-gates: Added Python 3.11 for test and deployment-support tooling; YAML for checked-in automation; Make for canonical developer commands + Existing FastAPI/Pydantic/Uvicorn service; declared development tooling comprising `pytest`, Ruff, and mypy; existing Cloud Build, GitHub Actions, Terraform, Docker, `scripts/deploy_cloud_run.sh`, and `scripts/verify_cloud_run_foundation.py`
 
 
 <!-- MANUAL ADDITIONS START -->

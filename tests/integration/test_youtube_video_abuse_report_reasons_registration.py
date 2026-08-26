@@ -52,11 +52,11 @@ def test_descriptor_registers_as_executable_video_abuse_reasons_tool():
         "videoAbuseReportReasons.list"
     )
     assert listed["videoAbuseReportReasons_list"]["metadata"]["quotaCost"] == 1
-    assert listed["videoAbuseReportReasons_list"]["metadata"]["authMode"] == "api_key"
+    assert listed["videoAbuseReportReasons_list"]["metadata"]["authMode"] == "oauth_required"
     assert result["endpoint"] == "videoAbuseReportReasons.list"
     assert result["quotaCost"] == 1
     assert result["localization"] == {"hl": "en"}
-    assert result["auth"] == {"mode": "api_key"}
+    assert result["auth"] == {"mode": "oauth_required"}
     assert result["items"] == [{"id": "S", "snippet": {"label": "Spam or misleading"}}]
 
 

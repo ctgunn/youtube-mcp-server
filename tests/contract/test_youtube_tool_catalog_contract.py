@@ -278,7 +278,7 @@ def test_representative_video_abuse_report_reasons_example_aligns_with_concrete_
     assert representative.upstream_resource == concrete.upstream_resource
     assert representative.upstream_method == concrete.upstream_method
     assert representative.quota_cost == 1
-    assert representative.auth_mode is AuthMode.API_KEY
+    assert representative.auth_mode is AuthMode.OAUTH_REQUIRED
     assert representative.auth_mode == concrete.auth_mode
     assert representative.input_contract["required"] == ["part", "hl"]
     assert representative.input_contract["required"] == concrete.input_contract["required"]

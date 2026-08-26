@@ -542,7 +542,7 @@ Composite tools must document where they depend on more than one endpoint.
 - `videoAbuseReportReasons_list`
   Endpoint: `videoAbuseReportReasons.list`
   Quota: `1`
-  Auth: `api_key`
+  Auth: `oauth_required`
   Inputs: `part`, `hl`
   Output: near-raw abuse-reason lookup payload
 - `videoCategories_list`

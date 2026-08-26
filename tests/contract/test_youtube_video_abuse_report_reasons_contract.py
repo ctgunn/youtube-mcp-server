@@ -63,20 +63,20 @@ def test_video_abuse_report_reasons_list_contract_metadata_is_safe_and_complete(
     metadata = contract.to_tool_metadata()
     metadata_text = " ".join([metadata["description"], *metadata["usageNotes"], *metadata["caveats"]])
 
-    assert contract.auth_mode is AuthMode.API_KEY
+    assert contract.auth_mode is AuthMode.OAUTH_REQUIRED
     assert contract.availability_state is AvailabilityState.ACTIVE
     assert metadata["name"] == "videoAbuseReportReasons_list"
     assert metadata["resourceFamily"] == "video_abuse_report_reasons"
     assert metadata["upstream"]["operationKey"] == "videoAbuseReportReasons.list"
     assert metadata["quotaCost"] == 1
-    assert metadata["authMode"] == "api_key"
+    assert metadata["authMode"] == "oauth_required"
     assert metadata["inputContract"]["required"] == ["part", "hl"]
     assert metadata["responseConvention"]["resultKind"] == "list"
     assert metadata["responseConvention"]["localizationFields"] == ["hl"]
     assert metadata["responseConvention"]["emptyResultPolicy"] == "empty_success_when_upstream_returns_empty_items"
     assert metadata["responseBoundary"]["boundaryKind"] == "near_raw"
     assert "Quota cost: 1" in metadata_text
-    assert "api_key" in metadata_text
+    assert "oauth_required" in metadata_text
     assert "part" in metadata_text
     assert "hl" in metadata_text
     assert "localization" in metadata_text
@@ -151,7 +151,7 @@ def test_video_abuse_report_reasons_list_validation_failures_are_safe(arguments,
 
 def test_video_abuse_report_reasons_list_maps_quota_failures_without_secret_details():
     """Map upstream quota failures to a safe public category."""
-    handler = build_video_abuse_report_reasons_list_handler(wrapper=QuotaFailingWrapper(), api_key="visible-key")
+    handler = build_video_abuse_report_reasons_list_handler(wrapper=QuotaFailingWrapper(), oauth_token="visible-token")
 
     with pytest.raises(VideoAbuseReportReasonsListToolError) as exc_info:
         handler({"part": "snippet", "hl": "en"})
@@ -184,9 +184,9 @@ def test_video_abuse_report_reasons_configured_dependencies_preserve_public_cont
     """Keep public abuse-reason metadata credential-free after runtime injection."""
     descriptor = build_video_abuse_report_reasons_list_tool_descriptor(
         executor=object(),
-        api_key="configured-api-key",
+        oauth_token="configured-oauth-token",
     )
 
     assert descriptor["name"] == "videoAbuseReportReasons_list"
-    assert descriptor["metadata"]["authMode"] == "api_key"
-    assert "configured-api-key" not in str(descriptor)
+    assert descriptor["metadata"]["authMode"] == "oauth_required"
+    assert "configured-oauth-token" not in str(descriptor)

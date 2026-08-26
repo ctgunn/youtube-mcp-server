@@ -10,7 +10,7 @@ class VideoAbuseReportReasonsListWrapper(RepresentativeEndpointWrapper):
     """Represent the typed Layer 1 wrapper for `videoAbuseReportReasons.list`.
 
     Official quota cost: ``1`` quota unit. The wrapper supports one localized
-    abuse-reason lookup using ``part`` plus ``hl`` on public API-key requests
+    abuse-reason lookup using ``part`` plus ``hl`` on OAuth-authorized requests
     and keeps localization guidance visible for reviewers.
     """
 
@@ -21,7 +21,7 @@ class VideoAbuseReportReasonsListWrapper(RepresentativeEndpointWrapper):
         arguments: dict[str, Any],
         auth_context: AuthContext,
     ) -> dict[str, Any]:
-        """Execute `videoAbuseReportReasons.list` with API-key validation.
+        """Execute `videoAbuseReportReasons.list` with OAuth-required validation.
 
         :param executor: Shared executor for request processing.
         :param arguments: Wrapper arguments to validate and execute.
@@ -29,15 +29,15 @@ class VideoAbuseReportReasonsListWrapper(RepresentativeEndpointWrapper):
         :return: Structured response payload.
         :raises ValueError: If the request requires a different auth mode.
         """
-        if auth_context.mode is not AuthMode.API_KEY:
-            raise ValueError("videoAbuseReportReasons.list requires api_key auth")
+        if not auth_context.requires_oauth_access():
+            raise ValueError("videoAbuseReportReasons.list requires oauth_required auth")
         return super().call(executor, arguments=arguments, auth_context=auth_context)
 
 def build_video_abuse_report_reasons_list_wrapper() -> RepresentativeEndpointWrapper:
     """Build the typed internal wrapper for `videoAbuseReportReasons.list`.
 
     Official quota cost: ``1`` quota unit. The wrapper supports one localized
-    abuse-reason lookup through ``part`` plus ``hl`` on API-key requests and
+    abuse-reason lookup through ``part`` plus ``hl`` on OAuth-authorized requests and
     keeps localization guidance visible.
 
     :return: Representative wrapper configured for `videoAbuseReportReasons.list`.
@@ -50,11 +50,11 @@ def build_video_abuse_report_reasons_list_wrapper() -> RepresentativeEndpointWra
         request_shape=EndpointRequestShape(
             required_fields=("part", "hl"),
         ),
-        auth_mode=AuthMode.API_KEY,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
         quota_cost=1,
         notes=(
-            "Requires `part` plus `hl` for one deterministic localization "
-            "lookup, rejects undocumented modifiers, preserves empty result "
+            "Requires OAuth authorization plus `part` and optional `hl` for one "
+            "deterministic localization lookup, rejects undocumented modifiers, preserves empty result "
             "sets as successful outcomes, and keeps localization guidance "
             "visible for reuse decisions."
         ),

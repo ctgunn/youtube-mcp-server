@@ -171,7 +171,7 @@ class Layer1LocalizationContractTests(unittest.TestCase):
         self.assertEqual(review_surface["operationName"], "list")
         self.assertEqual(review_surface["operationKey"], "videoAbuseReportReasons.list")
         self.assertEqual(review_surface["quotaCost"], 1)
-        self.assertEqual(review_surface["authMode"], "api_key")
+        self.assertEqual(review_surface["authMode"], "oauth_required")
         self.assertEqual(review_surface["requiredFields"], ("part", "hl"))
         self.assertEqual(review_surface["lifecycleState"], "active")
 

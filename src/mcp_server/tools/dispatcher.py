@@ -355,7 +355,7 @@ class InMemoryToolDispatcher:
             build_thumbnails_set_tool_descriptor(**oauth_dependencies),
             build_watermarks_set_tool_descriptor(**oauth_dependencies),
             build_watermarks_unset_tool_descriptor(**oauth_dependencies),
-            build_video_abuse_report_reasons_list_tool_descriptor(**api_key_dependencies),
+            build_video_abuse_report_reasons_list_tool_descriptor(**oauth_dependencies),
             build_video_categories_list_tool_descriptor(**api_key_dependencies),
             build_videos_list_tool_descriptor(**conditional_dependencies),
             build_videos_get_video_tool_descriptor(

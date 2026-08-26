@@ -68,24 +68,24 @@ def test_map_video_abuse_report_reasons_list_result_preserves_near_raw_context()
     assert result["quotaCost"] == 1
     assert result["requestedParts"] == ["snippet", "id"]
     assert result["localization"] == {"hl": "en"}
-    assert result["auth"] == {"mode": "api_key"}
+    assert result["auth"] == {"mode": "oauth_required"}
     assert result["items"] == payload["items"]
     assert result["kind"] == payload["kind"]
     assert result["etag"] == "etag-value"
 
 
-def test_handler_calls_layer1_once_with_api_key_auth_context():
-    """Execute the Layer 1 wrapper once with API-key credentials."""
+def test_handler_calls_layer1_once_with_oauth_auth_context():
+    """Execute the Layer 1 wrapper once with OAuth credentials."""
     wrapper = RecordingWrapper(payload={"items": [{"id": "S", "snippet": {"label": "Spam"}}]})
-    handler = build_video_abuse_report_reasons_list_handler(wrapper=wrapper, api_key="local-key")
+    handler = build_video_abuse_report_reasons_list_handler(wrapper=wrapper, oauth_token="local-token")
 
     result = handler({"part": "snippet", "hl": "en"})
 
     assert result["items"] == [{"id": "S", "snippet": {"label": "Spam"}}]
     assert len(wrapper.calls) == 1
     assert wrapper.calls[0]["arguments"] == {"part": "snippet", "hl": "en"}
-    assert wrapper.calls[0]["auth_context"].mode is Layer1AuthMode.API_KEY
-    assert wrapper.calls[0]["auth_context"].credentials.api_key == "local-key"
+    assert wrapper.calls[0]["auth_context"].mode is Layer1AuthMode.OAUTH_REQUIRED
+    assert wrapper.calls[0]["auth_context"].credentials.oauth_token == "local-token"
 
 
 @pytest.mark.parametrize(
@@ -139,35 +139,35 @@ def test_validation_rejects_unsupported_lookup_workflows(field):
     assert exc_info.value.details["field"] == field
 
 
-def test_handler_rejects_missing_api_key_before_layer1_execution():
-    """Surface API-key access failures without calling Layer 1."""
+def test_handler_rejects_missing_oauth_before_layer1_execution():
+    """Surface OAuth access failures without calling Layer 1."""
     wrapper = RecordingWrapper()
-    handler = build_video_abuse_report_reasons_list_handler(wrapper=wrapper, api_key=None)
+    handler = build_video_abuse_report_reasons_list_handler(wrapper=wrapper, oauth_token=None)
 
     with pytest.raises(VideoAbuseReportReasonsListToolError) as exc_info:
         handler({"part": "snippet", "hl": "en"})
 
     assert exc_info.value.category == "authentication_failed"
-    assert exc_info.value.details == {"authMode": "api_key"}
+    assert exc_info.value.details == {"authMode": "oauth_required"}
     assert wrapper.calls == []
 
 
 def test_handler_maps_layer1_auth_mode_errors_to_safe_access_failure():
     """Map Layer 1 auth-mode failures to sanitized authentication errors."""
-    wrapper = FailingWrapper(ValueError("videoAbuseReportReasons.list requires api_key auth"))
-    handler = build_video_abuse_report_reasons_list_handler(wrapper=wrapper, api_key="local-key")
+    wrapper = FailingWrapper(ValueError("videoAbuseReportReasons.list requires oauth_required auth"))
+    handler = build_video_abuse_report_reasons_list_handler(wrapper=wrapper, oauth_token="local-token")
 
     with pytest.raises(VideoAbuseReportReasonsListToolError) as exc_info:
         handler({"part": "snippet", "hl": "en"})
 
     assert exc_info.value.category == "authentication_failed"
-    assert exc_info.value.details == {"authMode": "api_key"}
+    assert exc_info.value.details == {"authMode": "oauth_required"}
 
 
 def test_handler_returns_empty_success_when_upstream_items_are_empty():
     """Treat empty upstream item collections as successful lookups."""
     wrapper = RecordingWrapper(payload={"items": []})
-    handler = build_video_abuse_report_reasons_list_handler(wrapper=wrapper, api_key="local-key")
+    handler = build_video_abuse_report_reasons_list_handler(wrapper=wrapper, oauth_token="local-token")
 
     result = handler({"part": "snippet", "hl": "fr"})
 
@@ -206,7 +206,7 @@ def test_handler_maps_and_sanitizes_upstream_failures(upstream_category, expecte
             },
         )
     )
-    handler = build_video_abuse_report_reasons_list_handler(wrapper=wrapper, api_key="local-key")
+    handler = build_video_abuse_report_reasons_list_handler(wrapper=wrapper, oauth_token="local-token")
 
     with pytest.raises(VideoAbuseReportReasonsListToolError) as exc_info:
         handler({"part": "snippet", "hl": "en"})

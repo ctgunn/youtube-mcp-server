@@ -50,11 +50,11 @@ VIDEO_ABUSE_REPORT_REASONS_LIST_INPUT_SCHEMA = {
 
 VIDEO_ABUSE_REPORT_REASONS_LIST_DESCRIPTION = (
     "List localized YouTube video abuse report reasons. Endpoint: videoAbuseReportReasons.list. "
-    "Quota cost: 1. Auth: api_key. Requires part and hl."
+    "Quota cost: 1. Auth: oauth_required. Requires part and optional hl."
 )
 
 VIDEO_ABUSE_REPORT_REASONS_LIST_USAGE_NOTES = (
-    "Quota cost: 1. Auth: api_key. Provide part, usually snippet, and hl for the desired localization.",
+    "Quota cost: 1. Auth: oauth_required. Provide part, usually snippet, and optional hl for the desired localization.",
     "Quota cost: 1. Empty upstream items are returned as a successful empty reason list.",
     "Quota cost: 1. This lookup is read-only metadata for abuse-report reason labels and descriptions.",
 )
@@ -113,7 +113,7 @@ VIDEO_ABUSE_REPORT_REASONS_LIST_CALLER_EXAMPLES = (
     },
     {
         "name": "access_failure",
-        "description": "Quota cost: 1. Missing API-key access is reported as an authentication failure.",
+        "description": "Quota cost: 1. Missing OAuth authorization is reported as an authentication failure.",
         "arguments": {"part": "snippet", "hl": "en"},
         "errorCategory": "authentication_failed",
     },
@@ -261,7 +261,7 @@ def map_video_abuse_report_reasons_list_result(payload: dict[str, Any], argument
         "quotaCost": VIDEO_ABUSE_REPORT_REASONS_LIST_QUOTA_COST,
         "requestedParts": _split_parts(normalized["part"]),
         "localization": {"hl": normalized["hl"]},
-        "auth": {"mode": "api_key"},
+        "auth": {"mode": "oauth_required"},
         "items": items,
         "empty": not bool(items),
     }
@@ -292,26 +292,29 @@ def _map_upstream_error(error: NormalizedUpstreamError) -> VideoAbuseReportReaso
     return VideoAbuseReportReasonsListToolError(safe_upstream_error_message(), category=category, details=error.details or {})
 
 
-def _api_key_auth_context(api_key: str | None) -> AuthContext:
-    """Build the Layer 1 API-key auth context.
+def _oauth_auth_context(oauth_token: str | None) -> AuthContext:
+    """Build the Layer 1 OAuth auth context.
 
-    :param api_key: API key credential value.
-    :return: Layer 1 auth context for API-key execution.
-    :raises VideoAbuseReportReasonsListToolError: If API-key access is missing.
+    :param oauth_token: OAuth credential value.
+    :return: Layer 1 auth context for OAuth-authorized execution.
+    :raises VideoAbuseReportReasonsListToolError: If OAuth access is missing.
     """
-    if not isinstance(api_key, str) or not api_key.strip():
+    if not isinstance(oauth_token, str) or not oauth_token.strip():
         raise VideoAbuseReportReasonsListToolError(
-            "videoAbuseReportReasons_list requires API-key access",
+            "videoAbuseReportReasons_list requires eligible OAuth authorization",
             category="authentication_failed",
-            details={"authMode": "api_key"},
+            details={"authMode": "oauth_required"},
         )
     try:
-        return AuthContext(mode=Layer1AuthMode.API_KEY, credentials=CredentialBundle(api_key=api_key.strip()))
+        return AuthContext(
+            mode=Layer1AuthMode.OAUTH_REQUIRED,
+            credentials=CredentialBundle(oauth_token=oauth_token.strip()),
+        )
     except ValueError as exc:
         raise VideoAbuseReportReasonsListToolError(
-            "videoAbuseReportReasons_list requires API-key access",
+            "videoAbuseReportReasons_list requires eligible OAuth authorization",
             category="authentication_failed",
-            details={"authMode": "api_key"},
+            details={"authMode": "oauth_required"},
         ) from exc
 
 
@@ -354,7 +357,7 @@ def build_video_abuse_report_reasons_list_contract() -> YouTubeToolContract:
         upstream_method="list",
         operation_key="videoAbuseReportReasons.list",
         description=VIDEO_ABUSE_REPORT_REASONS_LIST_DESCRIPTION,
-        auth_mode=AuthMode.API_KEY,
+        auth_mode=AuthMode.OAUTH_REQUIRED,
         quota_cost=VIDEO_ABUSE_REPORT_REASONS_LIST_QUOTA_COST,
         resource_family="video_abuse_report_reasons",
         input_contract=VIDEO_ABUSE_REPORT_REASONS_LIST_INPUT_SCHEMA,
@@ -410,13 +413,13 @@ def build_video_abuse_report_reasons_list_handler(
     *,
     wrapper=None,
     executor: IntegrationExecutor | object | None = None,
-    api_key: str | None = "local-api-key",
+    oauth_token: str | None = "local-oauth-token",
 ):
     """Build the callable handler for ``videoAbuseReportReasons_list``.
 
     :param wrapper: Optional Layer 1 wrapper override for tests.
     :param executor: Optional executor override for tests.
-    :param api_key: API key value used to construct safe API-key auth context.
+    :param oauth_token: OAuth token used to construct safe OAuth auth context.
     :return: Callable that validates, executes, and maps reason-list lookups.
     """
     selected_wrapper = wrapper or build_video_abuse_report_reasons_list_wrapper()
@@ -430,7 +433,7 @@ def build_video_abuse_report_reasons_list_handler(
         :raises VideoAbuseReportReasonsListToolError: If validation or execution fails.
         """
         normalized = validate_video_abuse_report_reasons_list_arguments(arguments)
-        auth_context = _api_key_auth_context(api_key)
+        auth_context = _oauth_auth_context(oauth_token)
         try:
             payload = selected_wrapper.call(
                 selected_executor,
@@ -443,7 +446,7 @@ def build_video_abuse_report_reasons_list_handler(
             raise VideoAbuseReportReasonsListToolError(
                 str(exc),
                 category="authentication_failed",
-                details={"authMode": "api_key"},
+                details={"authMode": "oauth_required"},
             ) from exc
         return map_video_abuse_report_reasons_list_result(payload, normalized)
 
@@ -454,13 +457,13 @@ def build_video_abuse_report_reasons_list_tool_descriptor(
     *,
     wrapper=None,
     executor: IntegrationExecutor | object | None = None,
-    api_key: str | None = "local-api-key",
+    oauth_token: str | None = "local-oauth-token",
 ) -> dict[str, Any]:
     """Build the MCP tool descriptor for ``videoAbuseReportReasons_list``.
 
     :param wrapper: Optional Layer 1 wrapper override for tests.
     :param executor: Optional executor override for tests.
-    :param api_key: API key value used by the default handler.
+    :param oauth_token: OAuth token used by the default handler.
     :return: Descriptor consumable by the in-memory dispatcher.
     """
     contract = build_video_abuse_report_reasons_list_contract()
@@ -473,7 +476,7 @@ def build_video_abuse_report_reasons_list_tool_descriptor(
         "handler": build_video_abuse_report_reasons_list_handler(
             wrapper=wrapper,
             executor=executor,
-            api_key=api_key,
+            oauth_token=oauth_token,
         ),
         "metadata": metadata,
     }
