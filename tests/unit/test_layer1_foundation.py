@@ -801,7 +801,7 @@ class Layer1FoundationUnitTests(unittest.TestCase):
         self.assertEqual(wrapper.metadata.operation_key, "videoAbuseReportReasons.list")
         self.assertEqual(wrapper.metadata.path_shape, "/youtube/v3/videoAbuseReportReasons")
         self.assertEqual(wrapper.metadata.quota_cost, 1)
-        self.assertEqual(wrapper.metadata.review_auth_mode, "api_key")
+        self.assertEqual(wrapper.metadata.review_auth_mode, "oauth_required")
         self.assertEqual(wrapper.metadata.lifecycle_state, "active")
         self.assertEqual(wrapper.metadata.request_shape.required_fields, ("part", "hl"))
         self.assertEqual(wrapper.metadata.request_shape.optional_fields, ())
@@ -834,8 +834,8 @@ class Layer1FoundationUnitTests(unittest.TestCase):
             executor,
             arguments={"part": "snippet", "hl": "en_US"},
             auth_context=AuthContext(
-                mode=AuthMode.API_KEY,
-                credentials=CredentialBundle(api_key="key-123"),
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
             ),
         )
 
@@ -850,20 +850,20 @@ class Layer1FoundationUnitTests(unittest.TestCase):
                 {"part": "snippet", "hl": "en_US", "pageToken": "cursor-1"}
             )
 
-    def test_video_abuse_report_reasons_list_wrapper_requires_api_key_mode(self):
+    def test_video_abuse_report_reasons_list_wrapper_requires_oauth_mode(self):
         wrapper = wrappers_module.build_video_abuse_report_reasons_list_wrapper()
         executor = IntegrationExecutor(
             transport=lambda _execution: {"items": []},
             retry_policy=RetryPolicy(max_attempts=1),
         )
 
-        with self.assertRaisesRegex(ValueError, "videoAbuseReportReasons.list requires api_key auth"):
+        with self.assertRaisesRegex(ValueError, "videoAbuseReportReasons.list requires oauth_required auth"):
             wrapper.call(
                 executor,
                 arguments={"part": "snippet", "hl": "en_US"},
                 auth_context=AuthContext(
-                    mode=AuthMode.OAUTH_REQUIRED,
-                    credentials=CredentialBundle(oauth_token="oauth-123"),
+                    mode=AuthMode.API_KEY,
+                    credentials=CredentialBundle(api_key="key-123"),
                 ),
             )
 

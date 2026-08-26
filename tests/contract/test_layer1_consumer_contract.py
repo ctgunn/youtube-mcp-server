@@ -596,8 +596,8 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         result = consumer.fetch_video_abuse_report_reasons_summary(
             arguments={"part": "snippet", "hl": "en_US"},
             auth_context=AuthContext(
-                mode=AuthMode.API_KEY,
-                credentials=CredentialBundle(api_key="key-123"),
+                mode=AuthMode.OAUTH_REQUIRED,
+                credentials=CredentialBundle(oauth_token="oauth-123"),
             ),
         )
 
@@ -605,7 +605,7 @@ class Layer1ConsumerContractTests(unittest.TestCase):
         self.assertFalse(result["isEmpty"])
         self.assertEqual(result["hl"], "en_US")
         self.assertEqual(result["sourceOperation"], "videoAbuseReportReasons.list")
-        self.assertEqual(result["sourceAuthMode"], "api_key")
+        self.assertEqual(result["sourceAuthMode"], "oauth_required")
         self.assertEqual(result["sourceQuotaCost"], 1)
         self.assertIn("localization", result["sourceNotes"])
         self.assertIn("hl", result["sourceNotes"])

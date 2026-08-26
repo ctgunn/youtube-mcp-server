@@ -1514,7 +1514,7 @@ def test_video_abuse_report_reasons_list_contract_uses_existing_resource_family(
     assert metadata["resourceFamily"] == "video_abuse_report_reasons"
     assert metadata["upstream"]["operationKey"] == "videoAbuseReportReasons.list"
     assert metadata["quotaCost"] == 1
-    assert metadata["authMode"] == "api_key"
+    assert metadata["authMode"] == "oauth_required"
     assert metadata["inputContract"]["required"] == ["part", "hl"]
     assert metadata["responseConvention"]["resultKind"] == "list"
     assert metadata["responseConvention"]["localizationFields"] == ["hl"]

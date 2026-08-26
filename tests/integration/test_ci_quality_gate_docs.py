@@ -46,11 +46,32 @@ class CiQualityGateDocumentationTests(unittest.TestCase):
         content = Path("README.md").read_text()
         for required_text in (
             "make test-tools",
+            "make test-runtime",
+            "make test-live-smoke",
             "make test",
             "live smoke",
             "credential",
+            "quota",
+            "upstream",
         ):
             self.assertIn(required_text, content)
+
+    def test_live_smoke_is_not_part_of_ordinary_quality_or_hosted_gates(self) -> None:
+        """Require manual live-smoke execution to remain outside normal automation.
+
+        :return: ``None`` after checking Make and workflow execution boundaries.
+        """
+        makefile = Path("Makefile").read_text()
+        quality_workflow = Path(".github/workflows/quality.yml").read_text()
+        hosted_workflow = Path(".github/workflows/hosted-deploy.yml").read_text()
+        self.assertIn("test-runtime:", makefile)
+        self.assertIn("test-live-smoke:", makefile)
+        self.assertIn(".env.local", makefile)
+        self.assertIn(".env", makefile)
+        self.assertNotIn("test-live-smoke: test", makefile)
+        self.assertNotIn("test-live-smoke: quality", makefile)
+        self.assertNotIn("RUN_YOUTUBE_LIVE_SMOKE", quality_workflow)
+        self.assertNotIn("RUN_YOUTUBE_LIVE_SMOKE", hosted_workflow)
 
 
 if __name__ == "__main__":

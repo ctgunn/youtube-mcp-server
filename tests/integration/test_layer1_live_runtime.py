@@ -183,7 +183,7 @@ class Layer1LiveRuntimeIntegrationTests(unittest.TestCase):
                 "videoAbuseReportReasons_list",
                 {"part": "snippet", "hl": "en"},
                 "/youtube/v3/videoAbuseReportReasons",
-                "api_key",
+                "oauth",
                 "GET",
             ),
             (

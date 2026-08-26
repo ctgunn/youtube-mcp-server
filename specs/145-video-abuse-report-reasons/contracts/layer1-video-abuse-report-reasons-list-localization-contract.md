@@ -8,7 +8,7 @@ Define how maintainers and future higher-layer authors should interpret `videoAb
 
 Higher-layer planning and review consumers may rely on:
 
-- visible API-key access behavior for the supported localized lookup path
+- visible OAuth authorization requirement for the supported localized lookup path
 - explicit `part` plus `hl` guidance for the supported request shape
 - review surfaces that keep `authMode`, `quotaCost`, endpoint identity, and request-boundary notes visible together
 - successful empty results remaining distinct from invalid requests

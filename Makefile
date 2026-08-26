@@ -10,7 +10,7 @@ dev-down:
 
 PYTHON ?= python3
 
-.PHONY: lint typecheck test test-tools quality
+.PHONY: lint typecheck test test-tools test-runtime test-live-smoke quality
 
 lint:
 	$(PYTHON) -m ruff check .
@@ -23,6 +23,16 @@ test:
 
 test-tools:
 	PYTHONPATH=src $(PYTHON) -m pytest tests/integration/test_mcp_tool_catalog_endpoints.py
+
+test-runtime:
+	PYTHONPATH=src $(PYTHON) -m pytest tests/integration/test_mcp_configured_runtime_matrix.py
+
+test-live-smoke:
+	@set -a; \
+	if [ -f .env.local ]; then . ./.env.local; \
+	elif [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	PYTHONPATH=src $(PYTHON) scripts/verify_youtube_live.py
 
 quality:
 	$(MAKE) lint

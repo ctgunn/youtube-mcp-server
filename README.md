@@ -74,15 +74,59 @@ no outbound YouTube request, and performs no destructive external mutation.
 It is a release-verification check for the default catalog, not proof that a
 configured runtime can access YouTube.
 
+## Verify configured YouTube runtime capability
+
+Run the deterministic configured-runtime matrix when changing YouTube runtime
+configuration, credential selection, or the live execution boundary:
+
+```bash
+make test-runtime
+```
+
+It discovers public YouTube families through MCP and checks API-key executable,
+OAuth-required, and unavailable-capability outcomes through the same public
+route. It uses controlled request construction, makes no outbound YouTube
+request, and does not need a real credential. This verification is distinct
+from both `make test-tools` catalog coverage and the optional live smoke below.
+
+## Run the optional read-only YouTube live smoke
+
+The live smoke is manual and opt-in. It consumes YouTube quota, depends on
+upstream availability, and must be run only by an approved operator with a
+real API key. It invokes all 12 explicitly reviewed API-key public-read endpoint
+tools with bounded public fixtures. It excludes mutations, uploads, downloads,
+deletes, ratings, reports, moderation actions, OAuth-required, owner-only,
+retrieval, and baseline-server operations. The `comments_list` check derives one
+public parent-comment identifier in memory from the approved
+`commentThreads_list` fixture; it never prints that identifier or any response body.
+
+```bash
+# In .env.local (or .env):
+YOUTUBE_API_KEY='operator-supplied-value'
+RUN_YOUTUBE_LIVE_SMOKE=1
+
+# Then, from the repository root:
+make test-live-smoke
+```
+
+Without both prerequisites, the command fails before constructing the app or
+making a live request. Its output redacts credentials, authorization material,
+request inputs, headers, and upstream response bodies. It is not included in
+`make test`, `make quality`, CI, or automated deployment gates. This local
+configured-runtime smoke does not verify a running remote MCP endpoint; that
+operator workflow is reserved for OPS-405.
+
+The command sources `.env.local` first and falls back to `.env` when the local
+file is absent. Both files are ignored by Git; never commit real credentials.
+
 Run the complete repository test suite with:
 
 ```bash
 make test
 ```
 
-The credential-gated live smoke test is separate and opt-in. It is read-only,
-requires `RUN_YOUTUBE_LIVE_SMOKE=1` and a real `YOUTUBE_API_KEY`, and must not
-be included in `make test-tools`.
+The credential-gated live smoke remains separate from the complete repository
+test suite and must not be included in `make test-tools`.
 
 ## Test hosted-like sessions locally
 
