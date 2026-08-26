@@ -13,3 +13,6 @@ def test_monitoring_policy_uses_bounded_incident_metric_and_operator_channels():
     assert "hardening.alert_incident" in content
     assert "google_monitoring_alert_policy" in content
     assert "alert_notification_channel_ids" in content
+    assert 'jsonPayload.state=\\"active\\"' in content
+    assert "value_extractor" not in content
+    assert "depends_on = [google_logging_metric.mcp_hardening_incident]" in content

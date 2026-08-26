@@ -2,10 +2,10 @@ resource "google_logging_metric" "mcp_hardening_incident" {
   name        = "mcp_hardening_incident"
   description = "Bounded application incident-state events for the MCP service."
 
-  filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.event=\"hardening.alert_incident\""
+  filter = "resource.type=\"cloud_run_revision\" AND jsonPayload.event=\"hardening.alert_incident\" AND jsonPayload.state=\"active\""
 
   metric_descriptor {
-    metric_kind = "GAUGE"
+    metric_kind = "DELTA"
     value_type  = "INT64"
     unit        = "1"
 
@@ -19,8 +19,6 @@ resource "google_logging_metric" "mcp_hardening_incident" {
   label_extractors = {
     "condition" = "EXTRACT(jsonPayload.condition)"
   }
-
-  value_extractor = "EXTRACT(jsonPayload.observedValue)"
 }
 
 resource "google_monitoring_alert_policy" "mcp_hardening_incident" {
@@ -45,6 +43,8 @@ resource "google_monitoring_alert_policy" "mcp_hardening_incident" {
   }
 
   notification_channels = var.alert_notification_channel_ids
+
+  depends_on = [google_logging_metric.mcp_hardening_incident]
 
   documentation {
     content   = "Investigate bounded MCP incident state using the production-hardening runbook. ${var.alert_runbook_url}"
