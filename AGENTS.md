@@ -240,6 +240,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-01
 - N/A — fixture definitions and per-run coverage state remain in test-process memory (403-layer4-tool-catalog)
 - Python 3.11 + Python standard library; existing MCP transport and protocol router; existing configured YouTube runtime; pytest; Make (404-layer4-runtime-verification)
 - N/A — matrix cases, captured request facts, allowlist entries, and reports remain in process memory (404-layer4-runtime-verification)
+- Python 3.11 + Python standard library (`argparse`, `dataclasses`, `json`, `urllib`); existing local live-smoke allowlist; existing hosted MCP transport/protocol conventions; pytest; Make (405-remote-live-smoke)
+- N/A — sessions, catalog facts, derived public fixtures, and redacted reports are held only for one process run; no persistence is added (405-remote-live-smoke)
 
 - Python 3.11 + FastAPI, Pydantic v2, Uvicorn (001-mcp-transport-handshake)
 
@@ -260,9 +262,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions and require reStructuredText docstrings for all new or changed functions
 
 ## Recent Changes
+- 405-remote-live-smoke: Added Python 3.11 + Python standard library (`argparse`, `dataclasses`, `json`, `urllib`); existing local live-smoke allowlist; existing hosted MCP transport/protocol conventions; pytest; Make
 - 404-layer4-runtime-verification: Added Python 3.11 + Python standard library; existing MCP transport and protocol router; existing configured YouTube runtime; pytest; Make
 - 403-layer4-tool-catalog: Added Python 3.11 + Python standard library; existing MCP transport, protocol router, and in-memory tool dispatcher; pytest; Make
-- 402-production-hardening: Added Python 3.11 + FastAPI, Pydantic v2, Uvicorn, Redis client, Python standard library, Terraform Google provider
 
 
 <!-- MANUAL ADDITIONS START -->

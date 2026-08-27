@@ -128,6 +128,64 @@ make test
 The credential-gated live smoke remains separate from the complete repository
 test suite and must not be included in `make test-tools`.
 
+## Run the optional remote MCP read-only live smoke
+
+This fourth verification workflow is manual and opt-in. It connects to an
+already running remote MCP endpoint, initializes a remote session, discovers
+the deployed catalog, and invokes only the 12 explicitly reviewed API-key
+public-read tools through the public transport. It validates the remote
+endpoint's authorization, session, selected handlers, and live YouTube path;
+it does not instantiate the local application as a substitute.
+
+Use only an approved staging or production endpoint after deployment. The
+workflow consumes YouTube quota and depends on both remote endpoint and
+upstream availability. It is never included in `make test`, `make quality`,
+CI, or automated deployment gates.
+
+```bash
+# In .env.local (or .env):
+RUN_REMOTE_MCP_LIVE_SMOKE=1
+REMOTE_MCP_URL='approved-remote-mcp-url'
+# Set MCP_AUTH_TOKEN only if the selected remote endpoint requires bearer authorization.
+MCP_AUTH_TOKEN='operator-supplied-value'
+REMOTE_MCP_AUTH_REQUIRED=1
+
+# Then, run both reviewed remote suites from the repository root:
+make test-remote-live-smoke
+```
+
+The command fails before any remote request when opt-in authorization or the
+remote endpoint is absent, and it requires `MCP_AUTH_TOKEN` before a request
+when `REMOTE_MCP_AUTH_REQUIRED=1`. It retains the remote MCP session only in
+memory and prints a compact selected-tool report plus passed, excluded, and
+request-bound summaries. Its output never includes tokens,
+authorization headers, session identifiers, request arguments, raw URLs,
+exception text, or upstream response bodies.
+
+To exercise either reviewed layer independently with the same authorization
+settings, run:
+
+```bash
+make test-remote-layer2-live-smoke
+make test-remote-layer3-live-smoke
+```
+
+The Layer 3 suite is bounded to 10 API-key-compatible public fixtures. It excludes
+OAuth caption/transcript workflows and higher-cost search/enrichment fan-out.
+
+Use the correct verification boundary for the question at hand:
+
+- `make test-tools` is deterministic catalog verification with no external calls.
+- `make test-runtime` is deterministic configured-runtime verification with controlled requests.
+- `make test-live-smoke` is local live smoke against a configured local application.
+- `make test-remote-live-smoke` runs the independently bounded Layer 2 and Layer 3 remote smoke suites against a running MCP endpoint.
+- `make test-remote-layer2-live-smoke` runs the reviewed Layer 2 API-key public-read suite only.
+- `make test-remote-layer3-live-smoke` runs the reviewed Layer 3 API-key public-read suite only.
+
+If remote live smoke reports a safe availability or actionable failure, record
+only its safe tool/category summary. Review endpoint authorization, deployment
+health, quota, and upstream status privately, then retry only after approval.
+
 ## Test hosted-like sessions locally
 
 Use this optional path only when you need Redis-backed durable-session testing,
