@@ -73,6 +73,42 @@ class CiQualityGateDocumentationTests(unittest.TestCase):
         self.assertNotIn("RUN_YOUTUBE_LIVE_SMOKE", quality_workflow)
         self.assertNotIn("RUN_YOUTUBE_LIVE_SMOKE", hosted_workflow)
 
+    def test_remote_live_smoke_is_documented_and_kept_out_of_ordinary_gates(self) -> None:
+        """Require remote smoke to remain a manual, credential-safe fourth boundary.
+
+        :return: ``None`` after checking remote command/docs and automation exclusion.
+        :raises AssertionError: If remote smoke becomes automatic or undocumented.
+        """
+        makefile = Path("Makefile").read_text()
+        readme = Path("README.md").read_text()
+        quality_workflow = Path(".github/workflows/quality.yml").read_text()
+        hosted_workflow = Path(".github/workflows/hosted-deploy.yml").read_text()
+        for required_text in (
+            "test-remote-live-smoke:",
+            "verify_remote_mcp_live_smoke.py",
+            ".env.local",
+            ".env",
+        ):
+            self.assertIn(required_text, makefile)
+        for required_text in (
+            "make test-remote-live-smoke",
+            "RUN_REMOTE_MCP_LIVE_SMOKE=1",
+            "REMOTE_MCP_URL",
+            "REMOTE_MCP_AUTH_REQUIRED=1",
+            "remote MCP endpoint",
+            "catalog verification",
+            "configured-runtime verification",
+            "local live smoke",
+            "quota",
+            "upstream",
+            "authorization",
+        ):
+            self.assertIn(required_text, readme)
+        self.assertNotIn("test-remote-live-smoke: test", makefile)
+        self.assertNotIn("test-remote-live-smoke: quality", makefile)
+        self.assertNotIn("RUN_REMOTE_MCP_LIVE_SMOKE", quality_workflow)
+        self.assertNotIn("RUN_REMOTE_MCP_LIVE_SMOKE", hosted_workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

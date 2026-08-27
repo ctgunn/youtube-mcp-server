@@ -60,6 +60,16 @@ class IaCFoundationContractTests(unittest.TestCase):
         for pattern in (".terraform/", "*.tfstate", "*.tfvars", ".terraform.lock.hcl"):
             self.assertIn(pattern, ignore)
 
+    def test_direct_vpc_egress_preserves_public_youtube_api_access(self):
+        """Require only private traffic to use the durable-session VPC path.
+
+        :return: ``None`` after preventing public upstream traffic from requiring Cloud NAT.
+        """
+        main = Path("infrastructure/gcp/main.tf").read_text()
+
+        self.assertIn('egress = "PRIVATE_RANGES_ONLY"', main)
+        self.assertNotIn('egress = "ALL_TRAFFIC"', main)
+
     def test_local_dependency_assets_define_redis_backed_workflow(self):
         """Require checked-in local templates to describe the Redis workflow.
 

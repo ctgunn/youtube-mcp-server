@@ -5,18 +5,18 @@ locals {
   existing_secret_names          = toset(compact(split(",", lookup(data.external.secret_inventory.result, "existing_secret_names", ""))))
   missing_secret_names           = toset([for name in var.secret_names : name if !contains(local.existing_secret_names, name)])
   runtime_env = {
-    MCP_ENVIRONMENT                 = var.environment
-    MCP_SECRET_ACCESS_MODE          = var.secret_access_mode
-    MCP_SECRET_REFERENCE_NAMES      = join(",", var.secret_names)
-    PUBLIC_INVOCATION_INTENT        = var.public_invocation_intent
-    MCP_AUTH_REQUIRED               = tostring(var.mcp_auth_required)
-    MCP_ALLOWED_ORIGINS             = var.mcp_allowed_origins
-    MCP_ALLOW_ORIGINLESS_CLIENTS    = tostring(var.mcp_allow_originless_clients)
-    MCP_SESSION_BACKEND             = var.session_backend
-    MCP_SESSION_CONNECTIVITY_MODEL  = var.session_connectivity_model
-    MCP_SESSION_DURABILITY_REQUIRED = tostring(var.session_durability_required)
-    MCP_SESSION_TTL_SECONDS         = tostring(var.session_ttl_seconds)
-    MCP_SESSION_REPLAY_TTL_SECONDS  = tostring(var.session_replay_ttl_seconds)
+    MCP_ENVIRONMENT                               = var.environment
+    MCP_SECRET_ACCESS_MODE                        = var.secret_access_mode
+    MCP_SECRET_REFERENCE_NAMES                    = join(",", var.secret_names)
+    PUBLIC_INVOCATION_INTENT                      = var.public_invocation_intent
+    MCP_AUTH_REQUIRED                             = tostring(var.mcp_auth_required)
+    MCP_ALLOWED_ORIGINS                           = var.mcp_allowed_origins
+    MCP_ALLOW_ORIGINLESS_CLIENTS                  = tostring(var.mcp_allow_originless_clients)
+    MCP_SESSION_BACKEND                           = var.session_backend
+    MCP_SESSION_CONNECTIVITY_MODEL                = var.session_connectivity_model
+    MCP_SESSION_DURABILITY_REQUIRED               = tostring(var.session_durability_required)
+    MCP_SESSION_TTL_SECONDS                       = tostring(var.session_ttl_seconds)
+    MCP_SESSION_REPLAY_TTL_SECONDS                = tostring(var.session_replay_ttl_seconds)
     MCP_RATE_LIMIT_IDENTIFIED_REQUESTS_PER_MINUTE = tostring(var.rate_limit_identified_requests_per_minute)
     MCP_RATE_LIMIT_ANONYMOUS_REQUESTS_PER_MINUTE  = tostring(var.rate_limit_anonymous_requests_per_minute)
     MCP_RATE_LIMIT_WINDOW_SECONDS                 = tostring(var.rate_limit_window_seconds)
@@ -72,7 +72,7 @@ resource "google_cloud_run_v2_service" "service" {
     max_instance_request_concurrency = var.concurrency
 
     vpc_access {
-      egress = "ALL_TRAFFIC"
+      egress = "PRIVATE_RANGES_ONLY"
 
       network_interfaces {
         network    = google_compute_network.hosted.id

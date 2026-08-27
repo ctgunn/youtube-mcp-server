@@ -10,7 +10,7 @@ dev-down:
 
 PYTHON ?= python3
 
-.PHONY: lint typecheck test test-tools test-runtime test-live-smoke quality
+.PHONY: lint typecheck test test-tools test-runtime test-live-smoke test-remote-live-smoke test-remote-layer2-live-smoke test-remote-layer3-live-smoke quality
 
 lint:
 	$(PYTHON) -m ruff check .
@@ -33,6 +33,27 @@ test-live-smoke:
 	elif [ -f .env ]; then . ./.env; fi; \
 	set +a; \
 	PYTHONPATH=src $(PYTHON) scripts/verify_youtube_live.py
+
+test-remote-live-smoke:
+	@set -a; \
+	if [ -f .env.local ]; then . ./.env.local; \
+	elif [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	PYTHONPATH=src $(PYTHON) scripts/verify_remote_mcp_live_smoke.py --all
+
+test-remote-layer2-live-smoke:
+	@set -a; \
+	if [ -f .env.local ]; then . ./.env.local; \
+	elif [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	PYTHONPATH=src $(PYTHON) scripts/verify_remote_mcp_live_smoke.py --layer2
+
+test-remote-layer3-live-smoke:
+	@set -a; \
+	if [ -f .env.local ]; then . ./.env.local; \
+	elif [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	PYTHONPATH=src $(PYTHON) scripts/verify_remote_mcp_live_smoke.py --layer3
 
 quality:
 	$(MAKE) lint
